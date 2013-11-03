@@ -1,0 +1,4329 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/commands
+@node Command Loop, Keymaps, Minibuffers, Top
+@c @chapter Command Loop
+@chapter コマンドループ
+@c @cindex editor command loop
+@c @cindex command loop
+@cindex エディタコマンドループ
+@cindex コマンドループ
+
+@c   When you run Emacs, it enters the @dfn{editor command loop} almost
+@c immediately.  This loop reads key sequences, executes their definitions,
+@c and displays the results.  In this chapter, we describe how these things
+@c are done, and the subroutines that allow Lisp programs to do them.  
+読者がEmacsを起動すると、Emacsはほぼただちに@dfn{エディタコマンドループ}
+（editor command loop）に入ります。
+このループは、キー列を読み取り、それらの定義を実行し、結果を表示します。
+本章では、これがどのように行われるのか、および、
+Lispプログラムからこれを行うためのサブルーティンについて述べます。
+
+@menu
+* Command Overview::    How the command loop reads commands.
+* Defining Commands::   Specifying how a function should read arguments.
+* Interactive Call::    Calling a command, so that it will read arguments.
+* Command Loop Info::   Variables set by the command loop for you to examine.
+* Input Events::	What input looks like when you read it.
+* Reading Input::       How to read input events from the keyboard or mouse.
+* Special Events::      Events processed immediately and individually.
+* Waiting::             Waiting for user input or elapsed time.
+* Quitting::            How @kbd{C-g} works.  How to catch or defer quitting.
+* Prefix Command Arguments::    How the commands to set prefix args work.
+* Recursive Editing::   Entering a recursive edit,
+                          and why you usually shouldn't.
+* Disabling Commands::  How the command loop handles disabled commands.
+* Command History::     How the command history is set up, and how accessed.
+* Keyboard Macros::     How keyboard macros are implemented.
+@end menu
+
+@node Command Overview
+@c @section Command Loop Overview
+@section コマンドループの概要
+
+@c   The first thing the command loop must do is read a key sequence, which
+@c is a sequence of events that translates into a command.  It does this by
+@c calling the function @code{read-key-sequence}.  Your Lisp code can also
+@c call this function (@pxref{Key Sequence Input}).  Lisp programs can also
+@c do input at a lower level with @code{read-event} (@pxref{Reading One
+@c Event}) or discard pending input with @code{discard-input}
+@c (@pxref{Event Input Misc}).
+コマンドループがまず始めに行うことはキー列、
+つまり、コマンドへ変換されるイベント列を読むことです。
+これには関数@code{read-key-sequence}を呼び出します。
+読者のLispコードでもこの関数を呼び出せます（@pxref{Key Sequence Input}）。
+Lispプログラムでは、@code{read-event}（@pxref{Reading One Event}）で
+低レベルの入力を行ったり、
+@code{discard-input}（@pxref{Event Input Misc}）で
+処理待ち中の入力を破棄できます。
+
+@c   The key sequence is translated into a command through the currently
+@c active keymaps.  @xref{Key Lookup}, for information on how this is done.
+@c The result should be a keyboard macro or an interactively callable
+@c function.  If the key is @kbd{M-x}, then it reads the name of another
+@c command, which it then calls.  This is done by the command
+@c @code{execute-extended-command} (@pxref{Interactive Call}).
+キー列は現在活性なキーマップを介してコマンドに変換されます。
+この処理方法については@xref{Key Lookup}。
+この結果は、キーボードマクロであるか、
+対話的に呼び出し可能な関数であるはずです。
+キーが@kbd{M-x}であると、別のコマンドの名前を読み取り、
+そのコマンドを呼び出します。
+これはコマンド@code{execute-extended-command}（@pxref{Interactive Call}）で
+処理されます。
+
+@c   To execute a command requires first reading the arguments for it.
+@c This is done by calling @code{command-execute} (@pxref{Interactive
+@c Call}).  For commands written in Lisp, the @code{interactive}
+@c specification says how to read the arguments.  This may use the prefix
+@c argument (@pxref{Prefix Command Arguments}) or may read with prompting
+@c in the minibuffer (@pxref{Minibuffers}).  For example, the command
+@c @code{find-file} has an @code{interactive} specification which says to
+@c read a file name using the minibuffer.  The command's function body does
+@c not use the minibuffer; if you call this command from Lisp code as a
+@c function, you must supply the file name string as an ordinary Lisp
+@c function argument.
+コマンドを実行するには、まず、その引数を読む必要があります。
+これは、@code{command-execute}（@pxref{Interactive Call}）を呼び出して
+行います。
+Lispで書かれたコマンドでは、
+@code{interactive}指定が引数の読み方を指示します。
+前置引数（@pxref{Prefix Command Arguments}）を使ったり、
+プロンプトを表示してミニバッファ（@pxref{Minibuffers}）から読みます。
+たとえば、コマンド@code{find-file}には、
+ミニバッファからファイル名を読むことを指示した
+@code{interactive}指定があります。
+コマンドの関数本体ではミニバッファを使いません。
+このコマンドをLispコードから関数として呼び出す場合、
+通常のLisp関数の引数としてファイル名文字列を指定する必要があります。
+
+@c   If the command is a string or vector (i.e., a keyboard macro) then
+@c @code{execute-kbd-macro} is used to execute it.  You can call this
+@c function yourself (@pxref{Keyboard Macros}).
+コマンドが文字列やベクトル（つまり、キーボードマクロ）である場合、
+@code{execute-kbd-macro}を用いてそれらを実行します。
+読者自身がこの関数を呼び出してもかまいません（@pxref{Keyboard Macros}）。
+
+@c   To terminate the execution of a running command, type @kbd{C-g}.  This
+@c character causes @dfn{quitting} (@pxref{Quitting}).
+動作中のコマンドの実行を止めるには、@kbd{C-g}を打ちます。
+この文字は@dfn{中断}（quitting）を引き起こします（@pxref{Quitting}）。
+
+@defvar pre-command-hook
+@c The editor command loop runs this normal hook before each command.  At
+@c that time, @code{this-command} contains the command that is about to
+@c run, and @code{last-command} describes the previous command.
+@c @xref{Hooks}.
+エディタコマンドループは、各コマンドのまえにこのノーマルフックを実行する。
+その際、@code{this-command}にはこれから実行するコマンドが保持され、
+@code{last-command}には直前のコマンドがある。
+@pxref{Hooks}。
+@end defvar
+
+@defvar post-command-hook
+@c The editor command loop runs this normal hook after each command
+@c (including commands terminated prematurely by quitting or by errors),
+@c and also when the command loop is first entered.  At that time,
+@c @code{this-command} describes the command that just ran, and
+@c @code{last-command} describes the command before that.  @xref{Hooks}.
+エディタコマンドループは、
+（中断やエラーのために完了しなかったコマンドを含めて）
+各コマンドのあとにこのノーマルフックを実行する。
+初めてコマンドループに入ったときにも実行する。
+その際、@code{this-command}には実行し終えたばかりのコマンドがあり、
+@code{last-command}にはその前のコマンドがある。
+@pxref{Hooks}。
+@end defvar
+
+@c   Quitting is suppressed while running @code{pre-command-hook} and
+@c @code{post-command-hook}.  If an error happens while executing one of
+@c these hooks, it terminates execution of the hook, and clears the hook
+@c variable to @code{nil} so as to prevent an infinite loop of errors.
+@code{pre-command-hook}や@code{post-command-hook}の実行中は、
+中断を禁止します。
+これらのフックの1つを実行中にエラーが起きると、
+エラーの無限ループを防ぐために、
+フックの実行を終了しフック変数を@code{nil}にします。
+
+@node Defining Commands
+@c @section Defining Commands
+@section コマンドの定義
+@c @cindex defining commands
+@c @cindex commands, defining
+@c @cindex functions, making them interactive
+@c @cindex interactive function
+@cindex コマンドの定義
+@cindex 定義、コマンド
+@cindex 関数、対話的にする
+@cindex 対話的関数
+
+@c   A Lisp function becomes a command when its body contains, at top
+@c level, a form that calls the special form @code{interactive}.  This
+@c form does nothing when actually executed, but its presence serves as a
+@c flag to indicate that interactive calling is permitted.  Its argument
+@c controls the reading of arguments for an interactive call.
+Lisp関数の本体に、スペシャルフォーム@code{interactive}を呼び出す
+フォームがトップレベルにあると、Lisp関数はコマンドになります。
+このフォームは実際に呼び出されてもなにもしませんが、
+このフォームがあることで、対話的に呼び出せることを表します。
+その引数が、対話的呼び出しにおける引数の読み方を制御します。
+
+@menu
+* Using Interactive::     General rules for @code{interactive}.
+* Interactive Codes::     The standard letter-codes for reading arguments
+                             in various ways.
+* Interactive Examples::  Examples of how to read interactive arguments.
+@end menu
+
+@node Using Interactive
+@c @subsection Using @code{interactive}
+@subsection @code{interactive}の使い方
+
+@c   This section describes how to write the @code{interactive} form that
+@c makes a Lisp function an interactively-callable command.
+本節では、Lisp関数を対話的に呼び出し可能なコマンドにするフォーム
+@code{interactive}の書き方について述べます。
+
+@defspec interactive arg-descriptor
+@c @cindex argument descriptors
+@cindex 引数記述子
+@c This special form declares that the function in which it appears is a
+@c command, and that it may therefore be called interactively (via
+@c @kbd{M-x} or by entering a key sequence bound to it).  The argument
+@c @var{arg-descriptor} declares how to compute the arguments to the
+@c command when the command is called interactively.
+このスペシャルフォームは、これを含む関数がコマンドであり、
+（@kbd{M-x}や当該関数にバインドしたキー列を入力することで）
+対話的に呼び出せることを宣言する。
+引数@var{arg-descriptor}は、コマンドを対話的に呼び出したときに
+コマンドに対する引数の計算方法を宣言する。
+
+@c A command may be called from Lisp programs like any other function, but
+@c then the caller supplies the arguments and @var{arg-descriptor} has no
+@c effect.
+他の関数と同様に、コマンドはLispプログラムからも呼び出せるが、
+その場合、呼び出し側が引数を渡し、@var{arg-descriptor}にはなんの効果もない。
+
+@c The @code{interactive} form has its effect because the command loop
+@c (actually, its subroutine @code{call-interactively}) scans through the
+@c function definition looking for it, before calling the function.  Once
+@c the function is called, all its body forms including the
+@c @code{interactive} form are executed, but at this time
+@c @code{interactive} simply returns @code{nil} without even evaluating its
+@c argument.
+フォーム@code{interactive}が効果を発揮するのは、
+コマンドループ（実際にはサブルーティン@code{call-interactively}）が
+関数を呼び出すまえに関数定義を走査してこのフォームを探すからである。
+関数が呼び出されると、フォーム@code{interactive}を含めて
+その本体のフォームが実行されるが、そのとき、
+@code{interactive}は引数を評価せずに単に@code{nil}を返す。
+@end defspec
+
+@c There are three possibilities for the argument @var{arg-descriptor}:
+引数@var{arg-descriptor}には3つの可能性があります。
+
+@itemize @bullet
+@item
+@c It may be omitted or @code{nil}; then the command is called with no
+@c arguments.  This leads quickly to an error if the command requires one
+@c or more arguments.
+省略するか@code{nil}。
+この場合、コマンドは引数なしで呼ばれる。
+コマンドが1つ以上の引数を必要とする場合、これはただちにエラーになる。
+
+@item
+@c It may be a Lisp expression that is not a string; then it should be a
+@c form that is evaluated to get a list of arguments to pass to the
+@c command.
+@c @cindex argument evaluation form
+文字列ではないLisp式。
+この場合、それはフォームであり、
+コマンドに渡す引数リストを得るために評価される。
+@cindex 引数評価フォーム
+
+@c If this expression reads keyboard input (this includes using the
+@c minibuffer), keep in mind that the integer value of point or the mark
+@c before reading input may be incorrect after reading input.  This is
+@c because the current buffer may be receiving subprocess output;
+@c if subprocess output arrives while the command is waiting for input,
+@c it could relocate point and the mark.
+この式が（ミニバッファを使うことを含めて）キーボード入力を読む場合には、
+入力を読むまえのポイントの整数値やマークは、
+入力を読んだあとでは正しくない可能性があることに留意すること。
+カレントバッファがサブプロセスの出力を受け取る可能性があるからである。
+コマンドが入力を待っているあいだにサブプロセスの出力が到着すると、
+ポイントやマークを再配置する可能性がある。
+
+@c Here's an example of what @emph{not} to do:
+しては@emph{いけない}ことの例を示す。
+
+@smallexample
+(interactive
+ (list (region-beginning) (region-end)
+       (read-string "Foo: " nil 'my-history)))
+@end smallexample
+
+@noindent
+@c Here's how to avoid the problem, by examining point and the mark only
+@c after reading the keyboard input:
+キーボード入力を読み終えてからポイントやマークを調べることで、
+問題を回避する。
+
+@smallexample
+(interactive
+ (let ((string (read-string "Foo: " nil 'my-history)))
+   (list (region-beginning) (region-end) string)))
+@end smallexample
+
+@item
+@c @cindex argument prompt
+@cindex 引数プロンプト
+@c It may be a string; then its contents should consist of a code character
+@c followed by a prompt (which some code characters use and some ignore).
+@c The prompt ends either with the end of the string or with a newline.
+@c Here is a simple example:
+文字列。
+この場合、その内容は、コード文字とそれに続く
+（コード文字によっては使ったり無視する）プロンプトから成ること。
+プロンプトは、文字列の終りか改行で終る。
+簡単な例を示す。
+
+@smallexample
+(interactive "bFrobnicate buffer: ")
+@end smallexample
+
+@noindent
+@c The code letter @samp{b} says to read the name of an existing buffer,
+@c with completion.  The buffer name is the sole argument passed to the
+@c command.  The rest of the string is a prompt.
+コード文字@samp{b}は、補完を用いて既存のバッファ名を読むことを指示する。
+バッファ名は、コマンドに渡される唯一の引数である。
+文字列の残りはプロンプトである。
+
+@c If there is a newline character in the string, it terminates the prompt.
+@c If the string does not end there, then the rest of the string should
+@c contain another code character and prompt, specifying another argument.
+@c You can specify any number of arguments in this way.
+文字列内に改行文字があると、それはプロンプトを終える。
+その部分で文字列が終らないときには、
+文字列の残りの部分には、別の引数を指定するコード文字やプロンプトがある。
+このようにして、何個の引数でも指定できる。
+
+@c @c Emacs 19 feature
+@c The prompt string can use @samp{%} to include previous argument values
+@c (starting with the first argument) in the prompt.  This is done using
+@c @code{format} (@pxref{Formatting Strings}).  For example, here is how
+@c you could read the name of an existing buffer followed by a new name to
+@c give to that buffer:
+プロンプトの文字列では、プロンプト内の（第1引数から始まる）
+まえの引数値を含めるために@samp{%}を使える。
+これは@code{format}（@pxref{Formatting Strings}）を用いて行う。
+たとえば、既存バッファの名前を読み、
+続けてそのバッファに与える新たな名前を読むにはつぎのようにする。
+
+@smallexample
+@group
+(interactive "bBuffer to rename: \nsRename buffer %s to: ")
+@end group
+@end smallexample
+
+@c @cindex @samp{*} in interactive
+@c @cindex read-only buffers in interactive
+@cindex @samp{*}、対話指定
+@cindex 読み出し専用バッファ、対話指定
+@c If the first character in the string is @samp{*}, then an error is
+@c signaled if the buffer is read-only.
+文字列の最初の文字が@samp{*}である場合、
+バッファが読み出し専用であるとエラーを通知する。
+
+@c @cindex @samp{@@} in interactive
+@cindex @samp{@@}、対話指定
+@c @c Emacs 19 feature
+@c If the first character in the string is @samp{@@}, and if the key
+@c sequence used to invoke the command includes any mouse events, then
+@c the window associated with the first of those events is selected
+@c before the command is run.
+文字列の最初の文字が@samp{@@}であり、
+コマンドを起動したキー列にマウスイベントが含まれる場合、
+コマンドを実行するまえに
+それらのイベントの最初のものに関連したウィンドウを選択する。
+
+@c You can use @samp{*} and @samp{@@} together; the order does not matter.
+@c Actual reading of arguments is controlled by the rest of the prompt
+@c string (starting with the first character that is not @samp{*} or
+@c @samp{@@}).
+@samp{*}と@samp{@@}は同時に使え、その順序は関係ない。
+引数の実際の読み取りはプロンプトの
+（@samp{*}でも@samp{@@}でもない最初の文字で始まる）残りの部分で制御される。
+@end itemize
+
+@node Interactive Codes
+@comment  node-name,  next,  previous,  up
+@c @subsection Code Characters for @code{interactive}
+@subsection @code{interactive}のコード文字
+@c @cindex interactive code description
+@c @cindex description for interactive codes
+@c @cindex codes, interactive, description of
+@c @cindex characters for interactive codes
+@cindex 対話コード記述子
+@cindex 記述子、対話指定のコード
+@cindex コード、対話指定、記述子
+@cindex 文字、対話指定のコード
+
+@c   The code character descriptions below contain a number of key words,
+@c defined here as follows:
+以下に述べるコード文字の説明では、
+つぎに定義するいくつかのキーワードを含みます。
+
+@table @b
+@c @item Completion
+@item 「補完」
+@c @cindex interactive completion
+@cindex 補完、対話指定
+@c Provide completion.  @key{TAB}, @key{SPC}, and @key{RET} perform name
+@c completion because the argument is read using @code{completing-read}
+@c (@pxref{Completion}).  @kbd{?} displays a list of possible completions.
+補完を使える。
+@code{completing-read}を使って引数を読むため、
+@key{TAB}、@key{SPC}、@key{RET}は名前を補完する
+（@pxref{Completion}）。
+@kbd{?}は補完候補のリストを表示する。
+
+@c @item Existing
+@item 「既存」
+@c Require the name of an existing object.  An invalid name is not
+@c accepted; the commands to exit the minibuffer do not exit if the current
+@c input is not valid.
+既存オブジェクトの名前を必要とする。
+不正な名前は受け付けない。
+現在の入力が正しくないとミニバッファから抜けるコマンドは動作しない。
+
+@c @item Default
+@item 「デフォルト」
+@c @cindex default argument string
+@cindex デフォルト引数文字列
+@c A default value of some sort is used if the user enters no text in the
+@c minibuffer.  The default depends on the code character.
+ミニバッファにユーザーがなにもテキストを入力しないときに
+使われるなんらかのデフォルト値。
+デフォルトはコード文字に依存する。
+
+@c @item No I/O
+@item 「入出力なし」
+@c This code letter computes an argument without reading any input.
+@c Therefore, it does not use a prompt string, and any prompt string you
+@c supply is ignored.
+このコード文字は、入力をまったく読まずに引数を計算する。
+したがって、プロンプト文字列を使わず、
+読者が指定したプロンプト文字列は無視する。
+
+@c Even though the code letter doesn't use a prompt string, you must follow
+@c it with a newline if it is not the last code character in the string.
+コード文字はプロンプト文字列を使わないが、
+この文字が文字列の最後の文字でない場合には改行を続けること。
+
+@c @item Prompt
+@item 「プロンプト」
+@c A prompt immediately follows the code character.  The prompt ends either
+@c with the end of the string or with a newline.
+コード文字の直後にプロンプトが続く。
+プロンプトは文字列の終りか改行で終る。
+
+@c @item Special
+@item 「スペシャル」
+@c This code character is meaningful only at the beginning of the
+@c interactive string, and it does not look for a prompt or a newline.
+@c It is a single, isolated character.
+このコード文字は、対話指定文字列の先頭でのみ意味を持ち、
+プロンプトや改行を必要としない。
+これは1つの孤立した文字である。
+@end table
+
+@c @cindex reading interactive arguments
+@cindex 読み取り、対話引数
+@c   Here are the code character descriptions for use with @code{interactive}:
+以下に、@code{interactive}に使うコード文字を説明します。
+
+@table @samp
+@item *
+@c Signal an error if the current buffer is read-only.  Special.
+カレントバッファが読み出し専用であるとエラーを通知する。
+「スペシャル」。
+
+@item @@
+@c Select the window mentioned in the first mouse event in the key
+@c sequence that invoked this command.  Special.
+このコマンドを起動したキー列の最初のマウスイベントが表すウィンドウを選択する。
+「スペシャル」。
+
+@item a
+@c A function name (i.e., a symbol satisfying @code{fboundp}).  Existing,
+@c Completion, Prompt.
+関数名（つまり、@code{fboundp}を満たすシンボル）。
+「既存」、「補完」、「プロンプト」。
+
+@item b
+@c The name of an existing buffer.  By default, uses the name of the
+@c current buffer (@pxref{Buffers}).  Existing, Completion, Default,
+@c Prompt.
+既存バッファの名前。
+デフォルトでは、カレントバッファ（@pxref{Buffers}）の名前を使う。
+「既存」、「補完」、「デフォルト」、「プロンプト」。
+
+@item B
+@c A buffer name.  The buffer need not exist.  By default, uses the name of
+@c a recently used buffer other than the current buffer.  Completion,
+@c Default, Prompt.
+バッファ名。
+バッファが既存である必要はない。
+デフォルトでは、カレントバッファ以外の最近使ったバッファの名前を使う。
+「補完」、「デフォルト」、「プロンプト」。
+
+@item c
+@c A character.  The cursor does not move into the echo area.  Prompt.
+文字。
+カーソルはエコー領域には移動しない。
+「プロンプト」。
+
+@item C
+@c A command name (i.e., a symbol satisfying @code{commandp}).  Existing,
+@c Completion, Prompt.
+コマンド名（つまり、@code{commandp}を満たすシンボル）。
+「既存」、「補完」、「プロンプト」。
+
+@item d
+@c @cindex position argument
+@cindex 位置引数
+@c The position of point, as an integer (@pxref{Point}).  No I/O.
+整数としてのポイント位置（@pxref{Point}）。
+「入出力なし」。
+
+@item D
+@c A directory name.  The default is the current default directory of the
+@c current buffer, @code{default-directory} (@pxref{System Environment}).
+@c Existing, Completion, Default, Prompt.
+ディレクトリ名。
+デフォルトは、カレントバッファのカレントデフォルトディレクトリ
+@code{default-directory}（@pxref{System Environment}）。
+「既存」、「補完」、「デフォルト」、「プロンプト」。
+
+@item e
+@c The first or next mouse event in the key sequence that invoked the command.
+@c More precisely, @samp{e} gets events that are lists, so you can look at
+@c the data in the lists.  @xref{Input Events}.  No I/O.
+コマンドを起動したキー列の最初やつぎのマウスイベント。
+より正確には、@samp{e}はリストであるイベントを取得するので、
+読者はリスト内のデータを調べられる。
+@pxref{Input Events}。
+「入出力なし」。
+
+@c You can use @samp{e} more than once in a single command's interactive
+@c specification.  If the key sequence that invoked the command has
+@c @var{n} events that are lists, the @var{n}th @samp{e} provides the
+@c @var{n}th such event.  Events that are not lists, such as function keys
+@c and @sc{ASCII} characters, do not count where @samp{e} is concerned.
+1つのコマンドの対話指定で複数回@samp{e}を使える。
+コマンドを起動したキー列が@var{n}個のリストであるイベントである場合、
+@var{n}番目の@samp{e}は、@var{n}番目のそのようなイベントを与える。
+@samp{e}では、
+ファンクションキーや@sc{ASCII}文字などのリストでないイベントは数えない。
+
+@item f
+@c A file name of an existing file (@pxref{File Names}).  The default
+@c directory is @code{default-directory}.  Existing, Completion, Default,
+@c Prompt.
+既存ファイルの名前（@pxref{File Names}）。
+デフォルトディレクトリは@code{default-directory}。
+「既存」、「補完」、「デフォルト」、「プロンプト」。
+
+@item F
+@c A file name.  The file need not exist.  Completion, Default, Prompt.
+ファイル名。
+ファイルが既存である必要はない。
+「補完」、「デフォルト」、「プロンプト」。
+
+@item i
+@c An irrelevant argument.  This code always supplies @code{nil} as
+@c the argument's value.  No I/O.
+無関係な引数。
+このコードは、引数の値につねに@code{nil}を与える。
+「入出力なし」。
+
+@item k
+@c A key sequence (@pxref{Keymap Terminology}).  This keeps reading events
+@c until a command (or undefined command) is found in the current key
+@c maps.  The key sequence argument is represented as a string or vector.
+@c The cursor does not move into the echo area.  Prompt.
+キー列（@pxref{Keymap Terminology}）。
+現在のキーマップにおいてコマンドがみつかる（あるいは未定義コマンド）まで
+イベントを読み続ける。
+キー列引数は、文字列かベクトルとして表現される。
+カーソルはエコー領域には移動しない。
+「プロンプト」。
+
+@c This kind of input is used by commands such as @code{describe-key} and
+@c @code{global-set-key}.
+この種の入力は、@code{describe-key}や@code{global-set-key}などの
+コマンドで使われる。
+
+@item K
+@c A key sequence, whose definition you intend to change.  This works like
+@c @samp{k}, except that it suppresses, for the last input event in the key
+@c sequence, the conversions that are normally used (when necessary) to
+@c convert an undefined key into a defined one.
+キー列であり、読者がその定義を変更することを意図している。
+これは@samp{k}と同様に動作するが、
+キー列の最後の入力イベントに対しては、
+未定義キーを定義済みのものに変換するために（必要なときに）普通使われる
+変換処理を抑制する。
+
+@item m
+@c @cindex marker argument
+@cindex マーク引数
+@c The position of the mark, as an integer.  No I/O.
+整数としてのマーク位置。
+「入出力なし」。
+
+@item M
+@c Arbitrary text, read in the minibuffer using the current buffer's input
+@c method, and returned as a string (@pxref{Input Methods,,, emacs, The GNU
+@c Emacs Manual}).  Prompt.
+カレントバッファの入力方式を用いてミニバッファで読んだ任意のテキスト。
+文字列として返す
+（@pxref{Input Methods,, 入力方式, emacs, GNU Emacs マニュアル}）。
+「プロンプト」。
+
+@item n
+@c A number read with the minibuffer.  If the input is not a number, the
+@c user is asked to try again.  The prefix argument, if any, is not used.
+@c Prompt.
+ミニバッファで読んだ数。
+入力が数でないと、ユーザーに再入力を促す。
+もし前置引数があってもそれは使わない。
+「プロンプト」。
+
+@item N
+@c @cindex raw prefix argument usage
+@cindex 生の前置引数の使い方
+@c The numeric prefix argument; but if there is no prefix argument, read a
+@c number as with @kbd{n}.  Requires a number.  @xref{Prefix Command
+@c Arguments}.  Prompt.
+数値前置引数。
+前置引数がなければ、@kbd{n}で数を読む。
+数を必要とする。
+@pxref{Prefix Command Arguments}。
+「プロンプト」。
+
+@item p
+@c @cindex numeric prefix argument usage
+@cindex 数値前置引数の使い方
+@c The numeric prefix argument.  (Note that this @samp{p} is lower case.)
+@c No I/O.
+数値前置引数。
+（この@samp{p}は小文字。）
+「入出力なし」。
+
+@item P
+@c The raw prefix argument.  (Note that this @samp{P} is upper case.)  No
+@c I/O.
+生の前置引数。
+（この@samp{P}は大文字。）
+「入出力なし」。
+
+@item r
+@c @cindex region argument
+@cindex リージョン引数
+@c Point and the mark, as two numeric arguments, smallest first.  This is
+@c the only code letter that specifies two successive arguments rather than
+@c one.  No I/O.
+2つの数値引数としてのポイントとマーク。
+小さいほうが先にくる。
+これは、1つではなく2つの連続した引数を指定する唯一のコード文字。
+「入出力なし」。
+
+@item s
+@c Arbitrary text, read in the minibuffer and returned as a string
+@c (@pxref{Text from Minibuffer}).  Terminate the input with either
+@c @kbd{C-j} or @key{RET}.  (@kbd{C-q} may be used to include either of
+@c these characters in the input.)  Prompt.
+ミニバッファで読んだ任意のテキスト。
+文字列として返す（@pxref{Text from Minibuffer}）。
+@kbd{C-j}か@key{RET}で入力を終える。
+（これらの文字を入力に含めるには@kbd{C-q}を使う。）
+「プロンプト」。
+
+@item S
+@c An interned symbol whose name is read in the minibuffer.  Any whitespace
+@c character terminates the input.  (Use @kbd{C-q} to include whitespace in
+@c the string.)  Other characters that normally terminate a symbol (e.g.,
+@c parentheses and brackets) do not do so here.  Prompt.
+ミニバッファで読んだ名前をインターンしたシンボル。
+白文字で入力を終える。
+（文字列に白文字を含めるには@kbd{C-q}を使う。）
+（丸括弧や角括弧などの）通常はシンボルを終える他の文字は、
+ここではシンボルを終端しない。
+「プロンプト」。
+
+@item v
+@c A variable declared to be a user option (i.e., satisfying the predicate
+@c @code{user-variable-p}).  @xref{High-Level Completion}.  Existing,
+@c Completion, Prompt.
+ユーザーオプションと宣言された変数
+（つまり、述語@code{user-variable-p}を満たす）。
+@pxref{High-Level Completion}。
+「既存」、「補完」、「プロンプト」。
+
+@item x
+@c A Lisp object, specified with its read syntax, terminated with a
+@c @kbd{C-j} or @key{RET}.  The object is not evaluated.  @xref{Object from
+@c Minibuffer}.  Prompt.
+入力構文で表されたLispオブジェクト。
+@kbd{C-j}か@key{RET}で終える。
+オブジェクトは評価しない。
+@pxref{Object from Minibuffer}。
+「プロンプト」。
+
+@item X
+@c @cindex evaluated expression argument
+@cindex 評価済みの式引数
+@c A Lisp form is read as with @kbd{x}, but then evaluated so that its
+@c value becomes the argument for the command.  Prompt.
+@kbd{x}のようにLispフォームを読むが、評価しその値がコマンドの引数になる。
+「プロンプト」。
+
+@item z
+@c A coding system name (a symbol).  If the user enters null input, the
+@c argument value is @code{nil}.  @xref{Coding Systems}.  Completion,
+@c Existing, Prompt.
+コーディングシステム名（シンボル）。
+ユーザーの入力が空であると、引数の値は@code{nil}。
+@pxref{Coding Systems}。
+「補完」、「既存」、「プロンプト」。
+
+@item Z
+@c A coding system name (a symbol)---but only if this command has a prefix
+@c argument.  With no prefix argument, @samp{Z} provides @code{nil} as the
+@c argument value.  Completion, Existing, Prompt.
+このコマンドに前置引数を指定した場合にのみ、
+コーディングシステム名（シンボル）。
+前置引数がないと、@samp{Z}は引数の値に@code{nil}を与える。
+「補完」、「既存」、「プロンプト」。
+@end table
+
+@node Interactive Examples
+@comment  node-name,  next,  previous,  up
+@c @subsection Examples of Using @code{interactive}
+@subsection @code{interactive}の使用例
+@c @cindex examples of using @code{interactive}
+@c @cindex @code{interactive}, examples of using 
+@cindex @code{interactive}の使用例
+@cindex 例、@code{interactive}
+
+@c   Here are some examples of @code{interactive}:
+ここでは@code{interactive}の例を示します。
+
+@example
+@group
+@c (defun foo1 ()              ; @r{@code{foo1} takes no arguments,}
+@c     (interactive)           ;   @r{just moves forward two words.}
+(defun foo1 ()              ; @r{@code{foo1}は引数なし}
+    (interactive)           ; @r{2単語分先へ進める}
+    (forward-word 2))
+     @result{} foo1
+@end group
+
+@group
+@c (defun foo2 (n)             ; @r{@code{foo2} takes one argument,}
+@c     (interactive "p")       ;   @r{which is the numeric prefix.}
+(defun foo2 (n)             ; @r{@code{foo2}は1引数}
+    (interactive "p")       ; @r{数値前置引数}
+    (forward-word (* 2 n)))
+     @result{} foo2
+@end group
+
+@group
+@c (defun foo3 (n)             ; @r{@code{foo3} takes one argument,}
+@c     (interactive "nCount:") ;   @r{which is read with the Minibuffer.}
+(defun foo3 (n)             ; @r{@code{foo3}は1引数}
+    (interactive "nCount:") ; @r{ミニバッファで読む}
+    (forward-word (* 2 n)))
+     @result{} foo3
+@end group
+
+@group
+(defun three-b (b1 b2 b3)
+  "Select three existing buffers.
+Put them into three windows, selecting the last one."
+@end group
+    (interactive "bBuffer1:\nbBuffer2:\nbBuffer3:")
+    (delete-other-windows)
+    (split-window (selected-window) 8)
+    (switch-to-buffer b1)
+    (other-window 1)
+    (split-window (selected-window) 8)
+    (switch-to-buffer b2)
+    (other-window 1)
+    (switch-to-buffer b3))
+     @result{} three-b
+@group
+(three-b "*scratch*" "declarations.texi" "*mail*")
+     @result{} nil
+@end group
+@end example
+
+@node Interactive Call
+@c @section Interactive Call
+@section 対話的呼び出し
+@c @cindex interactive call
+@cindex 対話的呼び出し
+
+@c   After the command loop has translated a key sequence into a command it
+@c invokes that command using the function @code{command-execute}.  If the
+@c command is a function, @code{command-execute} calls
+@c @code{call-interactively}, which reads the arguments and calls the
+@c command.  You can also call these functions yourself.
+コマンドループでは、キー列をコマンドへ変換し終えると、
+関数@code{command-execute}を用いてそのコマンドを起動します。
+コマンドが関数であれば、@code{command-execute}は引数を読み取り、
+コマンドを呼び出す@code{call-interactively}を呼びます。
+読者自身がこれらの関数を呼び出してもかまいません。
+
+@defun commandp object
+@c Returns @code{t} if @var{object} is suitable for calling interactively;
+@c that is, if @var{object} is a command.  Otherwise, returns @code{nil}.  
+@var{object}が対話的呼び出しに適していれば、
+つまり、@var{object}がコマンドであれば@code{t}を返す。
+さもなければ@code{nil}を返す。
+
+@c The interactively callable objects include strings and vectors (treated
+@c as keyboard macros), lambda expressions that contain a top-level call to
+@c @code{interactive}, byte-code function objects made from such lambda
+@c expressions, autoload objects that are declared as interactive
+@c (non-@code{nil} fourth argument to @code{autoload}), and some of the
+@c primitive functions.
+対話的呼び出しが可能なオブジェクトには、
+（キーボードマクロとして扱われる）文字列やベクトル、
+トップレベルで@code{interactive}を呼び出しているラムダ式、
+そのようなラムダ式をコンパイルしたバイトコード関数オブジェクト、
+対話的（@code{autoload}の4番目の引数が@code{nil}以外）
+と宣言された自動ロードオブジェクト、
+一部の基本関数が含まれる。
+
+@c A symbol satisfies @code{commandp} if its function definition satisfies
+@c @code{commandp}.
+シンボルの関数定義が@code{commandp}を満たせば、
+シンボルも@code{commandp}を満たす。
+
+@c Keys and keymaps are not commands.  Rather, they are used to look up
+@c commands (@pxref{Keymaps}).
+キーやキーマップはコマンドではない。
+それらはコマンドを探すために使われる（@pxref{Keymaps}）。
+
+@c See @code{documentation} in @ref{Accessing Documentation}, for a
+@c realistic example of using @code{commandp}.
+@code{commandp}の実用的な使用例については、
+@ref{Accessing Documentation}の@code{documentation}を参照。
+@end defun
+
+@defun call-interactively command &optional record-flag keys
+@c This function calls the interactively callable function @var{command},
+@c reading arguments according to its interactive calling specifications.
+@c An error is signaled if @var{command} is not a function or if it cannot
+@c be called interactively (i.e., is not a command).  Note that keyboard
+@c macros (strings and vectors) are not accepted, even though they are
+@c considered commands, because they are not functions.
+この関数は、対話的呼び出し可能な関数@var{command}を
+その対話指定に従って引数を読み取り呼び出す。
+@var{command}が関数でなかったり、
+対話的に呼び出せない（つまり、コマンドでない）場合には、
+エラーを通知する。
+キーボードマクロ（文字列やベクトル）はコマンドとみなすが、
+それらは関数でないため、この関数はキーボードマクロを受け付けない。
+
+@c @cindex record command history
+@cindex コマンド履歴の記録
+@c If @var{record-flag} is non-@code{nil}, then this command and its
+@c arguments are unconditionally added to the list @code{command-history}.
+@c Otherwise, the command is added only if it uses the minibuffer to read
+@c an argument.  @xref{Command History}.
+@var{record-flag}が@code{nil}以外であると、
+コマンドとその引数を無条件にリスト@code{command-history}に追加する。
+さもなければ、引数を読むために
+コマンドがミニバッファを使った場合にのみ追加する。
+@pxref{Command History}。
+
+@c The argument @var{keys}, if given, specifies the sequence of events to
+@c supply if the command inquires which events were used to invoke it.
+もし引数@var{keys}を指定すると、コマンドがそれを起動したイベントを
+問い合わせたときに与えるイベント列を指定する。
+@end defun
+
+@defun command-execute command &optional record-flag keys
+@c @cindex keyboard macro execution
+@cindex キーボードマクロの実行
+@c This function executes @var{command}.  The argument @var{command} must
+@c satisfy the @code{commandp} predicate; i.e., it must be an interactively
+@c callable function or a keyboard macro.
+この関数は@var{command}を実行する。
+引数@var{command}は@code{commandp}を満たすこと。
+つまり、対話的呼び出し可能な関数かキーボードマクロであること。
+
+@c A string or vector as @var{command} is executed with
+@c @code{execute-kbd-macro}.  A function is passed to
+@c @code{call-interactively}, along with the optional @var{record-flag}.
+@code{command}が文字列やベクトルであると、
+@code{execute-kbd-macro}で実行される。
+関数であると、省略可能な@var{record-flag}とともに関数を
+@code{call-interactively}に渡す。
+
+@c A symbol is handled by using its function definition in its place.  A
+@c symbol with an @code{autoload} definition counts as a command if it was
+@c declared to stand for an interactively callable function.  Such a
+@c definition is handled by loading the specified library and then
+@c rechecking the definition of the symbol.
+シンボルは、その関数定義を使って処理する。
+@code{autoload}で定義されたシンボルは、
+対話的呼び出し可能な関数と宣言されていればコマンドとみなす。
+そのような定義では、指定されたライブラリをロードしてから
+シンボルの定義を再検査して処理する。
+
+@c The argument @var{keys}, if given, specifies the sequence of events to
+@c supply if the command inquires which events were used to invoke it.
+もし引数@var{keys}を指定すると、コマンドがそれを起動したイベントを
+問い合わせたときに与えるイベント列を指定する。
+@end defun
+
+@c @deffn Command execute-extended-command prefix-argument
+@deffn コマンド execute-extended-command prefix-argument
+@c @cindex read command name
+@cindex コマンド名の読み取り
+@c This function reads a command name from the minibuffer using
+@c @code{completing-read} (@pxref{Completion}).  Then it uses
+@c @code{command-execute} to call the specified command.  Whatever that
+@c command returns becomes the value of @code{execute-extended-command}.
+この関数は@code{completing-read}（@pxref{Completion}）を使って
+ミニバッファでコマンド名を読む。
+そして@code{command-execute}を使って指定されたコマンドを実行する。
+コマンドが返した値が@code{execute-extended-command}の値になる。
+
+@c @cindex execute with prefix argument
+@cindex 前置引数付きの実行
+@c If the command asks for a prefix argument, it receives the value
+@c @var{prefix-argument}.  If @code{execute-extended-command} is called
+@c interactively, the current raw prefix argument is used for
+@c @var{prefix-argument}, and thus passed on to whatever command is run.
+コマンドが前置引数を必要とする場合、@var{prefix-argument}の値を受け取る。
+@code{execute-extended-command}が対話的に呼ばれた場合、
+現在の生の前置引数が@var{prefix-argument}として使われ、
+それが実行するコマンドへ渡される。
+
+@c !!! Should this be @kindex?
+@cindex @kbd{M-x}
+@c @code{execute-extended-command} is the normal definition of @kbd{M-x},
+@c so it uses the string @w{@samp{M-x }} as a prompt.  (It would be better
+@c to take the prompt from the events used to invoke
+@c @code{execute-extended-command}, but that is painful to implement.)  A
+@c description of the value of the prefix argument, if any, also becomes
+@c part of the prompt.
+@code{execute-extended-command}は通常@kbd{M-x}に定義付けられ、
+そのため、プロンプトとして文字列@w{@samp{M-x }}を使う。
+（@code{execute-extended-command}を起動するために使われた
+イベントをプロンプトにするべきであるが、
+それを実装するのは手間がかかる。）
+もし前置引数を指定すると、その内容もプロンプトの一部になる。
+
+@example
+@group
+(execute-extended-command 1)
+---------- Buffer: Minibuffer ----------
+1 M-x forward-word RET
+---------- Buffer: Minibuffer ----------
+     @result{} t
+@end group
+@end example
+@end deffn
+
+@defun interactive-p
+@c This function returns @code{t} if the containing function (the one whose
+@c code includes the call to @code{interactive-p}) was called
+@c interactively, with the function @code{call-interactively}.  (It makes
+@c no difference whether @code{call-interactively} was called from Lisp or
+@c directly from the editor command loop.)  If the containing function was
+@c called by Lisp evaluation (or with @code{apply} or @code{funcall}), then
+@c it was not called interactively.
+この関数は、これ（@code{interactive-p}の呼び出し）を含んだ関数が
+@code{call-interactively}で対話的に呼び出されると@code{t}を返す。
+（Lispから@code{call-interactively}が呼び出されても、
+エディタコマンドループが直接呼び出しても違いはない。）
+これを含んだ関数がLispの評価（あるいは@code{apply}や@code{funcall}）で
+呼び出された場合は、対話的呼び出しではない。
+@end defun
+
+@c   The most common use of @code{interactive-p} is for deciding whether to
+@c print an informative message.  As a special exception,
+@c @code{interactive-p} returns @code{nil} whenever a keyboard macro is
+@c being run.  This is to suppress the informative messages and speed
+@c execution of the macro.
+@code{interactive-p}のもっとも一般的な用途は、
+情報メッセージを表示するかどうか決めることです。
+特別な例外として、キーボードマクロを実行中にはいつでも、
+@code{interactive-p}は@code{nil}を返します。
+これは情報メッセージを省いてマクロの実行を速くするためです。
+
+@c   For example:
+つぎのように使います。
+
+@example
+@group
+(defun foo ()
+  (interactive)
+  (when (interactive-p)
+    (message "foo")))
+     @result{} foo
+@end group
+
+@group
+(defun bar ()
+  (interactive)
+  (setq foobar (list (foo) (interactive-p))))
+     @result{} bar
+@end group
+
+@group
+@c ;; @r{Type @kbd{M-x foo}.}
+;; @r{@kbd{M-x foo}と打つ}
+     @print{} foo
+@end group
+
+@group
+@c ;; @r{Type @kbd{M-x bar}.}
+@c ;; @r{This does not print anything.}
+;; @r{@kbd{M-x bar}と打つ}
+;; @r{これはなにも表示しない}
+@end group
+
+@group
+foobar
+     @result{} (nil t)
+@end group
+@end example
+
+@c   The other way to do this sort of job is to make the command take an
+@c argument @code{print-message} which should be non-@code{nil} in an
+@c interactive call, and use the @code{interactive} spec to make sure it is
+@c non-@code{nil}.  Here's how:
+この種のことを行う別の方法は、コマンドを
+対話的呼び出しでは@code{nil}以外の値になる引数@code{print-message}を
+取るようにし、その引数が@code{nil}以外になるような@code{interactive}指定を
+使うことです。
+つぎのようにします。
+
+@example
+(defun foo (&optional print-message)
+  (interactive "p")
+  (when print-message
+    (message "foo")))
+@end example
+
+@c   The numeric prefix argument, provided by @samp{p}, is never @code{nil}.
+@samp{p}で与えられる数値前置引数はけっして@code{nil}になりません。
+
+@node Command Loop Info
+@comment  node-name,  next,  previous,  up
+@c @section Information from the Command Loop
+@section コマンドループからの情報
+
+@c The editor command loop sets several Lisp variables to keep status
+@c records for itself and for commands that are run.  
+エディタコマンドループは、自身や実行中のコマンドのために
+状態記録を数個のLisp変数に設定します。
+
+@defvar last-command
+@c This variable records the name of the previous command executed by the
+@c command loop (the one before the current command).  Normally the value
+@c is a symbol with a function definition, but this is not guaranteed.
+この変数は、コマンドループが（現在のコマンドの）まえに実行したコマンドの
+名前を記録する。
+通常、この値は関数定義を持つシンボルであるが、保証はしない。
+
+@c The value is copied from @code{this-command} when a command returns to
+@c the command loop, except when the command has specified a prefix
+@c argument for the following command.
+コマンドが後続のコマンドに対する前置引数を指定する場合を除いて、
+コマンドからコマンドループへ戻ると@code{this-command}から値をコピーする。
+
+@c This variable is always local to the current terminal and cannot be
+@c buffer-local.  @xref{Multiple Displays}.
+この変数は現在の端末に対してつねにローカルであり、
+バッファに対してローカルにはならない。
+@pxref{Multiple Displays}。
+@end defvar
+
+@tindex real-last-command
+@defvar real-last-command
+@c This variable is set up by Emacs just like @code{last-command},
+@c but never altered by Lisp programs.
+@code{last-command}と同様にEmacsがこの変数に設定するが、
+Lispプログラムではけっして変更しない。
+@end defvar
+
+@defvar this-command
+@c @cindex current command
+@cindex 現在のコマンド
+@c This variable records the name of the command now being executed by
+@c the editor command loop.  Like @code{last-command}, it is normally a symbol
+@c with a function definition.
+この変数は、エディタコマンドループが
+いま実行しているコマンドの名前を記録する。
+@code{last-command}と同様に、通常は関数定義を持つシンボルである。
+
+@c The command loop sets this variable just before running a command, and
+@c copies its value into @code{last-command} when the command finishes
+@c (unless the command specified a prefix argument for the following
+@c command).
+コマンドループは、コマンドを実行する直前にこの変数に設定し、
+コマンドが終了すると（コマンドが後続のコマンドに対する
+前置引数を指定する場合を除いて）
+この値を@code{last-command}にコピーする。
+
+@c @cindex kill command repetition
+@cindex キルコマンドの繰り返し
+@c Some commands set this variable during their execution, as a flag for
+@c whatever command runs next.  In particular, the functions for killing text
+@c set @code{this-command} to @code{kill-region} so that any kill commands
+@c immediately following will know to append the killed text to the
+@c previous kill.
+後続のコマンドに対するフラグとして
+実行中にこの変数に設定するコマンドもある。
+特に、テキストをキルする関数群は@code{this-command}に@code{kill-region}を
+設定して、直後に続くキルコマンドでは
+キルしたテキストをまえのキルに追加するようにする。
+@end defvar
+
+@c If you do not want a particular command to be recognized as the previous
+@c command in the case where it got an error, you must code that command to
+@c prevent this.  One way is to set @code{this-command} to @code{t} at the
+@c beginning of the command, and set @code{this-command} back to its proper
+@c value at the end, like this:
+特定のコマンドがエラーを起こした場合に
+直前のコマンドとは認識されたくない場合には、
+読者はそのコマンドがそれを防ぐように書く必要があります。
+1つの方法は、以下に示すように、
+コマンドの始めで@code{this-command}に@code{t}を設定し、
+コマンドの終りで@code{this-command}に正しい値を戻します。
+
+@example
+(defun foo (args@dots{})
+  (interactive @dots{})
+  (let ((old-this-command this-command))
+    (setq this-command t)
+    @r{@dots{}do the work@dots{}}
+    (setq this-command old-this-command)))
+@end example
+
+@noindent
+@c We do not bind @code{this-command} with @code{let} because that would
+@c restore the old value in case of error---a feature of @code{let} which
+@c in this case does precisely what we want to avoid.
+@code{let}で@code{this-command}を束縛しません。
+というのは、エラーがあると@code{let}は古い値を復元するからです。
+これこそがここでは避けたい@code{let}の機能です。
+
+@defun this-command-keys
+@c This function returns a string or vector containing the key sequence
+@c that invoked the present command, plus any previous commands that
+@c generated the prefix argument for this command.  The value is a string
+@c if all those events were characters.  @xref{Input Events}.
+この関数は、現在のコマンドに対して直前のコマンドが生成した前置引数を含めて、
+現在のコマンドを起動したキー列を含んだ文字列かベクトルを返す。
+すべてのイベントが文字であれば、値は文字列である。
+@pxref{Input Events}。
+
+@example
+@group
+(this-command-keys)
+@c ;; @r{Now use @kbd{C-u C-x C-e} to evaluate that.}
+;; @r{@kbd{C-u C-x C-e}を使ってこの式を評価する}
+     @result{} "^U^X^E"
+@end group
+@end example
+@end defun
+
+@defun this-command-keys-vector
+@c Like @code{this-command-keys}, except that it always returns
+@c the events in a vector, so you do never need to deal with the complexities
+@c of storing input events in a string (@pxref{Strings of Events}).
+@code{this-command-keys}と同様だが、つねにベクトルでイベントを返すため、
+文字列に入力イベントを保持する際の複雑さを扱う必要がない
+（@pxref{Strings of Events}）。
+@end defun
+
+@defvar last-nonmenu-event
+@c This variable holds the last input event read as part of a key sequence,
+@c not counting events resulting from mouse menus.
+この変数は、マウスメニューによるイベントを考慮せずに、
+キー列として読んだ最後の入力イベントを保持する。
+
+@c One use of this variable is for telling @code{x-popup-menu} where to pop
+@c up a menu.  It is also used internally by @code{y-or-n-p}
+@c (@pxref{Yes-or-No Queries}).
+この変数の1つの用途は、
+メニューをポップアップする位置を@code{x-popup-menu}に指示することである。
+@code{y-or-n-p}（@pxref{Yes-or-No Queries}）も内部的に使っている。
+@end defvar
+
+@defvar last-command-event
+@defvarx last-command-char
+@c This variable is set to the last input event that was read by the
+@c command loop as part of a command.  The principal use of this variable
+@c is in @code{self-insert-command}, which uses it to decide which
+@c character to insert.
+この変数には、コマンドの一部としてコマンドループが
+読んだ最後の入力イベントが設定される。
+この変数の主な用途は、どの文字を挿入すべきかを決定するために
+@code{self-insert-command}が使うことである。
+
+@example
+@group
+last-command-event
+@c ;; @r{Now use @kbd{C-u C-x C-e} to evaluate that.}
+;; @r{@kbd{C-u C-x C-e}を使ってこの式を評価する}
+     @result{} 5
+@end group
+@end example
+
+@noindent
+@c The value is 5 because that is the @sc{ASCII} code for @kbd{C-e}.
+@kbd{C-e}の@sc{ASCII}コードは5なので、値は5である。
+
+@c The alias @code{last-command-char} exists for compatibility with
+@c Emacs version 18.
+Emacs 18版との互換性のために別名@code{last-command-char}がある。
+@end defvar
+
+@c Emacs 19 feature
+@defvar last-event-frame
+@c This variable records which frame the last input event was directed to.
+@c Usually this is the frame that was selected when the event was
+@c generated, but if that frame has redirected input focus to another
+@c frame, the value is the frame to which the event was redirected.
+@c @xref{Input Focus}.
+この変数は、最後の入力イベントを振り向けたフレームを記録する。
+通常これは、イベントが生成されたときに選択されていたフレームであるが、
+そのフレームが入力フォーカスを別のフレームに振り向けていると、
+この値はイベントを振り向けた先のフレームである。
+@pxref{Input Focus}。
+@end defvar
+
+@node Input Events
+@c @section Input Events
+@section 入力イベント
+@c @cindex events
+@c @cindex input events
+@cindex イベント
+@cindex 入力イベント
+
+@c The Emacs command loop reads a sequence of @dfn{input events} that
+@c represent keyboard or mouse activity.  The events for keyboard activity
+@c are characters or symbols; mouse events are always lists.  This section
+@c describes the representation and meaning of input events in detail.
+Emacsのコマンドループは、キーボードやマウスのユーザーの操作を表す
+@dfn{入力イベント}（input event）列を読みます。
+キーボード操作に対するイベントは、文字かシンボルです。
+マウスイベントはつねにリストです。
+本節では、入力イベントの表現方法やその意味を詳しく説明します。
+
+@defun eventp object
+@c This function returns non-@code{nil} if @var{object} is an input event
+@c or event type.
+この関数は、@var{object}が入力イベントであるかイベント型であると
+@code{nil}以外を返す。
+
+@c Note that any symbol might be used as an event or an event type.
+@c @code{eventp} cannot distinguish whether a symbol is intended by Lisp
+@c code to be used as an event.  Instead, it distinguishes whether the
+@c symbol has actually been used in an event that has been read as input in
+@c the current Emacs session.  If a symbol has not yet been so used,
+@c @code{eventp} returns @code{nil}.
+任意のシンボルがイベントやイベント型として使われることに注意。
+@code{eventp}は、Lispのプログラムコードがシンボルを
+イベントとして使うかどうか区別できない。
+そのかわりに、シンボルが、Emacsの現在のセッションにおいて入力として読まれた
+イベントに使われたことがあるかどうかを区別する。
+シンボルがそのように使われたことがなければ、
+@code{eventp}は@code{nil}を返す。
+@end defun
+
+@menu
+* Keyboard Events::		Ordinary characters--keys with symbols on them.
+* Function Keys::		Function keys--keys with names, not symbols.
+* Mouse Events::                Overview of mouse events.
+* Click Events::		Pushing and releasing a mouse button.
+* Drag Events::			Moving the mouse before releasing the button.
+* Button-Down Events::		A button was pushed and not yet released.
+* Repeat Events::               Double and triple click (or drag, or down).
+* Motion Events::		Just moving the mouse, not pushing a button.
+* Focus Events::		Moving the mouse between frames.
+* Misc Events::                 Other events window systems can generate.
+* Event Examples::		Examples of the lists for mouse events.
+* Classifying Events::		Finding the modifier keys in an event symbol.
+				Event types.
+* Accessing Events::		Functions to extract info from events.
+* Strings of Events::           Special considerations for putting
+				  keyboard character events in a string.
+@end menu
+
+@node Keyboard Events
+@c @subsection Keyboard Events
+@subsection キーボードイベント
+
+@c There are two kinds of input you can get from the keyboard: ordinary
+@c keys, and function keys.  Ordinary keys correspond to characters; the
+@c events they generate are represented in Lisp as characters.  The event
+@c type of a character event is the character itself (an integer); see
+@c @ref{Classifying Events}.
+キーボードからは2種類の入力があります。
+普通のキーとファンクションキーです。
+普通のキーは文字に対応します。
+それらが生成するイベントは、Lispでは文字として表現されます。
+文字イベントのイベント型は文字自身（整数）です。
+@ref{Classifying Events}を参照してください。
+
+@c @cindex modifier bits (of input character)
+@c @cindex basic code (of input character)
+@cindex 修飾ビット（入力文字）
+@cindex 基本コード（入力文字）
+@c An input character event consists of a @dfn{basic code} between 0 and
+@c 524287, plus any or all of these @dfn{modifier bits}:
+入力文字イベントは、0から524287までの@dfn{基本コード}（basic code）と
+以下の@dfn{修飾ビット}（modifier bit）の任意の組み合わせです。
+
+@table @asis
+@item meta
+@c The
+文字コードのビット
+@tex
+$2^{27}$
+@end tex
+@ifinfo
+2**27
+@end ifinfo
+@c bit in the character code indicates a character
+@c typed with the meta key held down.
+は、メタキーを押し下げながら文字を打ったことを表す。
+
+@item control
+@c The
+文字コードのビット
+@tex
+$2^{26}$
+@end tex
+@ifinfo
+2**26
+@end ifinfo
+@c bit in the character code indicates a non-@sc{ASCII}
+@c control character.
+は非@sc{ASCII}文字のコントロール文字を表す。
+
+@c @sc{ASCII} control characters such as @kbd{C-a} have special basic
+@c codes of their own, so Emacs needs no special bit to indicate them.
+@c Thus, the code for @kbd{C-a} is just 1.
+@kbd{C-a}などの@sc{ASCII}コントロール文字には
+独自の特別な基本コードがあるため、
+Emacsはそれを表すための特別なビットを必要としない。
+つまり、@kbd{C-a}のコードは単に1である。
+
+@c But if you type a control combination not in @sc{ASCII}, such as
+@c @kbd{%} with the control key, the numeric value you get is the code
+@c for @kbd{%} plus
+しかし、コントロールキーを使った@kbd{%}などの
+@sc{ASCII}にないコントロールとの組み合わせを打った場合、
+得られる数値は@kbd{%}のコードに
+@tex
+$2^{26}$
+@end tex
+@ifinfo
+2**26
+@end ifinfo
+@c (assuming the terminal supports non-@sc{ASCII}
+@c control characters).
+を加えたものである
+（端末で非@sc{ASCII}のコントロール文字を扱えるとして）。
+
+@item shift
+@c The
+文字コードのビット
+@tex
+$2^{25}$
+@end tex
+@ifinfo
+2**25
+@end ifinfo
+@c bit in the character code indicates an @sc{ASCII} control
+@c character typed with the shift key held down.
+は、シフトキーを押し下げながら
+@sc{ASCII}コントロール文字を打ったことを表す。
+
+@c For letters, the basic code itself indicates upper versus lower case;
+@c for digits and punctuation, the shift key selects an entirely different
+@c character with a different basic code.  In order to keep within the
+@c @sc{ASCII} character set whenever possible, Emacs avoids using the
+英文字では、基本コードそのものが大文字か小文字かを表す。
+数字文字と区切り文字では、
+シフトキーは異なる基本コードのまったく異なる文字を選ぶ。
+可能な限り@sc{ASCII}文字集合ですませるために、
+これらの文字に対しては、Emacsはビット
+@tex
+$2^{25}$
+@end tex
+@ifinfo
+2**25
+@end ifinfo
+@c bit for those characters.
+を使わない。
+
+@c However, @sc{ASCII} provides no way to distinguish @kbd{C-A} from
+@c @kbd{C-a}, so Emacs uses the
+しかし、@sc{ASCII}では@kbd{C-A}と@kbd{C-a}を区別できないため、
+Emacsは、@kbd{C-A}ではビット
+@tex
+$2^{25}$
+@end tex
+@ifinfo
+2**25
+@end ifinfo
+@c bit in @kbd{C-A} and not in
+@c @kbd{C-a}.
+を使うが、@kbd{C-a}ではこのビットを使わない。
+
+@item hyper
+@c The
+文字コードのビット
+@tex
+$2^{24}$
+@end tex
+@ifinfo
+2**24
+@end ifinfo
+@c bit in the character code indicates a character
+@c typed with the hyper key held down.
+は、ハイパーキーを押し下げながら文字を打ったことを表す。
+
+@item super
+@c The
+文字コードのビット
+@tex
+$2^{23}$
+@end tex
+@ifinfo
+2**23
+@end ifinfo
+@c bit in the character code indicates a character
+@c typed with the super key held down.
+は、スーパーキーを押し下げながら文字を打ったことを表す。
+
+@item alt
+@c The
+文字コードのビット
+@tex
+$2^{22}$
+@end tex
+@ifinfo
+2**22
+@end ifinfo
+@c bit in the character code indicates a character typed with
+@c the alt key held down.  (On some terminals, the key labeled @key{ALT}
+@c is actually the meta key.)
+は、アルトキーを押し下げながら文字を打ったことを表す。
+（@key{ALT}とラベルされたキーが実際にはメタキーである端末も存在する。）
+@end table
+
+@c   It is best to avoid mentioning specific bit numbers in your program.
+@c To test the modifier bits of a character, use the function
+@c @code{event-modifiers} (@pxref{Classifying Events}).  When making key
+@c bindings, you can use the read syntax for characters with modifier bits
+@c (@samp{\C-}, @samp{\M-}, and so on).  For making key bindings with
+@c @code{define-key}, you can use lists such as @code{(control hyper ?x)} to
+@c specify the characters (@pxref{Changing Key Bindings}).  The function
+@c @code{event-convert-list} converts such a list into an event type
+@c (@pxref{Classifying Events}).
+読者のプログラム内では、
+特定の修飾ビットの値を明示することは避けるのが最良です。
+文字の修飾ビットを検査するには、
+関数@code{event-modifiers}（@pxref{Classifying Events}）を使います。
+キーバインディングを作るときには、
+（@samp{\C-}、@samp{\M-}などの）修飾ビットを伴う文字の
+入力表現を使います。
+@code{define-key}でキーバインディングを作るときには、
+文字の指定には@code{(control hyper ?x)}のようなリストを使います
+（@pxref{Changing Key Bindings}）。
+関数@code{event-convert-list}は、そのようなリストを
+イベント型に変換します（@pxref{Classifying Events}）。
+
+@node Function Keys
+@c @subsection Function Keys
+@subsection ファンクションキー
+
+@c @cindex function keys
+@cindex ファンクションキー
+@c Most keyboards also have @dfn{function keys}---keys that have names or
+@c symbols that are not characters.  Function keys are represented in Emacs
+@c Lisp as symbols; the symbol's name is the function key's label, in lower
+@c case.  For example, pressing a key labeled @key{F1} places the symbol
+@c @code{f1} in the input stream.
+ほとんどのキーボードには、@dfn{ファンクションキー}（function key）、
+つまり、文字ではない名前や記号のキーがあります。
+Emacs Lispでは、ファンクションキーはシンボルで表現されます。
+シンボルの（小文字の）名前がファンクションキーのラベルです。
+たとえば、@key{F1}というラベルのキーを押すと、
+入力ストリームにはシンボル@code{f1}が置かれます。
+
+@c The event type of a function key event is the event symbol itself.
+@c @xref{Classifying Events}.
+ファンクションキーイベントのイベント型は、イベントシンボルそれ自身です。
+@xref{Classifying Events}。
+
+@c Here are a few special cases in the symbol-naming convention for
+@c function keys:
+ファンクションキーに対するシンボル命名慣習の特例を以下に示します。
+
+@table @asis
+@item @code{backspace}, @code{tab}, @code{newline}, @code{return}, @code{delete}
+@c These keys correspond to common @sc{ASCII} control characters that have
+@c special keys on most keyboards.
+これらのキーは、ほとんどのキーボードにある特別なキーを持つ
+一般的な@sc{ASCII}コントロール文字に対応する。
+
+@c In @sc{ASCII}, @kbd{C-i} and @key{TAB} are the same character.  If the
+@c terminal can distinguish between them, Emacs conveys the distinction to
+@c Lisp programs by representing the former as the integer 9, and the
+@c latter as the symbol @code{tab}.
+@sc{ASCII}では、@kbd{C-i}と@key{TAB}は同じ文字である。
+これらを区別できる端末では、前者を整数9、後者をシンボル@code{tab}と
+表現することで、EmacsはLispプログラムに区別を伝える。
+
+@c Most of the time, it's not useful to distinguish the two.  So normally
+@c @code{function-key-map} (@pxref{Translating Input}) is set up to map
+@c @code{tab} into 9.  Thus, a key binding for character code 9 (the
+@c character @kbd{C-i}) also applies to @code{tab}.  Likewise for the other
+@c symbols in this group.  The function @code{read-char} likewise converts
+@c these events into characters.
+ほとんどの場面では、これら2つを区別しても有用ではない。
+そのため、通常、@code{function-key-map}（@pxref{Translating Input}）は、
+@code{tab}を9に対応付けるようには設定してある。
+したがって、文字コード9（文字@kbd{C-i}）に対するキーバインディングは
+@code{tab}にも適用される。
+この種の他のシンボルについても同様である。
+関数@code{read-char}も同様にこれらのイベントを文字に変換する。
+
+@c In @sc{ASCII}, @key{BS} is really @kbd{C-h}.  But @code{backspace}
+@c converts into the character code 127 (@key{DEL}), not into code 8
+@c (@key{BS}).  This is what most users prefer.
+@sc{ASCII}では、@key{BS}は実際には@kbd{C-h}である。
+しかし、@code{backspace}は文字コード127（@key{DEL}）に変換され、
+文字コード8（@key{BS}）には変換されない。
+ほとんどのユーザーはこれを好む。
+
+@item @code{left}, @code{up}, @code{right}, @code{down}
+@c Cursor arrow keys
+カーソル矢印キー
+@item @code{kp-add}, @code{kp-decimal}, @code{kp-divide}, @dots{}
+@c Keypad keys (to the right of the regular keyboard).
+（普通のキーボードの右側にある）キーパッドのキー。
+@item @code{kp-0}, @code{kp-1}, @dots{}
+@c Keypad keys with digits.
+キーパッドの数字キー。
+@item @code{kp-f1}, @code{kp-f2}, @code{kp-f3}, @code{kp-f4}
+@c Keypad PF keys.
+キーパッドのPFキー
+@item @code{kp-home}, @code{kp-left}, @code{kp-up}, @code{kp-right}, @code{kp-down}
+@c Keypad arrow keys.  Emacs normally translates these into the
+@c corresponding non-keypad keys @code{home}, @code{left}, @dots{}
+キーパッドの矢印キー。
+Emacsは、通常、これらを対応するキーパッドのものではない
+@code{home}、@code{left}、@dots{}のキーに変換する。
+@item @code{kp-prior}, @code{kp-next}, @code{kp-end}, @code{kp-begin}, @code{kp-insert}, @code{kp-delete}
+@c Additional keypad duplicates of keys ordinarily found elsewhere.  Emacs
+@c normally translates these into the like-named non-keypad keys.
+普通のキーに対応するキーパッドのキー。
+Emacsは、通常、同じ名前のキーパッドのものではないキーに変換する。
+@end table
+
+@c You can use the modifier keys @key{ALT}, @key{CTRL}, @key{HYPER},
+@c @key{META}, @key{SHIFT}, and @key{SUPER} with function keys.  The way to
+@c represent them is with prefixes in the symbol name:
+ファンクションキーにも@key{ALT}、@key{CTRL}、@key{HYPER}、
+@key{META}、@key{SHIFT}、@key{SUPER}の修飾キーを使えます。
+それらを表現するには、シンボル名に接頭辞を付けます。
+
+@table @samp
+@item A-
+@c The alt modifier.
+アルト修飾。
+@item C-
+@c The control modifier.
+コントロール修飾。
+@item H-
+@c The hyper modifier.
+ハイパー修飾。
+@item M-
+@c The meta modifier.
+メタ修飾。
+@item S-
+@c The shift modifier.
+シフト修飾。
+@item s-
+@c The super modifier.
+スーパー修飾。
+@end table
+
+@c Thus, the symbol for the key @key{F3} with @key{META} held down is
+@c @code{M-f3}.  When you use more than one prefix, we recommend you
+@c write them in alphabetical order; but the order does not matter in
+@c arguments to the key-binding lookup and modification functions.
+したがって、@key{META}を押し下げた@key{F3}キーのシンボルは@code{M-f3}です。
+複数の接頭辞を使うときには、アルファベット順に書くことを勧めますが、
+キーバインディングの探索関数や修飾関数の引数では関係ありません。
+
+@node Mouse Events
+@c @subsection Mouse Events
+@subsection マウスイベント
+
+@c Emacs supports four kinds of mouse events: click events, drag events,
+@c button-down events, and motion events.  All mouse events are represented
+@c as lists.  The @sc{car} of the list is the event type; this says which
+@c mouse button was involved, and which modifier keys were used with it.
+@c The event type can also distinguish double or triple button presses
+@c (@pxref{Repeat Events}).  The rest of the list elements give position
+@c and time information.
+Emacsでは4種類のマウスイベント、つまり、クリックイベント、ドラッグイベント、
+ボタン押し下げイベント、モーションイベントを扱えます。
+すべてのマウスイベントは、リストで表現します。
+リストの@sc{car}はイベント型であり、
+どの修飾キーとともにどのマウスボタンを使ったかを表します。
+イベント型では、ダブル（連続2回）／トリプル（連続3回）の
+押し下げも区別できます（@pxref{Repeat Events}）。
+リストの残りの要素は、位置情報と時間情報です。
+
+@c For key lookup, only the event type matters: two events of the same type
+@c necessarily run the same command.  The command can access the full
+@c values of these events using the @samp{e} interactive code.
+@c @xref{Interactive Codes}.
+キーの探索では、イベント型のみが意味を持ちます。
+型が同じであれば、異なるイベントでも同じコマンドを実行します。
+コマンドでは、対話指定コード@samp{e}を用いてイベントの完全な値を参照できます。
+@xref{Interactive Codes}。
+
+@c A key sequence that starts with a mouse event is read using the keymaps
+@c of the buffer in the window that the mouse was in, not the current
+@c buffer.  This does not imply that clicking in a window selects that
+@c window or its buffer---that is entirely under the control of the command
+@c binding of the key sequence.
+マウスイベントで始まるキー列は、カレントバッファのキーマップではなく、
+マウスが入っているウィンドウのバッファのキーマップを用いて読まれます。
+つまり、あるウィンドウ内でクリックしても、
+当該ウィンドウやバッファを選択するとは限らず、
+その動作はキー列のコマンドバインディングで完全に制御されます。
+
+@node Click Events
+@c @subsection Click Events
+@subsection クリックイベント
+@c @cindex click event
+@c @cindex mouse click event
+@cindex クリックイベント
+@cindex マウスクリックイベント
+
+@c When the user presses a mouse button and releases it at the same
+@c location, that generates a @dfn{click} event.  Mouse click events have
+@c this form:
+ユーザーがマウスのボタンを同じ場所で押し下げてから離すと、
+@dfn{クリック}（click）イベントが生成されます。
+マウスクリックイベントはつぎの形式です。
+
+@example
+(@var{event-type}
+ (@var{window} @var{buffer-pos} (@var{x} . @var{y}) @var{timestamp})
+ @var{click-count})
+@end example
+
+@c Here is what the elements normally mean:
+通常の各要素の意味はつぎのとおりです。
+
+@table @asis
+@item @var{event-type}
+@c This is a symbol that indicates which mouse button was used.  It is
+@c one of the symbols @code{mouse-1}, @code{mouse-2}, @dots{}, where the
+@c buttons are numbered left to right.
+どのマウスボタンが使われたかを表すシンボル。
+ボタンを左から右へ番号を付けて、
+シンボル@code{mouse-1}、@code{mouse-2}、@dots{}の1つである。
+
+@c You can also use prefixes @samp{A-}, @samp{C-}, @samp{H-}, @samp{M-},
+@c @samp{S-} and @samp{s-} for modifiers alt, control, hyper, meta, shift
+@c and super, just as you would with function keys.
+ファンクションキーの場合と同様に、
+アルト、コントロール、ハイパー、メタ、シフト、スーパーの
+修飾キーを表す接頭辞@samp{A-}、@samp{C-}、@samp{H-}、@samp{M-}、
+@samp{S-}、@samp{s-}も使える。
+
+@c This symbol also serves as the event type of the event.  Key bindings
+@c describe events by their types; thus, if there is a key binding for
+@c @code{mouse-1}, that binding would apply to all events whose
+@c @var{event-type} is @code{mouse-1}.
+このシンボルはイベントのイベント型としての役割も果たす。
+キーバインディングはイベント型でイベントを指定する。
+したがって、@code{mouse-1}に対するキーバインディングは、
+イベント型@var{event-type}が@code{mouse-1}であるすべてのイベントに適用される。
+
+@item @var{window}
+@c This is the window in which the click occurred.
+クリックを行ったウィンドウ。
+
+@item @var{x}, @var{y}
+@c These are the pixel-denominated coordinates of the click, relative to
+@c the top left corner of @var{window}, which is @code{(0 . 0)}.
+ウィンドウ@var{window}の左上端を@code{(0 . 0)}とした
+クリック位置のピクセル単位の座標。
+
+@item @var{buffer-pos}
+@c This is the buffer position of the character clicked on.
+クリックした文字のバッファ内位置。
+
+@item @var{timestamp}
+@c This is the time at which the event occurred, in milliseconds.  (Since
+@c this value wraps around the entire range of Emacs Lisp integers in about
+@c five hours, it is useful only for relating the times of nearby events.)
+イベントが発生したときのミリ秒単位の時刻。
+（この値は、Emacs Lispの整数の範囲では約5時間で一周するので、
+時間的に近傍のイベントを関連付ける場合にのみ有用である。）
+
+@item @var{click-count}
+@c This is the number of rapid repeated presses so far of the same mouse
+@c button.  @xref{Repeat Events}.
+同じマウスボタンを素早く押し下げた繰り返し回数。
+@pxref{Repeat Events}。
+@end table
+
+@c The meanings of @var{buffer-pos}, @var{x} and @var{y} are somewhat
+@c different when the event location is in a special part of the screen,
+@c such as the mode line or a scroll bar.
+モード行やスクロールバーなどのスクリーンの特別な部分で発生したイベントでは、
+@var{buffer-pos}、@var{x}と@var{y}の意味は少々異なります。
+
+@c If the location is in a scroll bar, then @var{buffer-pos} is the symbol
+@c @code{vertical-scroll-bar} or @code{horizontal-scroll-bar}, and the pair
+@c @code{(@var{x} . @var{y})} is replaced with a pair @code{(@var{portion}
+@c . @var{whole})}, where @var{portion} is the distance of the click from
+@c the top or left end of the scroll bar, and @var{whole} is the length of
+@c the entire scroll bar.
+スクロールバーの内側でのクリックでは、
+@var{buffer-pos}はシンボル@code{vertical-scroll-bar}か
+@code{horizontal-scroll-bar}であり、
+@code{(@var{x} . @var{y})}は@code{(@var{portion} . @var{whole})}に
+置き換えられます。
+ここで、@var{portion}はスクロールバーの先頭や左端からのクリック位置、
+@var{whole}はスクロールバー全体の長さです。
+
+@c If the position is on a mode line or the vertical line separating
+@c @var{window} from its neighbor to the right, then @var{buffer-pos} is
+@c the symbol @code{mode-line} or @code{vertical-line}.  For the mode line,
+@c @var{y} does not have meaningful data.  For the vertical line, @var{x}
+@c does not have meaningful data.
+モード行やウィンドウ@var{window}を右隣のものと区切る
+縦方向の区切り行の内側では、
+@var{buffer-pos}はシンボル@code{mode-line}か@code{vertical-line}です。
+モード行では、@var{y}は意味のあるデータではありません。
+縦方向の区切り行では、@var{x}は意味のあるデータではありません。
+
+@c In one special case, @var{buffer-pos} is a list containing a symbol (one
+@c of the symbols listed above) instead of just the symbol.  This happens
+@c after the imaginary prefix keys for the event are inserted into the
+@c input stream.  @xref{Key Sequence Input}.
+1つの特別な場面では、
+@var{buffer-pos}は単一のシンボルではなく（上に述べた1つの）シンボルを
+含んだリストになります。
+イベントに対する仮想的なプレフィックスキーを入力ストリームに挿入すると
+このようになります。
+@xref{Key Sequence Input}。
+
+@node Drag Events
+@c @subsection Drag Events
+@subsection ドラッグイベント
+@c @cindex drag event
+@c @cindex mouse drag event
+@cindex ドラッグイベント
+@cindex マウスドラッグイベント
+
+@c With Emacs, you can have a drag event without even changing your
+@c clothes.  A @dfn{drag event} happens every time the user presses a mouse
+@c button and then moves the mouse to a different character position before
+@c releasing the button.  Like all mouse events, drag events are
+@c represented in Lisp as lists.  The lists record both the starting mouse
+@c position and the final position, like this:
+Emacsには、ドラッグイベントがあります。
+ユーザーがマウスボタンを押し下げてから、
+ボタンを離すまえに別の文字位置へマウスを動かすと
+@dfn{ドラッグ}（drag）イベントが発生します。
+マウスのすべてのイベントのように、Lispではドラッグイベントは
+リストとして表現されます。
+つぎのように、リストは開始マウス位置と終了位置を記録しています。
+
+@example
+(@var{event-type}
+ (@var{window1} @var{buffer-pos1} (@var{x1} . @var{y1}) @var{timestamp1})
+ (@var{window2} @var{buffer-pos2} (@var{x2} . @var{y2}) @var{timestamp2})
+ @var{click-count})
+@end example
+
+@c For a drag event, the name of the symbol @var{event-type} contains the
+@c prefix @samp{drag-}.  For example, dragging the mouse with button 2 held
+@c down generates a @code{drag-mouse-2} event.  The second and third
+@c elements of the event give the starting and ending position of the drag.
+@c Aside from that, the data have the same meanings as in a click event
+@c (@pxref{Click Events}).  You can access the second element of any mouse
+@c event in the same way, with no need to distinguish drag events from
+@c others.
+ドラッグイベントでは、シンボル@var{event-type}の名前には
+接頭辞@samp{drag-}が付きます。
+たとえば、ボタン2を押し下げてマウスをドラッグすると
+イベント@code{drag-mouse-2}が生成されます。
+イベントの2番目と3番目の要素は、ドラッグの開始位置と終了位置を与えます。
+なお、データにはクリックイベントと同じ意味があります（@pxref{Click Events}）。
+ドラッグイベントかどうかを区別せずに、
+マウスの任意のイベントの2番目の要素は同じ方法で参照できます。
+
+@c The @samp{drag-} prefix follows the modifier key prefixes such as
+@c @samp{C-} and @samp{M-}.
+接頭辞@samp{drag-}は、
+@samp{C-}や@samp{M-}のような修飾キー接頭辞に続きます。
+
+@c If @code{read-key-sequence} receives a drag event that has no key
+@c binding, and the corresponding click event does have a binding, it
+@c changes the drag event into a click event at the drag's starting
+@c position.  This means that you don't have to distinguish between click
+@c and drag events unless you want to.
+@code{read-key-sequence}が、
+キーバインディングを持たないドラッグイベントを受け取り、かつ、
+それに対応するクリックイベントにはバインディングがある場合、
+ドラッグイベントの開始位置をクリック位置とするクリックイベントに変換します。
+つまり、望まなければ、読者はクリックイベントとドラッグイベントを区別する
+必要がありません。
+
+@node Button-Down Events
+@c @subsection Button-Down Events
+@subsection ボタン押し下げイベント
+@c @cindex button-down event
+@cindex ボタン押し下げイベント
+
+@c Click and drag events happen when the user releases a mouse button.
+@c They cannot happen earlier, because there is no way to distinguish a
+@c click from a drag until the button is released.
+クリックイベントとドラッグイベントは、
+ユーザーがマウスボタンを離したときに発生します。
+ボタンを離すまではクリックとドラッグを区別する方法がないため、
+ボタンを離すまで発生しえません。
+
+@c If you want to take action as soon as a button is pressed, you need to
+@c handle @dfn{button-down} events.@footnote{Button-down is the
+@c conservative antithesis of drag.}  These occur as soon as a button is
+@c pressed.  They are represented by lists that look exactly like click
+@c events (@pxref{Click Events}), except that the @var{event-type} symbol
+@c name contains the prefix @samp{down-}.  The @samp{down-} prefix follows
+@c modifier key prefixes such as @samp{C-} and @samp{M-}.
+ボタンを押し下げたらただちに動作を始めたい場合には、
+読者は@dfn{ボタン押し下げ}（button-down）イベントを処理する必要があります。
+@footnote{「ボタン押し下げ」は、「ドラッグ」の対句。}
+ボタンを押し下げるとただちに発生します。
+それらは、シンボル@var{event-type}の名前に
+接頭辞@samp{down-}があることを除けば、
+クリックイベント（@pxref{Click Events}）とまったく同じリストで表現されます。
+接頭辞@samp{down-}は、@samp{C-}や@samp{M-}のような修飾キー接頭辞に続きます。
+
+@c The function @code{read-key-sequence} ignores any button-down events
+@c that don't have command bindings; therefore, the Emacs command loop
+@c ignores them too.  This means that you need not worry about defining
+@c button-down events unless you want them to do something.  The usual
+@c reason to define a button-down event is so that you can track mouse
+@c motion (by reading motion events) until the button is released.
+@c @xref{Motion Events}.
+関数@code{read-key-sequence}は、
+コマンドバインディングを持たないボタン押し下げイベントを無視します。
+したがって、Emacsのコマンドループもそれらを無視します。
+つまり、読者がボタン押し下げイベントでなにかをしたいのでなければ、
+読者はボタン押し下げイベントを定義する必要はありません。
+ボタン押し下げイベントを定義する理由は、
+ボタンが離されるまで（モーションイベントを読んで）マウスの動きを
+追跡するためです。
+@xref{Motion Events}。
+
+@node Repeat Events
+@c @subsection Repeat Events
+@subsection 繰り返しイベント
+@c @cindex repeat events
+@c @cindex double-click events
+@c @cindex triple-click events
+@cindex 繰り返しイベント
+@cindex ダブルクリックイベント
+@cindex トリプルクリックイベント
+
+@c If you press the same mouse button more than once in quick succession
+@c without moving the mouse, Emacs generates special @dfn{repeat} mouse
+@c events for the second and subsequent presses.
+マウスを動かさずに同一のマウスボタンを素早く連続して押し下げると、
+Emacsは2回目以降の押し下げに対して
+特別な@dfn{繰り返し}（repeat）マウスイベントを生成します。
+
+@c The most common repeat events are @dfn{double-click} events.  Emacs
+@c generates a double-click event when you click a button twice; the event
+@c happens when you release the button (as is normal for all click
+@c events).
+もっとも一般的な繰り返しイベントは@dfn{ダブルクリック}（double-click）
+イベントです。
+ボタンを2回クリックすると、Emcasはダブルクリックイベントを生成します。
+（他のすべてのクリックイベントのように）読者がボタンを離したときに
+イベントが生成されます。
+
+@c The event type of a double-click event contains the prefix
+@c @samp{double-}.  Thus, a double click on the second mouse button with
+@c @key{meta} held down comes to the Lisp program as
+@c @code{M-double-mouse-2}.  If a double-click event has no binding, the
+@c binding of the corresponding ordinary click event is used to execute
+@c it.  Thus, you need not pay attention to the double click feature 
+@c unless you really want to.
+ダブルクリックイベントのイベント型には、接頭辞@samp{double-}が含まれます。
+したがって、@key{meta}を押し下げて2番目のボタンをダブルクリックすると、
+Lispプログラムには@code{M-double-mouse-2}が送られます。
+ダブルクリックイベントにバインディングがなければ、
+対応する普通のクリックイベントを用いて実行します。
+したがって、実際に利用したくない限りは、
+読者はダブルクリック機能に注意する必要はありません。
+
+@c When the user performs a double click, Emacs generates first an ordinary
+@c click event, and then a double-click event.  Therefore, you must design
+@c the command binding of the double click event to assume that the
+@c single-click command has already run.  It must produce the desired
+@c results of a double click, starting from the results of a single click.
+ユーザーがダブルクリックすると、Emacsはまず普通のクリックイベントを生成し、
+つぎにダブルクリックイベントを生成します。
+したがって、ダブルクリックイベントのコマンドバインディングでは、
+すでに普通のクリックコマンドが動作済みであると仮定して設計する必要があります。
+普通のクリックの結果をもとに望みのダブルクリックの結果を得るようにします。
+
+@c This is convenient, if the meaning of a double click somehow ``builds
+@c on'' the meaning of a single click---which is recommended user interface
+@c design practice for double clicks.
+普通のクリックの意味にダブルクリックの意味を
+『追加』するようにすると便利です。
+ダブルクリックのユーザーインターフェイスはこのようにすることを勧めます。
+
+@c If you click a button, then press it down again and start moving the
+@c mouse with the button held down, then you get a @dfn{double-drag} event
+@c when you ultimately release the button.  Its event type contains
+@c @samp{double-drag} instead of just @samp{drag}.  If a double-drag event
+@c has no binding, Emacs looks for an alternate binding as if the event
+@c were an ordinary drag.
+ボタンをクリックして、ふたたびボタンを押し下げてそのままマウスを動かすと、
+最終的にボタンを離した時点で、@dfn{ダブルドラッグ}（double-drag）イベントが
+生成されます。
+そのイベント型には@samp{drag}のかわりに@samp{double-drag}が含まれます。
+ダブルドラッグイベントにバインディングがなければ、
+Emacsは普通のドラッグイベントとしてバインディングを探します。
+
+@c Before the double-click or double-drag event, Emacs generates a
+@c @dfn{double-down} event when the user presses the button down for the
+@c second time.  Its event type contains @samp{double-down} instead of just
+@c @samp{down}.  If a double-down event has no binding, Emacs looks for an
+@c alternate binding as if the event were an ordinary button-down event.
+@c If it finds no binding that way either, the double-down event is
+@c ignored.
+ダブルクリックイベントやダブルドラッグイベントを生成するまえに、
+ユーザーがボタンを2回目に押し下げたとき、
+Emacsは@dfn{ダブルダウン}（double-down）イベントを生成します。
+このイベント型には@samp{down}のかわりに@samp{double-down}が含まれます。
+ダブルダウンイベントにバインディングがなければ、
+Emacsは普通のボタン押し下げイベントとしてバインディングを探します。
+どちらでもバインディングがみつからなければ、ダブルダウンイベントは無視します。
+
+@c To summarize, when you click a button and then press it again right
+@c away, Emacs generates a down event and a click event for the first
+@c click, a double-down event when you press the button again, and finally
+@c either a double-click or a double-drag event.
+まとめると、ボタンをクリックしてただちに再度ボタンを押し下げると、
+Emacsは、はじめのクリックに対してボタン押し下げイベントと
+クリックイベントを生成し、
+再度ボタンを押し下げるとダブルダウンイベントを生成し、
+最後にダブルクリックイベントかダブルドラッグイベントを生成します。
+
+@c If you click a button twice and then press it again, all in quick
+@c succession, Emacs generates a @dfn{triple-down} event, followed by
+@c either a @dfn{triple-click} or a @dfn{triple-drag}.  The event types of
+@c these events contain @samp{triple} instead of @samp{double}.  If any
+@c triple event has no binding, Emacs uses the binding that it would use
+@c for the corresponding double event.
+ボタンを2回クリックしてから再度押し下げる操作を素早く行うと、
+Emacsは、@dfn{トリプルダウン}（triple-down）イベントに続けて
+@dfn{トリプルクリック}（triple-click）イベントか
+@dfn{トリプルドラッグ}（triple-drag）イベントを生成します。
+これらのイベント型には@samp{double}のかわりに@samp{triple}が含まれます。
+トリプルのイベントにバインディングがなければ、
+Emacsは対応するダブルのイベントを使います。
+
+@c If you click a button three or more times and then press it again, the
+@c events for the presses beyond the third are all triple events.  Emacs
+@c does not have separate event types for quadruple, quintuple, etc.@:
+@c events.  However, you can look at the event list to find out precisely
+@c how many times the button was pressed.
+ボタンを3回以上クリックしてから再度押し下げると、
+3回目以降の押し下げに対するイベントはすべてトリプルのイベントです。
+Emacsは、クアドラプル（4回）、クインタプル（5回）、…などの
+イベントは生成しません。
+しかし、イベントリストを調べれば、ボタンを何回押したか正確にわかります。
+
+@defun event-click-count event
+@c This function returns the number of consecutive button presses that led
+@c up to @var{event}.  If @var{event} is a double-down, double-click or
+@c double-drag event, the value is 2.  If @var{event} is a triple event,
+@c the value is 3 or greater.  If @var{event} is an ordinary mouse event
+@c (not a repeat event), the value is 1.
+この関数は、イベント@var{event}においてボタンが連続して押された回数を返す。
+@var{event}が、ダブルダウンイベント、ダブルクリックイベント、
+ダブルドラッグイベントであると、値は2である。
+@var{event}がトリプルのイベントであると、値は3かそれ以上である。
+@var{event}が（繰り返しイベントではない）普通のマウスイベントであると、
+値は1である。
+@end defun
+
+@defvar double-click-time
+@c To generate repeat events, successive mouse button presses must be at
+@c the same screen position, and the number of milliseconds between
+@c successive button presses must be less than the value of
+@c @code{double-click-time}.  Setting @code{double-click-time} to
+@c @code{nil} disables multi-click detection entirely.  Setting it to
+@c @code{t} removes the time limit; Emacs then detects multi-clicks by
+@c position only.
+繰り返しイベントが生成されるためには、
+同じスクリーン位置において連続してマウスボタンを押し下げ、しかも、
+各押し下げの間隔は@code{double-click-time}の値未満（ミリ秒）である必要がある。
+@code{double-click-time}に@code{nil}を設定すると、
+連続したクリックの検出を禁止する。
+@code{t}を設定すると時間制限をなくし、
+Emacsは連続したクリックの検出を位置だけで行う。
+@end defvar
+
+@node Motion Events
+@c @subsection Motion Events
+@subsection モーションイベント
+@c @cindex motion event
+@c @cindex mouse motion events
+@cindex モーションイベント
+@cindex マウスモーションイベント
+
+@c Emacs sometimes generates @dfn{mouse motion} events to describe motion
+@c of the mouse without any button activity.  Mouse motion events are
+@c represented by lists that look like this:
+Emacsは、ボタン操作を伴わないマウスの移動を表す
+@dfn{マウスモーション}（mouse motion）イベントを生成することがあります。
+マウスモーションイベントはつぎのようなリストで表現されます。
+
+@example
+(mouse-movement (@var{window} @var{buffer-pos} (@var{x} . @var{y}) @var{timestamp}))
+@end example
+
+@c The second element of the list describes the current position of the
+@c mouse, just as in a click event (@pxref{Click Events}).
+リストの2番目の要素は、クリックイベント（@pxref{Click Events}）と同様に、
+マウスの現在位置を表します。
+
+@c The special form @code{track-mouse} enables generation of motion events
+@c within its body.  Outside of @code{track-mouse} forms, Emacs does not
+@c generate events for mere motion of the mouse, and these events do not
+@c appear.  @xref{Mouse Tracking}.
+スペシャルフォーム@code{track-mouse}により、
+その本体の内側ではモーションイベントの生成を可能にできます。
+フォーム@code{track-mouse}の外側では、
+Emacsはマウスの移動のみに対するイベントを生成しないので、
+それらのイベントは現れません。
+@xref{Mouse Tracking}。
+
+@node Focus Events
+@c @subsection Focus Events
+@subsection フォーカスイベント
+@c @cindex focus event
+@cindex フォーカスイベント
+
+@c Window systems provide general ways for the user to control which window
+@c gets keyboard input.  This choice of window is called the @dfn{focus}.
+@c When the user does something to switch between Emacs frames, that
+@c generates a @dfn{focus event}.  The normal definition of a focus event,
+@c in the global keymap, is to select a new frame within Emacs, as the user
+@c would expect.  @xref{Input Focus}.
+ウィンドウシステムは、どのウィンドウにキーボード入力を与えるかを
+ユーザーが制御するための一般的な方法を提供します。
+ウィンドウを選ぶことを@dfn{フォーカス}（focus）と呼びます。
+ユーザーがEmacsのフレームを切り替える操作を行うと、
+@dfn{フォーカスイベント}（focus event）が生成されます。
+グローバルキーマップにあるフォーカスイベントの普通の定義は、
+Emcasの新たなフレームを選択するようになっていて、
+これはユーザーが期待することです。
+@xref{Input Focus}。
+
+@c Focus events are represented in Lisp as lists that look like this:
+Lispでは、フォーカスイベントはつぎのようなリストで表現されます。
+
+@example
+(switch-frame @var{new-frame})
+@end example
+
+@noindent
+@c where @var{new-frame} is the frame switched to.
+ここで、@var{new-frame}は切り替え先のフレームです。
+
+@c Most X window managers are set up so that just moving the mouse into a
+@c window is enough to set the focus there.  Emacs appears to do this,
+@c because it changes the cursor to solid in the new frame.  However, there
+@c is no need for the Lisp program to know about the focus change until
+@c some other kind of input arrives.  So Emacs generates a focus event only
+@c when the user actually types a keyboard key or presses a mouse button in
+@c the new frame; just moving the mouse between frames does not generate a
+@c focus event.
+Xのほとんどのウィンドウマネージャは、
+マウスをウィンドウへ入れるだけで当該ウィンドウにフォーカスが設定される
+ようになっています。
+フレームにマウスが入るとカーソルの形状を変更するので、
+Emacsでもそのようにします。
+しかし、Lispプログラムにとっては、
+なんらかの入力が到着するまではフォーカスの変更について知る必要がありません。
+そのため、ユーザーが実際にキーボードのキーを打つか
+新たなフレームでマウスボタンを押し下げたときだけ、
+Emacsはフォーカスイベントを生成します。
+フレーム間でマウスを動かしただけでは、フォーカスイベントは生成されません。
+
+@c A focus event in the middle of a key sequence would garble the
+@c sequence.  So Emacs never generates a focus event in the middle of a key
+@c sequence.  If the user changes focus in the middle of a key
+@c sequence---that is, after a prefix key---then Emacs reorders the events
+@c so that the focus event comes either before or after the multi-event key
+@c sequence, and not within it.
+キー列の途中にフォーカスイベントが現れると、キー列を乱します。
+そのため、Emacsはキー列の途中にはフォーカスイベントを生成しません。
+ユーザーがキー列の途中で、つまり、
+プレフィックスキーのあとでフォーカスを変更すると、
+複数イベントのキー列のまえかうしろにフォーカスイベントを移動し、
+途中には現れないようにEmacsはイベントの順序を並び替えます。
+
+@node Misc Events
+@c @subsection Miscellaneous Window System Events
+@subsection ウィンドウシステムのその他のイベント
+
+@c A few other event types represent occurrences within the window system.
+ウィンドウシステム内で起きたことを表す他のイベントもあります。
+
+@table @code
+@c @cindex @code{delete-frame} event
+@cindex イベント@code{delete-frame}
+@cindex @code{delete-frame}イベント
+@item (delete-frame (@var{frame}))
+@c This kind of event indicates that the user gave the window manager
+@c a command to delete a particular window, which happens to be an Emacs frame.
+この種のイベントは、
+Emacsのフレームであるウィンドウを削除するコマンドを
+ユーザーがウィンドウマネージャに与えたことを表す。
+
+@c The standard definition of the @code{delete-frame} event is to delete @var{frame}.
+イベント@code{delete-frame}の標準定義はフレーム@var{frame}の削除である。
+
+@c @cindex @code{iconify-frame} event
+@cindex イベント@code{iconify-frame}
+@cindex @code{iconify-frame}イベント
+@item (iconify-frame (@var{frame}))
+@c This kind of event indicates that the user iconified @var{frame} using
+@c the window manager.  Its standard definition is @code{ignore}; since the
+@c frame has already been iconified, Emacs has no work to do.  The purpose
+@c of this event type is so that you can keep track of such events if you
+@c want to.
+この種のイベントは、
+ウィンドウマネージャを用いてユーザーがフレーム@var{frame}を
+アイコン化したことを表す。
+これに対する標準定義は@code{ignore}である。
+というのは、フレームはすでにアイコンになっているので、
+Emacsが行うことはなにもないからである。
+このイベント型の目的は、
+必要ならばその種のイベントを読者が追跡できるようにしておくことである。
+
+@c @cindex @code{make-frame-visible} event
+@cindex イベント@code{make-frame-visible}
+@cindex @code{make-frame-visible}イベント
+@item (make-frame-visible (@var{frame}))
+@c This kind of event indicates that the user deiconified @var{frame} using
+@c the window manager.  Its standard definition is @code{ignore}; since the
+@c frame has already been made visible, Emacs has no work to do.
+この種のイベントは、
+ウィンドウマネージャを用いてユーザーがアイコン化したフレーム@var{frame}を
+開いたことを表す。
+これに対する標準定義は@code{ignore}である。
+というのは、フレームはすでに見えるようになっているので、
+Emacsが行うことはなにもないからである。
+
+@c @cindex @code{mouse-wheel} event
+@cindex イベント@code{mouse-wheel}
+@cindex @code{mouse-wheel}イベント
+@item (mouse-wheel @var{position} @var{delta})
+@c This kind of event is generated by moving a wheel on a mouse (such as
+@c the MS Intellimouse).  Its effect is typically a kind of scroll or zoom.
+この種のイベントは、
+（MSインテリマウスなどの）マウスのホイールを動かすと生成される。
+その典型的な効果はスクロールやズーミングである。
+
+@c The element @var{delta} describes the amount and direction of the wheel
+@c rotation.  Its absolute value is the number of increments by which the
+@c wheel was rotated.  A negative @var{delta} indicates that the wheel was
+@c rotated backwards, towards the user, and a positive @var{delta}
+@c indicates that the wheel was rotated forward, away from the user.
+要素@var{delta}はホイールの回転方向と回転量である。
+その絶対値はホイールを回すごとに増加する数である。
+負の@var{delta}は、逆転、つまり、ユーザーへ近付く方向への回転を表し、
+正の@var{delta}は、順転、つまり、ユーザーから遠ざかる方向への回転を表す。
+
+@c The element @var{position} is a list describing the position of the
+@c event, in the same format as used in a mouse-click event.
+要素@var{position}はイベントの発生位置を表し、
+マウスクリックイベントで使われる形式と同じである。
+
+@c This kind of event is generated only on some kinds of systems.
+この種のイベントは、ある種のシステムでのみ生成される。
+
+@c @cindex @code{drag-n-drop} event
+@cindex イベント@code{drag-n-drop}
+@cindex @code{drag-n-drop}イベント
+@item (drag-n-drop @var{position} @var{files})
+@c This kind of event is generated when a group of files is
+@c selected in an application outside of Emacs, and then dragged and
+@c dropped onto an Emacs frame.
+この種のイベントは、
+Emacsの外側のアプリケーションで一群のファイルを選択し、
+それらをEmacsのフレームにドラッグ＆ドロップしたときに生成される。
+
+@c The element @var{position} is a list describing the position of the
+@c event, in the same format as used in a mouse-click event, and
+@c @var{files} is the list of file names that were dragged and dropped.
+@c The usual way to handle this event is by visiting these files.
+要素@var{position}はイベントの発生位置を表し、
+マウスクリックイベントで使われる形式と同じであり、
+要素@var{files}はドラッグ＆ドロップされたファイル名のリストである。
+このイベントを扱う通常の処理は、それらのファイルを訪問することである。
+
+@c This kind of event is generated, at present, only on some kinds of
+@c systems.
+現状では、この種のイベントは、ある種のシステムでのみ生成される。
+@end table
+
+@c   If one of these events arrives in the middle of a key sequence---that
+@c is, after a prefix key---then Emacs reorders the events so that this
+@c event comes either before or after the multi-event key sequence, not
+@c within it.
+これらのイベントがキー列の途中、つまり、
+プレフィックスキーのうしろに現れると、
+複数イベントのキー列のまえかうしろに当該イベントを移動し、
+途中には現れないようにEmacsはイベントの順序を並び替えます。
+
+@node Event Examples
+@c @subsection Event Examples
+@subsection イベントの例
+
+@c If the user presses and releases the left mouse button over the same
+@c location, that generates a sequence of events like this:
+ユーザーが同じ場所でマウスの左ボタンを押し下げてから離すと、
+つぎのようなイベント列が生成されます。
+
+@smallexample
+(down-mouse-1 (#<window 18 on NEWS> 2613 (0 . 38) -864320))
+(mouse-1      (#<window 18 on NEWS> 2613 (0 . 38) -864180))
+@end smallexample
+
+@c While holding the control key down, the user might hold down the
+@c second mouse button, and drag the mouse from one line to the next.
+@c That produces two events, as shown here:
+コントロールキーを押し下げた状態で、
+ユーザーがマウスの2番目のボタンを押し下げ、
+マウスをつぎの行へドラッグすると、つぎのような2つのイベントが生成されます。
+
+@smallexample
+(C-down-mouse-2 (#<window 18 on NEWS> 3440 (0 . 27) -731219))
+(C-drag-mouse-2 (#<window 18 on NEWS> 3440 (0 . 27) -731219)
+                (#<window 18 on NEWS> 3510 (0 . 28) -729648))
+@end smallexample
+
+@c While holding down the meta and shift keys, the user might press the
+@c second mouse button on the window's mode line, and then drag the mouse
+@c into another window.  That produces a pair of events like these:
+メタキーとシフトキーを押し下げた状態で、
+ユーザーがマウスの2番目のボタンをウィンドウのモード行で押し下げ、
+マウスを別のウィンドウへドラッグすると、
+つぎのような2つのイベントが生成されます。
+
+@smallexample
+(M-S-down-mouse-2 (#<window 18 on NEWS> mode-line (33 . 31) -457844))
+(M-S-drag-mouse-2 (#<window 18 on NEWS> mode-line (33 . 31) -457844)
+                  (#<window 20 on carlton-sanskrit.tex> 161 (33 . 3)
+                   -453816))
+@end smallexample
+
+@node Classifying Events
+@c @subsection Classifying Events
+@subsection イベントの分類
+@c @cindex event type
+@cindex イベント型
+
+@c   Every event has an @dfn{event type}, which classifies the event for
+@c key binding purposes.  For a keyboard event, the event type equals the
+@c event value; thus, the event type for a character is the character, and
+@c the event type for a function key symbol is the symbol itself.  For
+@c events that are lists, the event type is the symbol in the @sc{car} of
+@c the list.  Thus, the event type is always a symbol or a character.
+各イベントには@dfn{イベント型}（event type）があって、
+キーバインディング処理のためにイベントを分類します。
+キーボードイベントでは、イベント型はイベントの値に等しいです。
+したがって、文字に対するイベント型は文字であり、
+ファンクションキーに対するイベント型はシンボルそのものです。
+リストであるイベントでは、イベント型はリストの@sc{car}にあるシンボルです。
+したがって、イベント型はつねにシンボルか文字です。
+
+@c   Two events of the same type are equivalent where key bindings are
+@c concerned; thus, they always run the same command.  That does not
+@c necessarily mean they do the same things, however, as some commands look
+@c at the whole event to decide what to do.  For example, some commands use
+@c the location of a mouse event to decide where in the buffer to act.
+イベント型が同じであるイベントは、キーバインディングに関する限り同じです。
+つまり、それらは同じコマンドを実行します。
+しかし、これは、それらが必ずしも同じことを行うという意味ではありません。
+イベント全体を調べてなにを行うかを決定するコマンドもあります。
+たとえば、マウスイベントの生起位置を使って、
+バッファのどの部分を処理するかを決めるコマンドもあります。
+
+@c   Sometimes broader classifications of events are useful.  For example,
+@c you might want to ask whether an event involved the @key{META} key,
+@c regardless of which other key or mouse button was used.
+イベントをおおまかに分類すると有用な場合もあります。
+たとえば、他の修飾キーやマウスボタンには関係なしに、
+@key{META}キーが使われているイベントかどうか調べたいことがあるでしょう。
+
+@c   The functions @code{event-modifiers} and @code{event-basic-type} are
+@c provided to get such information conveniently.
+関数@code{event-modifiers}や@code{event-basic-type}は、
+そのような情報を便利に与えるためのものです。
+
+@defun event-modifiers event
+@c This function returns a list of the modifiers that @var{event} has.  The
+@c modifiers are symbols; they include @code{shift}, @code{control},
+@c @code{meta}, @code{alt}, @code{hyper} and @code{super}.  In addition,
+@c the modifiers list of a mouse event symbol always contains one of
+@c @code{click}, @code{drag}, and @code{down}.
+この関数は、@var{event}にある修飾子のリストを返す。
+修飾子はシンボルであり、@code{shift}、@code{control}、
+@code{meta}、@code{alt}、@code{hyper}、@code{super}である。
+さらに、マウスイベントシンボルの修飾子リストには、
+必ず、@code{click}、@code{drag}、@code{down}の1つが含まれる。
+
+@c The argument @var{event} may be an entire event object, or just an event
+@c type.
+引数@var{event}は、イベントオブジェクト全体であるか、単なるイベント型である。
+
+@c Here are some examples:
+例を示す。
+
+@example
+(event-modifiers ?a)
+     @result{} nil
+(event-modifiers ?\C-a)
+     @result{} (control)
+(event-modifiers ?\C-%)
+     @result{} (control)
+(event-modifiers ?\C-\S-a)
+     @result{} (control shift)
+(event-modifiers 'f5)
+     @result{} nil
+(event-modifiers 's-f5)
+     @result{} (super)
+(event-modifiers 'M-S-f5)
+     @result{} (meta shift)
+(event-modifiers 'mouse-1)
+     @result{} (click)
+(event-modifiers 'down-mouse-1)
+     @result{} (down)
+@end example
+
+@c The modifiers list for a click event explicitly contains @code{click},
+@c but the event symbol name itself does not contain @samp{click}.
+クリックイベントに対する修飾子リストには@code{click}が明示的に含まれるが、
+イベントシンボルの名前自体には@samp{click}は含まれない。
+@end defun
+
+@defun event-basic-type event
+@c This function returns the key or mouse button that @var{event}
+@c describes, with all modifiers removed.  For example:
+この関数は、@var{event}にあるキーやマウスボタンを返す。
+たとえばつぎのとおり。
+
+@example
+(event-basic-type ?a)
+     @result{} 97
+(event-basic-type ?A)
+     @result{} 97
+(event-basic-type ?\C-a)
+     @result{} 97
+(event-basic-type ?\C-\S-a)
+     @result{} 97
+(event-basic-type 'f5)
+     @result{} f5
+(event-basic-type 's-f5)
+     @result{} f5
+(event-basic-type 'M-S-f5)
+     @result{} f5
+(event-basic-type 'down-mouse-1)
+     @result{} mouse-1
+@end example
+@end defun
+
+@defun mouse-movement-p object
+@c This function returns non-@code{nil} if @var{object} is a mouse movement
+@c event.
+この関数は、@var{object}がマウス移動のイベントならば@code{nil}以外を返す。
+@end defun
+
+@defun event-convert-list list
+@c This function converts a list of modifier names and a basic event type
+@c to an event type which specifies all of them.  For example,
+この関数は、修飾子名と基本イベント型のリストを
+それらが示すイベント型に変換する。
+たとえばつぎのとおり。
+
+@example
+(event-convert-list '(control ?a))
+     @result{} 1
+(event-convert-list '(control meta ?a))
+     @result{} -134217727
+(event-convert-list '(control super f1))
+     @result{} C-s-f1
+@end example
+@end defun
+
+@node Accessing Events
+@c @subsection Accessing Events
+@subsection イベントの参照
+
+@c   This section describes convenient functions for accessing the data in
+@c a mouse button or motion event.
+本節では、マウスボタンイベントやモーションイベント内のデータを
+参照するための便利な関数について述べます。
+
+@c   These two functions return the starting or ending position of a
+@c mouse-button event, as a list of this form:
+つぎの2つの関数は、以下の形式のリストであるマウスボタンイベントの
+開始位置や終了位置を返します。
+
+@example
+(@var{window} @var{buffer-position} (@var{x} . @var{y}) @var{timestamp})
+@end example
+
+@defun event-start event
+@c This returns the starting position of @var{event}.
+イベント@var{event}の開始位置を返す。
+
+@c If @var{event} is a click or button-down event, this returns the
+@c location of the event.  If @var{event} is a drag event, this returns the
+@c drag's starting position.
+@var{event}がクリックイベントやボタン押し下げイベントであると、
+イベントの位置を返す。
+@var{event}がドラッグイベントであると、ドラッグの開始位置を返す。
+@end defun
+
+@defun event-end event
+@c This returns the ending position of @var{event}.
+イベント@var{event}の終了位置を返す。
+
+@c If @var{event} is a drag event, this returns the position where the user
+@c released the mouse button.  If @var{event} is a click or button-down
+@c event, the value is actually the starting position, which is the only
+@c position such events have.
+@var{event}がドラッグイベントであると、
+ユーザーがマウスボタンを離したときの位置を返す。
+@var{event}がクリックイベントかボタン押し下げイベントであると、
+実際の値は開始位置であり、
+その種のイベントにある唯一の位置情報である。
+@end defun
+
+@c   These five functions take a position list as described above, and
+@c return various parts of it.
+つぎの5つの関数は、上に述べた位置情報のリストを引数として、
+そのさまざまな部分を返す。
+
+@defun posn-window position
+@c Return the window that @var{position} is in.
+@var{position}内のウィンドウを返す。
+@end defun
+
+@defun posn-point position
+@c Return the buffer position in @var{position}.  This is an integer.
+@var{position}のバッファ内位置を返す。
+これは整数である。
+@end defun
+
+@defun posn-x-y position
+@c Return the pixel-based x and y coordinates in @var{position}, as a cons
+@c cell @code{(@var{x} . @var{y})}.
+@var{position}内のピクセル単位のxy座標を
+コンスセル@code{(@var{x} . @var{y})}として返す。
+@end defun
+
+@defun posn-col-row position
+@c Return the row and column (in units of characters) of @var{position}, as
+@c a cons cell @code{(@var{col} . @var{row})}.  These are computed from the
+@c @var{x} and @var{y} values actually found in @var{position}.
+@var{position}の（文字単位の）行（row）とコラム（col）の座標を
+コンスセル@code{(@var{col} . @var{row})}として返す。
+これらは実際には@var{position}内の@var{x}と@var{y}の値から計算される。
+@end defun
+
+@defun posn-timestamp position
+@c Return the timestamp in @var{position}.
+@var{position}内の時刻情報を返す。
+@end defun
+
+@c   These functions are useful for decoding scroll bar events.
+つぎの関数はスクロールバーでのイベントを解読するのに便利です。
+
+@defun scroll-bar-event-ratio event
+@c This function returns the fractional vertical position of a scroll bar
+@c event within the scroll bar.  The value is a cons cell
+@c @code{(@var{portion} . @var{whole})} containing two integers whose ratio
+@c is the fractional position.
+スクロールバー内でのイベントから、スクロールバーに対する縦方向の位置を返す。
+その値は2つの整数を含むコンスセル@code{(@var{portion} . @var{whole})}であり、
+その比は位置の割合を表す。
+@end defun
+
+@defun scroll-bar-scale ratio total
+@c This function multiplies (in effect) @var{ratio} by @var{total},
+@c rounding the result to an integer.  The argument @var{ratio} is not a
+@c number, but rather a pair @code{(@var{num} . @var{denom})}---typically a
+@c value returned by @code{scroll-bar-event-ratio}.
+この関数は（実質的には）@var{ratio}に@var{total}を掛け、
+結果を整数に丸める。
+引数@var{ratio}は数ではなく@code{(@var{num} . @var{denom})}であり、
+典型的には@code{scroll-bar-event-ratio}が返す値である。
+
+@c This function is handy for scaling a position on a scroll bar into a
+@c buffer position.  Here's how to do that:
+この関数はスクロールバー内での位置を
+バッファ内での位置へ換算するのに便利である。
+つぎのように行う。
+
+@example
+(+ (point-min)
+   (scroll-bar-scale
+      (posn-x-y (event-start event))
+      (- (point-max) (point-min))))
+@end example
+
+@c Recall that scroll bar events have two integers forming a ratio, in place
+@c of a pair of x and y coordinates.
+スクロールバー内でのイベントには、
+xy座標のかわりに比を表す2つの整数があることに注意。
+@end defun
+
+@node Strings of Events
+@c @subsection Putting Keyboard Events in Strings
+@subsection キーボードイベントを文字列で保持する
+
+@c   In most of the places where strings are used, we conceptualize the
+@c string as containing text characters---the same kind of characters found
+@c in buffers or files.  Occasionally Lisp programs use strings that
+@c conceptually contain keyboard characters; for example, they may be key
+@c sequences or keyboard macro definitions.  However, storing keyboard
+@c characters in a string is a complex matter, for reasons of historical
+@c compatibility, and it is not always possible.
+文字列が使われるほとんどの場面では、
+文字列にはテキスト文字、つまり、
+バッファやファイルにある文字と同じ種類のものが入っていると考えています。
+文字列にはキーボード文字が入っているとみなして使うLispプログラムもあります。
+たとえば、文字列には、キー列やキーボードマクロの定義が入っているのです。
+しかし、キーボード文字を文字列に保持するのは複雑であり、
+それは歴史的な互換性を保つためにするのであり、
+また、つねに可能とは限りません。
+
+@c   We recommend that new programs avoid dealing with these complexities
+@c by not storing keyboard events in strings.  Here is how to do that:
+新しいプログラムでは、キーボードイベントを文字列に保持しないで、
+このような複雑さを避けるように推奨します。
+つぎのようにします。
+
+@itemize @bullet
+@item
+@c Use vectors instead of strings for key sequences, when you plan to use
+@c them for anything other than as arguments to @code{lookup-key} and
+@c @code{define-key}.  For example, you can use
+@c @code{read-key-sequence-vector} instead of @code{read-key-sequence}, and
+@c @code{this-command-keys-vector} instead of @code{this-command-keys}.
+キー列に対しては、それらを@code{lookup-key}や@code{define-key}に対する
+引数以外にも使うつもりならば、文字列のかわりにベクトルを使う。
+たとえば、@code{read-key-sequence}のかわりに@code{read-key-sequence-vector}を
+@code{this-command-keys}のかわりに@code{this-command-keys-vector}を使う。
+
+@item
+@c Use vectors to write key sequence constants containing meta characters,
+@c even when passing them directly to @code{define-key}.
+メタ文字を含むキー列は、
+それらを@code{define-key}に直接渡す場合であっても、ベクトルで書く。
+
+@item
+@c When you have to look at the contents of a key sequence that might be a
+@c string, use @code{listify-key-sequence} (@pxref{Event Input Misc})
+@c first, to convert it to a list.
+文字列である可能性があるキー列の内容を調べるときには、
+@code{listify-key-sequence}（@pxref{Event Input Misc}）を使って、
+それをリストに変換しておく。
+@end itemize
+
+@c   The complexities stem from the modifier bits that keyboard input
+@c characters can include.  Aside from the Meta modifier, none of these
+@c modifier bits can be included in a string, and the Meta modifier is
+@c allowed only in special cases.
+複雑さの原因は、キーボード入力に含まれる修飾ビットにあります。
+メタ修飾子以外の修飾ビットを文字列に入れることは不可能であり、
+メタ修飾子は特別な場合として唯一許されているのです。
+
+@c   The earliest GNU Emacs versions represented meta characters as codes
+@c in the range of 128 to 255.  At that time, the basic character codes
+@c ranged from 0 to 127, so all keyboard character codes did fit in a
+@c string.  Many Lisp programs used @samp{\M-} in string constants to stand
+@c for meta characters, especially in arguments to @code{define-key} and
+@c similar functions, and key sequences and sequences of events were always
+@c represented as strings.
+初期のGNU Emacsでは、メタ文字を128から255の範囲のコードで表現していました。
+その当時、基本文字コードは0から127でしたから、
+キーボード文字のすべてのコードは文字列に収まったのです。
+多くのLispプログラムでメタ文字を表すために文字列定数内で@samp{\M-}を使い、
+特に、@code{define-key}や類似の関数に対する引数に使われ、
+キー列やイベント列はつねに文字列で表現されていました。
+
+@c   When we added support for larger basic character codes beyond 127, and
+@c additional modifier bits, we had to change the representation of meta
+@c characters.  Now the flag that represents the Meta modifier in a
+@c character is
+127を超える大きな基本文字コードと追加の修飾ビットを扱えるようにしたとき、
+メタ文字の表現方法を変更せざるをえませんでした。
+現在、メタ修飾子を表す文字内のビットは
+@tex
+$2^{27}$
+@end tex
+@ifinfo
+2**27
+@end ifinfo
+@c and such numbers cannot be included in a string.
+であり、そのような数を文字列に入れることはできません。
+
+@c   To support programs with @samp{\M-} in string constants, there are
+@c special rules for including certain meta characters in a string.
+@c Here are the rules for interpreting a string as a sequence of input
+@c characters:
+文字列定数で@samp{\M-}を使っているプログラムを扱えるように、
+文字列にメタ文字を入れるための特別な規則があります。
+以下は、文字列を入力文字の列として解釈するための規則です。
+
+@itemize @bullet
+@item
+@c If the keyboard character value is in the range of 0 to 127, it can go
+@c in the string unchanged.
+キーボード文字の値が0から127の範囲にあれば、
+無変更で文字列に入れる。
+
+@item
+@c The meta variants of those characters, with codes in the range of
+コードが
+@tex
+$2^{27}$
+@end tex
+@ifinfo
+2**27
+@end ifinfo
+@c to
+から
+@tex
+$2^{27} + 127$,
+@end tex
+@ifinfo
+2**27+127,
+@end ifinfo
+@c can also go in the string, but you must change their
+@c numeric values.  You must set the
+の範囲にあるこれらの文字のメタ変種は文字列に入れられるが、
+それらの数値を変更する必要がある。
+ビット
+@tex
+$2^{27}$
+@end tex
+@ifinfo
+2**27
+@end ifinfo
+のかわりに
+@tex
+$2^{7}$
+@end tex
+@ifinfo
+2**7
+@end ifinfo
+@c bit instead of the
+ビットに変更し、
+@c @tex
+@c $2^{27}$
+@c @end tex
+@c @ifinfo
+@c 2**27
+@c @end ifinfo
+@c bit, resulting in a value between 128 and 255.  Only a unibyte string
+@c can include these codes.
+128から255の範囲の値にする。
+ユニバイト文字列だけにこれらのコードを入れられる。
+
+@item
+@c Non-@sc{ASCII} characters above 256 can be included in a multibyte string.
+256以上の非@sc{ASCII}文字はマルチバイト文字列だけに入れられる。
+
+@item
+@c Other keyboard character events cannot fit in a string.  This includes
+@c keyboard events in the range of 128 to 255.
+その他のキーボード文字イベントは文字列に収められない。
+これには、128から255の範囲のキーボードイベントも含む。
+@end itemize
+
+@c   Functions such as @code{read-key-sequence} that construct strings of
+@c keyboard input characters follow these rules: they construct vectors
+@c instead of strings, when the events won't fit in a string.
+キーボード入力文字の文字列を作る@code{read-key-sequence}などの関数は
+つぎの規則に従います。
+つまり、文字列に収まらないイベントであるときには、
+文字列のかわりにベクトルを作ります。
+
+@c   When you use the read syntax @samp{\M-} in a string, it produces a
+@c code in the range of 128 to 255---the same code that you get if you
+@c modify the corresponding keyboard event to put it in the string.  Thus,
+@c meta events in strings work consistently regardless of how they get into
+@c the strings.
+読者が文字列で@samp{\M-}の入力構文を使うと、
+それらは128から255の範囲のコードになります。
+対応するキーボードイベントを文字列に保存するように変更したときに得られる
+コードと同じです。
+したがって、文字列内のメタイベントは、それらがどのように文字列に
+収められたかに関わらず、整合性のある動作をします。
+
+@c   However, most programs would do well to avoid these issues by
+@c following the recommendations at the beginning of this section.
+しかし、本節のはじめに述べた推奨方法に従ってこれらのことがらを避けるほうが、
+ほとんどのプログラムはよりよく動作するでしょう。
+
+@node Reading Input
+@c @section Reading Input
+@section 入力の読み取り
+
+@c   The editor command loop reads key sequences using the function
+@c @code{read-key-sequence}, which uses @code{read-event}.  These and other
+@c functions for event input are also available for use in Lisp programs.
+@c See also @code{momentary-string-display} in @ref{Temporary Displays},
+@c and @code{sit-for} in @ref{Waiting}.  @xref{Terminal Input}, for
+@c functions and variables for controlling terminal input modes and
+@c debugging terminal input.  @xref{Translating Input}, for features you
+@c can use for translating or modifying input events while reading them.
+エディタコマンドループは、
+関数@code{read-key-sequence}を使ってキー列を読み取ります。
+なお、関数@code{read-key-sequence}は関数@code{read-event}を使います。
+これらやイベント入力を扱う他の関数は、Lispプログラムからも使えます。
+@ref{Temporary Displays}の@code{momentary-string-display}、
+および、@ref{Waiting}の@code{sit-for}を参照してください。
+端末の入力モードの制御や端末入力のデバッグに関する関数や変数については、
+@xref{Terminal Input}。
+入力イベントを読むときにそれらを変換したり修正する機能については、
+@xref{Translating Input}。
+
+@c   For higher-level input facilities, see @ref{Minibuffers}.
+上位レベルの入力機能については、@ref{Minibuffers}を参照してください。
+
+@menu
+* Key Sequence Input::		How to read one key sequence.
+* Reading One Event::		How to read just one event.
+* Quoted Character Input::	Asking the user to specify a character.
+* Event Input Misc::    	How to reread or throw away input events.
+@end menu
+
+@node Key Sequence Input
+@c @subsection Key Sequence Input
+@subsection キー列の入力
+@c @cindex key sequence input
+@cindex キー列の入力
+
+@c   The command loop reads input a key sequence at a time, by calling
+@c @code{read-key-sequence}.  Lisp programs can also call this function;
+@c for example, @code{describe-key} uses it to read the key to describe.
+コマンドループは、@code{read-key-sequence}を呼ぶことで
+キー列の入力を読み取ります。
+Lispプログラムからこの関数を呼び出してもよく、
+たとえば、@code{describe-key}は、
+説明対象とするキーを読むためにこの関数を使います。
+
+@defun read-key-sequence prompt
+@c @cindex key sequence
+@cindex キー列
+@c This function reads a key sequence and returns it as a string or
+@c vector.  It keeps reading events until it has accumulated a complete key
+@c sequence; that is, enough to specify a non-prefix command using the
+@c currently active keymaps.
+この関数は、キー列を読み取り文字列かベクトルとして返す。
+完全なキー列を収集し終えるまで、
+つまり、現在活性なキーマップにおいて、非プレフィックスコマンドを
+指定するのに十分になるまで、イベントを読み続ける。
+
+@c If the events are all characters and all can fit in a string, then
+@c @code{read-key-sequence} returns a string (@pxref{Strings of Events}).
+@c Otherwise, it returns a vector, since a vector can hold all kinds of
+@c events---characters, symbols, and lists.  The elements of the string or
+@c vector are the events in the key sequence.
+イベントがすべて文字であり、かつ、それらが文字列に収まるならば、
+@code{read-key-sequence}は文字列（@pxref{Strings of Events}）を返す。
+さもなければ、ベクトルを返す。
+ベクトルならば、任意の種類のイベント、つまり、
+文字、シンボル、リストを保持できるからである。
+文字列やベクトルの要素は、キー列のイベントである。
+
+@c The argument @var{prompt} is either a string to be displayed in the echo
+@c area as a prompt, or @code{nil}, meaning not to display a prompt.
+引数@var{prompt}は、プロンプトとしてエコー領域に表示する文字列であるか、
+あるいは、プロンプトを表示しないことを意味する@code{nil}である。
+
+@c In the example below, the prompt @samp{?} is displayed in the echo area,
+@c and the user types @kbd{C-x C-f}.
+以下の例では、プロンプト@samp{?}がエコー領域に表示され、
+ユーザーは@kbd{C-x C-f}と打つ。
+
+@example
+(read-key-sequence "?")
+
+@group
+---------- Echo Area ----------
+?@kbd{C-x C-f}
+---------- Echo Area ----------
+
+     @result{} "^X^F"
+@end group
+@end example
+
+@c The function @code{read-key-sequence} suppresses quitting: @kbd{C-g}
+@c typed while reading with this function works like any other character,
+@c and does not set @code{quit-flag}.  @xref{Quitting}.
+関数@code{read-key-sequence}は中断を抑止する。
+この関数が動作中に@kbd{C-g}を打っても、他の文字と同様に扱い、
+@code{quit-flag}を設定しない。
+@pxref{Quitting}。
+@end defun
+
+@defun read-key-sequence-vector prompt
+@c This is like @code{read-key-sequence} except that it always
+@c returns the key sequence as a vector, never as a string.
+@c @xref{Strings of Events}.
+これは@code{read-key-sequence}と同様であるが、
+つねにベクトルとしてキー列を返し、文字列としてはけっして返さない。
+@pxref{Strings of Events}。
+@end defun
+
+@c @cindex upper case key sequence
+@c @cindex downcasing in @code{lookup-key}
+@cindex 大文字のキー列
+@cindex @code{lookup-key}における小文字への変換
+@c If an input character is an upper-case letter and has no key binding,
+@c but its lower-case equivalent has one, then @code{read-key-sequence}
+@c converts the character to lower case.  Note that @code{lookup-key} does
+@c not perform case conversion in this way.
+入力文字が大文字であって、それらにキーバインディングがないとき、
+対応する小文字にキーバインディングがあれば、
+@code{read-key-sequence}は文字を小文字に変換します。
+@code{lookup-key}はこのような変換を行わないことに注意してください。
+
+@c The function @code{read-key-sequence} also transforms some mouse events.
+@c It converts unbound drag events into click events, and discards unbound
+@c button-down events entirely.  It also reshuffles focus events and
+@c miscellaneous window events so that they never appear in a key sequence
+@c with any other events.
+関数@code{read-key-sequence}は、ある種のマウスイベントも変換します。
+バインディングのないドラッグイベントをクリックイベントに変換したり、
+バインディングのないボタン押し下げイベントを完全に無視します。
+さらに、フォーカスイベントとその他のウィンドウイベントを並び替えて、
+それらが他のイベントのキー列の途中に現れないようにします。
+
+@c When mouse events occur in special parts of a window, such as a mode
+@c line or a scroll bar, the event type shows nothing special---it is the
+@c same symbol that would normally represent that combination of mouse
+@c button and modifier keys.  The information about the window part is kept
+@c elsewhere in the event---in the coordinates.  But
+@c @code{read-key-sequence} translates this information into imaginary
+@c ``prefix keys'', all of which are symbols: @code{mode-line},
+@c @code{vertical-line}, @code{horizontal-scroll-bar} and
+@c @code{vertical-scroll-bar}.  You can define meanings for mouse clicks in
+@c special window parts by defining key sequences using these imaginary
+@c prefix keys.
+マウスイベントが、モード行やスクロールバーなどのウィンドウの特別な部分で
+生起しても、特別なイベント型はなく、マウスボタンや修飾キーの
+組み合わせを普通どおりに表したシンボルです。
+ウィンドウのどの部分かに関する情報は、
+イベント内の別の部分、つまり、座標に入っています。
+しかし、@code{read-key-sequence}は、その情報を
+シンボル@code{mode-line}、@code{vertical-line}、@code{horizontal-scroll-bar}、
+@code{vertical-scroll-bar}を用いた仮想的な『プレフィックスキー』に変換します。
+ウィンドウの特別な部分におけるマウスクリックの意味は、
+これらの仮想的なプレフィックスキーを用いてキー列を定義することで
+定義できます。
+
+@c For example, if you call @code{read-key-sequence} and then click the
+@c mouse on the window's mode line, you get two events, like this:
+たとえば、@code{read-key-sequence}を呼び出してから、
+ウィンドウのモード行でクリックすると、
+つぎのような2つのイベントを得ます。
+
+@example
+(read-key-sequence "Click on the mode line: ")
+     @result{} [mode-line
+         (mouse-1
+          (#<window 6 on NEWS> mode-line
+           (40 . 63) 5959987))]
+@end example
+
+@defvar num-input-keys
+@c @c Emacs 19 feature
+@c This variable's value is the number of key sequences processed so far in
+@c this Emacs session.  This includes key sequences read from the terminal
+@c and key sequences read from keyboard macros being executed.
+この変数の値は、現在のEmacsセッションにおいて、
+これまでに処理されたキー列の個数である。
+これには、端末から読み取ったキー列、および、
+実行したキーボードマクロから読み取ったキー列が含まれる。
+@end defvar
+
+@defvar num-nonmacro-input-events
+@tindex num-nonmacro-input-events
+@c This variable holds the total number of input events received so far
+@c from the terminal---not counting those generated by keyboard macros.
+この変数は、端末からこれまでに受け取った入力イベントの総個数を保持する。
+キーボードマクロで生成されたものは含まない。
+@end defvar
+
+@node Reading One Event
+@c @subsection Reading One Event
+@subsection 単一イベントの読み取り
+
+@c   The lowest level functions for command input are those that read a
+@c single event.
+コマンド入力用の最低レベルの関数は、単一イベントを読み取る関数です。
+
+@defun read-event &optional prompt suppress-input-method
+@c This function reads and returns the next event of command input, waiting
+@c if necessary until an event is available.  Events can come directly from
+@c the user or from a keyboard macro.
+この関数は、必要ならばイベントの到着を待って、
+コマンド入力のつぎのイベントを読み取って返す。
+イベントは、ユーザーか（実行中の）キーボードマクロから直接得る。
+
+@c If @var{prompt} is non-@code{nil}, it should be a string to display in
+@c the echo area as a prompt.  Otherwise, @code{read-event} does not
+@c display any message to indicate it is waiting for input; instead, it
+@c prompts by echoing: it displays descriptions of the events that led to
+@c or were read by the current command.  @xref{The Echo Area}.
+@var{prompt}が@code{nil}以外であると、
+これはプロンプトとしてエコー領域に表示される文字列であること。
+さもなければ、@code{read-event}は
+入力待ちであることを示すメッセージを表示せずに、
+そのかわりに、現在のコマンドを実行するに至ったイベントや
+現在のコマンドが読み取ったイベントをプロンプトとして表示する。
+@pxref{The Echo Area}。
+
+@c If @var{suppress-input-method} is non-@code{nil}, then the current input
+@c method is disabled for reading this event.  If you want to read an event
+@c without input-method processing, always do it this way; don't try binding
+@c @code{input-method-function} (see below).
+@var{suppress-input-method}が@code{nil}以外であると、
+このイベントの読み取りに関しては現在の入力方式を使わない。
+入力方式の処理をせずにイベントを読みたいときには、
+つねにこのようにすること。
+@code{input-method-function}を束縛してはならない（下記参照）。
+
+@c If @code{cursor-in-echo-area} is non-@code{nil}, then @code{read-event}
+@c moves the cursor temporarily to the echo area, to the end of any message
+@c displayed there.  Otherwise @code{read-event} does not move the cursor.
+変数@code{cursor-in-echo-area}が@code{nil}以外であると、
+@code{read-event}は、エコー領域に表示されたメッセージの末尾に
+カーソルを一時的に移動する。
+さもなければ、@code{read-event}はカーソルを移動しない。
+
+@c If @code{read-event} gets an event that is defined as a help character, in
+@c some cases @code{read-event} processes the event directly without
+@c returning.  @xref{Help Functions}.  Certain other events, called
+@c @dfn{special events}, are also processed directly within
+@c @code{read-event} (@pxref{Special Events}).
+@code{read-event}がヘルプ文字と定義されたイベントを受け取ると、
+それを返さずに@code{read-event}がイベントを直接処理してしまう場合がある。
+@pxref{Help Functions}。
+@dfn{特殊イベント}（special event）と呼ばれる他のイベントも
+@code{read-event}が直接処理する（@pxref{Special Events}）。
+
+@c Here is what happens if you call @code{read-event} and then press the
+@c right-arrow function key:
+@code{read-event}を呼んで右矢印のファンクションキーを押すとつぎのようになる。
+
+@example
+@group
+(read-event)
+     @result{} right
+@end group
+@end example
+@end defun
+
+@defun read-char
+@c This function reads and returns a character of command input.  It
+@c discards any events that are not characters, until it gets a character.
+この関数はコマンド入力の文字を読み取りそれを返す。
+文字を得るまで、文字以外のイベントはすべて破棄する。
+
+@c In the first example, the user types the character @kbd{1} (@sc{ASCII}
+@c code 49).  The second example shows a keyboard macro definition that
+@c calls @code{read-char} from the minibuffer using @code{eval-expression}.
+@c @code{read-char} reads the keyboard macro's very next character, which
+@c is @kbd{1}.  Then @code{eval-expression} displays its return value in
+@c the echo area.
+最初の例では、ユーザーは文字@kbd{1}（@sc{ASCII}コード49）を打つ。
+2番目の例は、@code{eval-expression}を使って
+ミニバッファから@code{read-char}を呼び出すキーボードマクロの定義である。
+@code{read-char}はキーボードマクロの直後の文字、つまり、@kbd{1}を読む。
+そして、@code{eval-expression}はその戻り値をエコー領域に表示する。
+
+@example
+@group
+(read-char)
+     @result{} 49
+@end group
+
+@group
+@c ;; @r{We assume here you use @kbd{M-:} to evaluate this.}
+;; @r{これを評価するために読者は@kbd{M-:}を使うと仮定する}
+(symbol-function 'foo)
+     @result{} "^[:(read-char)^M1"
+@end group
+@group
+(execute-kbd-macro 'foo)
+     @print{} 49
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@c   @code{read-event} also invokes the current input method, if any.  If
+@c the value of @code{input-method-function} is non-@code{nil}, it should
+@c be a function; when @code{read-event} reads a printing character
+@c (including @key{SPC}) with no modifier bits, it calls that function,
+@c passing the event as an argument.
+@code{read-event}は、あれば現在の入力方式も起動します。
+@code{input-method-function}が@code{nil}以外であれば、
+それは関数であるはずです。
+@code{read-event}が修飾ビットのない（@key{SPC}を含む）印字文字を読み取ると、
+引数としてイベントを渡してその関数を呼び出します。
+
+@defvar input-method-function
+@c If this is non-@code{nil}, its value specifies the current input method
+@c function.
+これが@code{nil}以外であると、その値は現在の入力方式関数を指定する。
+
+@c @strong{Note:} Don't bind this variable with @code{let}.  It is often
+@c buffer-local, and if you bind it around reading input (which is exactly
+@c when you @emph{would} bind it), switching buffers asynchronously while
+@c Emacs is waiting will cause the value to be restored in the wrong
+@c buffer.
+@strong{注意：}@code{ }
+この変数を@code{let}で束縛しないこと。
+この変数はしばしばバッファローカルであり、
+入力を読む周囲で束縛すると（読者がこれをもっとも束縛@emph{しそうな}ところ）、
+Emacsが入力を待っているときにバッファが非同期に切り替わると、
+誤ったバッファに値を復元してしまうことがある。
+@end defvar
+
+@c   The input method function should return a list of events which should
+@c be used as input.  (If the list is @code{nil}, that means there is no
+@c input, so @code{read-event} waits for another event.)  These events are
+@c processed before the events in @code{unread-command-events}.  Events
+@c returned by the input method function are not passed to the input method
+@c function again, even if they are printing characters with no modifier
+@c bits.
+入力方式関数は、入力として使われるイベントのリストを返すべきです。
+（リストが@code{nil}であると入力がなかったことを意味し、
+@code{read-event}は別のイベントを待つ。）
+これらのイベントは、
+@code{unread-command-events}内のイベントよりまえに処理されます。
+入力方式関数が返したイベントは、それらが修飾ビットがない印字文字であっても、
+入力方式関数に再度渡されることはありません。
+
+@c   If the input method function calls @code{read-event} or
+@c @code{read-key-sequence}, it should bind @code{input-method-function} to
+@c @code{nil} first, to prevent recursion.
+入力方式関数が@code{read-event}や@code{read-key-sequence}を呼び出すときには、
+@code{input-method-function}を@code{nil}に束縛して
+再帰呼び出しを防ぐべきです。
+
+@c   The input method function is not called when reading the second and
+@c subsequent event of a key sequence.  Thus, these characters are not
+@c subject to input method processing.  It is usually a good idea for the
+@c input method processing to test the values of
+@c @code{overriding-local-map} and @code{overriding-terminal-local-map}; if
+@c either of these variables is non-@code{nil}, the input method should put
+@c its argument into a list and return that list with no further
+@c processing.
+キー列の2番目以降のイベントを読むときには、入力方式関数を呼び出しません。
+したがって、それらの文字は、入力方式処理の対象ではありません。
+入力方式の処理では、
+@code{overriding-local-map}と@code{overriding-terminal-local-map}の値を
+検査するのがよいです。
+これらの変数のいずれかが@code{nil}以外であるときには、
+入力方式ではその引数をリストに入れ、
+それ以上処理せずにそのリストを返すべきです。
+
+@node Quoted Character Input
+@c @subsection Quoted Character Input
+@subsection クォートした文字の入力
+@c @cindex quoted character input
+@cindex クォートした文字の入力
+
+@c   You can use the function @code{read-quoted-char} to ask the user to
+@c specify a character, and allow the user to specify a control or meta
+@c character conveniently, either literally or as an octal character code.
+@c The command @code{quoted-insert} uses this function.
+ユーザーに文字入力を促して、コントロール文字やメタ文字を
+文字そのものや文字の8進数コードで手軽に入力できるようにするには、
+関数@code{read-quoted-char}を使います。
+コマンド@code{quoted-insert}は、この関数を使っています。
+
+@defun read-quoted-char &optional prompt
+@c @cindex octal character input
+@c @cindex control characters, reading
+@c @cindex nonprinting characters, reading
+@cindex 8進数字文字入力
+@cindex コントロール文字、読み取り
+@cindex 非印字文字、読み取り
+@c This function is like @code{read-char}, except that if the first
+@c character read is an octal digit (0-7), it reads any number of octal
+@c digits (but stopping if a non-octal digit is found), and returns the
+@c character represented by that numeric character code.
+この関数は@code{read-char}に似ているが、
+最初に読んだ文字が8進数字文字（0-7）であると、
+任意個数の8進数字文字を読み取り（8進数字文字以外が現れると止める）、
+その数値の文字コードが表す文字を返す。
+
+@c Quitting is suppressed when the first character is read, so that the
+@c user can enter a @kbd{C-g}.  @xref{Quitting}.
+最初の文字を読むと中断を抑制するので、
+ユーザーは@kbd{C-g}を入力できる。
+@pxref{Quitting}。
+
+@c If @var{prompt} is supplied, it specifies a string for prompting the
+@c user.  The prompt string is always displayed in the echo area, followed
+@c by a single @samp{-}.
+@var{prompt}を与えると、それはユーザーへのプロンプトを表す文字列を指定する。
+プロンプト文字列はつねにエコー領域に表示され、あとに@samp{-}が続く。
+
+@c In the following example, the user types in the octal number 177 (which
+@c is 127 in decimal).
+つぎの例では、ユーザーは8進数177（10進数では127）を打つ。
+
+@example
+(read-quoted-char "What character")
+
+@group
+---------- Echo Area ----------
+What character-@kbd{177}
+---------- Echo Area ----------
+
+     @result{} 127
+@end group
+@end example
+@end defun
+
+@need 2000
+@node Event Input Misc
+@c @subsection Miscellaneous Event Input Features
+@subsection その他のイベント入力機能
+
+@c This section describes how to ``peek ahead'' at events without using
+@c them up, how to check for pending input, and how to discard pending
+@c input.  See also the function @code{read-passwd} (@pxref{Reading a
+@c Password}).
+本節では、イベントを処理せずに『まえもって覗き見』する方法、
+処理待ちの入力の有無の検査方法、処理待ちの入力の破棄方法について述べます。
+関数@code{read-passwd}も参照してください（@pxref{Reading a Password}）。
+
+@defvar unread-command-events
+@c @cindex next input
+@c @cindex peeking at input
+@cindex つぎの入力
+@cindex 入力を覗き見る
+@c This variable holds a list of events waiting to be read as command
+@c input.  The events are used in the order they appear in the list, and
+@c removed one by one as they are used.
+この変数は、コマンド入力として読まれることを
+待っているイベントのリストを保持する。
+イベントはリストに現れる順に使われ、使われると1つ1つ取り除かれる。
+
+@c The variable is needed because in some cases a function reads an event
+@c and then decides not to use it.  Storing the event in this variable
+@c causes it to be processed normally, by the command loop or by the
+@c functions to read command input.
+関数でイベントを読んだあとにそれを使わない場面があるため、
+この変数が必要になる。
+この変数にイベントを保存すると、
+コマンドループやコマンド入力を読む関数によって通常どおり処理される。
+
+@c @cindex prefix argument unreading
+@cindex 前置引数の読み戻し
+@c For example, the function that implements numeric prefix arguments reads
+@c any number of digits.  When it finds a non-digit event, it must unread
+@c the event so that it can be read normally by the command loop.
+@c Likewise, incremental search uses this feature to unread events with no 
+@c special meaning in a search, because these events should exit the search
+@c and then execute normally.
+たとえば、数値前置引数を実現する関数は、任意個数の数字文字を読み取る。
+数字文字でないイベントをみつけたら、そのイベントを読み戻して、
+コマンドループが通常どおりに読めるようにする必要がある。
+同様に、インクリメンタルサーチでは、この機能を使って
+探索においては意味を持たないイベントを読み戻す。
+なぜなら、そのようなイベントは探索を終了させ、
+通常どおり実行される必要があるからである。
+
+@c The reliable and easy way to extract events from a key sequence so as to
+@c put them in @code{unread-command-events} is to use
+@c @code{listify-key-sequence} (@pxref{Strings of Events}).
+@code{unread-command-events}に入れられるように
+キー列からイベントを確実に簡単に取り出す方法は
+@code{listify-key-sequence}を使うことである（@pxref{Strings of Events}）。
+
+@c Normally you add events to the front of this list, so that the events
+@c most recently unread will be reread first.
+もっとも最近に読み戻したイベントが最初に再度読まれるように、
+普通はこのリストの先頭にイベントを追加する。
+@end defvar
+
+@defun listify-key-sequence key
+@c This function converts the string or vector @var{key} to a list of
+@c individual events, which you can put in @code{unread-command-events}.
+この関数は、文字列やベクトルである@var{key}を個々のイベントのリストに変換する。
+この結果は@code{unread-command-events}に入れられる。
+@end defun
+
+@defvar unread-command-char
+@c This variable holds a character to be read as command input.
+@c A value of -1 means ``empty''.
+この変数は、コマンド入力として読まれる文字を保持する。
+値「-1」は、『空』を意味する。
+
+@c This variable is mostly obsolete now that you can use
+@c @code{unread-command-events} instead; it exists only to support programs
+@c written for Emacs versions 18 and earlier.
+この変数はほとんど廃れており、
+かわりに@code{unread-command-events}を使うべきである。
+Emacs 18版以前向けに書かれたプログラムを扱うためだけに存在する。
+@end defvar
+
+@defun input-pending-p
+@c @cindex waiting for command key input
+@cindex コマンドキー入力を待つ
+@c This function determines whether any command input is currently
+@c available to be read.  It returns immediately, with value @code{t} if
+@c there is available input, @code{nil} otherwise.  On rare occasions it
+@c may return @code{t} when no input is available.
+この関数は、現在、コマンド入力があるかどうかを調べる。
+ただちに返るが、入力があれば値@code{t}を、
+さもなければ@code{nil}を返す。
+入力がないのに@code{t}を返すことが稀にある。
+@end defun
+
+@defvar last-input-event
+@defvarx last-input-char
+@c This variable records the last terminal input event read, whether
+@c as part of a command or explicitly by a Lisp program.
+この変数は、コマンドの一部として、あるいは、Lispプログラムが明示的に
+読み取った最後の端末入力イベントを記録する。
+
+@c In the example below, the Lisp program reads the character @kbd{1},
+@c @sc{ASCII} code 49.  It becomes the value of @code{last-input-event},
+@c while @kbd{C-e} (we assume @kbd{C-x C-e} command is used to evaluate
+@c this expression) remains the value of @code{last-command-event}.
+以下の例で、Lispプログラムは文字@kbd{1}（@sc{ASCII}コード49）を読む。
+それが@code{last-input-event}の値になるが、
+（この式を評価するコマンドは@kbd{C-x C-e}と仮定するので）
+@code{last-command-event}の値は@kbd{C-e}のままである。
+
+@example
+@group
+(progn (print (read-char))
+       (print last-command-event)
+       last-input-event)
+     @print{} 49
+     @print{} 5
+     @result{} 49
+@end group
+@end example
+
+@c The alias @code{last-input-char} exists for compatibility with
+@c Emacs version 18.
+Emacs 18版との互換性のために、別名@code{last-input-char}が存在する。
+@end defvar
+
+@defun discard-input
+@c @cindex flush input
+@c @cindex discard input
+@c @cindex terminate keyboard macro
+@cindex 入力の破棄
+@cindex キーボードマクロの終了
+@c This function discards the contents of the terminal input buffer and
+@c cancels any keyboard macro that might be in the process of definition.
+@c It returns @code{nil}.
+この関数は端末入力バッファの内容を廃棄し、
+定義中のキーボードマクロを取り消す。
+これは@code{nil}を返す。
+
+@c In the following example, the user may type a number of characters right
+@c after starting the evaluation of the form.  After the @code{sleep-for}
+@c finishes sleeping, @code{discard-input} discards any characters typed 
+@c during the sleep.
+以下の例で、フォームを評価しはじめてから、ユーザーは何文字か打つ。
+@code{sleep-for}が待機を終えると、
+@code{discard-input}は待機中に打たれた文字をすべて破棄する。
+
+@example
+(progn (sleep-for 2)
+       (discard-input))
+     @result{} nil
+@end example
+@end defun
+
+@node Special Events
+@c @section Special Events
+@section 特殊イベント
+
+@c @cindex special events
+@cindex 特殊イベント
+@c Special events are handled at a very low level---as soon as they are
+@c read.  The @code{read-event} function processes these events itself, and
+@c never returns them.
+特殊イベントは、読まれるとただちに非常に低レベルで処理されます。
+関数@code{read-event}はこれらのイベントをそれ自身で処理してしまい、
+それらを返すことはありません。
+
+@c Events that are handled in this way do not echo, they are never grouped
+@c into key sequences, and they never appear in the value of
+@c @code{last-command-event} or @code{(this-command-keys)}.  They do not
+@c discard a numeric argument, they cannot be unread with
+@c @code{unread-command-events}, they may not appear in a keyboard macro,
+@c and they are not recorded in a keyboard macro while you are defining
+@c one.
+このように処理されるイベントは表示されることはなく、
+キー列に組み込まれることもなく、
+@code{last-command-event}や@code{(this-command-keys)}の値に
+現れることもありません。
+特殊イベントが数値引数を破棄することはなく、
+@code{unread-command-events}で読み戻すことはできません。
+特殊イベントがキーボードマクロに現れることはなく、
+読者がキーボードマクロを定義しているときに、
+特殊イベントがキーボードマクロに記録されることはありません。
+
+@c These events do, however, appear in @code{last-input-event} immediately
+@c after they are read, and this is the way for the event's definition to
+@c find the actual event.
+しかし、それらのイベントは、
+読まれた直後には@code{last-input-event}に現れますから、
+これからイベントの定義で実際のイベントを見ることができます。
+
+@c The events types @code{iconify-frame}, @code{make-frame-visible} and
+@c @code{delete-frame} are normally handled in this way.  The keymap which
+@c defines how to handle special events---and which events are special---is
+@c in the variable @code{special-event-map} (@pxref{Active Keymaps}).
+@code{iconify-frame}、@code{make-frame-visible}、@code{delete-frame}の
+イベント型は、通常このように処理されます。
+特殊イベントをどのように処理するか、
+どのイベントが特殊イベントであるかを定義する
+キーマップは変数@code{special-event-map}にあります（@pxref{Active Keymaps}）。
+
+@node Waiting
+@c @section Waiting for Elapsed Time or Input
+@section 時間待ちと入力待ち
+@c @cindex pausing
+@c @cindex waiting
+@cindex 休止
+@cindex 待機
+
+@c   The wait functions are designed to wait for a certain amount of time
+@c to pass or until there is input.  For example, you may wish to pause in
+@c the middle of a computation to allow the user time to view the display.
+@c @code{sit-for} pauses and updates the screen, and returns immediately if
+@c input comes in, while @code{sleep-for} pauses without updating the
+@c screen.
+待機関数は、指定時間経過するか入力がくるまで待つように設計してあります。
+たとえば、ユーザーに表示を眺める時間を与えるために
+計算途中で休止したいでしょう。
+@code{sit-for}は、休止してスクリーンを更新し、
+入力がくるとただちに戻ります。
+一方、@code{sleep-for}はスクリーンを更新せずに休止します。
+
+@defun sit-for seconds &optional millisec nodisp
+@c This function performs redisplay (provided there is no pending input
+@c from the user), then waits @var{seconds} seconds, or until input is
+@c available.  The value is @code{t} if @code{sit-for} waited the full
+@c time with no input arriving (see @code{input-pending-p} in @ref{Event 
+@c Input Misc}).  Otherwise, the value is @code{nil}.
+この関数は（処理待ちのユーザーからの入力がなければ）再表示を行い、
+@var{seconds}秒休止するか、入力がくるまで待つ。
+入力がこずに（@ref{Event Input Misc}の@code{input-pending-p}を参照）
+指定時間だけ休止した場合は、戻り値は@code{t}である。
+さもなければ、戻り値は@code{nil}である。
+
+@c The argument @var{seconds} need not be an integer.  If it is a floating
+@c point number, @code{sit-for} waits for a fractional number of seconds.
+@c Some systems support only a whole number of seconds; on these systems,
+@c @var{seconds} is rounded down.
+引数@var{seconds}は整数である必要はない。
+それが浮動小数点数であると、@code{sit-for}は秒の小数も待つ。
+秒単位しか扱えないシステムもあり、
+そのようなシステムでは@var{seconds}を秒に切り下げる。
+
+@c The optional argument @var{millisec} specifies an additional waiting
+@c period measured in milliseconds.  This adds to the period specified by
+@c @var{seconds}.  If the system doesn't support waiting fractions of a
+@c second, you get an error if you specify nonzero @var{millisec}.
+省略可能な引数@var{millisec}は、ミリ秒単位の追加待ち時間を指定する。
+これは@var{seconds}で指定した時間に加えられる。
+秒未満を扱えないシステムでは、
+@var{millisec}に0以外を指定するとエラーになる。
+
+@c @cindex forcing redisplay
+@cindex 再表示の強制
+@c Redisplay is always preempted if input arrives, and does not happen at
+@c all if input is available before it starts.  Thus, there is no way to
+@c force screen updating if there is pending input; however, if there is no
+@c input pending, you can force an update with no delay by using
+@c @code{(sit-for 0)}.
+入力がくると再表示をつねに取り止め、
+再表示開始まえに入力がくると、いっさい再表示しない。
+したがって、処理待ちの入力があると、再表示を強制する方法はない。
+しかし、処理待ちの入力がなければ、@code{(sit-for 0)}で再表示を強制できる。
+
+@c If @var{nodisp} is non-@code{nil}, then @code{sit-for} does not
+@c redisplay, but it still returns as soon as input is available (or when
+@c the timeout elapses).
+@var{nodisp}が@code{nil}以外であると、
+@code{sit-for}は再表示はしないが、
+入力がくるとただちに（あるいは指定時間だけ経過すると）戻る。
+
+@c Iconifying or deiconifying a frame makes @code{sit-for} return, because
+@c that generates an event.  @xref{Misc Events}.
+フレームをアイコンにしたりアイコンにしたフレームを開くと
+イベントが生成されるため、@code{sit-for}は戻る。
+@pxref{Misc Events}。
+
+@c The usual purpose of @code{sit-for} is to give the user time to read
+@c text that you display.
+@code{sit-for}の普通の目的は、
+読者が表示したテキストを読む時間をユーザーに与えることである。
+@end defun
+
+@defun sleep-for seconds &optional millisec
+@c This function simply pauses for @var{seconds} seconds without updating
+@c the display.  It pays no attention to available input.  It returns
+@c @code{nil}.
+この関数は表示を更新せずに単に@var{seconds}秒だけ休止する。
+入力にはいっさい注意を払わない。
+@code{nil}を返す。
+
+@c The argument @var{seconds} need not be an integer.  If it is a floating
+@c point number, @code{sleep-for} waits for a fractional number of seconds.
+@c Some systems support only a whole number of seconds; on these systems,
+@c @var{seconds} is rounded down.
+引数@var{seconds}は整数である必要はない。
+それが浮動小数点数であると、@code{sleep-for}は秒の小数も待つ。
+秒単位しか扱えないシステムもあり、
+そのようなシステムでは@var{seconds}を秒に切り下げる。
+
+@c The optional argument @var{millisec} specifies an additional waiting
+@c period measured in milliseconds.  This adds to the period specified by
+@c @var{seconds}.  If the system doesn't support waiting fractions of a
+@c second, you get an error if you specify nonzero @var{millisec}.
+省略可能な引数@var{millisec}は、ミリ秒単位の追加待ち時間を指定する。
+これは@var{seconds}で指定した時間に加えられる。
+秒未満を扱えないシステムでは、
+@var{millisec}に0以外を指定するとエラーになる。
+
+@c Use @code{sleep-for} when you wish to guarantee a delay.
+遅延を保証したい場合に@code{sleep-for}を使う。
+@end defun
+
+@c   @xref{Time of Day}, for functions to get the current time.
+現在時刻を取得する関数については@xref{Time of Day}。
+
+@node Quitting
+@c @section Quitting
+@section 中断
+@cindex @kbd{C-g}
+@c @cindex quitting
+@cindex 中断
+
+@c   Typing @kbd{C-g} while a Lisp function is running causes Emacs to
+@c @dfn{quit} whatever it is doing.  This means that control returns to the
+@c innermost active command loop.
+Lisp関数が動作中に@kbd{C-g}を打つと、
+Emacsがなにを行っていても@dfn{中断}を引き起こします。
+つまり、もっとも内側の活性なコマンドループに制御が戻ります。
+
+@c   Typing @kbd{C-g} while the command loop is waiting for keyboard input
+@c does not cause a quit; it acts as an ordinary input character.  In the
+@c simplest case, you cannot tell the difference, because @kbd{C-g}
+@c normally runs the command @code{keyboard-quit}, whose effect is to quit.
+@c However, when @kbd{C-g} follows a prefix key, they combine to form an
+@c undefined key.  The effect is to cancel the prefix key as well as any
+@c prefix argument.
+コマンドループがキーボード入力を待っているときに@kbd{C-g}を打っても、
+中断を引き起こさずに、普通の入力文字として動作します。
+もっとも単純な場合、@kbd{C-g}はコマンド@code{keyboard-quit}を実行しますが、
+その効果は中断を引き起こすことですから、読者には区別できないはずです。
+しかし、プレフィックスキーに続けて@kbd{C-g}を打つと、
+それらは組み合わされて未定義キーになります。
+その効果は、前置引数を含めてプレフィックスキーを取り消します。
+
+@c   In the minibuffer, @kbd{C-g} has a different definition: it aborts out
+@c of the minibuffer.  This means, in effect, that it exits the minibuffer
+@c and then quits.  (Simply quitting would return to the command loop
+@c @emph{within} the minibuffer.)  The reason why @kbd{C-g} does not quit
+@c directly when the command reader is reading input is so that its meaning
+@c can be redefined in the minibuffer in this way.  @kbd{C-g} following a
+@c prefix key is not redefined in the minibuffer, and it has its normal
+@c effect of canceling the prefix key and prefix argument.  This too
+@c would not be possible if @kbd{C-g} always quit directly.
+ミニバッファでは、@kbd{C-g}には別の定義があって、
+ミニバッファを強制終了させます。
+つまり、ミニバッファから抜け出て中断します。
+（単に中断したのでは、ミニバッファ@emph{内で}
+コマンドループに戻るだけである。）
+コマンドループで入力を読んでいるときに@kbd{C-g}で直接中断しない理由は、
+このようにミニバッファでその意味を再定義できるようにするためです。
+ミニバッファでは、プレフィックスキーに続く@kbd{C-g}は再定義してなく、
+プレフィックスキーと前置引数を取り消すという通常の効果を持ちます。
+@kbd{C-g}がつねに直接中断するのでは、このようにすることさえ不可能です。
+
+@c   When @kbd{C-g} does directly quit, it does so by setting the variable
+@c @code{quit-flag} to @code{t}.  Emacs checks this variable at appropriate
+@c times and quits if it is not @code{nil}.  Setting @code{quit-flag}
+@c non-@code{nil} in any way thus causes a quit.
+@kbd{C-g}が直接に中断するときには、
+変数@code{quit-flag}に@code{t}を設定します。
+Emacsはこの変数を適切なときに検査し@code{nil}でないと中断します。
+したがって、@code{quit-flag}に@code{nil}以外を設定すると
+中断を引き起こします。
+
+@c   At the level of C code, quitting cannot happen just anywhere; only at the
+@c special places that check @code{quit-flag}.  The reason for this is
+@c that quitting at other places might leave an inconsistency in Emacs's
+@c internal state.  Because quitting is delayed until a safe place, quitting 
+@c cannot make Emacs crash.
+Cのコードのレベルでは、どこでも中断できるわけではありません。
+@code{quit-flag}を検査している特別な箇所だけです。
+このようにするのは、それ以外の箇所で中断すると
+Emacsの内部状態に矛盾をきたす可能性があるからです。
+中断は安全な場所まで延期されるので、
+中断によってEmcasがクラッシュすることはありません。
+
+@c   Certain functions such as @code{read-key-sequence} or
+@c @code{read-quoted-char} prevent quitting entirely even though they wait
+@c for input.  Instead of quitting, @kbd{C-g} serves as the requested
+@c input.  In the case of @code{read-key-sequence}, this serves to bring
+@c about the special behavior of @kbd{C-g} in the command loop.  In the
+@c case of @code{read-quoted-char}, this is so that @kbd{C-q} can be used
+@c to quote a @kbd{C-g}.  
+@code{read-key-sequence}や@code{read-quoted-char}などのある種の関数は、
+入力を待っている場合であっても中断を完全に抑制します。
+中断するかわりに、@kbd{C-g}は入力として働きます。
+@code{read-key-sequence}の場合、コマンドループにおいて
+@kbd{C-g}の特別なふるまいをもたらします。
+@code{read-quoted-char}の場合、
+@kbd{C-q}で@kbd{C-g}をクォートできるようになります。
+
+@c   You can prevent quitting for a portion of a Lisp function by binding
+@c the variable @code{inhibit-quit} to a non-@code{nil} value.  Then,
+@c although @kbd{C-g} still sets @code{quit-flag} to @code{t} as usual, the
+@c usual result of this---a quit---is prevented.  Eventually,
+@c @code{inhibit-quit} will become @code{nil} again, such as when its
+@c binding is unwound at the end of a @code{let} form.  At that time, if
+@c @code{quit-flag} is still non-@code{nil}, the requested quit happens
+@c immediately.  This behavior is ideal when you wish to make sure that
+@c quitting does not happen within a ``critical section'' of the program.
+変数@code{inhibit-quit}に@code{nil}以外の値を束縛することで
+Lisp関数のある部分において中断を抑制できます。
+そうすると、@kbd{C-g}はそれでもいつもどおり
+@code{quit-flag}を@code{t}にしますが、
+その通常の結果である中断は抑制されます。
+最終的にフォーム@code{let}の終りで束縛が解除されるなどして
+@code{inhibit-quit}が再度@code{nil}になります。
+その時点でも@code{quit-flag}が@code{nil}以外であると
+要求した中断がただちに起こります。
+このふるまいは、プログラムの『臨界領域』では
+中断が起こらないことを保証する理想的なものです。
+
+@c @cindex @code{read-quoted-char} quitting
+@cindex @code{read-quoted-char}の中断
+@c   In some functions (such as @code{read-quoted-char}), @kbd{C-g} is
+@c handled in a special way that does not involve quitting.  This is done
+@c by reading the input with @code{inhibit-quit} bound to @code{t}, and
+@c setting @code{quit-flag} to @code{nil} before @code{inhibit-quit}
+@c becomes @code{nil} again.  This excerpt from the definition of
+@c @code{read-quoted-char} shows how this is done; it also shows that
+@c normal quitting is permitted after the first character of input.
+（@code{read-quoted-char}などの）ある種の関数では、
+@kbd{C-g}は特別に処理され中断を引き起こしません。
+@code{inhibit-quit}に@code{t}を束縛して入力を読み取り、
+@code{inhibit-quit}が再度@code{nil}になるまえに
+@code{quit-flag}を@code{nil}にすることでそのようにします。
+これを@code{read-quoted-char}の定義の以下の抜粋で示しましょう。
+最初の入力文字のあとで通常の中断を許す方法も示しています。
+
+@example
+(defun read-quoted-char (&optional prompt)
+  "@dots{}@var{documentation}@dots{}"
+  (let ((message-log-max nil) done (first t) (code 0) char)
+    (while (not done)
+      (let ((inhibit-quit first)
+            @dots{})
+	(and prompt (message "%s-" prompt))
+	(setq char (read-event))
+	(if inhibit-quit (setq quit-flag nil)))
+@c       @r{@dots{}set the variable @code{code}@dots{}})
+      @r{@dots{}変数@code{code}に設定する@dots{}})
+    code))
+@end example
+
+@defvar quit-flag
+@c If this variable is non-@code{nil}, then Emacs quits immediately, unless
+@c @code{inhibit-quit} is non-@code{nil}.  Typing @kbd{C-g} ordinarily sets
+@c @code{quit-flag} non-@code{nil}, regardless of @code{inhibit-quit}.
+@code{inhibit-quit}が@code{nil}であれば、
+この変数が@code{nil}以外であるとEmacsはただちに中断する。
+@kbd{C-g}は、@code{inhibit-quit}に関わらず、
+通常、@code{quit-flag}に@code{nil}以外を設定する。
+@end defvar
+
+@defvar inhibit-quit
+@c This variable determines whether Emacs should quit when @code{quit-flag}
+@c is set to a value other than @code{nil}.  If @code{inhibit-quit} is
+@c non-@code{nil}, then @code{quit-flag} has no special effect.
+この変数は、@code{quit-flag}が@code{nil}以外の値に設定されたときに
+Emacsが中断すべきかどうかを決定する。
+@code{inhibit-quit}が@code{nil}以外であると、
+@code{quit-flag}に特別な意味はない。
+@end defvar
+
+@c @deffn Command keyboard-quit
+@deffn コマンド keyboard-quit
+@c This function signals the @code{quit} condition with @code{(signal 'quit
+@c nil)}.  This is the same thing that quitting does.  (See @code{signal}
+@c in @ref{Errors}.)
+この関数は@code{(signal 'quit nil)}で@code{quit}条件を通知する。
+これは中断と同じことを行う。
+（@ref{Errors}の@code{signal}を参照。）
+@end deffn
+
+@c   You can specify a character other than @kbd{C-g} to use for quitting.
+@c See the function @code{set-input-mode} in @ref{Terminal Input}.
+中断として使う@kbd{C-g}以外の特殊文字を使えます。
+@ref{Terminal Input}の関数@code{set-input-mode}を参照してください。
+ 
+@node Prefix Command Arguments
+@c @section Prefix Command Arguments
+@section 前置コマンド引数
+@c @cindex prefix argument
+@c @cindex raw prefix argument
+@c @cindex numeric prefix argument
+@cindex 前置引数
+@cindex 生の前置引数
+@cindex 数値前置引数
+
+@c   Most Emacs commands can use a @dfn{prefix argument}, a number
+@c specified before the command itself.  (Don't confuse prefix arguments
+@c with prefix keys.)  The prefix argument is at all times represented by a
+@c value, which may be @code{nil}, meaning there is currently no prefix
+@c argument.  Each command may use the prefix argument or ignore it.
+Emacsのほとんどのコマンドは、@dfn{前置引数}（prefix argument）、
+つまりコマンド自身のまえに指定された数を利用できます。
+（前置引数とプレフィックスキーを混同しないこと。）
+前置引数はつねに値で表現され、
+@code{nil}であると現在は前置引数がないことを表します。
+各コマンドは、前置引数を使ってもよいし、無視してもかまいません。
+
+@c   There are two representations of the prefix argument: @dfn{raw} and
+@c @dfn{numeric}.  The editor command loop uses the raw representation
+@c internally, and so do the Lisp variables that store the information, but
+@c commands can request either representation.
+前置引数には2つの表現方法があります。
+@dfn{生}（raw）と@dfn{数値}（numeric）です。
+エディタコマンドループでは、内部的には生の表現を使い、
+その情報を保持するLisp変数もそのようにしますが、
+コマンドではどちらの表現を要求してもかまいません。
+
+@c   Here are the possible values of a raw prefix argument:
+生の前置引数の値にはつぎの可能性があります。
+
+@itemize @bullet
+@item
+@c @code{nil}, meaning there is no prefix argument.  Its numeric value is
+@c 1, but numerous commands make a distinction between @code{nil} and the
+@c integer 1.
+前置引数がないことを意味する@code{nil}。
+その数値としての値は1であるが、
+多くのコマンドでは@code{nil}と整数1を区別する。
+
+@item
+@c An integer, which stands for itself.
+それ自身が表す整数。
+
+@item
+@c A list of one element, which is an integer.  This form of prefix
+@c argument results from one or a succession of @kbd{C-u}'s with no
+@c digits.  The numeric value is the integer in the list, but some
+@c commands make a distinction between such a list and an integer alone.
+整数を要素とする1要素のリスト。
+この形式の前置引数は、数字文字なしの1個以上の@kbd{C-u}の結果である。
+リスト内の数値は整数であるが、そのようなリストと整数のみを区別する
+コマンドもある。
+
+@item
+@c The symbol @code{-}.  This indicates that @kbd{M--} or @kbd{C-u -} was
+@c typed, without following digits.  The equivalent numeric value is
+@c @minus{}1, but some commands make a distinction between the integer
+@c @minus{}1 and the symbol @code{-}.
+シンボル@code{-}。
+数字文字なしに@kbd{M--}や@kbd{C-u -}を打ったことを表す。
+これに等価な数値は@minus{}1であるが、
+整数@minus{}1とシンボル@code{-}を区別するコマンドもある。
+@end itemize
+
+@c We illustrate these possibilities by calling the following function with
+@c various prefixes:
+いろいろな前置引数でつぎの関数を呼び出す例を示します。
+
+@example
+@group
+(defun display-prefix (arg)
+  "Display the value of the raw prefix arg."
+  (interactive "P")
+  (message "%s" arg))
+@end group
+@end example
+
+@noindent
+@c Here are the results of calling @code{display-prefix} with various
+@c raw prefix arguments:
+以下は、生の前置引数で@code{display-prefix}を呼び出した結果です。
+
+@example
+        M-x display-prefix  @print{} nil
+
+C-u     M-x display-prefix  @print{} (4)
+
+C-u C-u M-x display-prefix  @print{} (16)
+
+C-u 3   M-x display-prefix  @print{} 3
+
+@c M-3     M-x display-prefix  @print{} 3      ; @r{(Same as @code{C-u 3}.)}
+M-3     M-x display-prefix  @print{} 3      ; @r{（@code{C-u 3}と同じ）}
+
+C-u -   M-x display-prefix  @print{} -      
+
+@c M--     M-x display-prefix  @print{} -      ; @r{(Same as @code{C-u -}.)}
+M--     M-x display-prefix  @print{} -      ; @r{（@code{C-u -}と同じ）}
+
+C-u - 7 M-x display-prefix  @print{} -7     
+
+@c M-- 7   M-x display-prefix  @print{} -7     ; @r{(Same as @code{C-u -7}.)}
+M-- 7   M-x display-prefix  @print{} -7     ; @r{（@code{C-u -7}と同じ）}
+@end example
+
+@c   Emacs uses two variables to store the prefix argument:
+@c @code{prefix-arg} and @code{current-prefix-arg}.  Commands such as
+@c @code{universal-argument} that set up prefix arguments for other
+@c commands store them in @code{prefix-arg}.  In contrast,
+@c @code{current-prefix-arg} conveys the prefix argument to the current
+@c command, so setting it has no effect on the prefix arguments for future
+@c commands.
+Emacsは、前置引数を保持するために2つの変数、
+@code{prefix-arg}と@code{current-prefix-arg}を使います。
+他のコマンド向けに前置引数を設定する@code{universal-argument}などの
+コマンドは、前置引数を@code{prefix-arg}に保持します。
+対照的に、@code{current-prefix-arg}には
+現在のコマンドに対して前置引数を運ぶ役割があり、
+この変数に設定しても以後のコマンドに対する前置引数には
+なんの効果もありません。
+
+@c   Normally, commands specify which representation to use for the prefix
+@c argument, either numeric or raw, in the @code{interactive} declaration.
+@c (@xref{Using Interactive}.)  Alternatively, functions may look at the
+@c value of the prefix argument directly in the variable
+@c @code{current-prefix-arg}, but this is less clean.
+通常、コマンドは、@code{interactive}宣言により、
+「生」か「数値」のいずれの表現の前置引数を使うか指定します。
+（@xref{Using Interactive}。）
+あるいは、変数@code{current-prefix-arg}にある前置引数の値を
+関数から直接見てもかまいませんが、
+これは見通しのよい方法ではありません。
+
+@defun prefix-numeric-value arg
+@c This function returns the numeric meaning of a valid raw prefix argument
+@c value, @var{arg}.  The argument may be a symbol, a number, or a list.
+@c If it is @code{nil}, the value 1 is returned; if it is @code{-}, the
+@c value @minus{}1 is returned; if it is a number, that number is returned;
+@c if it is a list, the @sc{car} of that list (which should be a number) is
+@c returned.
+この関数は、有効な生の前置引数の値@var{arg}からそれに等価な数値を返す。
+引数は、シンボル、数、リストのいずれかである。
+それが@code{nil}であると、戻り値は1である。
+@code{-}であると、戻り値は@minus{}1である。
+数であると、その数を返す。
+リストであると、リストの（数であるはずの）@sc{car}を返す。
+@end defun
+
+@defvar current-prefix-arg
+@c This variable holds the raw prefix argument for the @emph{current}
+@c command.  Commands may examine it directly, but the usual method for
+@c accessing it is with @code{(interactive "P")}.
+この変数は、@emph{現在の}コマンドに対する生の前置引数を保持する。
+コマンドが直接この変数を調べてもよいが、
+前置引数を参照する普通の方法は@code{(interactive "P")}を使うことである。
+@end defvar
+
+@defvar prefix-arg
+@c The value of this variable is the raw prefix argument for the
+@c @emph{next} editing command.  Commands such as @code{universal-argument}
+@c that specify prefix arguments for the following command work by setting
+@c this variable.
+この変数の値は、@emph{つぎの}編集コマンド向けの生の前置引数である。
+後続のコマンド向けの前置引数を指定する@code{universal-argument}などの
+コマンドは、この変数に設定することで動作する。
+@end defvar
+
+@tindex last-prefix-arg
+@defvar last-prefix-arg
+@c The raw prefix argument value used by the previous command.
+まえのコマンドで使われた生の前置引数の値。
+@end defvar
+
+@c   The following commands exist to set up prefix arguments for the
+@c following command.  Do not call them for any other reason.
+つぎのコマンドは、後続のコマンド向けの前置引数を設定するためのものです。
+それ以外の目的には呼ばないでください。
+
+@c @deffn Command universal-argument
+@deffn コマンド universal-argument
+@c This command reads input and specifies a prefix argument for the
+@c following command.  Don't call this command yourself unless you know
+@c what you are doing.
+このコマンドは入力を読み取り、後続のコマンド向けの前置引数を指定する。
+なにをしているか理解していない限り、読者自身でこのコマンドを呼ばないこと。
+@end deffn
+
+@c @deffn Command digit-argument arg
+@deffn コマンド digit-argument arg
+@c This command adds to the prefix argument for the following command.  The
+@c argument @var{arg} is the raw prefix argument as it was before this
+@c command; it is used to compute the updated prefix argument.  Don't call
+@c this command yourself unless you know what you are doing.
+このコマンドは、後続のコマンド向けの前置引数に追加する。
+引数@var{arg}は、このコマンドが呼び出されるまえの生の前置引数であり、
+前置引数を更新する計算に使われる。
+なにをしているか理解していない限り、読者自身でこのコマンドを呼ばないこと。
+@end deffn
+
+@c @deffn Command negative-argument arg
+@deffn コマンド negative-argument arg
+@c This command adds to the numeric argument for the next command.  The
+@c argument @var{arg} is the raw prefix argument as it was before this
+@c command; its value is negated to form the new prefix argument.  Don't
+@c call this command yourself unless you know what you are doing.
+このコマンドは、後続のコマンド向けの数値前置引数に追加する。
+引数@var{arg}は、このコマンドが呼び出されるまえの生の前置引数であり、
+その値の符号を変えて新たな前置引数とする。
+なにをしているか理解していない限り、読者自身でこのコマンドを呼ばないこと。
+@end deffn
+
+@node Recursive Editing
+@c @section Recursive Editing
+@section 再帰編集
+@c @cindex recursive command loop
+@c @cindex recursive editing level
+@c @cindex command loop, recursive
+@cindex 再帰コマンドループ
+@cindex 再帰編集レベル
+@cindex コマンドループ、再帰
+
+@c   The Emacs command loop is entered automatically when Emacs starts up.
+@c This top-level invocation of the command loop never exits; it keeps
+@c running as long as Emacs does.  Lisp programs can also invoke the
+@c command loop.  Since this makes more than one activation of the command
+@c loop, we call it @dfn{recursive editing}.  A recursive editing level has
+@c the effect of suspending whatever command invoked it and permitting the
+@c user to do arbitrary editing before resuming that command.
+Emacsが動作を始めると、Emacsのコマンドループに自動的に入ります。
+このトップレベルのコマンドループからはけっして抜けることはなく、
+Emacsが動いている限り動作し続けます。
+Lispプログラムからコマンドループを起動することもできます。
+そうすると、活性なコマンドループが複数作られることになるので、
+それを@dfn{再帰編集}（recursive editing）と呼びます。
+再帰編集レベルには、それを起動したコマンドを一時休止させ、
+当該コマンドを再開するまでユーザーにどんな編集でも許す効果があります。
+
+@c   The commands available during recursive editing are the same ones
+@c available in the top-level editing loop and defined in the keymaps.
+@c Only a few special commands exit the recursive editing level; the others
+@c return to the recursive editing level when they finish.  (The special
+@c commands for exiting are always available, but they do nothing when
+@c recursive editing is not in progress.)
+再帰編集中に利用可能なコマンドは、トップレベルのコマンドループと
+同じものでありキーマップで定義されます。
+再帰編集を抜けるための数個の特別なコマンドがあり、
+完了すると再帰編集レベルから抜ける別のコマンドもあります。
+（再帰編集を抜けるコマンドはつねに利用可能であるが、
+再帰編集中でないとなにも行わない。）
+
+@c   All command loops, including recursive ones, set up all-purpose error
+@c handlers so that an error in a command run from the command loop will
+@c not exit the loop.
+再帰編集を含むすべてのコマンドループでは、
+コマンドループから実行したコマンドのエラーによって
+コマンドループから抜け出さないように汎用目的のエラーハンドラを設定します。
+
+@c @cindex minibuffer input
+@cindex ミニバッファ入力
+@c   Minibuffer input is a special kind of recursive editing.  It has a few
+@c special wrinkles, such as enabling display of the minibuffer and the
+@c minibuffer window, but fewer than you might suppose.  Certain keys
+@c behave differently in the minibuffer, but that is only because of the
+@c minibuffer's local map; if you switch windows, you get the usual Emacs
+@c commands.
+ミニバッファでの入力は、特別な種類の再帰編集です。
+これには、ミニバッファやミニバッファ用ウィンドウを表示するなどの特別な
+処理がありますが、読者が考えるよりは少ないのです。
+ミニバッファでは特別なふるまいをするキーもありますが、
+それらはミニバッファのローカルマップによるものです。
+ウィンドウを切り替えると、Emacsの普通のコマンドを使えます。
+
+@c @cindex @code{throw} example
+@cindex @code{throw}の例
+@cindex 例、@code{throw}
+@kindex exit
+@c @cindex exit recursive editing
+@c @cindex aborting
+@cindex 再帰編集の終了
+@cindex 強制終了
+@c   To invoke a recursive editing level, call the function
+@c @code{recursive-edit}.  This function contains the command loop; it also
+@c contains a call to @code{catch} with tag @code{exit}, which makes it
+@c possible to exit the recursive editing level by throwing to @code{exit}
+@c (@pxref{Catch and Throw}).  If you throw a value other than @code{t},
+@c then @code{recursive-edit} returns normally to the function that called
+@c it.  The command @kbd{C-M-c} (@code{exit-recursive-edit}) does this.
+@c Throwing a @code{t} value causes @code{recursive-edit} to quit, so that
+@c control returns to the command loop one level up.  This is called
+@c @dfn{aborting}, and is done by @kbd{C-]} (@code{abort-recursive-edit}).
+再帰編集レベルを起動するには、関数@code{recursive-edit}を呼び出します。
+この関数にはコマンドループが含まれています。
+さらに、@code{exit}を伴った@code{catch}の呼び出しもあり、
+これにより、@code{exit}へ投げることで
+再帰編集レベルから抜け出せるようになっています
+（@pxref{Catch and Throw}）。
+@code{t}以外の値を投げると、@code{recursive-edit}は、
+呼び出し側の関数へ普通に戻ります。
+コマンド@kbd{C-M-c}（@code{exit-recursive-edit}）は、これを行います。
+値@code{t}を投げると@code{recursive-edit}に中断を引き起こし、
+1つ上のレベルのコマンドループへ制御を戻します。
+これを@dfn{強制終了}（aborting）と呼び、
+@kbd{C-]}（@code{abort-recursive-edit}）で行えます。
+
+@c   Most applications should not use recursive editing, except as part of
+@c using the minibuffer.  Usually it is more convenient for the user if you
+@c change the major mode of the current buffer temporarily to a special
+@c major mode, which should have a command to go back to the previous mode.
+@c (The @kbd{e} command in Rmail uses this technique.)  Or, if you wish to
+@c give the user different text to edit ``recursively'', create and select
+@c a new buffer in a special mode.  In this mode, define a command to
+@c complete the processing and go back to the previous buffer.  (The
+@c @kbd{m} command in Rmail does this.)
+ミニバッファを使う場合を除いて、ほとんどのアプリケーションでは
+再帰編集を使うべきではありません。
+カレントバッファのメジャーモードを
+一時的な特別なメジャーモードに変更するほうが、
+一般にはユーザーにとってより便利です。
+ただし、当該メジャーモードには、
+まえのモードに戻るコマンドを用意しておきます。
+（rmailのコマンド@kbd{e}は、この方式を使っている。）
+あるいは、『再帰的に』編集する別のテキストをユーザーに与えたい場合には、
+特別なモードの新たなバッファを作成してそれを選択します。
+当該モードには、処理を終えてまえのバッファに戻るコマンドを
+定義しておきます。
+（rmailのコマンド@kbd{m}は、このようにする。）
+
+@c   Recursive edits are useful in debugging.  You can insert a call to
+@c @code{debug} into a function definition as a sort of breakpoint, so that
+@c you can look around when the function gets there.  @code{debug} invokes
+@c a recursive edit but also provides the other features of the debugger.
+再帰編集はデバッグに便利です。
+ブレークポイントの一種として関数定義に
+@code{debug}の呼び出しを挿入しておくと、
+その箇所に達したときにいろいろと調べられます。
+@code{debug}は再帰編集を起動しますが、デバッガとしての機能も提供します。
+
+@c   Recursive editing levels are also used when you type @kbd{C-r} in
+@c @code{query-replace} or use @kbd{C-x q} (@code{kbd-macro-query}).
+@code{query-replace}で@kbd{C-r}を打ったり、
+@kbd{C-x q}（@code{kbd-macro-query}）を使ったときにも
+再帰編集レベルが使われます。
+
+@defun recursive-edit
+@c @cindex suspend evaluation
+@cindex 評価の一時休止
+@c This function invokes the editor command loop.  It is called
+@c automatically by the initialization of Emacs, to let the user begin
+@c editing.  When called from a Lisp program, it enters a recursive editing
+@c level.
+この関数はエディタコマンドループを起動する。
+Emacsの初期化過程で自動的に呼び出され、ユーザーが編集できるようにする。
+Lispプログラムから呼ばれると、再帰編集レベルに入る。
+
+@c   In the following example, the function @code{simple-rec} first
+@c advances point one word, then enters a recursive edit, printing out a
+@c message in the echo area.  The user can then do any editing desired, and
+@c then type @kbd{C-M-c} to exit and continue executing @code{simple-rec}.
+以下の例では、関数@code{simple-rec}は、まず1単語分ポイントを進め、
+エコー領域にメッセージを表示して再帰編集に入る。
+そうすると、ユーザーは望むことはなんでもできるようになり、
+（再帰編集を）抜けるために@kbd{C-M-c}を打つと、
+@code{simple-rec}の実行を継続する。
+
+@example
+(defun simple-rec ()
+  (forward-word 1)
+  (message "Recursive edit in progress")
+  (recursive-edit)
+  (forward-word 1))
+     @result{} simple-rec
+(simple-rec)
+     @result{} nil
+@end example
+@end defun
+
+@c @deffn Command exit-recursive-edit
+@deffn コマンド exit-recursive-edit
+@c This function exits from the innermost recursive edit (including
+@c minibuffer input).  Its definition is effectively @code{(throw 'exit
+@c nil)}.  
+この関数は、（ミニバッファでの入力を含む）もっとも内側の再帰編集から抜ける。
+その関数定義は実質的には@code{(throw 'exit nil)}である。
+@end deffn
+
+@c @deffn Command abort-recursive-edit
+@deffn コマンド abort-recursive-edit
+@c This function aborts the command that requested the innermost recursive
+@c edit (including minibuffer input), by signaling @code{quit} 
+@c after exiting the recursive edit.  Its definition is effectively
+@c @code{(throw 'exit t)}.  @xref{Quitting}.
+この関数は、再帰編集から抜けたあとで@code{quit}を通知することで、
+（ミニバッファでの入力を含む）もっとも内側の再帰編集を
+要請したコマンドを強制終了する。
+その関数定義は実質的には@code{(throw 'exit t)}である。
+@pxref{Quitting}。
+@end deffn
+
+@c @deffn Command top-level
+@deffn コマンド top-level
+@c This function exits all recursive editing levels; it does not return a
+@c value, as it jumps completely out of any computation directly back to
+@c the main command loop.
+この関数は、すべての再帰編集を抜ける。
+すべての計算を抜け出てメインのコマンドループへ直接戻るため、値は返さない。
+@end deffn
+
+@defun recursion-depth
+@c This function returns the current depth of recursive edits.  When no
+@c recursive edit is active, it returns 0.
+この関数は再帰編集の現在の深さを返す。
+活性な再帰編集がなければ0を返す。
+@end defun
+
+@node Disabling Commands
+@c @section Disabling Commands
+@section コマンドを禁止する
+@c @cindex disabled command
+@cindex 禁止コマンド
+
+@c   @dfn{Disabling a command} marks the command as requiring user
+@c confirmation before it can be executed.  Disabling is used for commands
+@c which might be confusing to beginning users, to prevent them from using
+@c the commands by accident.
+@dfn{コマンドを禁止する}とは、
+コマンドを実行するまえにユーザーの確認を必要とするように
+コマンドに印を付けることです。
+コマンドを禁止するのは、
+初心者に混乱をもたらす可能性のあるコマンドに対してや、
+コマンドの誤用を防ぐためです。
+
+@kindex disabled
+@c   The low-level mechanism for disabling a command is to put a
+@c non-@code{nil} @code{disabled} property on the Lisp symbol for the
+@c command.  These properties are normally set up by the user's
+@c @file{.emacs} file with Lisp expressions such as this:
+コマンドを禁止する低レベルの機構は、
+コマンドのLispシンボルに@code{nil}以外の属性@code{disabled}を入れることです。
+これらの属性は、通常、ユーザーの@file{.emacs}ファイルにて
+つぎのようなLisp式で設定します。
+
+@example
+(put 'upcase-region 'disabled t)
+@end example
+
+@noindent
+@c For a few commands, these properties are present by default and may be
+@c removed by the @file{.emacs} file.
+数個のコマンドにはデフォルトでこれらの属性がありますから、
+@file{.emacs}ファイルで属性を取り除きます。
+
+@c   If the value of the @code{disabled} property is a string, the message
+@c saying the command is disabled includes that string.  For example:
+属性@code{disabled}の値は文字列であり、
+コマンドを禁止したことを表すメッセージです。
+たとえばつぎのとおりです。
+
+@example
+(put 'delete-region 'disabled
+     "Text deleted this way cannot be yanked back!\n")
+@end example
+
+@c   @xref{Disabling,,, emacs, The GNU Emacs Manual}, for the details on
+@c what happens when a disabled command is invoked interactively.
+@c Disabling a command has no effect on calling it as a function from Lisp
+@c programs.
+禁止したコマンドを対話的に起動するとどうなるかについて
+詳しくは@xref{Disabling,, 使用禁止コマンド, emacs, GNU Emacs マニュアル}。
+コマンドを禁止しても、Lispプログラムから関数として呼び出すことには
+なんの影響もありません。
+
+@c @deffn Command enable-command command
+@deffn コマンド enable-command command
+@c Allow @var{command} to be executed without special confirmation from now
+@c on, and (if the user confirms) alter the user's @file{.emacs} file so
+@c that this will apply to future sessions.
+これ以降、特別な確認なしに@var{command}を実行可能にする。
+さらに（ユーザーが了承すれば）ユーザーの@file{.emacs}ファイルを変更して、
+将来のセッションでもそのようにする。
+@end deffn
+
+@c @deffn Command disable-command command
+@deffn コマンド disable-command command
+@c Require special confirmation to execute @var{command} from now on, and
+@c (if the user confirms) alter the user's @file{.emacs} file so that this
+@c will apply to future sessions.
+これ以降、@var{command}の実行には特別な確認を必要とするようにする。
+さらに（ユーザーが了承すれば）ユーザーの@file{.emacs}ファイルを変更して、
+将来のセッションでもそのようにする。
+@end deffn
+
+@defvar disabled-command-hook
+@c When the user invokes a disabled command interactively, this normal hook
+@c is run instead of the disabled command.  The hook functions can use
+@c @code{this-command-keys} to determine what the user typed to run the
+@c command, and thus find the command itself.  @xref{Hooks}.
+禁止したコマンドをユーザーが対話的に起動したとき、
+禁止したコマンドのかわりにこのノーマルフックを実行する。
+フック関数では、@code{this-command-keys}を使って
+コマンドを実行するためにユーザーがなにを入力したかを調べ、
+コマンドそのものを探し出せる。
+@pxref{Hooks}。
+
+@c By default, @code{disabled-command-hook} contains a function that asks
+@c the user whether to proceed.
+デフォルトでは、@code{disabled-command-hook}には、
+ユーザーに処理を進めるかどうかを問い合わせる関数が入っている。
+@end defvar
+
+@node Command History
+@c @section Command History
+@section コマンド履歴
+@c @cindex command history
+@c @cindex complex command
+@c @cindex history of commands
+@cindex コマンド履歴
+@cindex 複雑なコマンド
+@cindex 履歴、コマンド
+
+@c   The command loop keeps a history of the complex commands that have
+@c been executed, to make it convenient to repeat these commands.  A
+@c @dfn{complex command} is one for which the interactive argument reading
+@c uses the minibuffer.  This includes any @kbd{M-x} command, any
+@c @kbd{M-:} command, and any command whose @code{interactive}
+@c specification reads an argument from the minibuffer.  Explicit use of
+@c the minibuffer during the execution of the command itself does not cause
+@c the command to be considered complex.
+コマンドループでは、実行した複雑なコマンドの履歴を管理していて、
+それらのコマンドを簡単に繰り返せるようにしています。
+@dfn{複雑なコマンド}とは、ミニバッファを使って引数を読むコマンドです。
+これには、任意の@kbd{M-x}コマンド、任意の@kbd{M-:}コマンド、
+ミニバッファから引数を読み取る@code{interactive}指定を持つ任意のコマンドが
+含まれます。
+コマンド自身の実行中に明示的にミニバッファを使っても、
+複雑なコマンドとはみなしません。
+
+@defvar command-history
+@c This variable's value is a list of recent complex commands, each
+@c represented as a form to evaluate.  It continues to accumulate all
+@c complex commands for the duration of the editing session, but when it
+@c reaches the maximum size (specified by the variable
+@c @code{history-length}), the oldest elements are deleted as new ones are
+@c added.
+この変数の値は、最近使った複雑なコマンドのリストであり、
+各要素は評価すべきフォームを表す。
+編集セッション中は、すべての複雑なコマンドを集積するが、
+（変数@code{history-length}で指定される）最大サイズに達すると
+新しい要素を追加するたびに古い要素を削除する。
+
+@example
+@group
+command-history
+@result{} ((switch-to-buffer "chistory.texi")
+    (describe-key "^X^[")
+    (visit-tags-table "~/emacs/src/")
+    (find-tag "repeat-complex-command"))
+@end group
+@end example
+@end defvar
+
+@c   This history list is actually a special case of minibuffer history
+@c (@pxref{Minibuffer History}), with one special twist: the elements are
+@c expressions rather than strings.
+この履歴リストは、実際にはミニバッファ履歴（@pxref{Minibuffer History}）
+の特別な場合です。
+要素は文字列ではなく式なのです。
+
+@c   There are a number of commands devoted to the editing and recall of
+@c previous commands.  The commands @code{repeat-complex-command}, and
+@c @code{list-command-history} are described in the user manual
+@c (@pxref{Repetition,,, emacs, The GNU Emacs Manual}).  Within the
+@c minibuffer, the usual minibuffer history commands are available.
+まえのコマンドを編集したり取り出すための専用コマンドがたくさんあります。
+コマンド@code{repeat-complex-command}と@code{list-command-history}は、
+ユーザーマニュアル
+（@pxref{Repetition,, ミニバッファコマンドの繰り返し, emacs,
+GNU Emacs マニュアル}）に説明してあります。
+ミニバッファ内では、通常のミニバッファ履歴コマンドを使えます。
+
+@node Keyboard Macros
+@c @section Keyboard Macros
+@section キーボードマクロ
+@c @cindex keyboard macros
+@cindex キーボードマクロ
+
+@c   A @dfn{keyboard macro} is a canned sequence of input events that can
+@c be considered a command and made the definition of a key.  The Lisp
+@c representation of a keyboard macro is a string or vector containing the
+@c events.  Don't confuse keyboard macros with Lisp macros
+@c (@pxref{Macros}).
+@dfn{キーボードマクロ}は、
+コマンドとみなせる入力イベントのまとまった列であり、
+キーの定義から構成されます。
+Lispにおけるキーボードマクロの表現は、
+イベントを含んだ文字列やベクトルです。
+キーボードマクロとLispマクロ（@pxref{Macros}）を混同しないでください。
+
+@defun execute-kbd-macro kbdmacro &optional count
+@c This function executes @var{kbdmacro} as a sequence of events.  If
+@c @var{kbdmacro} is a string or vector, then the events in it are executed
+@c exactly as if they had been input by the user.  The sequence is
+@c @emph{not} expected to be a single key sequence; normally a keyboard
+@c macro definition consists of several key sequences concatenated.
+この関数はキーボードマクロ@var{kbdmacro}をイベント列として実行する。
+@var{kbdmacro}が文字列かベクトルであると、
+その中のイベントをユーザーが入力した場合とまったく同様に実行する。
+列は単一のキーイベントである必要は@emph{ない}。
+通常、キーボードマクロの定義は、複数のキー列を連結したものである。
+
+@c If @var{kbdmacro} is a symbol, then its function definition is used in
+@c place of @var{kbdmacro}.  If that is another symbol, this process repeats.
+@c Eventually the result should be a string or vector.  If the result is
+@c not a symbol, string, or vector, an error is signaled.
+@var{kbdmacro}がシンボルであると、
+@var{kbdmacro}のかわりにその関数定義を用いる。
+それがさらに別のシンボルであると、この処理を繰り返す。
+最終的な結果は、文字列かベクトルであること。
+結果がシンボルでも文字列でもベクトルでもないと、
+エラーを通知する。
+
+@c The argument @var{count} is a repeat count; @var{kbdmacro} is executed that
+@c many times.  If @var{count} is omitted or @code{nil}, @var{kbdmacro} is
+@c executed once.  If it is 0, @var{kbdmacro} is executed over and over until it
+@c encounters an error or a failing search.  
+引数@var{count}は繰り返し回数であり、
+@var{kbdmacro}をその回数だけ実行する。
+@var{count}を省略するか@code{nil}であると、@var{kbdmacro}を1回実行する。
+@var{count}が0であると、
+@var{kbdmacro}の実行をエラーに出会うか探索に失敗するまで繰り返す。
+
+@c @xref{Reading One Event}, for an example of using @code{execute-kbd-macro}.
+@code{execute-kbd-macro}を使った例については@pxref{Reading One Event}。
+@end defun
+
+@defvar executing-macro
+@c This variable contains the string or vector that defines the keyboard
+@c macro that is currently executing.  It is @code{nil} if no macro is
+@c currently executing.  A command can test this variable so as to behave
+@c differently when run from an executing macro.  Do not set this variable
+@c yourself.
+この変数は、現在実行中のキーボードマクロの定義である
+文字列やベクトルを保持する。
+これが@code{nil}であると、現在実行中のマクロはない。
+コマンドでこの変数を検査することで、
+マクロ実行で起動されたときのふるまいを変更できる。
+読者自身はこの変数に設定しないこと。
+@end defvar
+
+@defvar defining-kbd-macro
+@c This variable indicates whether a keyboard macro is being defined.  A
+@c command can test this variable so as to behave differently while a macro
+@c is being defined.  The commands @code{start-kbd-macro} and
+@c @code{end-kbd-macro} set this variable---do not set it yourself.
+この変数は、キーボードマクロを定義中かどうかを表す。
+コマンドでこの変数を検査することで、マクロ定義中のふるまいを変更できる。
+コマンド@code{start-kbd-macro}と@code{end-kbd-macro}がこの変数に設定する。
+読者自身は設定しないこと。
+
+@c The variable is always local to the current terminal and cannot be
+@c buffer-local.  @xref{Multiple Displays}.
+この変数は現在の端末に対してつねにローカルであり、
+バッファに対してローカルにはならない。
+@pxref{Multiple Displays}。
+@end defvar
+
+@defvar last-kbd-macro
+@c This variable is the definition of the most recently defined keyboard
+@c macro.  Its value is a string or vector, or @code{nil}.
+この変数は、もっとも最近に定義されたキーボードマクロの定義である。
+その値は、文字列かベクトル、あるいは、@code{nil}である。
+
+@c The variable is always local to the current terminal and cannot be
+@c buffer-local.  @xref{Multiple Displays}.
+この変数は現在の端末に対してつねにローカルであり、
+バッファに対してローカルにはならない。
+@pxref{Multiple Displays}。
+@end defvar
+

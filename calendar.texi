@@ -1,0 +1,1434 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@node Calendar, System Interface, Display, Top
+@c @chapter Customizing the Calendar and Diary
+@chapter カレンダーと日誌のカスタマイズ
+
+@c   There are many customizations that you can use to make the calendar and
+@c diary suit your personal tastes.
+カレンダーや日誌を個人の好みに合わせるための
+カスタマイズ項目がたくさんあります。
+
+@menu
+* Calendar Customizing::   Defaults you can set.
+* Holiday Customizing::    Defining your own holidays.
+* Date Display Format::    Changing the format.
+* Time Display Format::    Changing the format.
+* Daylight Savings::       Changing the default.
+* Diary Customizing::      Defaults you can set.
+* Hebrew/Islamic Entries:: How to obtain them.
+* Fancy Diary Display::    Enhancing the diary display, sorting entries, 
+                             using included diary files.
+* Sexp Diary Entries::     Fancy things you can do.
+* Appt Customizing::	   Customizing appointment reminders.
+@end menu
+
+@node Calendar Customizing
+@c @section Customizing the Calendar
+@section カレンダーのカスタマイズ
+@vindex view-diary-entries-initially
+
+@c   If you set the variable @code{view-diary-entries-initially} to
+@c @code{t}, calling up the calendar automatically displays the diary
+@c entries for the current date as well.  The diary dates appear only if
+@c the current date is visible.  If you add both of the following lines to
+@c your @file{.emacs} file:@refill
+変数@code{view-diary-entries-initially}に@code{t}を設定しておくと、
+カレンダーを呼び出すと現在の日に対する日誌記録を自動的に表示できます。
+その日がウィンドウで見える場合に限って日誌記録が表示されます。
+つぎの行、
+
+@example
+(setq view-diary-entries-initially t)
+(calendar)
+@end example
+
+@noindent
+@c this displays both the calendar and diary windows whenever you start Emacs.
+を個人のファイル@file{.emacs}に入れておくと、
+Emacsを起動するたびに、カレンダーと日誌の両者のウィンドウを表示します。
+
+@vindex view-calendar-holidays-initially
+@c   Similarly, if you set the variable
+@c @code{view-calendar-holidays-initially} to @code{t}, entering the
+@c calendar automatically displays a list of holidays for the current
+@c three-month period.  The holiday list appears in a separate
+@c window.
+同様に、変数@code{view-calendar-holidays-initially}に
+@code{t}を設定しておくと、
+カレンダーに入ると自動的に3か月分の祝祭日一覧を表示します。
+祝祭日一覧は別のウィンドウに現れます。
+
+@vindex mark-diary-entries-in-calendar
+@c   You can set the variable @code{mark-diary-entries-in-calendar} to
+@c @code{t} in order to mark any dates with diary entries.  This takes
+@c effect whenever the calendar window contents are recomputed.  There are
+@c two ways of marking these dates: by changing the face (@pxref{Faces}),
+@c if the display supports that, or by placing a plus sign (@samp{+})
+@c beside the date otherwise.
+変数@code{mark-diary-entries-in-calendar}に@code{t}を設定すると、
+日誌に入れてある日付に印を付けられます。
+カレンダーのウィンドウ内容を再計算するときにこの効果が現れます。
+これらの日付に印を付ける方法は2つあります。
+ディスプレイで使えるならばフェイス（@pxref{Faces}）を変更するか、
+日付にプラス記号（@samp{+}）を付加します。
+
+@vindex mark-holidays-in-calendar
+@c   Similarly, setting the variable @code{mark-holidays-in-calendar} to
+@c @code{t} marks holiday dates, either with a change of face or with an
+@c asterisk (@samp{*}).
+同様に、変数@code{mark-holidays-in-calendar}に@code{t}を設定すると、
+フェイスを変えるかアスタリスク（@samp{*}）を付加することで
+祝祭日に印を付けられます。
+
+@vindex calendar-holiday-marker
+@vindex diary-entry-marker
+@c   The variable @code{calendar-holiday-marker} specifies how to mark a
+@c date as being a holiday.  Its value may be a character to insert next to
+@c the date, or a face name to use for displaying the date.  Likewise, the
+@c variable @code{diary-entry-marker} specifies how to mark a date that has
+@c diary entries.  The calendar creates faces named @code{holiday-face} and
+@c @code{diary-face} for these purposes; those symbols are the default
+@c values of these variables, when Emacs supports multiple faces on your
+@c terminal.
+変数@code{calendar-holiday-marker}は、
+祝祭日の日付にどのように印を付けるかを指定します。
+その値は、日付に付加する文字か日付の表示に使うフェイス名です。
+同様に、変数@code{diary-entry-marker}は、
+日誌に入っている日付にどのように印を付けるかを指定します。
+カレンダー（calendar）モードは、このような目的のために
+@code{holiday-face}と@code{diary-face}という名前のフェイスを作成します。
+Emacsが端末で複数のフェイスを扱える場合には、
+これらの変数のデフォルト値はこれらのシンボルです。
+
+@vindex calendar-load-hook
+@c   The variable @code{calendar-load-hook} is a normal hook run when the
+@c calendar package is first loaded (before actually starting to display
+@c the calendar).
+変数@code{calendar-load-hook}は、
+（カレンダーを実際に表示し始めるまえに）カレンダーパッケージを初めて
+ロードしたときに実行されるノーマルフックです。
+
+@vindex initial-calendar-window-hook
+@c   Starting the calendar runs the normal hook
+@c @code{initial-calendar-window-hook}.  Recomputation of the calendar
+@c display does not run this hook.  But if you leave the calendar with the
+@c @kbd{q} command and reenter it, the hook runs again.@refill
+カレンダーを開始するとノーマルフック@code{initial-calendar-window-hook}を
+実行します。
+カレンダーの表示を再計算してもこのフックは実行されません。
+しかし、コマンド@kbd{q}でカレンダーを抜けてから再度カレンダーに入ると
+このフックを再度実行します。
+
+@vindex today-visible-calendar-hook
+@c   The variable @code{today-visible-calendar-hook} is a normal hook run
+@c after the calendar buffer has been prepared with the calendar when the
+@c current date is visible in the window.  One use of this hook is to
+@c replace today's date with asterisks; to do that, use the hook function
+@c @code{calendar-star-date}.
+変数@code{today-visible-calendar-hook}は、
+今日の日付がウィンドウで見えるときに
+カレンダーバッファにカレンダーの準備を終えてから実行される
+ノーマルフックです。
+このフックの1つの用途は、今日の日付をアスタリスクで置き換えることです。
+それにはフック関数@code{calendar-star-date}を使います。
+
+@findex calendar-star-date
+@example
+(add-hook 'today-visible-calendar-hook 'calendar-star-date)
+@end example
+
+@noindent
+@c Another standard hook function marks the current date, either by
+@c changing its face or by adding an asterisk.  Here's how to use it:
+他の標準的なフック関数は、フェイスを変更するかアスタリスクを付加することで
+現在の日付に印を付けます。
+つぎのように使います。
+
+@findex calendar-mark-today
+@example
+(add-hook 'today-visible-calendar-hook 'calendar-mark-today)
+@end example
+
+@noindent
+@vindex calendar-today-marker
+@c The variable @code{calendar-today-marker} specifies how to mark today's
+@c date.  Its value should be a character to insert next to the date or a
+@c face name to use for displaying the date.  A face named
+@c @code{calendar-today-face} is provided for this purpose; that symbol is
+@c the default for this variable when Emacs supports multiple faces on your
+@c terminal.
+変数@code{calendar-today-marker}は、
+今日の日付の印の付け方を指定します。
+その値は、日付に付加する文字か日付の表示に使うフェイス名です。
+この目的のために@code{calendar-today-face}という名前のフェイスがあります。
+Emacsが端末で複数のフェイスを扱える場合には、
+この変数のデフォルト値はこのシンボルです。
+
+@vindex today-invisible-calendar-hook
+@noindent
+@c   A similar normal hook, @code{today-invisible-calendar-hook} is run if
+@c the current date is @emph{not} visible in the window.
+同様なノーマルフック@code{today-invisible-calendar-hook}は、
+現在の日付がウィンドウで見え@emph{ない}ときに実行されます。
+
+@node Holiday Customizing
+@c @section Customizing the Holidays
+@section 祝祭日のカスタマイズ
+
+@vindex calendar-holidays
+@vindex christian-holidays
+@vindex hebrew-holidays
+@vindex islamic-holidays
+@c   Emacs knows about holidays defined by entries on one of several lists.
+@c You can customize these lists of holidays to your own needs, adding or
+@c deleting holidays.  The lists of holidays that Emacs uses are for
+@c general holidays (@code{general-holidays}), local holidays
+@c (@code{local-holidays}), Christian holidays (@code{christian-holidays}),
+@c Hebrew (Jewish) holidays (@code{hebrew-holidays}), Islamic (Moslem)
+@c holidays (@code{islamic-holidays}), and other holidays
+@c (@code{other-holidays}).
+Emacsは、複数のリストの中の1つのリストに入っている項目群で
+定義される祝祭日を把握しています。
+これらの祝祭日のリストに祝祭日を追加したり削除して
+個人の目的に合うようにカスタマイズできます。
+Emacsが使用する祝祭日のリストは、
+一般祝祭日（@code{general-holidays}）、
+地域祝祭日（@code{local-holidays}）、
+キリスト教祝祭日（@code{christian-holidays}）、
+ヘブライ（ユダヤ教）祝祭日（@code{hebrew-holidays}）、
+イスラム（回教徒）祝祭日（@code{islamic-holidays}）、
+その他の祝祭日（@code{other-holidays}）です。
+
+@vindex general-holidays
+@c   The general holidays are, by default, holidays common throughout the
+@c United States.  To eliminate these holidays, set @code{general-holidays}
+@c to @code{nil}.
+一般祝祭日は、デフォルトでは、合州国に共通の祝祭日です。
+これらの祝祭日を削除するには、@code{general-holidays}に@code{nil}を設定します。
+
+@vindex local-holidays
+@c   There are no default local holidays (but sites may supply some).  You
+@c can set the variable @code{local-holidays} to any list of holidays, as
+@c described below.
+デフォルトの地域祝祭日はありません（サイトによってはある）。
+以下に述べるように、
+変数@code{local-holidays}に祝祭日の任意のリストを設定できます。
+
+@vindex all-christian-calendar-holidays
+@vindex all-hebrew-calendar-holidays
+@vindex all-islamic-calendar-holidays
+@c   By default, Emacs does not include all the holidays of the religions
+@c that it knows, only those commonly found in secular calendars.  For a
+@c more extensive collection of religious holidays, you can set any (or
+@c all) of the variables @code{all-christian-calendar-holidays},
+@c @code{all-hebrew-calendar-holidays}, or
+@c @code{all-islamic-calendar-holidays} to @code{t}.  If you want to
+@c eliminate the religious holidays, set any or all of the corresponding
+@c variables @code{christian-holidays}, @code{hebrew-holidays}, and
+@c @code{islamic-holidays} to @code{nil}.@refill
+デフォルトでは、Emacsが承知している宗教のすべての祝祭日が
+Emacsに入っているのではなく、世俗的なカレンダーに共通するものだけです。
+宗教上の祝祭日を網羅的に入れるには、
+@code{all-christian-calendar-holidays}、
+@code{all-hebrew-calendar-holidays}、
+@code{all-islamic-calendar-holidays}の変数のいずれか（あるいは、すべて）に
+@code{t}を設定します。
+宗教上の祝祭日を削除するには、対応する
+@code{christian-holidays}、@code{hebrew-holidays}、
+@code{islamic-holidays}の変数のいずれか（あるいは、すべて）に
+@code{nil}を設定します。
+
+@vindex other-holidays
+@c   You can set the variable @code{other-holidays} to any list of
+@c holidays.  This list, normally empty, is intended for individual use.
+変数@code{other-holidays}には、祝祭日の任意のリストを設定できます。
+このリストは、普通は空ですが、個人的な使用を意図しています。
+
+@c @cindex holiday forms
+@cindex 祝祭日形式
+@c   Each of the lists (@code{general-holidays}, @code{local-holidays},
+@c @code{christian-holidays}, @code{hebrew-holidays},
+@c @code{islamic-holidays}, and @code{other-holidays}) is a list of
+@c @dfn{holiday forms}, each holiday form describing a holiday (or
+@c sometimes a list of holidays).
+リスト（@code{general-holidays}、@code{local-holidays}、
+@code{christian-holidays}、@code{hebrew-holidays}、
+@code{islamic-holidays}、@code{other-holidays}）のおのおのは、
+祝祭日（あるいは祝祭日のリスト）を記述する
+@dfn{祝祭日形式}（holiday form）から成るリストです。
+
+@c   Here is a table of the possible kinds of holiday form.  Day numbers
+@c and month numbers count starting from 1, but ``dayname'' numbers
+@c count Sunday as 0.  The element @var{string} is always the
+@c name of the holiday, as a string.
+可能な祝祭日形式の一覧をつぎに示します。
+月と日は1から数えますが、『曜日』は日曜日を0と数えます。
+要素@var{string}は、文字列で表した祝祭日の名称です。
+
+@table @code
+@item (holiday-fixed @var{month} @var{day} @var{string})
+@c A fixed date on the Gregorian calendar.
+グレゴリオ暦の固定した日付。
+
+@item (holiday-float @var{month} @var{dayname} @var{k} @var{string})
+@c The @var{k}th @var{dayname} in @var{month} on the Gregorian calendar
+@c (@var{dayname}=0 for Sunday, and so on); negative @var{k} means count back
+@c from the end of the month.
+グレゴリオ暦の@var{month}月の@var{k}番目の曜日@var{dayname}。
+（日曜日は@var{dayname}=0、…。）
+@var{k}が負であると、月末から数える。
+
+@item (holiday-hebrew @var{month} @var{day} @var{string})
+@c A fixed date on the Hebrew calendar.
+ヘブライ暦の固定した日付。
+
+@item (holiday-islamic @var{month} @var{day} @var{string})
+@c A fixed date on the Islamic calendar.
+イスラム暦の固定した日付。
+
+@item (holiday-julian @var{month} @var{day} @var{string})
+@c A fixed date on the Julian calendar.
+ユリウス暦の固定した日付。
+
+@item (holiday-sexp @var{sexp} @var{string})
+@c A date calculated by the Lisp expression @var{sexp}.  The expression
+@c should use the variable @code{year} to compute and return the date of a
+@c holiday, or @code{nil} if the holiday doesn't happen this year.  The
+@c value of @var{sexp} must represent the date as a list of the form
+@c @code{(@var{month} @var{day} @var{year})}.
+Lisp式@var{sexp}で計算される日付。
+計算式では、年として変数@code{year}を使い、祝祭日の日付を返す。
+あるいは、その年に該当する祝祭日がなければ@code{nil}を返す。
+@var{sexp}の値は、@code{(@var{month} @var{day} @var{year})}の形の
+リストで表した日付であること。
+
+@item (if @var{condition} @var{holiday-form})
+@c A holiday that happens only if @var{condition} is true.
+条件@var{condition}が真である場合にのみ祝祭日になる。
+
+@item (@var{function} @r{[}@var{args}@r{]})
+@c A list of dates calculated by the function @var{function}, called with
+@c arguments @var{args}.
+引数@var{args}で関数@var{function}を呼び出して計算される日付のリスト。
+@end table
+
+@c   For example, suppose you want to add Bastille Day, celebrated in
+@c France on July 14.  You can do this as follows:
+たとえば、フランスで7月14日に祝われる革命記念日（Bastille Day）を
+扱えるようにするにはつぎのようにします。
+
+@smallexample
+(setq other-holidays '((holiday-fixed 7 14 "Bastille Day")))
+@end smallexample
+
+@noindent
+@c The holiday form @code{(holiday-fixed 7 14 "Bastille Day")} specifies the
+@c fourteenth day of the seventh month (July).
+祝祭日形式 @code{(holiday-fixed 7 14 "Bastille Day")}は、
+7の月（7月）の14日目を指定します。
+
+@c   Many holidays occur on a specific day of the week, at a specific time
+@c of month.  Here is a holiday form describing Hurricane Supplication Day,
+@c celebrated in the Virgin Islands on the fourth Monday in August:
+多くの祝祭日は、特定の月の特定の週にあります。
+バージン諸島で4月の第4月曜日に祝われる
+ハリケーン祈願日（Hurricane Supplication Day）を記述する
+祝祭日形式はつぎのようになります。
+
+@smallexample
+(holiday-float 8 1 4 "Hurricane Supplication Day")
+@end smallexample
+
+@noindent
+@c Here the 8 specifies August, the 1 specifies Monday (Sunday is 0,
+@c Tuesday is 2, and so on), and the 4 specifies the fourth occurrence in
+@c the month (1 specifies the first occurrence, 2 the second occurrence,
+@c @minus{}1 the last occurrence, @minus{}2 the second-to-last occurrence, and
+@c so on).
+ここで、8は8月、1は月曜日（日曜日は0、火曜日は2といった具合）、4は
+その月の4回目（1は最初、2は2回目、@minus{}1は最後、@minus{}2は最後の1つまえ
+といった具合）を意味します。
+
+@c   You can specify holidays that occur on fixed days of the Hebrew,
+@c Islamic, and Julian calendars too.  For example,
+ヘブライ暦、イスラム暦、ユリウス暦の固定した日付の祝祭日も指定できます。
+たとえば、
+
+@smallexample
+(setq other-holidays
+      '((holiday-hebrew 10 2 "Last day of Hanukkah")
+        (holiday-islamic 3 12 "Mohammed's Birthday")
+        (holiday-julian 4 2 "Jefferson's Birthday")))
+@end smallexample
+
+@noindent
+@c adds the last day of Hanukkah (since the Hebrew months are numbered with
+@c 1 starting from Nisan), the Islamic feast celebrating Mohammed's
+@c birthday (since the Islamic months are numbered from 1 starting with
+@c Muharram), and Thomas Jefferson's birthday, which is 2 April 1743 on the
+@c Julian calendar.
+は、ハヌカー祭の最終日（ヘブライ暦の月はニサンNisanを1と数える）、
+イスラムが祝うモハメッドの誕生日
+（イスラム暦の月はムハラMuharramを1と数える）、
+ユリウス暦の1743年4月2日のトーマスジェファーソンの誕生日を
+追加します。
+
+@c   To include a holiday conditionally, use either Emacs Lisp's @code{if} or the
+@c @code{holiday-sexp} form.  For example, American presidential elections
+@c occur on the first Tuesday after the first Monday in November of years
+@c divisible by 4:
+条件付きの祝祭日を含めるには、Emacs Lispの@code{if}や@code{holiday-sexp}を
+使います。
+たとえば、アメリカ大統領選挙は、4で割り切れる年の11月の第1月曜日の
+あとの最初の火曜日に行われます。
+
+@smallexample
+(holiday-sexp (if (= 0 (% year 4))
+                   (calendar-gregorian-from-absolute
+                    (1+ (calendar-dayname-on-or-before
+                          1 (+ 6 (calendar-absolute-from-gregorian
+                                  (list 11 1 year))))))
+              "US Presidential Election"))
+@end smallexample
+
+@noindent
+@c or
+あるいは、
+
+@smallexample
+(if (= 0 (% displayed-year 4))
+    (fixed 11
+           (extract-calendar-day
+             (calendar-gregorian-from-absolute
+               (1+ (calendar-dayname-on-or-before
+                     1 (+ 6 (calendar-absolute-from-gregorian
+                              (list 11 1 displayed-year)))))))
+           "US Presidential Election"))
+@end smallexample
+
+@c   Some holidays just don't fit into any of these forms because special
+@c calculations are involved in their determination.  In such cases you
+@c must write a Lisp function to do the calculation.  To include eclipses,
+@c for example, add @code{(eclipses)} to @code{other-holidays}
+@c and write an Emacs Lisp function @code{eclipses} that returns a
+@c (possibly empty) list of the relevant Gregorian dates among the range
+@c visible in the calendar window, with descriptive strings, like this:
+特別な計算を必要とする祝祭日は、これまでの形式にあてはまりません。
+そのような場合、計算を行うLisp関数を書く必要があります。
+たとえば、日食月食を含めるには、
+@code{other-holidays}に@code{(eclipses)}を追加して、
+以下のような形でカレンダーウィンドウの見えている範囲の期間内の
+対応するグレゴリオ暦の日付の（空である可能性もある）リストを
+返すEmacs Lisp関数@code{(eclipses)}を書きます。
+
+@smallexample
+(((6 27 1991) "Lunar Eclipse") ((7 11 1991) "Solar Eclipse") ... )
+@end smallexample
+
+@node Date Display Format
+@c @section Date Display Format
+@section 日付表示書式
+@vindex calendar-date-display-form
+
+@c   You can customize the manner of displaying dates in the diary, in mode
+@c lines, and in messages by setting @code{calendar-date-display-form}.
+@c This variable holds a list of expressions that can involve the variables
+@c @code{month}, @code{day}, and @code{year}, which are all numbers in
+@c string form, and @code{monthname} and @code{dayname}, which are both
+@c alphabetic strings.  In the American style, the default value of this
+@c list is as follows:
+日誌、モード行、メッセージに現れる日付の表示方法は、
+@code{calendar-date-display-form}を設定することでカスタマイズできます。
+この変数は、
+文字列で表した数字が入った@code{month}、@code{day}、@code{year}の各変数と、
+英字の文字列が入った@code{monthname}と@code{dayname}の各変数を
+用いた式のリストを保持しています。
+アメリカスタイルでは、このリストのデフォルト値はつぎのようになります。
+
+@smallexample
+((if dayname (concat dayname ", ")) monthname " " day ", " year)
+@end smallexample
+
+@noindent
+@c while in the European style this value is the default:
+一方、ヨーロッパスタイルでは、この値のデフォルトはつぎのようになります。
+
+@smallexample
+((if dayname (concat dayname ", ")) day " " monthname " " year)
+@end smallexample
+
+@noindent
+@c The ISO standard date representation is this:
+ISO規格の日付の表記法はつぎのとおりです。
+
+@smallexample
+(year "-" month "-" day)
+@end smallexample
+
+@noindent
+@c This specifies a typical American format:
+典型的なアメリカの書式はつぎのとおりです。
+
+@smallexample
+(month "/" day "/" (substring year -2))
+@end smallexample
+
+@node Time Display Format
+@c @section Time Display Format
+@section 時刻表示書式
+@vindex calendar-time-display-form
+
+@c   The calendar and diary by default display times of day in the
+@c conventional American style with the hours from 1 through 12, minutes,
+@c and either @samp{am} or @samp{pm}.  If you prefer the European style,
+@c also known in the US as military, in which the hours go from 00 to 23,
+@c you can alter the variable @code{calendar-time-display-form}.  This
+@c variable is a list of expressions that can involve the variables
+@c @code{12-hours}, @code{24-hours}, and @code{minutes}, which are all
+@c numbers in string form, and @code{am-pm} and @code{time-zone}, which are
+@c both alphabetic strings.  The default value of
+@c @code{calendar-time-display-form} is as follows:
+カレンダーと日誌はデフォルトではアメリカスタイル、
+つまり、12時制で時刻を表示します。
+ヨーロッパスタイルやアメリカ軍の24時制を好むならば、
+変数@code{calendar-time-display-form}を変更します。
+この変数は、
+文字列で表した数字が入った@code{12-hours}、@code{24-hours}、
+@code{minutes}の各変数と、
+英字の文字列が入った@code{am-pm}と@code{time-zone}の各変数を
+用いた式のリストを保持しています。
+@code{calendar-time-display-form}のデフォルト値はつぎのとおりです。
+
+@smallexample
+(12-hours ":" minutes am-pm
+          (if time-zone " (") time-zone (if time-zone ")"))
+@end smallexample
+
+@noindent
+@c Here is a value that provides European style times:
+つぎの値では、ヨーロッパスタイルの時刻になります。
+
+@smallexample
+(24-hours ":" minutes
+          (if time-zone " (") time-zone (if time-zone ")"))
+@end smallexample
+
+@node Daylight Savings
+@c @section Daylight Savings Time
+@section 夏時間
+@c @cindex daylight savings time
+@cindex 夏時間
+
+@c   Emacs understands the difference between standard time and daylight
+@c savings time---the times given for sunrise, sunset, solstices,
+@c equinoxes, and the phases of the moon take that into account.  The rules
+@c for daylight savings time vary from place to place and have also varied
+@c historically from year to year.  To do the job properly, Emacs needs to
+@c know which rules to use.
+Emacsは、標準時間と夏時間の違いを理解しています。
+つまり、日出入時刻、夏至冬至、春分秋分、朔弦望ではその違いを考慮します。
+夏時間の規則は、地域ごと、年ごとに変わりえます。
+正しく扱うためには、どの規則が適用されるかをEmacsが知っている必要があります。
+
+@c   Some operating systems keep track of the rules that apply to the place
+@c where you are; on these systems, Emacs gets the information it needs
+@c from the system automatically.  If some or all of this information is
+@c missing, Emacs fills in the gaps with the rules currently used in
+@c Cambridge, Massachusetts, which is the center of GNU's world.
+読者の居住地域に適用される規則を記録している
+オペレーティングシステムもあります。
+これらのシステム上では、Emacsは自動的にシステムから必要な情報を得られます。
+この情報の一部やすべてが欠落していると、
+GNU世界の中心であるマサチューセッツ州ケンブリッジで
+現在使用している規則で補います。
+
+
+@vindex calendar-daylight-savings-starts
+@vindex calendar-daylight-savings-ends
+@c   If the default choice of rules is not appropriate for your location,
+@c you can tell Emacs the rules to use by setting the variables
+@c @code{calendar-daylight-savings-starts} and
+@c @code{calendar-daylight-savings-ends}.  Their values should be Lisp
+@c expressions that refer to the variable @code{year}, and evaluate to the
+@c Gregorian date on which daylight savings time starts or (respectively)
+@c ends, in the form of a list @code{(@var{month} @var{day} @var{year})}.
+@c The values should be @code{nil} if your area does not use daylight
+@c savings time.
+デフォルトで選んだ規則が読者の地域に適切でないときには、
+変数@code{calendar-daylight-savings-starts}と
+@code{calendar-daylight-savings-ends}に設定してEmacsに伝えます。
+これらの値は、変数@code{year}を使ったLisp式である必要があります。
+これらの式を評価すると、夏時間を開始／終了するグレゴリオ暦の日付を表す
+@code{(@var{month} @var{day} @var{year})}の形のリストに
+なる必要があります。
+夏時間をとらない場合には、値は@code{nil}であるべきです。
+
+@c   Emacs uses these expressions to determine the start and end dates of
+@c daylight savings time as holidays and for correcting times of day in the
+@c solar and lunar calculations.
+Emacsは、これらの式を用いて夏時間の開始と終了を判定し、
+祝祭日や太陽／月に関する時刻を補正します。
+
+@c   The values for Cambridge, Massachusetts are as follows:
+マサチューセッツ州ケンブリッジに対する値は、つぎのとおりです。
+
+@example
+@group
+(calendar-nth-named-day 1 0 4 year)
+(calendar-nth-named-day -1 0 10 year)
+@end group
+@end example
+
+@noindent
+@c i.e., the first 0th day (Sunday) of the fourth month (April) in
+@c the year specified by @code{year}, and the last Sunday of the tenth month
+@c (October) of that year.  If daylight savings time were
+@c changed to start on October 1, you would set
+@c @code{calendar-daylight-savings-starts} to this:
+つまり、指定された@code{year}年の4月の最初の日曜日と
+その年の10月の最後の日曜日です。
+10月1日に夏時間を始めると変更したとすると、
+変数@code{calendar-daylight-savings-starts}に
+つぎのように設定します。
+
+@example
+(list 10 1 year)
+@end example
+
+@c   For a more complex example, suppose daylight savings time begins on
+@c the first of Nisan on the Hebrew calendar.  You should set
+@c @code{calendar-daylight-savings-starts} to this value:
+より複雑な例として、ヘブライ暦のニサンの初日に夏時間が始まるとしましょう。
+@code{calendar-daylight-savings-starts}には、
+つぎの値を設定します。
+
+@example
+(calendar-gregorian-from-absolute
+  (calendar-absolute-from-hebrew
+    (list 1 1 (+ year 3760))))
+@end example
+
+@noindent
+@c because Nisan is the first month in the Hebrew calendar and the Hebrew
+@c year differs from the Gregorian year by 3760 at Nisan.
+これは、ニサンはヘブライ暦の最初の月であり、
+ヘブライ暦年とグレゴリオ暦年はニサンで3760年違うからです。
+
+@c   If there is no daylight savings time at your location, or if you want
+@c all times in standard time, set @code{calendar-daylight-savings-starts}
+@c and @code{calendar-daylight-savings-ends} to @code{nil}.
+読者の地域で夏時間をとっていなかったり、
+つねに標準時間を望む場合には、
+@code{calendar-daylight-savings-starts}と
+@code{calendar-daylight-savings-ends}に@code{nil}を設定します。
+
+@vindex calendar-daylight-time-offset
+@c   The variable @code{calendar-daylight-time-offset} specifies the
+@c difference between daylight savings time and standard time, measured in
+@c minutes.  The value for Cambridge is 60.
+変数@code{calendar-daylight-time-offset}は、
+夏時間と標準時間の分で計った差を指定します。
+ケンブリッジに対する値は60です。
+
+@vindex calendar-daylight-savings-starts-time
+@vindex calendar-daylight-savings-ends-time
+@c   The variable @code{calendar-daylight-savings-starts-time} and the
+@c variable @code{calendar-daylight-savings-ends-time} specify the number
+@c of minutes after midnight local time when the transition to and from
+@c daylight savings time should occur.  For Cambridge, both variables'
+@c values are 120.
+変数@code{calendar-daylight-savings-starts-time}と
+@code{calendar-daylight-savings-ends-time}は、
+夏時間と標準時間との移行が行われる
+地方時の真夜中の0時からの経過分を指定します。
+ケンブリッジでは、どちらの変数の値も120です。
+
+@node Diary Customizing
+@c @section Customizing the Diary
+@section 日誌のカスタマイズ
+
+@vindex holidays-in-diary-buffer
+@c   Ordinarily, the mode line of the diary buffer window indicates any
+@c holidays that fall on the date of the diary entries.  The process of
+@c checking for holidays can take several seconds, so including holiday
+@c information delays the display of the diary buffer noticeably.  If you'd
+@c prefer to have a faster display of the diary buffer but without the
+@c holiday information, set the variable @code{holidays-in-diary-buffer} to
+@c @code{nil}.@refill
+通常、日誌用バッファのウィンドウのモード行には、
+日誌記録の日付に一致する祝祭日があれば表示されます。
+祝祭日を検査する処理には数秒を要するので、
+祝祭日情報を含めると日誌用バッファの表示に遅れが生じます。
+祝祭日情報をなくして日誌用バッファの表示を速くしたい場合には、
+変数@code{holidays-in-diary-buffer}に@code{nil}を設定します。
+
+@vindex number-of-diary-entries
+@c   The variable @code{number-of-diary-entries} controls the number of
+@c days of diary entries to be displayed at one time.  It affects the
+@c initial display when @code{view-diary-entries-initially} is @code{t}, as
+@c well as the command @kbd{M-x diary}.  For example, the default value is
+@c 1, which says to display only the current day's diary entries.  If the
+@c value is 2, both the current day's and the next day's entries are
+@c displayed.  The value can also be a vector of seven elements: for
+@c example, if the value is @code{[0 2 2 2 2 4 1]} then no diary entries
+@c appear on Sunday, the current date's and the next day's diary entries
+@c appear Monday through Thursday, Friday through Monday's entries appear
+@c on Friday, while on Saturday only that day's entries appear.
+変数@code{number-of-diary-entries}は、
+一度に表示する日誌記録の日数を制御します。
+これは、@code{view-diary-entries-initially}が@code{t}であるときの
+最初の表示に影響します。
+たとえば、デフォルト値は1で、現在の日付の日誌記録のみを表示します。
+値が2であると、現在とつぎの日付の日誌記録を表示します。
+この値は7要素のベクトルでもかまいません。
+たとえば、値が@code{[0 2 2 2 2 4 1]}であると、
+日曜日には日誌記録をなにも表示せず、
+月曜日から木曜日には現在とつぎの日付の日誌記録を表示し、
+金曜日には金曜日から月曜日の日誌記録を表示し、
+土曜日にはその日だけの日誌記録を表示します。
+
+@vindex print-diary-entries-hook
+@findex print-diary-entries
+@c   The variable @code{print-diary-entries-hook} is a normal hook run
+@c after preparation of a temporary buffer containing just the diary
+@c entries currently visible in the diary buffer.  (The other, irrelevant
+@c diary entries are really absent from the temporary buffer; in the diary
+@c buffer, they are merely hidden.)  The default value of this hook does
+@c the printing with the command @code{lpr-buffer}.  If you want to use a
+@c different command to do the printing, just change the value of this
+@c hook.  Other uses might include, for example, rearranging the lines into
+@c order by day and time.
+変数@code{print-diary-entries-hook}は、
+日誌用バッファで現在見えている日誌記録のみを収めた一時的なバッファの
+準備ができると実行されるノーマルフックです。
+（他の関係ない日誌記録は一時的なバッファには入っていない。
+日誌用バッファではそれらは隠されている。）
+このフックのデフォルト値は、コマンド@code{lpr-buffer}で印刷します。
+別のコマンドで印刷したい場合には、単にこのフックの値を変更します。
+別の用途は、たとえば、行を日付と時刻で並び替えることです。
+
+@vindex diary-date-forms
+@c   You can customize the form of dates in your diary file, if neither the
+@c standard American nor European styles suits your needs, by setting the
+@c variable @code{diary-date-forms}.  This variable is a list of patterns
+@c for recognizing a date.  Each date pattern is a list whose elements may
+@c be regular expressions (@pxref{Regular Expressions}) or the symbols
+@c @code{month}, @code{day}, @code{year}, @code{monthname}, and
+@c @code{dayname}.  All these elements serve as patterns that match certain
+@c kinds of text in the diary file.  In order for the date pattern, as a
+@c whole, to match, all of its elements must match consecutively.
+@code{diary-date-forms}に設定すれば、
+目的に合うように個人の日誌ファイル内の日付の書式を
+アメリカスタイルやヨーロッパスタイルにカスタマイズできます。
+この変数は、日付を認識するパターンのリストです。
+各パターンは、正規表現（@pxref{Regular Expressions}）や
+@code{month}、@code{day}、@code{year}、@code{monthname}、
+@code{dayname}のシンボルを要素とするリストです。
+これらの要素すべては、日誌ファイル内の特定種類のテキストに一致する
+パターンとして働きます。
+全体として日付パターンとして一致するには、
+すべての要素が順に一致する必要があります。
+
+@c   A regular expression in a date pattern matches in its usual fashion,
+@c using the standard syntax table altered so that @samp{*} is a word
+@c constituent.
+日付パターンの正規表現は、@samp{*}を単語構成文字に変更した
+標準の構文テーブルを用いて通常どおりに一致をとります。
+
+@c   The symbols @code{month}, @code{day}, @code{year}, @code{monthname},
+@c and @code{dayname} match the month number, day number, year number,
+@c month name, and day name of the date being considered.  The symbols that
+@c match numbers allow leading zeros; those that match names allow
+@c three-letter abbreviations and capitalization.  All the symbols can
+@c match @samp{*}; since @samp{*} in a diary entry means ``any day'', ``any
+@c month'', and so on, it should match regardless of the date being
+@c considered.
+@code{month}、@code{day}、@code{year}、@code{monthname}、@code{dayname}の
+シンボルは、対象にしている月、日、年、月の名前、曜日です。
+数に一致するシンボルは、数の先頭にある0を許します。
+名前に一致するシンボルは、3文字の省略形や大文字で始まることを許します。
+日誌記録では@samp{*}は『任意の日』『任意に月』などを表し、
+対象とする日付に関係なく一致するべきなので、
+すべてのシンボルは@samp{*}に一致できます。
+
+@c   The default value of @code{diary-date-forms} in the American style is
+@c this:
+アメリカスタイルの@code{diary-date-forms}のデフォルト値はつぎのとおりです。
+
+@example
+((month "/" day "[^/0-9]")
+ (month "/" day "/" year "[^0-9]")
+ (monthname " *" day "[^,0-9]")
+ (monthname " *" day ", *" year "[^0-9]")
+ (dayname "\\W"))
+@end example
+
+@c   The date patterns in the list must be @emph{mutually exclusive} and
+@c must not match any portion of the diary entry itself, just the date and
+@c one character of whitespace.  If, to be mutually exclusive, the pattern
+@c must match a portion of the diary entry text---beyond the whitespace
+@c that ends the date---then the first element of the date pattern
+@c @emph{must} be @code{backup}.  This causes the date recognizer to back
+@c up to the beginning of the current word of the diary entry, after
+@c finishing the match.  Even if you use @code{backup}, the date pattern
+@c must absolutely not match more than a portion of the first word of the
+@c diary entry.  The default value of @code{diary-date-forms} in the
+@c European style is this list:
+リスト内の日付パターンは、@emph{互いに排他的}であり、
+日誌記録の日付と1つの白文字以外には他の部分に一致してはいけません。
+互いに排他的であるためには、
+パターンは日付を終える白文字を越えて日誌記録本文に一致する必要があります。
+それには、日付パターンの最初の要素は@code{backup}である必要があります。
+これにより、日付を認識する処理では、
+一致し終えてから日誌記録の現在の単語の先頭に戻ります。
+たとえ@code{backup}を使ったとしても、
+日付パターンは日誌本体の最初の単語を越えて一致してはいけません。
+ヨーロッパスタイルの@code{diary-date-forms}のデフォルト値は、
+つぎのとおりです。
+
+@example
+((day "/" month "[^/0-9]")
+ (day "/" month "/" year "[^0-9]")
+ (backup day " *" monthname "\\W+\\<[^*0-9]")
+ (day " *" monthname " *" year "[^0-9]")
+ (dayname "\\W"))
+@end example
+
+@noindent
+@c Notice the use of @code{backup} in the third pattern, because it needs
+@c to match part of a word beyond the date itself to distinguish it from
+@c the fourth pattern.
+ここでは、3番目のパターンで@code{backup}を使っています。
+4番目のパターンと区別するために、
+日付のつぎの単語の一部と一致する必要があるからです。
+
+@node Hebrew/Islamic Entries
+@c @section Hebrew- and Islamic-Date Diary Entries
+@section ヘブライ暦日付やイスラム暦日付の日誌記録
+
+@c   Your diary file can have entries based on Hebrew or Islamic dates, as
+@c well as entries based on the world-standard Gregorian calendar.
+@c However, because recognition of such entries is time-consuming and most
+@c people don't use them, you must explicitly enable their use.  If you
+@c want the diary to recognize Hebrew-date diary entries, for example, 
+@c you must do this:
+日誌ファイルには、世界標準のグレゴリオ暦日付に加えて、
+ヘブライ暦日付やイスラム暦日付を入れることもできます。
+しかし、そのような記録の認識には時間がかかり、
+ほとんどの人はそれらを使わないので、
+それらは明示的にオンにする必要があります。
+日誌でヘブライ暦日付の日誌記録を認識できるように望むなら、
+たとえば、つぎのようにする必要があります。
+
+@vindex nongregorian-diary-listing-hook
+@vindex nongregorian-diary-marking-hook
+@findex list-hebrew-diary-entries
+@findex mark-hebrew-diary-entries
+@smallexample
+(add-hook 'nongregorian-diary-listing-hook 'list-hebrew-diary-entries)
+(add-hook 'nongregorian-diary-marking-hook 'mark-hebrew-diary-entries)
+@end smallexample
+
+@noindent
+@c If you want Islamic-date entries, do this:
+イスラム暦日付の日誌記録を望むなら、つぎのようにします。
+
+@findex list-islamic-diary-entries
+@findex mark-islamic-diary-entries
+@smallexample
+(add-hook 'nongregorian-diary-listing-hook 'list-islamic-diary-entries)
+(add-hook 'nongregorian-diary-marking-hook 'mark-islamic-diary-entries)
+@end smallexample
+
+@c   Hebrew- and Islamic-date diary entries have the same formats as
+@c Gregorian-date diary entries, except that @samp{H} precedes a Hebrew
+@c date and @samp{I} precedes an Islamic date.  Moreover, because the
+@c Hebrew and Islamic month names are not uniquely specified by the first
+@c three letters, you may not abbreviate them.  For example, a diary entry
+@c for the Hebrew date Heshvan 25 could look like this:
+ヘブライ暦日付やイスラム暦日付の日誌記録は、
+グレゴリオ暦日付と同じ形式ですが、
+ヘブライ暦日付のまえには@samp{H}、
+イスラム暦日付のまえには@samp{I}がある点が異なります。
+さらに、ヘブライ暦やイスラム暦の月は、最初の3文字で一意に決まらないため、
+月の省略形は使えません。
+たとえば、ヘブライ暦日付Heshvan 25の日誌記録はつぎのようになります。
+
+@smallexample
+HHeshvan 25 Happy Hebrew birthday!
+@end smallexample
+
+@noindent
+@c and would appear in the diary for any date that corresponds to Heshvan 25
+@c on the Hebrew calendar.  And here is an Islamic-date diary entry that matches
+@c Dhu al-Qada 25:
+これはヘブライ暦日付Heshvan 25に対する任意の日誌に現れます。
+イスラム暦日付Dhu al-Qada 25に一致する日誌記録はつぎのようになります。
+
+@smallexample
+IDhu al-Qada 25 Happy Islamic birthday!
+@end smallexample
+
+@c   As with Gregorian-date diary entries, Hebrew- and Islamic-date entries
+@c are nonmarking if they are preceded with an ampersand (@samp{&}).
+グレゴリオ暦日付の日誌記録では、
+ヘブライ暦日付とイスラム暦日付の記録は、
+それらの前にアンパサンド（@samp{&}）があると印付けされません。
+
+@c   Here is a table of commands used in the calendar to create diary entries
+@c that match the selected date and other dates that are similar in the Hebrew
+@c or Islamic calendar:
+ヘブライ暦やイスラム暦において
+指定した日付や似た日付に一致する日誌記録を作成するための
+カレンダーのコマンド一覧をつぎに示します。
+
+@table @kbd
+@item i h d
+@c Add a diary entry for the Hebrew date corresponding to the selected date
+@c (@code{insert-hebrew-diary-entry}).
+選択した日付に対応するヘブライ暦日付に日誌記録を追加する
+（@code{insert-hebrew-diary-entry}）。
+@item i h m
+@c Add a diary entry for the day of the Hebrew month corresponding to the
+@c selected date (@code{insert-monthly-hebrew-diary-entry}).  This diary
+@c entry matches any date that has the same Hebrew day-within-month as the
+@c selected date.
+選択した日付に対応するヘブライ暦月の日に日誌記録を追加する
+（@code{insert-monthly-hebrew-diary-entry}）。
+この日誌記録は、選択した日付のヘブライ暦の月内の日と同じ
+任意の日付に一致する。
+@item i h y
+@c Add a diary entry for the day of the Hebrew year corresponding to the
+@c selected date (@code{insert-yearly-hebrew-diary-entry}).  This diary 
+@c entry matches any date which has the same Hebrew month and day-within-month
+@c as the selected date.
+選択した日付のヘブライ暦年の日に日誌記録を追加する
+（@code{insert-yearly-hebrew-diary-entry}）。
+この日誌記録は、選択した日付のヘブライ暦の月とその月内の日と同じ
+任意の日付に一致する。
+@item i i d
+@c Add a diary entry for the Islamic date corresponding to the selected date
+@c (@code{insert-islamic-diary-entry}).
+選択した日付に対応するイスラム暦日付に日誌記録を追加する
+（@code{insert-islamic-diary-entry}）。
+@item i i m
+@c Add a diary entry for the day of the Islamic month corresponding to the
+@c selected date (@code{insert-monthly-islamic-diary-entry}).
+選択した日付に対応するイスラム暦の月内の日に日誌記録を追加する
+（@code{insert-monthly-islamic-diary-entry}）。
+@item i i y
+@c Add a diary entry for the day of the Islamic year corresponding to the
+@c selected date (@code{insert-yearly-islamic-diary-entry}).
+選択した日付のイスラム暦年の日に日誌記録を追加する
+（@code{insert-yearly-islamic-diary-entry}）。
+@end table
+
+@findex insert-hebrew-diary-entry
+@findex insert-monthly-hebrew-diary-entry
+@findex insert-yearly-hebrew-diary-entry
+@findex insert-islamic-diary-entry
+@findex insert-monthly-islamic-diary-entry
+@findex insert-yearly-islamic-diary-entry
+@c   These commands work much like the corresponding commands for ordinary
+@c diary entries: they apply to the date that point is on in the calendar
+@c window, and what they do is insert just the date portion of a diary entry
+@c at the end of your diary file.  You must then insert the rest of the 
+@c diary entry.
+これらのコマンドは、日誌記録の対応する普通のコマンドと同様に働きます。
+カレンダーウィンドウにおいてポイントがある日付に作用し、
+日誌記録の日付に関する部分のみを挿入します。
+日誌記録の本文は自分で入力する必要があります。
+
+@node Fancy Diary Display
+@c @section Fancy Diary Display
+@section 装飾日誌表示
+@vindex diary-display-hook
+@findex simple-diary-display
+
+@c   Diary display works by preparing the diary buffer and then running the
+@c hook @code{diary-display-hook}.  The default value of this hook
+@c (@code{simple-diary-display}) hides the irrelevant diary entries and
+@c then displays the buffer.  However, if you specify the hook as follows,
+日誌表示は、日誌用バッファを準備してからフック@code{diary-display-hook}を
+実行することで動作します。
+このフックのデフォルト値（@code{simple-diary-display}）は、
+関係ない日誌記録を隠してからバッファを表示します。
+しかし、つぎのようにフックを指定すると
+
+@c @cindex diary buffer
+@cindex 日誌用バッファ
+@findex fancy-diary-display
+@example
+(add-hook 'diary-display-hook 'fancy-diary-display)
+@end example
+
+@noindent
+@c this enables fancy diary display.  It displays diary entries and
+@c holidays by copying them into a special buffer that exists only for the
+@c sake of display.  Copying to a separate buffer provides an opportunity
+@c to change the displayed text to make it prettier---for example, to sort
+@c the entries by the dates they apply to.
+装飾日誌表示を行えます。
+日誌記録と祝祭日を表示専用の特別なバッファにコピーして表示します。
+別のバッファにコピーするので、表示テキストが綺麗になるように変更できます。
+たとえば、日付順に記録をソートするなどです。
+
+@c   As with simple diary display, you can print a hard copy of the buffer
+@c with @code{print-diary-entries}.  To print a hard copy of a day-by-day
+@c diary for a week by positioning point on Sunday of that week, type
+@c @kbd{7 d} and then do @kbd{M-x print-diary-entries}.  As usual, the
+@c inclusion of the holidays slows down the display slightly; you can speed
+@c things up by setting the variable @code{holidays-in-diary-buffer} to
+@c @code{nil}.
+単純な日誌表示では、@code{print-diary-entries}でバッファ内容を印刷できます。
+1週間分の毎日の日誌を印刷するには、
+その週の日曜日にポイントを置いて@kbd{7 d}と打ってから
+@kbd{M-x print-diary-entries}を行います。
+祝祭日が入っていると表示が遅くなりますが、
+変数@code{holidays-in-diary-buffer}に@code{nil}を設定すると速くできます。
+
+@vindex diary-list-include-blanks
+@c   Ordinarily, the fancy diary buffer does not show days for which there are
+@c no diary entries, even if that day is a holiday.  If you want such days to be
+@c shown in the fancy diary buffer, set the variable
+@c @code{diary-list-include-blanks} to @code{t}.@refill
+通常、装飾日誌用バッファでは、
+たとえ祝祭日であっても日誌記録がない日は表示しません。
+そのような日を装飾日誌用バッファに表示するには、
+変数@code{diary-list-include-blanks}に@code{t}を設定します。
+
+@c @cindex sorting diary entries
+@cindex 日誌項目のソート
+@c   If you use the fancy diary display, you can use the normal hook
+@c @code{list-diary-entries-hook} to sort each day's diary entries by their
+@c time of day.  Here's how:
+装飾日誌表示を使うときには、
+ノーマルフック@code{list-diary-entries-hook}を使って
+各日誌記録を時刻でソートできます。
+つぎのようにします。
+
+@findex sort-diary-entries
+@example
+(add-hook 'list-diary-entries-hook 'sort-diary-entries t)
+@end example
+
+@noindent
+@c For each day, this sorts diary entries that begin with a recognizable
+@c time of day according to their times.  Diary entries without times come
+@c first within each day.
+これは、各日ごとに認識できる時刻で始まる日誌記録をソートします。
+各日の先頭には時刻のついていない日誌項目がきます。
+
+@c   Fancy diary display also has the ability to process included diary
+@c files.  This permits a group of people to share a diary file for events
+@c that apply to all of them.  Lines in the diary file of this form:
+装飾日誌表示には、取り込んだ日誌ファイルを処理する能力もあります。
+これにより、グループのメンバは、グループに共通な行事を記述した
+日誌ファイルを共有できます。
+つぎのような行を日誌ファイルに書きます。
+
+@smallexample
+#include "@var{filename}"
+@end smallexample
+
+@noindent
+@c includes the diary entries from the file @var{filename} in the fancy
+@c diary buffer.  The include mechanism is recursive, so that included files
+@c can include other files, and so on; you must be careful not to have a
+@c cycle of inclusions, of course.  Here is how to enable the include
+@c facility:
+そうすると、ファイル@var{filename}から
+日誌記録を装飾日誌用バッファに取り込みます。
+取り込み機構は再帰的ですから、
+取り込んだファイル内で別のファイルを取り込むことができます。
+もちろん、取り込みが循環しないように注意してください。
+取り込み機能をオンにするにはつぎのようにします。
+
+@vindex list-diary-entries-hook
+@vindex mark-diary-entries-hook
+@findex include-other-diary-files
+@findex mark-included-diary-files
+@smallexample
+(add-hook 'list-diary-entries-hook 'include-other-diary-files)
+(add-hook 'mark-diary-entries-hook 'mark-included-diary-files)
+@end smallexample
+
+@c The include mechanism works only with the fancy diary display, because
+@c ordinary diary display shows the entries directly from your diary file.
+通常の日誌表示は個人の日誌ファイルの記録を直接表示するため、
+取り込み機構は装飾日誌表示でのみ動作します。
+
+@node Sexp Diary Entries
+@c @section Sexp Entries and the Fancy Diary Display
+@section S式項目と装飾日誌表示
+@c @cindex sexp diary entries
+@cindex S式日誌項目
+
+@c   Sexp diary entries allow you to do more than just have complicated
+@c conditions under which a diary entry applies.  If you use the fancy
+@c diary display, sexp entries can generate the text of the entry depending
+@c on the date itself.  For example, an anniversary diary entry can insert
+@c the number of years since the anniversary date into the text of the
+@c diary entry.  Thus the @samp{%d} in this dairy entry:
+S式を使った日誌記録は、
+複雑な条件で適用される日誌記録を作る以上のことができます。
+装飾日誌表示を使っている場合には、S式日誌項目は、
+日付に依存した記録テキストを生成できます。
+たとえば、記念日の記録では、テキストに何回目の記念日であるかを入れられます。
+したがって、つぎの日誌記録の@samp{%d}は年齢で置き換えられます。
+
+@findex diary-anniversary
+@smallexample
+%%(diary-anniversary 10 31 1948) Arthur's birthday (%d years old)
+@end smallexample
+
+@noindent
+@c gets replaced by the age, so on October 31, 1990 the entry appears in
+@c the fancy diary buffer like this:
+つまり、装飾日誌用バッファでは、1990年10月31日の項目はつぎのようになります。
+
+@smallexample
+Arthur's birthday (42 years old)
+@end smallexample
+
+@noindent
+@c If the diary file instead contains this entry:
+日誌ファイルにつぎの項目が入っていると、
+
+@smallexample
+%%(diary-anniversary 10 31 1948) Arthur's %d%s birthday
+@end smallexample
+
+@noindent
+@c the entry in the fancy diary buffer for October 31, 1990 appears like this:
+装飾日誌用バッファでは、1990年10月31日の項目はつぎのようになります。
+
+@smallexample
+Arthur's 42nd birthday
+@end smallexample
+
+@c   Similarly, cyclic diary entries can interpolate the number of repetitions
+@c that have occurred:
+同様に、周期的な日誌項目では繰り返し回数を計算できます。
+
+@findex diary-cyclic
+@smallexample
+%%(diary-cyclic 50 1 1 1990) Renew medication (%d%s time)
+@end smallexample
+
+@noindent
+@c looks like this:
+は、1990年9月8日の装飾日誌表示ではつぎのようになります。
+
+@smallexample
+Renew medication (5th time)
+@end smallexample
+
+@noindent
+@c in the fancy diary display on September 8, 1990.
+@c = diffがちゃんとできるように
+
+@c   There is an early reminder diary sexp that includes its entry in the
+@c diary not only on the date of occurrence, but also on earlier dates.
+@c For example, if you want a reminder a week before your anniversary, you
+@c can use
+当日の日誌項目としてだけでなく、
+それよりまえの日の日誌項目にも含めるためのS式日誌項目があります。
+たとえば、記念日の1週間前に督促がほしいときには、
+つぎのようにします。
+
+@findex diary-remind
+@smallexample
+%%(diary-remind '(diary-anniversary 12 22 1968) 7) Ed's anniversary
+@end smallexample
+
+@noindent
+@c and the fancy diary will show
+すると、装飾日誌には、12月15日と12月22日に
+@smallexample
+Ruth & Ed's anniversary
+@end smallexample
+@noindent
+@c both on December 15 and on December 22.
+と表示されます。
+
+@findex diary-date
+@c   The function @code{diary-date} applies to dates described by a month,
+@c day, year combination, each of which can be an integer, a list of
+@c integers, or @code{t}. The value @code{t} means all values.  For
+@c example,
+関数@code{diary-date}は、整数や整数のリストや@code{t}で指定した
+月、日、年の組み合わせで表される日付に適用されます。
+たとえば、
+
+@smallexample
+%%(diary-date '(10 11 12) 22 t) Rake leaves
+@end smallexample
+
+@noindent
+@c causes the fancy diary to show
+により、装飾日誌には、各年の10月22日、11月22日、12月22日には
+
+@smallexample
+Rake leaves
+@end smallexample
+
+@noindent
+@c on October 22, November 22, and December 22 of every year.
+と表示されます。
+
+@findex diary-float
+@c   The function @code{diary-float} allows you to describe diary entries
+@c that apply to dates like the third Friday of November, or the last
+@c Tuesday in April.  The parameters are the @var{month}, @var{dayname},
+@c and an index @var{n}. The entry appears on the @var{n}th @var{dayname}
+@c of @var{month}, where @var{dayname}=0 means Sunday, 1 means Monday, and
+@c so on.  If @var{n} is negative it counts backward from the end of
+@c @var{month}.  The value of @var{month} can be a list of months, a single
+@c month, or @code{t} to specify all months.  You can also use an optional
+@c parameter @var{day} to specify the @var{n}th @var{dayname} of
+@c @var{month} on or after/before @var{day}; the value of @var{day} defaults
+@c to 1 if @var{n} is positive and to the last day of @var{month} if
+@c @var{n} is negative.  For example,
+関数@code{diary-float}により、
+11月の第3金曜日とか4月の最後の火曜日といった
+日付に適用する日誌記録を記述できます。
+パラメータは、月@var{month}、曜日@var{dayname}、添字@var{n}です。
+日曜日を@var{dayname}=0、月曜日を@var{dayname}=1、…として、
+@var{month}月の@var{n}番目の曜日@var{dayname}に項目が現れます。
+@var{n}が負であると、@var{month}月の月末から数えます。
+@var{month}は、月のリストでも、1つの月でも、全部の月を指定する@code{t}でも
+かまいません。
+省略可能なパラメータ@var{day}を指定して、
+@var{month}月の@var{n}番目の曜日@var{dayname}の
+前後の@var{day}日を指定できます。
+@var{n}が正だと@var{day}のデフォルトは1であり、
+@var{n}が負だと@var{day}のデフォルトは@var{month}月の月末です。
+たとえば、
+
+@smallexample
+%%(diary-float t 1 -1) Pay rent
+@end smallexample
+
+@noindent
+@c causes the fancy diary to show
+は、装飾日誌に各月の最後の月曜日に
+
+@smallexample
+Pay rent
+@end smallexample
+
+@noindent
+@c on the last Monday of every month.
+を表示します。
+
+@c   The generality of sexp diary entries lets you specify any diary entry
+@c that you can describe algorithmically.  A sexp diary entry contains an
+@c expression that computes whether the entry applies to any given date.
+@c If its value is non-@code{nil}, the entry applies to that date;
+@c otherwise, it does not.  The expression can use the variable  @code{date}
+@c to find the date being considered; its value is a list (@var{month}
+@c @var{day} @var{year}) that refers to the Gregorian calendar.
+S式日誌項目の一般性により、アルゴリズムで日誌項目を指定できます。
+S式日誌項目には、項目を当該日に適用するどうかを計算する式を含められます。
+その値が@code{nil}以外であると、その項目を当該日に適用します。
+その式では、対象とする日付を知るために変数@code{date}を使えます。
+この変数の値は、グレゴリオ暦で表した
+リスト@code{(@var{month} @var{day} @var{year})}です。
+
+@c   Suppose you get paid on the 21st of the month if it is a weekday, and
+@c on the Friday before if the 21st is on a weekend.  Here is how to write
+@c a sexp diary entry that matches those dates:
+毎月のウィークデイである21日か、
+21日が週末の場合にはそのまえの金曜日に給料を支払われるとしましょう。
+そのような日付に一致するS式日誌項目はつぎのように書けます。
+
+@smallexample
+&%%(let ((dayname (calendar-day-of-week date))
+         (day (car (cdr date))))
+      (or (and (= day 21) (memq dayname '(1 2 3 4 5)))
+          (and (memq day '(19 20)) (= dayname 5)))
+         ) Pay check deposited
+@end smallexample
+
+@c   The following sexp diary entries take advantage of the ability (in the fancy
+@c diary display) to concoct diary entries whose text varies based on the date:
+以下のS式日誌項目は、日付に依存して変わるテキストを
+日誌項目に入れる機能を（装飾日誌表示で）利用できます。
+
+@findex diary-sunrise-sunset
+@findex diary-phases-of-moon
+@findex diary-day-of-year
+@findex diary-iso-date
+@findex diary-julian-date
+@findex diary-astro-day-number
+@findex diary-hebrew-date
+@findex diary-islamic-date
+@findex diary-french-date
+@findex diary-mayan-date
+@table @code
+@item %%(diary-sunrise-sunset)
+@c Make a diary entry for the local times of today's sunrise and sunset.
+今日の地方時での日出入時刻に対する日誌項目を作る。
+@item %%(diary-phases-of-moon)
+@c Make a diary entry for the phases (quarters) of the moon.
+月に朔弦望に対する日誌項目を作る。
+@item %%(diary-day-of-year)
+@c Make a diary entry with today's day number in the current year and the number
+@c of days remaining in the current year.
+年内の通算日数と残り日数で今日の日誌項目を作る。
+@item %%(diary-iso-date)
+@c Make a diary entry with today's equivalent ISO commercial date.
+今日に対応するISO商用暦の日誌項目を作る。
+@item %%(diary-julian-date)
+@c Make a diary entry with today's equivalent date on the Julian calendar.
+今日に対応するユリウス暦の日誌項目を作る。
+@item %%(diary-astro-day-number)
+@c Make a diary entry with today's equivalent astronomical (Julian) day number.
+今日に対応する天文通算日（ユリウス日）の日誌項目を作る。
+@item %%(diary-hebrew-date)
+@c Make a diary entry with today's equivalent date on the Hebrew calendar.
+今日に対応するヘブライ暦の日誌項目を作る。
+@item %%(diary-islamic-date)
+@c Make a diary entry with today's equivalent date on the Islamic calendar.
+今日に対応するイスラム暦の日誌項目を作る。
+@item %%(diary-french-date)
+@c Make a diary entry with today's equivalent date on the French Revolutionary
+@c calendar.
+今日に対応するフランス革命暦の日誌項目を作る。
+@item %%(diary-mayan-date)
+@c Make a diary entry with today's equivalent date on the Mayan calendar.
+今日に対応するマヤ暦の日誌項目を作る。
+@end table
+
+@noindent
+@c Thus including the diary entry
+したがって、
+
+@example
+&%%(diary-hebrew-date)
+@end example
+
+@noindent
+@c causes every day's diary display to contain the equivalent date on the
+@c Hebrew calendar, if you are using the fancy diary display.  (With simple
+@c diary display, the line @samp{&%%(diary-hebrew-date)} appears in the
+@c diary for any date, but does nothing particularly useful.)
+を含んだ日誌項目は、装飾日誌表示を使っていると、
+毎日の日誌表示に対応するヘブライ暦の日付を含めることになります。
+（単純な日誌表示では、行@samp{&%%(diary-hebrew-date)}は
+すべての日付の日誌に現れるが、特別なことはなにもしない。）
+
+@c   These functions can be used to construct sexp diary entries based on
+@c the Hebrew calendar in certain standard ways:
+つぎの関数は、ある標準的な方法でヘブライ暦に基づく
+S式日誌項目を構成するために使えます。
+
+@c @cindex rosh hodesh
+@cindex 月始めの特別礼拝
+@findex diary-rosh-hodesh
+@c @cindex parasha, weekly
+@cindex パラシャ、毎週
+@findex diary-parasha
+@c @cindex candle lighting times
+@cindex たそがれの時刻
+@findex diary-sabbath-candles
+@c @cindex omer count
+@cindex オーメル（過ぎ越しの祝い）の回数
+@findex diary-omer
+@c @cindex yahrzeits
+@cindex 追悼記念祭
+@findex diary-yahrzeit
+@table @code
+@item %%(diary-rosh-hodesh)
+@c Make a diary entry that tells the occurrence and ritual announcement of each
+@c new Hebrew month.
+各ヘブライ月の礼拝の始まりと終りを教える日誌項目を作る。
+@item %%(diary-parasha)
+@c Make a Saturday diary entry that tells the weekly synagogue scripture reading.
+毎週のシナゴーグ朗読会を教える土曜日の日誌項目を作る。
+@item %%(diary-sabbath-candles)
+@c Make a Friday diary entry that tells the @emph{local time} of Sabbath
+@c candle lighting.
+安息日のたそがれの@emph{地方時}を教える金曜日の日誌項目を作る。
+@item %%(diary-omer)
+@c Make a diary entry that gives the omer count, when appropriate.
+適切ならばオーメル@footnote{omer：
+過ぎ越しの祝い（Passover）の二日目から七週の祭（Shabuoth）の前日
+までの49日間}
+の回数を与える日誌項目を作る。
+@item %%(diary-yahrzeit @var{month} @var{day} @var{year}) @var{name}
+@c Make a diary entry marking the anniversary of a date of death.  The date
+@c is the @emph{Gregorian} (civil) date of death.  The diary entry appears
+@c on the proper Hebrew calendar anniversary and on the day before.  (In
+@c the European style, the order of the parameters is changed to @var{day},
+@c @var{month}, @var{year}.)
+命日に対応した日誌項目を作る。
+命日の日付は@emph{グレゴリオ暦}で指定する。
+正しいヘブライ暦の追悼日とその前日に日誌項目が現れる。
+（ヨーロッパスタイルでは、パラメータの順序を
+@var{day}、@var{month}、@var{year}と変える。）
+@end table
+
+@node Appt Customizing
+@c @section Customizing Appointment Reminders
+@section 約束の警告表示のカスタマイズ
+
+@c   You can specify exactly how Emacs reminds you of an appointment, and
+@c how far in advance it begins doing so, by setting these variables:
+Emacsにどのように約束の警告表示を行わせ、
+どの程度前から行わせるかは、つぎの変数に設定することで正確に指定できます。
+
+@vindex appt-message-warning-time
+@vindex appt-audible
+@vindex appt-visible
+@vindex appt-display-mode-line
+@vindex appt-msg-window
+@vindex appt-display-duration
+@vindex appt-disp-window-function
+@vindex appt-delete-window-function
+@table @code
+@item appt-message-warning-time
+@c The time in minutes before an appointment that the reminder begins.  The
+@c default is 10 minutes.
+約束の警告表示を開始する時間を分で表したもの。
+デフォルトは10分である。
+@item appt-audible
+@c If this is non-@code{nil}, Emacs rings the
+@c terminal bell for appointment reminders.  The default is @code{t}.
+これが@code{nil}以外であると、Emacsは約束の警告表示として端末のベルを鳴らす。
+デフォルトは@code{t}。
+@item appt-visible
+@c If this is non-@code{nil}, Emacs displays the appointment
+@c message in the echo area.  The default is @code{t}.
+これが@code{nil}以外であると、Emacsは約束のメッセージをエコー領域に表示する。
+デフォルトは@code{t}。
+@item appt-display-mode-line
+@c If this is non-@code{nil}, Emacs displays the number of minutes
+@c to the appointment on the mode line.  The default is @code{t}.
+これが@code{nil}以外であると、Emacsは約束までの残り分数をモード行に表示する。
+デフォルトは@code{t}。
+@item appt-msg-window
+@c If this is non-@code{nil}, Emacs displays the appointment
+@c message in another window.  The default is @code{t}.
+これが@code{nil}以外であると、
+Emacsは約束のメッセージを別のウィンドウに表示する。
+デフォルトは@code{t}。
+@item appt-disp-window-function
+@c This variable holds a function to use to create the other window
+@c for the appointment message.
+この変数は、約束のメッセージを表示するウィンドウを作るための関数を保持する。
+@item appt-delete-window-function
+@c This variable holds a function to use to get rid of the appointment
+@c message window, when its time is up.
+この変数は、時間が過ぎたら
+約束のメッセージを表示したウィンドウを削除するための関数を保持する。
+@item appt-display-duration
+@c The number of seconds to display an appointment message.  The default
+@c is 5 seconds.
+約束のメッセージを表示する秒数。
+デフォルトは5秒である。
+@end table

@@ -1,0 +1,255 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/maps
+@node Standard Keymaps, Standard Hooks, Standard Buffer-Local Variables, Top
+@c @appendix Standard Keymaps
+@appendix 標準のキーマップ
+
+@c The following symbols are used as the names for various keymaps.
+@c Some of these exist when Emacs is first started, others are
+@c loaded only when their respective mode is used.  This is not
+@c an exhaustive list.
+以下のシンボルは、さまざまなキーマップの名前として使われています。
+これらの一部はEmacsの始動時に存在しますが、
+他のものは関連するモードを使ったときにのみロードされます。
+以下は、完全な一覧ではありません。
+
+@c Almost all of these maps are used as local maps.  Indeed, of the modes
+@c that presently exist, only Vip mode and Terminal mode ever change the
+@c global keymap.
+これらのマップのほとんどすべては、ローカルマップとして使われます。
+もちろん、存在するモードの中で、グローバルキーマップを変更するのは
+Vipモードと端末（terminal）モードだけです。
+
+@table @code
+@item Buffer-menu-mode-map
+@vindex Buffer-menu-mode-map
+@c A full keymap used by Buffer Menu mode.
+バッファメニュー（buffer-menu）モードで使う完全なキーマップ。
+
+@item c-mode-map
+@vindex c-mode-map
+@c A sparse keymap used by C mode.
+Cモードで使う疎なキーマップ。
+
+@item command-history-map
+@vindex command-history-map
+@c A full keymap used by Command History mode.
+コマンド履歴（command-history）モードで使う完全なキーマップ。
+
+@item ctl-x-4-map
+@c A sparse keymap for subcommands of the prefix @kbd{C-x 4}.
+プレフィックス@kbd{C-x 4}の下位コマンド用の疎なキーマップ。
+
+@item ctl-x-5-map
+@c A sparse keymap for subcommands of the prefix @kbd{C-x 5}.
+プレフィックス@kbd{C-x 5}の下位コマンド用の疎なキーマップ。
+
+@item ctl-x-map
+@c A full keymap for @kbd{C-x} commands.
+@kbd{C-x}コマンド用の完全なキーマップ。
+
+@item debugger-mode-map
+@vindex debugger-mode-map
+@c A full keymap used by Debugger mode.
+デバッガモードで使う完全なキーマップ。
+
+@item dired-mode-map
+@vindex dired-mode-map
+@c A full keymap for @code{dired-mode} buffers.
+@code{dired-mode}バッファで使う完全なキーマップ。
+
+@item edit-abbrevs-map
+@vindex edit-abbrevs-map
+@c A sparse keymap used in @code{edit-abbrevs}.
+@code{edit-abbrevs}で使う疎なキーマップ。
+
+@item edit-tab-stops-map
+@vindex edit-tab-stops-map
+@c A sparse keymap used in @code{edit-tab-stops}.
+@code{edit-tab-stops}で使う疎なキーマップ。
+
+@item electric-buffer-menu-mode-map
+@vindex electric-buffer-menu-mode-map
+@c A full keymap used by Electric Buffer Menu mode.
+エレクトリックバッファメニュー（electric-buffer-menu）モードで
+使う完全なキーマップ。
+
+@item electric-history-map
+@vindex electric-history-map
+@c A full keymap used by Electric Command History mode.
+エレクトリックコマンド履歴（electric-command-history）モードで
+使う完全なキーマップ。
+
+@item emacs-lisp-mode-map
+@vindex emacs-lisp-mode-map
+@c A sparse keymap used by Emacs Lisp mode.
+emacs-lispモードで使う疎なキーマップ。
+
+@item facemenu-menu
+@vindex facemenu-menu
+@c The keymap that displays the Text Properties menu.
+テキスト属性メニューを表示するキーマップ。
+
+@item facemenu-background-menu
+@vindex facemenu-background-menu
+@c The keymap that displays the Background Color submenu of the Text
+@c Properties menu.
+テキスト属性メニューのBackground Colorサブメニューを表示するキーマップ。
+
+@item facemenu-face-menu
+@vindex facemenu-face-menu
+@c The keymap that displays the Face submenu of the Text Properties menu.
+テキスト属性メニューのFaceサブメニューを表示するキーマップ。
+
+@item facemenu-foreground-menu
+@vindex facemenu-foreground-menu
+@c The keymap that displays the Foreground Color submenu of the Text
+@c Properties menu.
+テキスト属性メニューのForeground Colorを表示するキーマップ。
+
+@item facemenu-indentation-menu
+@vindex facemenu-indentation-menu
+@c The keymap that displays the Indentation submenu of the Text Properties menu.
+テキスト属性メニューのIndentaionサブメニューを表示するキーマップ。
+
+@item facemenu-justification-menu
+@vindex facemenu-justification-menu
+@c The keymap that displays the Justification submenu of the Text
+@c Properties menu.
+テキスト属性メニューのJustificationサブメニューを表示するキーマップ。
+
+@item facemenu-special-menu
+@vindex facemenu-special-menu
+@c The keymap that displays the Special Props submenu of the Text
+@c Properties menu.
+テキスト属性メニューのSpecial Propsサブメニューを
+表示するキーマップ。
+
+@item function-key-map
+@c The keymap for translating keypad and function keys.@*
+@c If there are none, then it contains an empty sparse keymap.
+@c @xref{Translating Input}.
+キーパッドやファンクションキーの変換用のキーマップ。@*
+それらがなければ、この変数は空の疎なキーマップである。
+@pxref{Translating Input}。
+
+@item fundamental-mode-map
+@vindex fundamental-mode-map
+@c The local keymap for Fundamental mode.@*
+@c It is empty and should not be changed.
+基本（fundamental）モード用のローカルキーマップ。@*
+これは空であり、変更すべきでない。
+
+@item Helper-help-map
+@vindex Helper-help-map
+@c A full keymap used by the help utility package.@*
+@c It has the same keymap in its value cell and in its function
+@c cell.
+ヘルプユーティリティパッケージが使う完全なキーマップ。@*
+この変数の値セルと関数セルには同一のキーマップが入っている。
+
+@item Info-edit-map
+@vindex Info-edit-map
+@c A sparse keymap used by the @kbd{e} command of Info.
+infoの@kbd{e}コマンドで使う疎なキーマップ。
+
+@item Info-mode-map
+@vindex Info-mode-map
+@c A sparse keymap containing Info commands.
+infoコマンドを収めた疎なキーマップ。
+
+@item isearch-mode-map
+@vindex isearch-mode-map
+@c A keymap that defines the characters you can type within incremental
+@c search.
+インクリメンタルサーチ中に打鍵できる文字を定義するキーマップ。
+
+@item key-translation-map
+@c A keymap for translating keys.  This one overrides ordinary key
+@c bindings, unlike @code{function-key-map}.  @xref{Translating Input}.
+キー変換用のキーマップ。
+これは、@code{function-key-map}と違って、
+もとのキーバインディングに優先する。
+@pxref{Translating Input}。
+
+@item lisp-interaction-mode-map
+@vindex lisp-interaction-mode-map
+@c A sparse keymap used by Lisp mode.
+Lispモードで使う疎なキーマップ。
+
+@item lisp-mode-map
+@vindex lisp-mode-map
+@c A sparse keymap used by Lisp mode.
+Lispモードで使う疎なキーマップ。
+
+@item menu-bar-edit-menu
+@vindex menu-bar-edit-menu
+@c The keymap which displays the Edit menu in the menu bar.
+メニューバーのEditメニューを表示するキーマップ。
+
+@item menu-bar-files-menu
+@vindex menu-bar-files-menu
+@c The keymap which displays the Files menu in the menu bar.
+メニューバーのFilesメニューを表示するキーマップ。
+
+@item menu-bar-help-menu
+@vindex menu-bar-help-menu
+@c The keymap which displays the Help menu in the menu bar.
+メニューバーのHelpメニューを表示するキーマップ。
+
+@item menu-bar-mule-menu
+@tindex menu-bar-mule-menu
+@vindex menu-bar-mule-menu
+@c The keymap which displays the Mule menu in the menu bar.
+メニューバーのMuleメニューを表示するキーマップ。
+
+@item menu-bar-search-menu
+@vindex menu-bar-search-menu
+@c The keymap which displays the Search menu in the menu bar.
+メニューバーのSearchメニューを表示するキーマップ。
+
+@item menu-bar-tools-menu
+@vindex menu-bar-tools-menu
+@c The keymap which displays the Tools menu in the menu bar.
+メニューバーのToolsメニューを表示するキーマップ。
+
+@item mode-specific-map
+@c The keymap for characters following @kbd{C-c}.  Note, this is in the
+@c global map.  This map is not actually mode specific: its name was chosen
+@c to be informative for the user in @kbd{C-h b} (@code{display-bindings}),
+@c where it describes the main use of the @kbd{C-c} prefix key.
+@kbd{C-c}に続く文字用のキーマップ。
+これはグローバルマップの中にあることに注意。
+このマップは実際にはモード固有ではない。
+プレフィックスキー@kbd{C-c}の主要な使い方を記述する
+@kbd{C-h b}（@code{display-bindings}）において、
+ユーザーに有益なようにこの名前を選んだ。
+
+@item occur-mode-map
+@vindex occur-mode-map
+@c A local keymap used by Occur mode.
+出現（occur）モードで使うローカルキーマップ。
+
+@item query-replace-map
+@c A local keymap used for responses in @code{query-replace} and related
+@c commands; also for @code{y-or-n-p} and @code{map-y-or-n-p}.  The functions
+@c that use this map do not support prefix keys; they look up one event at a
+@c time.
+@code{query-replace}やその関連コマンドの応答用に使うキーマップ。
+@code{y-or-n-p}や@code{map-y-or-n-p}もこれを使う。
+このマップを使う関数は、プレフィックスキーを使わない。
+一度に1つのイベントを探す。
+
+@item text-mode-map
+@vindex text-mode-map
+@c A sparse keymap used by Text mode.
+テキスト（text）モードで使う疎なキーマップ。
+
+@item view-mode-map
+@vindex view-mode-map
+@c A full keymap used by View mode.
+閲覧（view）モードで使う完全なキーマップ。
+@end table

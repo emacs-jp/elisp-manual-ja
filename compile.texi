@@ -1,0 +1,1139 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/compile
+@node Byte Compilation, Advising Functions, Loading, Top
+@c @chapter Byte Compilation
+@chapter バイトコンパイル
+@c @cindex byte-code
+@c @cindex compilation
+@cindex バイトコード
+@cindex コンパイル
+
+@c   Emacs Lisp has a @dfn{compiler} that translates functions written
+@c in Lisp into a special representation called @dfn{byte-code} that can be
+@c executed more efficiently.  The compiler replaces Lisp function
+@c definitions with byte-code.  When a byte-code function is called, its
+@c definition is evaluated by the @dfn{byte-code interpreter}.
+Emacs Lispには、Lispで書いた関数を
+より効率よく実行可能な@dfn{バイトコード}（byte-code）と呼ばれる
+特別な表現に変換する@dfn{コンパイラ}（compiler）があります。
+コンパイラはLispの関数定義をバイトコードで置き換えます。
+バイトコード関数を呼び出すと、
+@dfn{バイトコードインタープリタ}（byte-code interpreter）が
+その定義を評価します。
+
+@c   Because the byte-compiled code is evaluated by the byte-code
+@c interpreter, instead of being executed directly by the machine's
+@c hardware (as true compiled code is), byte-code is completely
+@c transportable from machine to machine without recompilation.  It is not,
+@c however, as fast as true compiled code.
+（真のコンパイル済みコードのように）計算機ハードウェアが直接実行するかわりに、
+バイトコードインタープリタがバイトコンパイル済みのコードを評価するので、
+バイトコードは、再コンパイルせずに計算機から計算機に移せます。
+しかしながら、真のコンパイル済みコードほど速くはありません。
+
+@c   Compiling a Lisp file with the Emacs byte compiler always reads the
+@c file as multibyte text, even if Emacs was started with @samp{--unibyte},
+@c unless the file specifies otherwise.  This is so that compilation gives
+@c results compatible with running the same file without compilation.
+@c @xref{Loading Non-ASCII}.
+EmacsバイトコンパイラがLispファイルをコンパイルするときには、
+@samp{--unibyte}を指定してEmacsを起動したとしても、
+ファイルで特に指定しなければ、
+つねにファイルをマルチバイトテキストとして読みます。
+コンパイルしても、コンパイルせずに同じファイルを実行した場合と同じ結果を
+得るようにするためです。
+@xref{Loading Non-ASCII}。
+
+@c   In general, any version of Emacs can run byte-compiled code produced
+@c by recent earlier versions of Emacs, but the reverse is not true.  A
+@c major incompatible change was introduced in Emacs version 19.29, and
+@c files compiled with versions since that one will definitely not run
+@c in earlier versions unless you specify a special option.
+一般に、Emacsの任意の版は、それよりまえの版でバイトコンパイルしたコードを
+実行できますが、その逆は真ではありません。
+Emacs 19.29では互換性のない大きな変更を行いましたから、
+それ以降の版でコンパイルしたファイルは、
+特別なオプションを指定しない限り、それ以前の版ではまったく動きません。
+@iftex
+@c @xref{Docs and Compilation}.
+@xref{Docs and Compilation}。
+@end iftex
+@c In addition, the modifier bits in keyboard characters were renumbered in
+@c Emacs 19.29; as a result, files compiled in versions before 19.29 will
+@c not work in subsequent versions if they contain character constants with
+@c modifier bits.
+さらに、Emacs 19.29では、キーボード文字の修飾ビットを変更しました。
+その結果、19.29よりまえの版でコンパイルしたファイルは、
+修飾ビットを含む文字定数を使っているとそれ以降の版では動作しません。
+
+@c   @xref{Compilation Errors}, for how to investigate errors occurring in
+@c byte compilation.
+バイトコンパイル中に生起するエラーについては、
+@xref{Compilation Errors}。
+
+@menu
+* Speed of Byte-Code::          An example of speedup from byte compilation.
+* Compilation Functions::       Byte compilation functions.
+* Docs and Compilation::        Dynamic loading of documentation strings.
+* Dynamic Loading::             Dynamic loading of individual functions.
+* Eval During Compile::  	Code to be evaluated when you compile.
+* Byte-Code Objects::		The data type used for byte-compiled functions.
+* Disassembly::                 Disassembling byte-code; how to read byte-code.
+@end menu
+
+@node Speed of Byte-Code
+@c @section Performance of Byte-Compiled Code
+@section バイトコンパイルコードの性能
+
+@c   A byte-compiled function is not as efficient as a primitive function
+@c written in C, but runs much faster than the version written in Lisp.
+@c Here is an example:
+バイトコンパイルした関数は、Cで書いた基本関数ほど効率よくはありませんが、
+Lispで書いた版よりはよほど速く動きます。
+例を示しましょう。
+
+@example
+@group
+(defun silly-loop (n)
+  "Return time before and after N iterations of a loop."
+  (let ((t1 (current-time-string)))
+    (while (> (setq n (1- n)) 
+              0))
+    (list t1 (current-time-string))))
+@result{} silly-loop
+@end group
+
+@group
+(silly-loop 100000)
+@result{} ("Fri Mar 18 17:25:57 1994"
+@c     "Fri Mar 18 17:26:28 1994")  ; @r{31 seconds}
+    "Fri Mar 18 17:26:28 1994")  ; @r{31秒}
+@end group
+
+@group
+(byte-compile 'silly-loop)
+@c @result{} @r{[Compiled code not shown]}
+@result{} @r{[コンパイルしたコードは省略]}
+@end group
+
+@group
+(silly-loop 100000)
+@result{} ("Fri Mar 18 17:26:52 1994"
+@c     "Fri Mar 18 17:26:58 1994")  ; @r{6 seconds}
+    "Fri Mar 18 17:26:58 1994")  ; @r{6秒}
+@end group
+@end example
+
+@c   In this example, the interpreted code required 31 seconds to run,
+@c whereas the byte-compiled code required 6 seconds.  These results are
+@c representative, but actual results will vary greatly.
+この例では、解釈実行するコードでは実行に31秒必要でしたが、
+バイトコンパイルしたコードでは6秒でした。
+この結果は代表的なのもですが、実際の結果は大きく変動します。
+
+@node Compilation Functions
+@comment  node-name,  next,  previous,  up
+@c @section The Compilation Functions
+@section コンパイル関数
+@c @cindex compilation functions
+@cindex コンパイル関数
+
+@c   You can byte-compile an individual function or macro definition with
+@c the @code{byte-compile} function.  You can compile a whole file with
+@c @code{byte-compile-file}, or several files with
+@c @code{byte-recompile-directory} or @code{batch-byte-compile}.
+関数@code{byte-compile}で、
+個々の関数定義やマクロ定義をバイトコンパイルできます。
+@code{byte-compile-file}で1つのファイル全体をコンパイルしたり、
+@code{byte-recompile-directory}や@code{batch-byte-compile}で
+複数個のファイルをコンパイルできます。
+
+@c   The byte compiler produces error messages and warnings about each file
+@c in a buffer called @samp{*Compile-Log*}.  These report things in your
+@c program that suggest a problem but are not necessarily erroneous.
+バイトコンパイラは、
+各ファイルに対するエラーメッセージや警告メッセージを
+@samp{*Compile-Log*}と呼ばれるバッファに出力します。
+読者のプログラムに関してここに報告されたことがらは、
+問題点を指摘しますが、必ずしもエラーとは限りません。
+
+@c @cindex macro compilation
+@cindex マクロのコンパイル
+@cindex コンパイル、マクロ
+@c   Be careful when writing macro calls in files that you may someday
+@c byte-compile.  Macro calls are expanded when they are compiled, so the
+@c macros must already be defined for proper compilation.  For more
+@c details, see @ref{Compiling Macros}.
+バイトコンパイルする可能性のあるファイルにマクロ呼び出しを書くときには
+注意してください。
+マクロ呼び出しはコンパイル時に展開されるので、
+正しくコンパイルするためにはマクロは定義済みである必要があります。
+詳しくは、@xref{Compiling Macros}。
+
+@c   Normally, compiling a file does not evaluate the file's contents or
+@c load the file.  But it does execute any @code{require} calls at top
+@c level in the file.  One way to ensure that necessary macro definitions
+@c are available during compilation is to require the file that defines
+@c them (@pxref{Named Features}).  To avoid loading the macro definition files
+@c when someone @emph{runs} the compiled program, write
+@c @code{eval-when-compile} around the @code{require} calls (@pxref{Eval
+@c During Compile}).
+通常、ファイルをコンパイルしてもファイルの内容を評価したり、
+ファイルをロードしません。
+しかし、ファイルのトップレベルに書いた@code{require}は実行します。
+コンパイル時に必要なマクロ定義が存在することを保証する1つの方法は、
+それらを定義するファイルを要求（@code{require}）することです
+（@pxref{Named Features}）。
+コンパイルしたプログラムを@emph{実行する}ときに
+マクロ定義ファイルのロードを防ぐには、
+@code{require}の呼び出しの周りに@code{eval-when-compile}を書きます
+（@pxref{Eval During Compile}）。
+
+@defun byte-compile symbol
+@c This function byte-compiles the function definition of @var{symbol},
+@c replacing the previous definition with the compiled one.  The function
+@c definition of @var{symbol} must be the actual code for the function;
+@c i.e., the compiler does not follow indirection to another symbol.
+@c @code{byte-compile} returns the new, compiled definition of
+@c @var{symbol}.
+この関数は、@var{symbol}の関数定義をバイトコンパイルし、
+以前の定義をコンパイルしたもので置き換える。
+@var{symbol}の関数定義は、関数の実際のコードであること。
+つまり、コンパイラは、別のシンボルへの間接参照を辿らない。
+@code{byte-compile}は、@var{symbol}のコンパイル済みの新たな定義を返す。
+
+@c   If @var{symbol}'s definition is a byte-code function object,
+@c @code{byte-compile} does nothing and returns @code{nil}.  Lisp records
+@c only one function definition for any symbol, and if that is already
+@c compiled, non-compiled code is not available anywhere.  So there is no
+@c way to ``compile the same definition again.''
+@var{symbol}の定義がバイトコード関数オブジェクトであると、
+@code{byte-compile}はなにもせずに@code{nil}を返す。
+Lispはどんなシンボルに対しても関数定義を1つだけ記録するので、
+それがすでにコンパイル済みであると、
+コンパイルまえのコードはどこにもないのである。
+したがって、『同じ定義をコンパイルし直す』方法はない。
+
+@example
+@group
+(defun factorial (integer)
+  "Compute factorial of INTEGER."
+  (if (= 1 integer) 1
+    (* integer (factorial (1- integer)))))
+@result{} factorial
+@end group
+
+@group
+(byte-compile 'factorial)
+@result{}
+#[(integer)
+  "^H\301U\203^H^@@\301\207\302^H\303^HS!\"\207"
+  [integer 1 * factorial]
+  4 "Compute factorial of INTEGER."]
+@end group
+@end example
+
+@noindent
+@c The result is a byte-code function object.  The string it contains is
+@c the actual byte-code; each character in it is an instruction or an
+@c operand of an instruction.  The vector contains all the constants,
+@c variable names and function names used by the function, except for
+@c certain primitives that are coded as special instructions.
+結果は、バイトコード関数オブジェクトである。
+この文字列には実際のバイトコードが入っている。
+その各文字は、命令や命令のオペランドである。
+ベクトルには、特別な命令に符号化される特定の基本関数を除いて、
+関数が使うすべての定数、変数名、関数名が入っている。
+@end defun
+
+@c @deffn Command compile-defun
+@deffn コマンド compile-defun
+@c This command reads the defun containing point, compiles it, and
+@c evaluates the result.  If you use this on a defun that is actually a
+@c function definition, the effect is to install a compiled version of that
+@c function.
+このコマンドはポイントを含む@code{defun}を読み取り、
+それをコンパイルして、結果を評価する。
+実際に関数定義である@code{defun}でこのコマンドを使うと、
+その関数をコンパイルしたものをインストールすることになる。
+@end deffn
+
+@c @deffn Command byte-compile-file filename
+@deffn コマンド byte-compile-file filename
+@c This function compiles a file of Lisp code named @var{filename} into a
+@c file of byte-code.  The output file's name is made by changing the
+@c @samp{.el} suffix into @samp{.elc}; if @var{filename} does not end in
+@c @samp{.el}, it adds @samp{.elc} to the end of @var{filename}.
+この関数は、@var{filename}という名前のLispコードのファイルを
+コンパイルしバイトコードのファイルにする。
+出力ファイルの名前は、接頭辞@samp{.el}を@samp{.elc}に換えて作る。
+@var{filename}が@samp{.el}で終っていないときには、
+@var{filename}の末尾に@samp{.elc}を付加する。
+
+@c Compilation works by reading the input file one form at a time.  If it
+@c is a definition of a function or macro, the compiled function or macro
+@c definition is written out.  Other forms are batched together, then each
+@c batch is compiled, and written so that its compiled code will be
+@c executed when the file is read.  All comments are discarded when the
+@c input file is read.
+入力ファイルから一度に1つずつフォームを読みながらコンパイルを行う。
+それが関数定義やマクロ定義であると、
+コンパイルした関数定義やマクロ定義を書き出す。
+他のフォームは一塊にして、各塊をコンパイルして書き出し、
+ファイルを読むとコンパイルしたコードが実行されるようにする。
+入力ファイルを読むときにすべてのコメントを捨てる。
+
+@c This command returns @code{t}.  When called interactively, it prompts
+@c for the file name.
+このコマンドは@code{t}を返す。
+対話的に呼び出すとファイル名を問い合わせる。
+
+@example
+@group
+% ls -l push*
+-rw-r--r--  1 lewis     791 Oct  5 20:31 push.el
+@end group
+
+@group
+(byte-compile-file "~/emacs/push.el")
+     @result{} t
+@end group
+
+@group
+% ls -l push*
+-rw-r--r--  1 lewis     791 Oct  5 20:31 push.el
+-rw-rw-rw-  1 lewis     638 Oct  8 20:25 push.elc
+@end group
+@end example
+@end deffn
+
+@c @deffn Command byte-recompile-directory directory flag
+@deffn コマンド byte-recompile-directory directory flag
+@c @cindex library compilation
+@cindex ライブラリのコンパイル
+@cindex コンパイル、ライブラリ
+@c This function recompiles every @samp{.el} file in @var{directory} that
+@c needs recompilation.  A file needs recompilation if a @samp{.elc} file
+@c exists but is older than the @samp{.el} file.
+この関数は、@var{directory}にある再コンパイルが必要な
+個々の@samp{.el}ファイルを再コンパイルする。
+ファイルを再コンパイルする必要があるのは、
+@samp{.elc}ファイルが存在しても@samp{.el}ファイルより古い場合である。
+
+@c When a @samp{.el} file has no corresponding @samp{.elc} file, @var{flag}
+@c says what to do.  If it is @code{nil}, these files are ignored.  If it
+@c is non-@code{nil}, the user is asked whether to compile each such file.
+@samp{.el}ファイルに対応する@samp{.elc}ファイルが存在しない場合には、
+@var{flag}が動作を指示する。
+それが@code{nil}であると、そのようなファイルは無視する。
+@code{nil}以外であると、そのような各ファイルをコンパイルするかどうか
+ユーザーに問い合わせる。
+
+@c The returned value of this command is unpredictable.
+このコマンドの戻り値は予測できない。
+@end deffn
+
+@defun batch-byte-compile
+@c This function runs @code{byte-compile-file} on files specified on the
+@c command line.  This function must be used only in a batch execution of
+@c Emacs, as it kills Emacs on completion.  An error in one file does not
+@c prevent processing of subsequent files, but no output file will be
+@c generated for it, and the Emacs process will terminate with a nonzero
+@c status code.
+この関数は、コマンド行に指定したファイル群に対して
+@code{byte-compile-file}を実行する。
+この関数はEmacsをバッチモードで実行しているときにだけ使うこと。
+完了するとEmacsを終了するからである。
+1つのファイルでエラーが発生しても、後続のファイルの処理には影響しないが、
+エラーを起こしたファイルに対する出力ファイルは生成せず、
+Emacsのプロセスは0以外の状態コードで終了する。
+
+@example
+% emacs -batch -f batch-byte-compile *.el
+@end example
+@end defun
+
+@defun byte-code code-string data-vector max-stack
+@c @cindex byte-code interpreter
+@cindex バイトコードインタープリタ
+@cindex インタープリタ、バイトコード
+@c This function actually interprets byte-code.  A byte-compiled function
+@c is actually defined with a body that calls @code{byte-code}.  Don't call
+@c this function yourself---only the byte compiler knows how to generate
+@c valid calls to this function.
+この関数はバイトコードを実際に解釈実行する。
+バイトコンパイルした関数は、実際には、
+@code{byte-code}を呼び出すような本体として定義される。
+この関数を読者自身で呼び出さないこと。
+この関数の正しい呼び出しを生成する方法はバイトコンパイラだけが知っている。
+
+@c In Emacs version 18, byte-code was always executed by way of a call to
+@c the function @code{byte-code}.  Nowadays, byte-code is usually executed
+@c as part of a byte-code function object, and only rarely through an
+@c explicit call to @code{byte-code}.
+Emacs 18版では、バイトコードは関数@code{byte-code}をつねに呼び出すことで
+実行していた。
+現在では、バイトコード関数オブジェクトの一部としてバイトコードを実行するのが
+普通であり、@code{byte-code}を明示的に呼び出すことは稀である。
+@end defun
+
+@node Docs and Compilation
+@c @section Documentation Strings and Compilation
+@section 説明文字列とコンパイル
+@c @cindex dynamic loading of documentation
+@cindex 説明文字列の動的ロード
+
+@c   Functions and variables loaded from a byte-compiled file access their
+@c documentation strings dynamically from the file whenever needed.  This
+@c saves space within Emacs, and makes loading faster because the
+@c documentation strings themselves need not be processed while loading the
+@c file.  Actual access to the documentation strings becomes slower as a
+@c result, but this normally is not enough to bother users.
+バイトコンパイルしたファイルからロードした関数や変数では、
+それらの説明文字列は、必要に応じてそのファイルを動的に参照します。
+これはEmacs内のメモリを節約しロード処理も速くなります。
+というのは、ファイルのロード処理で説明文字列を処理する必要がないからです。
+説明文字列を実際に参照するのは遅くなりますが、
+普通、ユーザーをいらいらさせるほとではありません。
+
+@c   Dynamic access to documentation strings does have drawbacks:
+説明文字列を動的に参照することには欠点があります。
+
+@itemize @bullet
+@item
+@c If you delete or move the compiled file after loading it, Emacs can no
+@c longer access the documentation strings for the functions and variables
+@c in the file.
+コンパイルしたファイルをロード後に削除したり移動したりすると、
+そのファイル内の関数や変数に対する説明文字列をEmacsから参照できなくなる。
+
+@item
+@c If you alter the compiled file (such as by compiling a new version),
+@c then further access to documentation strings in this file will give
+@c nonsense results.
+コンパイルしたファイルを（新版をコンパイルするなどして）変更すると、
+それ以降にそのファイルから説明文字列を参照すると、無意味な結果になる。
+@end itemize
+
+@c   If your site installs Emacs following the usual procedures, these
+@c problems will never normally occur.  Installing a new version uses a new
+@c directory with a different name; as long as the old version remains
+@c installed, its files will remain unmodified in the places where they are
+@c expected to be.
+読者のサイトでEmacsを通常の手順でインストールした場合には、
+これらの問題は普通起こらないはずです。
+新版のインストールには別のディレクトリを使いますから、
+旧版をインストールしてある限り、そのファイル群は意図した場所に
+無変更で残っているはずです。
+
+@c   However, if you have built Emacs yourself and use it from the
+@c directory where you built it, you will experience this problem
+@c occasionally if you edit and recompile Lisp files.  When it happens, you
+@c can cure the problem by reloading the file after recompiling it.
+しかしながら、読者自身がEmacsを構築して、
+構築したディレクトリからEmacsを使う場合、
+Lispファイルを編集して再コンパイルすると、
+しばしばこの問題を経験するでしょう。
+そのような場合には、再コンパイルしたあとでファイルを再ロードすれば
+問題を解決できます。
+
+@c   Byte-compiled files made with recent versions of Emacs (since 19.29)
+@c will not load into older versions because the older versions don't
+@c support this feature.  You can turn off this feature at compile time by
+@c setting @code{byte-compile-dynamic-docstrings} to @code{nil}; then you
+@c can compile files that will load into older Emacs versions.  You can do
+@c this globally, or for one source file by specifying a file-local binding
+@c for the variable.  One way to do that is by adding this string to the
+@c file's first line:
+旧版ではこの機能を使えないので、
+Emacsの（19.29以降の）最近の版でバイトコンパイルしたファイルは
+旧版ではロードできません。
+@code{byte-compile-dynamic-docstrings}に@code{nil}を設定すれば、
+コンパイル時にこの機能をオフにできます。
+Emacsの旧版にロードできるようにファイルをコンパイルできるのです。
+すべてのファイルをこのようにコンパイルしたり、あるいは、
+この変数をファイルにローカルな束縛に指定して1つのソースファイルだけを
+このようにコンパイルしたりもできます。
+そのようにする1つの方法は、つぎの文字列をファイルの先頭行に追加することです。
+
+@example
+-*-byte-compile-dynamic-docstrings: nil;-*-
+@end example
+
+@defvar byte-compile-dynamic-docstrings
+@c If this is non-@code{nil}, the byte compiler generates compiled files
+@c that are set up for dynamic loading of documentation strings.
+これが@code{nil}以外であると、
+バイトコンパイラは、説明文字列を動的にロードするように設定した
+コンパイル済みファイルを生成する。
+@end defvar
+
+@cindex @samp{#@@@var{count}}
+@cindex @samp{#$}
+@c   The dynamic documentation string feature writes compiled files that
+@c use a special Lisp reader construct, @samp{#@@@var{count}}.  This
+@c construct skips the next @var{count} characters.  It also uses the
+@c @samp{#$} construct, which stands for ``the name of this file, as a
+@c string.''  It is usually best not to use these constructs in Lisp source
+@c files, since they are not designed to be clear to humans reading the
+@c file.
+説明文字列を動的に扱う場合、
+コンパイル済みのファイルではLispリーダの特別な構文@samp{#@@@var{count}}を
+使います。
+この構文は後続の@var{count}文字を読み飛ばします。
+また、@samp{#$}という構文も使います。
+これは、『文字列としてのこのファイルの名前』を表します。
+Lispのソースファイルでは、これらの構文を使わないのが最良です。
+これらは人が読むファイル向けに設計したものではないからです。
+
+@node Dynamic Loading
+@c @section Dynamic Loading of Individual Functions
+@section 個別関数の動的ロード
+
+@c @cindex dynamic loading of functions
+@c @cindex lazy loading
+@cindex 関数の動的ロード
+@cindex 遅延ロード
+@c   When you compile a file, you can optionally enable the @dfn{dynamic
+@c function loading} feature (also known as @dfn{lazy loading}).  With
+@c dynamic function loading, loading the file doesn't fully read the
+@c function definitions in the file.  Instead, each function definition
+@c contains a place-holder which refers to the file.  The first time each
+@c function is called, it reads the full definition from the file, to
+@c replace the place-holder.
+ファイルをコンパイルするとき、
+@dfn{動的関数ロード}（dynamic function loading、
+@dfn{遅延ロード}（lazy loading）ともいう）機能を指定できます。
+動的関数ロードでは、ロードするときにファイル内の関数定義をすべて
+読むわけではありません。
+そのかわりに、各関数定義には、
+そのファイルを指す埋め草が入っています。
+それぞれの関数を初めて呼び出したときに、
+その完全な定義をファイルから読み取り、埋め草を置き換えます。
+
+@c   The advantage of dynamic function loading is that loading the file
+@c becomes much faster.  This is a good thing for a file which contains
+@c many separate user-callable functions, if using one of them does not
+@c imply you will probably also use the rest.  A specialized mode which
+@c provides many keyboard commands often has that usage pattern: a user may
+@c invoke the mode, but use only a few of the commands it provides.
+動的関数ロードの利点は、ファイルをロードするよりかなり速いことです。
+ユーザーが呼び出せる数多くの別々の関数を収めたファイルにおいては、
+それらの1つだけを使って残りのものを使わないのであれば、
+これは有利なことです。
+キーボードコマンドを提供する特別なモードには、
+しばしばこのような使い方のパターンがあります。
+ユーザーがモードを起動しても、提供するコマンドの一部しか使わないのです。
+
+@c   The dynamic loading feature has certain disadvantages:
+動的関数ロードの機能には、ある種の欠点もあります。
+
+@itemize @bullet
+@item
+@c If you delete or move the compiled file after loading it, Emacs can no
+@c longer load the remaining function definitions not already loaded.
+コンパイルしたファイルをロードしたあとにそのファイルを削除したり移動したり
+すると、未ロードの残りの関数定義をEmacsはロードできない。
+
+@item
+@c If you alter the compiled file (such as by compiling a new version),
+@c then trying to load any function not already loaded will yield nonsense
+@c results.
+コンパイルしたファイルを（新版をコンパイルするなどして）変更すると、
+未ロードの関数をロードすると、無意味な結果になる。
+@end itemize
+
+@c   These problems will never happen in normal circumstances with
+@c installed Emacs files.  But they are quite likely to happen with Lisp
+@c files that you are changing.  The easiest way to prevent these problems
+@c is to reload the new compiled file immediately after each recompilation.
+Emacsのファイル群をインストールした普通の状況では、
+このような問題は起きないはずです。
+しかし、Lispファイルを読者が変更すると起こりえます。
+これらの問題を回避するもっとも簡単な方法は、
+再コンパイルするたびに新たにコンパイルしたファイルを
+ただちに再ロードすることです。
+
+@c   The byte compiler uses the dynamic function loading feature if the
+@c variable @code{byte-compile-dynamic} is non-@code{nil} at compilation
+@c time.  Do not set this variable globally, since dynamic loading is
+@c desirable only for certain files.  Instead, enable the feature for
+@c specific source files with file-local variable bindings.  For example,
+@c you could do it by writing this text in the source file's first line:
+バイトコンパイラは、コンパイル時に変数@code{byte-compile-dynamic}が
+@code{nil}以外であれば、動的関数ロードの機能を使います。
+動的ロードは特定のファイルで必要なだけですから、
+この変数をグローバルに設定しないでください。
+そのかわりにファイルにローカルな変数束縛を使って
+特定のソースファイルだけでこの機能をオンにします。
+たとえば、ソースファイルの先頭行につぎのテキストを書けば、
+そのようにできます。
+
+@example
+-*-byte-compile-dynamic: t;-*-
+@end example
+
+@defvar byte-compile-dynamic
+@c If this is non-@code{nil}, the byte compiler generates compiled files
+@c that are set up for dynamic function loading.
+これが@code{nil}以外であると、
+バイトコンパイラは、動的関数ロードを使うように設定した
+コンパイル済みのファイルを生成する。
+@end defvar
+
+@defun fetch-bytecode function
+@c This immediately finishes loading the definition of @var{function} from
+@c its byte-compiled file, if it is not fully loaded already.  The argument
+@c @var{function} may be a byte-code function object or a function name.
+@var{function}を完全にロードしていないと、
+バイトコンパイルしたファイルからただちに@var{function}の定義をロードする。
+引数@var{function}は、バイトコード関数オブジェクトか関数名である。
+@end defun
+
+@node Eval During Compile
+@c @section Evaluation During Compilation
+@section コンパイル時の評価
+
+@c   These features permit you to write code to be evaluated during
+@c compilation of a program.
+プログラムのコンパイル時に評価されるようなコードを書くための機能です。
+
+@defspec eval-and-compile body
+@c This form marks @var{body} to be evaluated both when you compile the
+@c containing code and when you run it (whether compiled or not).
+このフォームは、コンパイルしたり実行したり
+（コンパイルしてあってもしてなくても）するときに
+@var{body}を評価するように印を付ける。
+
+@c You can get a similar result by putting @var{body} in a separate file
+@c and referring to that file with @code{require}.  That method is
+@c preferable when @var{body} is large.
+@var{body}を別のファイルに収め、そのファイルを@code{require}で参照しても
+同じ結果を得ることができる。
+@var{body}が大きい場合には、そのほうが好ましい。
+@end defspec
+
+@defspec eval-when-compile body
+@c This form marks @var{body} to be evaluated at compile time but not when
+@c the compiled program is loaded.  The result of evaluation by the
+@c compiler becomes a constant which appears in the compiled program.  If
+@c you load the source file, rather than compiling it, @var{body} is
+@c evaluated normally.
+このフォームは、コンパイルしたプログラムをロードするときではなく、
+プログラムのコンパイル時に@var{body}を評価するように印を付ける。
+コンパイラが評価した結果は、コンパイルしたプログラム内に定数として現れる。
+ソースファイルをコンパイルせずにロードすると、
+@var{body}を普通どおり評価する。
+
+@c @strong{Common Lisp Note:} At top level, this is analogous to the Common
+@c Lisp idiom @code{(eval-when (compile eval) @dots{})}.  Elsewhere, the
+@c Common Lisp @samp{#.} reader macro (but not when interpreting) is closer
+@c to what @code{eval-when-compile} does.
+@strong{Common Lispに関した注意：}@code{ }
+トップレベルでは、
+Common Lispの@code{(eval-when (compile eval) @dots{})}の常套句に似ている。
+それ以外の箇所では、Common Lispの@samp{#.}リーダマクロは
+（解釈実行時ではなければ）@code{eval-when-compile}が行うことに近い。
+@end defspec
+
+@node Byte-Code Objects
+@c @section Byte-Code Function Objects
+@section バイトコード関数オブジェクト
+@c @cindex compiled function
+@c @cindex byte-code function
+@cindex コンパイル済み関数
+@cindex バイトコード関数
+
+@c   Byte-compiled functions have a special data type: they are
+@c @dfn{byte-code function objects}.
+バイトコンパイルした関数は、特別なデータ型、
+@dfn{バイトコード関数オブジェクト}（byte-code function objects）です。
+
+@c   Internally, a byte-code function object is much like a vector;
+@c however, the evaluator handles this data type specially when it appears
+@c as a function to be called.  The printed representation for a byte-code
+@c function object is like that for a vector, with an additional @samp{#}
+@c before the opening @samp{[}.
+内部的には、バイトコード関数オブジェクトはベクトルによく似ています。
+しかし、評価時にこのデータ型が呼び出すべき関数として現れると、
+特別に扱います。
+バイトコード関数オブジェクトの表示表現はベクトルに似ていますが、
+開き角括弧@samp{[}のまえに余分に@samp{#}が付きます。
+
+@c   A byte-code function object must have at least four elements; there is
+@c no maximum number, but only the first six elements have any normal use.
+@c They are:
+バイトコード関数オブジェクトには、少なくとも4つの要素が必要です。
+最大個数に制限はありませんが、最初の6つ個の要素にだけ
+普通の用途があります。
+つぎのとおりです。
+
+@table @var
+@c @item arglist
+@item 引数リスト
+@c The list of argument symbols.
+引数シンボルのリスト。
+
+@c @item byte-code
+@item バイトコード
+@c The string containing the byte-code instructions.
+バイトコード命令を収めた文字列。
+
+@c @item constants
+@item 定数群
+@c The vector of Lisp objects referenced by the byte code.  These include
+@c symbols used as function names and variable names.
+バイトコードが参照するLispオブジェクトのベクトル。
+関数名や変数名として使われるシンボルを含む。
+
+@c @item stacksize
+@item スタックサイズ
+@c The maximum stack size this function needs.
+この関数に必要なスタックサイズの最大値。
+
+@c @item docstring
+@item 説明文字列
+@c The documentation string (if any); otherwise, @code{nil}.  The value may
+@c be a number or a list, in case the documentation string is stored in a
+@c file.  Use the function @code{documentation} to get the real
+@c documentation string (@pxref{Accessing Documentation}).
+（あれば）説明文字列。
+さもなければ@code{nil}。
+説明文字列がファイルに収めてあれば、値は数かリストである。
+実際の説明文字列を取得するには関数@code{documentation}を使う
+（@pxref{Accessing Documentation}）。
+
+@c @item interactive
+@item 対話指定
+@c The interactive spec (if any).  This can be a string or a Lisp
+@c expression.  It is @code{nil} for a function that isn't interactive.
+（あれば）対話指定。
+これは文字列かLisp式。
+対話的でない関数では@code{nil}。
+@end table
+
+@c Here's an example of a byte-code function object, in printed
+@c representation.  It is the definition of the command
+@c @code{backward-sexp}.
+バイトコード関数オブジェクトの例を表示表現でつぎに示します。
+
+@example
+#[(&optional arg)
+  "^H\204^F^@@\301^P\302^H[!\207"
+  [arg 1 forward-sexp]
+  2
+  254435
+  "p"]
+@end example
+
+@c   The primitive way to create a byte-code object is with
+@c @code{make-byte-code}:
+バイトコードオブジェクトを作る基本的な方法は、
+@code{make-byte-code}を使うことです。
+
+@defun make-byte-code &rest elements
+@c This function constructs and returns a byte-code function object
+@c with @var{elements} as its elements.
+この関数は、@var{elements}を要素とする
+バイトコード関数オブジェクトを作成し返す。
+@end defun
+
+@c   You should not try to come up with the elements for a byte-code
+@c function yourself, because if they are inconsistent, Emacs may crash
+@c when you call the function.  Always leave it to the byte compiler to
+@c create these objects; it makes the elements consistent (we hope).
+バイトコード関数の要素を自分で作ったりしないでください。
+それらに整合性がないと、
+その関数を呼び出すとEmacsがクラッシュすることもあります。
+これらのオブジェクトの作成は、バイトコンパイラに任せるべきです。
+バイトコンパイラは整合した要素を作成します（と期待する）。
+
+@c   You can access the elements of a byte-code object using @code{aref};
+@c you can also use @code{vconcat} to create a vector with the same
+@c elements.
+バイトコードオブジェクトの要素は@code{aref}で参照できます。
+同じ要素群のベクトルを@code{vconcat}で作ることもできます。
+
+@node Disassembly
+@c @section Disassembled Byte-Code
+@section バイトコードの逆アセンブル
+@c @cindex disassembled byte-code
+@cindex バイトコードの逆アセンブル
+@cindex 逆アセンブル、バイトコード
+
+@c   People do not write byte-code; that job is left to the byte compiler.
+@c But we provide a disassembler to satisfy a cat-like curiosity.  The
+@c disassembler converts the byte-compiled code into humanly readable
+@c form.
+人間はバイトコードを書きません。
+それはバイトコンパイラの仕事です。
+しかし、好奇心を満たすために逆アセンブラを用意してあります。
+逆アセンブラはバイトコンパイルしたコードを人が読める形式に変換します。
+
+@c   The byte-code interpreter is implemented as a simple stack machine.
+@c It pushes values onto a stack of its own, then pops them off to use them
+@c in calculations whose results are themselves pushed back on the stack.
+@c When a byte-code function returns, it pops a value off the stack and
+@c returns it as the value of the function.
+バイトコードインタープリタは、単純なスタックマシンとして実装してあります。
+値を自前のスタックに積み、計算に使うためにスタックから取り出し、
+計算結果そのものはスタックにまた積みます。
+バイトコード関数から戻るときには、スタックから値を取り出して
+関数値としてその値を返します。
+
+@c   In addition to the stack, byte-code functions can use, bind, and set
+@c ordinary Lisp variables, by transferring values between variables and
+@c the stack.
+スタックに加えて、変数とスタックのあいだで値を転送することで、
+バイトコード関数は、普通のLisp変数を使ったり、
+束縛したり、値を設定できます。
+
+@c @deffn Command disassemble object &optional stream
+@deffn コマンド disassemble object &optional stream
+@c This function prints the disassembled code for @var{object}.  If
+@c @var{stream} is supplied, then output goes there.  Otherwise, the
+@c disassembled code is printed to the stream @code{standard-output}.  The
+@c argument @var{object} can be a function name or a lambda expression.
+この関数は@var{object}の逆アセンブルしたコードを出力する。
+@var{stream}を指定すると、そこへ出力する。
+さもなければ、逆アセンブルしたコードはストリーム@code{standard-output}へ
+出力する。
+引数@var{object}は関数名かラムダ式である。
+
+@c As a special exception, if this function is used interactively,
+@c it outputs to a buffer named @samp{*Disassemble*}.
+特別な例外として、この関数を対話的に使うと、
+@samp{*Disassemble*}という名前のバッファへ出力する。
+@end deffn
+
+@c   Here are two examples of using the @code{disassemble} function.  We
+@c have added explanatory comments to help you relate the byte-code to the
+@c Lisp source; these do not appear in the output of @code{disassemble}.
+@c These examples show unoptimized byte-code.  Nowadays byte-code is
+@c usually optimized, but we did not want to rewrite these examples, since
+@c they still serve their purpose.
+@code{disassemble}関数の使用例を2つ示します。
+バイトコードとLispソースとの対応を取れるように
+特別なコメントを追加してありますが、
+これらは@code{disassemble}の出力には現れません。
+これらの例は、最適化してないバイトコードです。
+現在、バイトコードは、普通、最適化しますが、
+目的は果たせるので、例を書き換えてありません。
+
+@example
+@group
+(defun factorial (integer)
+  "Compute factorial of an integer."
+  (if (= 1 integer) 1
+    (* integer (factorial (1- integer)))))
+     @result{} factorial
+@end group
+
+@group
+(factorial 4)
+     @result{} 24
+@end group
+
+@group
+(disassemble 'factorial)
+     @print{} byte-code for factorial:
+ doc: Compute factorial of an integer.
+ args: (integer)
+@end group
+
+@group
+@c 0   constant 1              ; @r{Push 1 onto stack.}
+0   constant 1              ; @r{スタックに1を積む}
+
+@c 1   varref   integer        ; @r{Get value of @code{integer}} 
+@c                             ;   @r{from the environment}
+@c                             ;   @r{and push the value}
+@c                             ;   @r{onto the stack.}
+1   varref   integer        ; @r{環境から@code{integer}の値を取得し、} 
+                            ; @r{スタックに積む}
+@end group
+
+@group
+@c 2   eqlsign                 ; @r{Pop top two values off stack,}
+@c                             ;   @r{compare them,}
+@c                             ;   @r{and push result onto stack.}
+2   eqlsign                 ; @r{スタックの先頭から2つの値を}
+                            ; @r{取りさって比較し、}
+                            ; @r{結果をスタックに積む}
+@end group
+
+@group
+@c 3   goto-if-nil 10          ; @r{Pop and test top of stack;}
+@c                             ;   @r{if @code{nil}, go to 10,}
+@c                             ;   @r{else continue.}
+3   goto-if-nil 10          ; @r{スタックの先頭から値を取りさり}
+                            ; @r{検査する。@code{nil}ならば10へ飛び、}
+                            ; @r{さもなければつぎへ進む}
+@end group
+
+@group
+@c 6   constant 1              ; @r{Push 1 onto top of stack.}
+6   constant 1              ; @r{スタックに1を積む}
+
+@c 7   goto     17             ; @r{Go to 17 (in this case, 1 will be}
+@c                             ;   @r{returned by the function).}
+7   goto     17             ; @r{17へ飛ぶ（この場合、関数は1を返す）}
+@end group
+
+@group
+@c 10  constant *              ; @r{Push symbol @code{*} onto stack.}
+10  constant *              ; @r{スタックにシンボル@code{*}を積む}
+
+@c 11  varref   integer        ; @r{Push value of @code{integer} onto stack.}
+11  varref   integer        ; @r{スタックに@code{integer}の値を積む}
+@end group
+
+@group
+@c 12  constant factorial      ; @r{Push @code{factorial} onto stack.}
+12  constant factorial      ; @r{スタックに@code{factorial}を積む}
+
+@c 13  varref   integer        ; @r{Push value of @code{integer} onto stack.}
+13  varref   integer        ; @r{スタックに@code{integer}の値を積む}
+
+@c 14  sub1                    ; @r{Pop @code{integer}, decrement value,}
+@c                             ;   @r{push new value onto stack.}
+14  sub1                    ; @r{スタックから@code{integer}を取りさり、}
+                            ; @r{減した新たな値をスタックに積む}
+@end group
+
+@group
+@c                             ; @r{Stack now contains:}
+@c                             ;   @minus{} @r{decremented value of @code{integer}}
+                            ; @r{スタックの現在の内容はつぎのとおり}
+                            ; @minus{} @r{@code{integer}を減らした値}
+                            ; @minus{} @r{@code{factorial}} 
+@c                             ;   @minus{} @r{value of @code{integer}}
+                            ; @minus{} @r{@code{integer}の値}
+                            ; @minus{} @r{@code{*}}
+@end group
+
+@group
+@c 15  call     1              ; @r{Call function @code{factorial} using}
+@c                             ;   @r{the first (i.e., the top) element}
+@c                             ;   @r{of the stack as the argument;}
+@c                             ;   @r{push returned value onto stack.}
+15  call     1              ; @r{スタックの最初（先頭）要素を使って}
+                            ; @r{関数@code{factorial}を呼び出す}
+                            ; @r{戻り値をスタックに積む}
+@end group
+
+@group
+@c                             ; @r{Stack now contains:}
+@c                             ;   @minus{} @r{result of recursive}
+@c                             ;        @r{call to @code{factorial}}
+@c                             ;   @minus{} @r{value of @code{integer}}
+                            ; @r{スタックの現在の内容はつぎのとおり}
+                            ; @minus{} @r{@code{factorial}の}
+                            ;      @r{再帰呼び出しの結果}
+                            ; @minus{} @r{@code{integer}の値}
+                            ; @minus{} @r{@code{*}}
+@end group
+
+@group
+@c 16  call     2              ; @r{Using the first two}
+@c                             ;   @r{(i.e., the top two)}
+@c                             ;   @r{elements of the stack}
+@c                             ;   @r{as arguments,}
+@c                             ;   @r{call the function @code{*},}
+@c                             ;   @r{pushing the result onto the stack.}
+16  call     2              ; @r{スタックの最初の要素の2つ}
+                            ; @r{（先頭の2つ）を引数として}
+                            ; @r{関数@code{*}を呼び出し}
+                            ; @r{結果をスタックに積む}
+@end group
+
+@group
+@c 17  return                  ; @r{Return the top element}
+@c                             ;   @r{of the stack.}
+17  return                  ; @r{スタックの先頭要素を返す}
+     @result{} nil
+@end group
+@end example
+
+@c The @code{silly-loop} function is somewhat more complex:
+関数@code{silly-loop}は、少々複雑です。
+
+@example
+@group
+(defun silly-loop (n)
+  "Return time before and after N iterations of a loop."
+  (let ((t1 (current-time-string)))
+    (while (> (setq n (1- n)) 
+              0))
+    (list t1 (current-time-string))))
+     @result{} silly-loop
+@end group
+
+@group
+(disassemble 'silly-loop)
+     @print{} byte-code for silly-loop:
+ doc: Return time before and after N iterations of a loop.
+ args: (n)
+
+@c 0   constant current-time-string  ; @r{Push}
+@c                                   ;   @r{@code{current-time-string}}
+@c                                   ;   @r{onto top of stack.}
+0   constant current-time-string  ; @r{@code{current-time-string}を}
+                                  ; @r{スタックの先頭に積む}
+@end group
+
+@group
+@c 1   call     0              ; @r{Call @code{current-time-string}}
+@c                             ;   @r{ with no argument,}
+@c                             ;   @r{ pushing result onto stack.}
+1   call     0              ; @r{引数なしで@code{current-time-string}を}
+                            ; @r{呼び出し、結果をスタックに積む}
+@end group
+
+@group
+@c 2   varbind  t1             ; @r{Pop stack and bind @code{t1}}
+@c                             ;   @r{to popped value.}
+2   varbind  t1             ; @r{スタックから値を取りさり、}
+                            ; @r{@code{t1}に束縛する}
+@end group
+
+@group
+@c 3   varref   n              ; @r{Get value of @code{n} from}
+@c                             ;   @r{the environment and push}
+@c                             ;   @r{the value onto the stack.}
+3   varref   n              ; @r{環境から@code{n}の値を取得し、}
+                            ; @r{値をスタックに積む}
+@end group
+
+@group
+@c 4   sub1                    ; @r{Subtract 1 from top of stack.}
+4   sub1                    ; @r{スタックの先頭から1を引く}
+@end group
+
+@group
+@c 5   dup                     ; @r{Duplicate the top of the stack;}
+@c                             ;   @r{i.e., copy the top of}
+@c                             ;   @r{the stack and push the}
+@c                             ;   @r{copy onto the stack.}
+5   dup                     ; @r{スタックの先頭の値を複製する}
+                            ; @r{つまり、スタックの先頭の値を}
+                            ; @r{コピーして、それをスタックに積む}
+@end group
+
+@group
+@c 6   varset   n              ; @r{Pop the top of the stack,}
+@c                             ;   @r{and bind @code{n} to the value.}
+6   varset   n              ; @r{スタックの先頭から値を取りさり、}
+                            ; @r{値を@code{n}に束縛する}
+
+@c                             ; @r{In effect, the sequence @code{dup varset}}
+@c                             ;   @r{copies the top of the stack}
+@c                             ;   @r{into the value of @code{n}}
+@c                             ;   @r{without popping it.}
+                            ; @r{つまり、@code{dup varset}は}
+                            ; @r{スタックの先頭の値を取りさらずに}
+                            ; @r{@code{n}にコピーする}
+@end group
+
+@group
+@c 7   constant 0              ; @r{Push 0 onto stack.}
+7   constant 0              ; @r{スタックに0を積む}
+@end group
+
+@group
+@c 8   gtr                     ; @r{Pop top two values off stack,}
+@c                             ;   @r{test if @var{n} is greater than 0}
+@c                             ;   @r{and push result onto stack.}
+8   gtr                     ; @r{スタックから2つの値を取りさり、}
+                            ; @r{@var{n}が0より大きいか調べ、}
+                            ; @r{結果をスタックに積む}
+@end group
+
+@group
+@c 9   goto-if-nil-else-pop 17 ; @r{Goto 17 if @code{n} <= 0}
+@c                             ;   @r{(this exits the while loop).}
+@c                             ;   @r{else pop top of stack}
+@c                             ;   @r{and continue}
+9   goto-if-nil-else-pop 17 ; @r{@code{n} <= 0ならば17へ飛ぶ}
+                            ; @r{（whileループから抜ける）}
+                            ; @r{さもなければ、スタックの先頭から}
+                            ; @r{値を取りさり、つぎへ進む}
+@end group
+
+@group
+@c 12  constant nil            ; @r{Push @code{nil} onto stack}
+@c                             ;   @r{(this is the body of the loop).}
+12  constant nil            ; @r{スタックに@code{nil}を積む}
+                            ; @r{（これはループの本体）}
+@end group
+
+@group
+@c 13  discard                 ; @r{Discard result of the body}
+@c                             ;   @r{of the loop (a while loop}
+@c                             ;   @r{is always evaluated for}
+@c                             ;   @r{its side effects).}
+13  discard                 ; @r{ループの本体の結果を捨てる}
+                            ; @r{（whileループは副作用のために}
+                            ; @r{つねに評価される）}
+@end group
+
+@group
+@c 14  goto     3              ; @r{Jump back to beginning}
+@c                             ;   @r{of while loop.}
+14  goto     3              ; @r{whileループの先頭へ飛ぶ}
+@end group
+
+@group
+@c 17  discard                 ; @r{Discard result of while loop}
+@c                             ;   @r{by popping top of stack.}
+@c                             ;   @r{This result is the value @code{nil} that}
+@c                             ;   @r{was not popped by the goto at 9.}
+17  discard                 ; @r{スタックの先頭の値を取りさって、}
+                            ; @r{whileループの結果を捨てる。}
+                            ; @r{これは、9での飛び越しのために}
+                            ; @r{取りさっていない値@code{nil}}
+@end group
+
+@group
+@c 18  varref   t1             ; @r{Push value of @code{t1} onto stack.}
+18  varref   t1             ; @r{@code{t1}の値をスタックに積む}
+@end group
+
+@group
+@c 19  constant current-time-string  ; @r{Push} 
+@c                                   ;   @r{@code{current-time-string}}
+@c                                   ;   @r{onto top of stack.}
+19  constant current-time-string  ; @r{@code{current-time-string}を} 
+                                  ; @r{スタックに積む}
+@end group
+
+@group
+@c 20  call     0              ; @r{Call @code{current-time-string} again.}
+20  call     0              ; @r{ふたたび@code{current-time-string}を}
+                            ; @r{呼び出す}
+@end group
+
+@group
+@c 21  list2                   ; @r{Pop top two elements off stack,}
+@c                             ;   @r{create a list of them,}
+@c                             ;   @r{and push list onto stack.}
+21  list2                   ; @r{スタックの先頭から2つの値を取りさり}
+                            ; @r{それらのリストを作り、}
+                            ; @r{リストをスタックに積む}
+@end group
+
+@group
+@c 22  unbind   1              ; @r{Unbind @code{t1} in local environment.}
+22  unbind   1              ; @r{ローカルの環境の@code{t1}の束縛を解く}
+
+@c 23  return                  ; @r{Return value of the top of stack.}
+23  return                  ; @r{スタックの先頭の値を返す}
+
+     @result{} nil
+@end group
+@end example
+
+

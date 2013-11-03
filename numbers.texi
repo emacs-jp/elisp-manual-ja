@@ -1,0 +1,1493 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/numbers
+@node Numbers, Strings and Characters, Lisp Data Types, Top
+@c @chapter Numbers
+@chapter 数
+@c @cindex integers
+@c @cindex numbers
+@cindex 整数
+@cindex 数
+
+@c   GNU Emacs supports two numeric data types: @dfn{integers} and
+@c @dfn{floating point numbers}.  Integers are whole numbers such as
+@c @minus{}3, 0, 7, 13, and 511.  Their values are exact.  Floating point
+@c numbers are numbers with fractional parts, such as @minus{}4.5, 0.0, or
+@c 2.71828.  They can also be expressed in exponential notation: 1.5e2
+@c equals 150; in this example, @samp{e2} stands for ten to the second
+@c power, and that is multiplied by 1.5.  Floating point values are not
+@c exact; they have a fixed, limited amount of precision.
+GNU Emacsでは2種類の数値データを扱えます。
+@dfn{整数}（integers）と@dfn{浮動小数点数}（floating point numbers）です。
+整数は、@minus{}3、0、7、13、511のようなちょうどの数です。
+これらの値は正確です。
+浮動小数点数は、@minus{}4.5、0.0、2.71828のように小数部がある数です。
+これらは指数表記で表します。
+たとえば、1.5e2は150に等しいのです。
+この例の@samp{e2}は10の2乗を表し、それを1.5倍します。
+浮動小数点数の値は厳密ではありません。
+これらの精度には定まった限界があります。
+
+@menu
+* Integer Basics::            Representation and range of integers.
+* Float Basics::	      Representation and range of floating point.
+* Predicates on Numbers::     Testing for numbers.
+* Comparison of Numbers::     Equality and inequality predicates.
+* Numeric Conversions::	      Converting float to integer and vice versa.
+* Arithmetic Operations::     How to add, subtract, multiply and divide.
+* Rounding Operations::       Explicitly rounding floating point numbers.
+* Bitwise Operations::        Logical and, or, not, shifting.
+* Math Functions::            Trig, exponential and logarithmic functions.
+* Random Numbers::            Obtaining random integers, predictable or not.
+@end menu
+
+@node Integer Basics
+@comment  node-name,  next,  previous,  up
+@c @section Integer Basics
+@section 整数の基本
+
+@c   The range of values for an integer depends on the machine.  The
+@c minimum range is @minus{}134217728 to 134217727 (28 bits; i.e.,
+整数の値の範囲は計算機に依存します。
+最小の範囲は、@minus{}134217728から134217727まで（28ビット長、つまり
+@ifinfo 
+-2**27
+@end ifinfo
+@tex 
+$-2^{27}$
+@end tex
+@c to 
+から
+@ifinfo 
+@c 2**27 - 1),
+2**27 - 1）ですが、
+@end ifinfo
+@tex 
+%c $2^{27}-1$),
+$2^{27}-1$）ですが、
+@end tex
+@c but some machines may provide a wider range.  Many examples in this
+@c chapter assume an integer has 28 bits.
+これより広い範囲を扱える計算機もあります。
+本章の多くの例題では、整数は28長ビットであると仮定します。
+@c @cindex overflow
+@cindex 桁溢れ
+@cindex オーバフロー
+
+@c   The Lisp reader reads an integer as a sequence of digits with optional
+@c initial sign and optional final period.
+Lispリーダは、
+先頭に符号があってもよく、最後にピリオドがあってもよい、
+数字の列として整数を読み取ります。
+
+@example
+@c  1               ; @r{The integer 1.}
+@c  1.              ; @r{The integer 1.}
+@c +1               ; @r{Also the integer 1.}
+@c -1               ; @r{The integer @minus{}1.}
+@c  268435457       ; @r{Also the integer 1, due to overflow.}
+@c  0               ; @r{The integer 0.}
+@c -0               ; @r{The integer 0.}
+ 1               ; @r{整数1}
+ 1.              ; @r{整数1}
++1               ; @r{これも整数1}
+-1               ; @r{整数@minus{}1}
+ 268435457       ; @r{桁溢れのため、これも整数1}
+ 0               ; @r{整数0}
+-0               ; @r{整数0}
+@end example
+
+@c   To understand how various functions work on integers, especially the
+@c bitwise operators (@pxref{Bitwise Operations}), it is often helpful to
+@c view the numbers in their binary form.
+整数を扱うさまざまな関数を理解するには、
+特にビット演算（@pxref{Bitwise Operations}）を理解するには、
+数を2進表現で考えるとよいです。
+
+@c   In 28-bit binary, the decimal integer 5 looks like this:
+28ビット長の2進表現では、10進整数5はつぎのようになります。
+
+@example
+0000  0000 0000  0000 0000  0000 0101
+@end example
+
+@noindent
+@c (We have inserted spaces between groups of 4 bits, and two spaces
+@c between groups of 8 bits, to make the binary integer easier to read.)
+（4ビットのまとまりごとに空白を1個、
+8ビットのまとまりごとに空白を2個挿入して、読みやすくする。）
+
+@c   The integer @minus{}1 looks like this:
+整数@minus{}1はつぎのようになります。
+
+@example
+1111  1111 1111  1111 1111  1111 1111
+@end example
+
+@noindent
+@c @cindex two's complement
+@cindex 2の補数
+@c @minus{}1 is represented as 28 ones.  (This is called @dfn{two's
+@c complement} notation.)
+@minus{}1は、28個の1で表現されます。
+（これを@dfn{2の補数}（two's complement）表記と呼ぶ。）
+
+@c   The negative integer, @minus{}5, is creating by subtracting 4 from
+@c @minus{}1.  In binary, the decimal integer 4 is 100.  Consequently,
+@c @minus{}5 looks like this:
+負の数@minus{}5は、@minus{}1から4を引いて作れます。
+10進数4は、2進表記では100です。
+したがって、@minus{}5は、つぎのようになります。
+
+@example
+1111  1111 1111  1111 1111  1111 1011
+@end example
+
+@c   In this implementation, the largest 28-bit binary integer value is
+@c 134,217,727 in decimal.  In binary, it looks like this:
+この実装では、28ビット長の2進整数の最大値は、
+10進で134,217,727になります。
+2進表記では、つぎのようになります。
+
+@example
+0111  1111 1111  1111 1111  1111 1111
+@end example
+
+@c   Since the arithmetic functions do not check whether integers go
+@c outside their range, when you add 1 to 134,217,727, the value is the
+@c negative integer @minus{}134,217,728:
+算術関数は、整数がその範囲外に出たかどうか検査しないので、
+134,217,727に1を足すと、値は負の数@minus{}134,217,728になります。
+
+@example
+(+ 1 134217727)
+     @result{} -134217728
+     @result{} 1000  0000 0000  0000 0000  0000 0000
+@end example
+
+@c   Many of the functions described in this chapter accept markers for
+@c arguments in place of numbers.  (@xref{Markers}.)  Since the actual
+@c arguments to such functions may be either numbers or markers, we often
+@c give these arguments the name @var{number-or-marker}.  When the argument
+@c value is a marker, its position value is used and its buffer is ignored.
+本章で述べる多くの関数は、数の引数としてマーカを受け付けます。
+（@pxref{Markers}）。
+そのような関数の実際の引数は数かマーカであるので、
+それらの引数をしばしば@var{number-or-marker}という名前で書きます。
+引数の値がマーカであるときには、その位置の値を使いバッファは無視します。
+
+@node Float Basics
+@c @section Floating Point Basics
+@section 浮動小数点数の基本
+
+@c   Floating point numbers are useful for representing numbers that are
+@c not integral.  The precise range of floating point numbers is
+@c machine-specific; it is the same as the range of the C data type
+@c @code{double} on the machine you are using.
+浮動小数点数は、整数ではない数を表現するのに便利です。
+浮動小数点数の正確な範囲は計算機に依存します。
+使用している計算機のC言語のデータ型@code{double}の範囲と同じです。
+
+@c   The read-syntax for floating point numbers requires either a decimal
+@c point (with at least one digit following), an exponent, or both.  For
+@c example, @samp{1500.0}, @samp{15e2}, @samp{15.0e2}, @samp{1.5e3}, and
+@c @samp{.15e4} are five ways of writing a floating point number whose
+@c value is 1500.  They are all equivalent.  You can also use a minus sign
+@c to write negative floating point numbers, as in @samp{-1.0}.
+浮動小数点数の入力構文は、小数点（に続けて1桁以上の小数部）または指数、
+あるいは、その両方が必要です。
+たとえば、@samp{1500.0}、@samp{15e2}、@samp{15.0e2}、
+@samp{1.5e3}、@samp{.15e4}は、同じ1500という値の
+浮動小数点数を書き表す5つの方法です。
+どれも、まったく等価です。
+負の浮動小数点数を書くには、@samp{-1.0}のようにマイナス符号を使います。
+
+@c @cindex IEEE floating point
+@c @cindex positive infinity
+@c @cindex negative infinity
+@c @cindex infinity
+@c @cindex NaN
+@cindex IEEE浮動小数点数
+@cindex 正の無限大
+@cindex 負の無限大
+@cindex 無限大
+@cindex NaN（非数値）
+@cindex 非数値、NaN
+@c    Most modern computers support the IEEE floating point standard, which
+@c provides for positive infinity and negative infinity as floating point
+@c values.  It also provides for a class of values called NaN or
+@c ``not-a-number''; numerical functions return such values in cases where
+@c there is no correct answer.  For example, @code{(sqrt -1.0)} returns a
+@c NaN.  For practical purposes, there's no significant difference between
+@c different NaN values in Emacs Lisp, and there's no rule for precisely
+@c which NaN value should be used in a particular case, so Emacs Lisp
+@c doesn't try to distinguish them.  Here are the read syntaxes for
+@c these special floating point values:
+現代の計算機はIEEEの浮動小数点数規格に基づいています。
+この規格では、浮動小数点数の値には正の無限大と負の無限大があります。
+また、NaNすなわち『非数値』（not-a-number）と呼ばれる値の種類もあります。
+算術関数は、正しい答えがないときには、このような値を返します。
+たとえば、@code{(sqrt -1.0)}はNaNを返します。
+実用的には、Emacs Lispでは異なるNaNの値に重要な違いはなく、
+特定の場面で正確にはどのNaNの値を使うかの規則もないので、
+Emacs Lispではそれらを区別しようとはしません。
+浮動小数点数の入力構文はつぎのとおりです。
+
+@table @asis
+@c @item positive infinity
+@item 正の無限大
+@samp{1.0e+INF}
+@c @item negative infinity
+@item 負の無限大
+@samp{-1.0e+INF}
+@c @item Not-a-number
+@item 非数値
+@c @samp{0.0e+NaN}.
+@samp{0.0e+NaN}。
+@end table
+
+@c   In addition, the value @code{-0.0} is distinguishable from ordinary
+@c zero in IEEE floating point (although @code{equal} and @code{=} consider
+@c them equal values).
+さらに、IEEEの浮動小数点数では値@code{-0.0}を普通のゼロと区別します
+（しかし、@code{equal}と@code{=}は、これらを等しい値と扱う）。
+
+@c   You can use @code{logb} to extract the binary exponent of a floating
+@c point number (or estimate the logarithm of an integer):
+浮動小数点数の2進指数を取り出すには（あるいは、整数の対数を予測するには）、
+@code{logb}を使います。
+
+@defun logb number
+@c This function returns the binary exponent of @var{number}.  More
+@c precisely, the value is the logarithm of @var{number} base 2, rounded
+@c down to an integer.
+この関数は@var{number}の2進指数を返す。
+より正確には、その値は@var{number}の2を底とする対数を整数に切り下げたもの。
+
+@example
+(logb 10)
+     @result{} 3
+(logb 10.0e20)
+     @result{} 69
+@end example
+@end defun
+
+@node Predicates on Numbers
+@c @section Type Predicates for Numbers
+@section 数向けの型述語
+
+@c   The functions in this section test whether the argument is a number or
+@c whether it is a certain sort of number.  The functions @code{integerp}
+@c and @code{floatp} can take any type of Lisp object as argument (the
+@c predicates would not be of much use otherwise); but the @code{zerop}
+@c predicate requires a number as its argument.  See also
+@c @code{integer-or-marker-p} and @code{number-or-marker-p}, in
+@c @ref{Predicates on Markers}.
+本節の関数は、引数が数であるか、とか、特定の種類の数であるか検査します。
+関数@code{integerp}と@code{floatp}は
+引数として任意の型のLispオブジェクトを取ります
+（さもないと、述語の利用価値がない）。
+しかし、述語@code{zerop}の引数には数が必要です。
+@ref{Predicates on Markers}の
+@code{integer-or-marker-p}と@code{number-or-marker-p}も
+参照してください。
+
+@defun floatp object
+@c This predicate tests whether its argument is a floating point
+@c number and returns @code{t} if so, @code{nil} otherwise.
+この述語は、引数が浮動小数点数かどうか調べ、
+そうならば@code{t}を返し、さもなければ@code{nil}を返す。
+
+@c @code{floatp} does not exist in Emacs versions 18 and earlier.
+Emacs 18以前の版には@code{floatp}はない。
+@end defun
+
+@defun integerp object
+@c This predicate tests whether its argument is an integer, and returns
+@c @code{t} if so, @code{nil} otherwise.
+この述語は、引数が整数かどうか調べ、
+そうならば@code{t}を返し、さもなければ@code{nil}を返す。
+@end defun
+
+@defun numberp object
+@c This predicate tests whether its argument is a number (either integer or
+@c floating point), and returns @code{t} if so, @code{nil} otherwise.
+この述語は、引数が数（整数か浮動小数点数）かどうか調べ、
+そうならば@code{t}を返し、さもなければ@code{nil}を返す。
+@end defun
+
+@defun wholenump object
+@c @cindex natural numbers
+@cindex 自然数
+@c The @code{wholenump} predicate (whose name comes from the phrase
+@c ``whole-number-p'') tests to see whether its argument is a nonnegative
+@c integer, and returns @code{t} if so, @code{nil} otherwise.  0 is
+@c considered non-negative.
+（『whole-number-p』からきている名前の）述語@code{wholenump}は、
+引数が非負整数かどうか調べ、
+そうならば@code{t}を返し、さもなければ@code{nil}を返す。
+0は非負整数として扱う。
+
+@findex natnump
+@c @code{natnump} is an obsolete synonym for @code{wholenump}.
+@code{natnump}は、@code{wholenump}の廃れた同義語。
+@end defun
+
+@defun zerop number
+@c This predicate tests whether its argument is zero, and returns @code{t}
+@c if so, @code{nil} otherwise.  The argument must be a number.
+この述語は、引数が0かどうか調べ、
+そうならば@code{t}を返し、さもなければ@code{nil}を返す。
+引数は数であること。
+
+@c These two forms are equivalent: @code{(zerop x)} @equiv{} @code{(= x 0)}.
+つぎの2つのフォームは等価。
+@code{(zerop x)} @equiv{} @code{(= x 0)}。
+@end defun
+
+@node Comparison of Numbers
+@c @section Comparison of Numbers
+@section 数の比較
+@c @cindex number equality
+@cindex 数の同値性
+@cindex 同値性、数
+
+@c   To test numbers for numerical equality, you should normally use
+@c @code{=}, not @code{eq}.  There can be many distinct floating point
+@c number objects with the same numeric value.  If you use @code{eq} to
+@c compare them, then you test whether two values are the same
+@c @emph{object}.  By contrast, @code{=} compares only the numeric values
+@c of the objects.
+2つの数が数値的に等しいかどうか調べるには、普通、
+@code{eq}ではなく@code{=}を使うべきです。
+数値的には等しい多くの異なる浮動小数点数が存在しえます。
+それらの比較に@code{eq}を使うと、
+2つの値が同一@emph{オブジェクト}かどうか調べることになります。
+対照的に、@code{=}はオブジェクトの数値だけを比較します。
+
+@c   At present, each integer value has a unique Lisp object in Emacs Lisp.
+@c Therefore, @code{eq} is equivalent to @code{=} where integers are
+@c concerned.  It is sometimes convenient to use @code{eq} for comparing an
+@c unknown value with an integer, because @code{eq} does not report an
+@c error if the unknown value is not a number---it accepts arguments of any
+@c type.  By contrast, @code{=} signals an error if the arguments are not
+@c numbers or markers.  However, it is a good idea to use @code{=} if you
+@c can, even for comparing integers, just in case we change the
+@c representation of integers in a future Emacs version.
+現時点では、Emacs Lispにおいて、各整数値は一意なLispオブジェクトです。
+したがって、整数に限れば@code{eq}は@code{=}と等価です。
+未知の値と整数を比較するために@code{eq}を使うと便利な場面があります。
+というのは、@code{eq}は任意の型の引数を受け付けるので、
+@code{eq}は未知の値が数でなくてもエラーを報告しないからです。
+対照的に、@code{=}は、引数が数やマーカでないと、エラーを通知します。
+しかしながら、Emacsの将来の版で整数の表現方法を変更する場合に備えて、
+整数を比較するときであっても、可能ならば、@code{=}を使うほうがよいでしょう。
+
+@c   Sometimes it is useful to compare numbers with @code{equal}; it treats
+@c two numbers as equal if they have the same data type (both integers, or
+@c both floating point) and the same value.  By contrast, @code{=} can
+@c treat an integer and a floating point number as equal.
+@code{equal}で数を比較したほうが便利なこともあります。
+@code{equal}は、2つの数が同じデータ型
+（どちらも整数であるか、どちらも浮動小数点数である）で、
+同じ値であれば、2つの数を等しいと扱います。
+一方、@code{=}は、整数と浮動小数点数が等しいことを扱えます。
+
+@c   There is another wrinkle: because floating point arithmetic is not
+@c exact, it is often a bad idea to check for equality of two floating
+@c point values.  Usually it is better to test for approximate equality.
+@c Here's a function to do this:
+別のことがらもあります。
+浮動小数点数演算は厳密ではないので、
+2つの浮動小数点数が等しいかどうか調べるのは正しくありません。
+普通、近似的に等しいことを調べるほうがよいのです。
+つぎの関数はそのようにします。
+
+@example
+(defvar fuzz-factor 1.0e-6)
+(defun approx-equal (x y)
+  (or (and (= x 0) (= y 0))
+      (< (/ (abs (- x y))
+            (max (abs x) (abs y)))
+         fuzz-factor)))
+@end example
+
+@c @cindex CL note---integers vrs @code{eq}
+@cindex CLに関した注意−−整数と@code{eq}
+@quotation
+@c @b{Common Lisp note:} Comparing numbers in Common Lisp always requires
+@c @code{=} because Common Lisp implements multi-word integers, and two
+@c distinct integer objects can have the same numeric value.  Emacs Lisp
+@c can have just one integer object for any given value because it has a
+@c limited range of integer values.
+@b{Common Lispに関した注意：}@code{ }
+Common Lispでは、数の比較にはつねに@code{=}を使う必要がある。
+というのは、Common Lispでは複数ワードの整数を実装しているため、
+2つの異なる整数オブジェクトが同じ数値を表すことがありえる。
+Emacs Lispでは、整数値の範囲が制限されているため、
+任意の値の整数オブジェクトはそれぞれ1つしかない。
+@end quotation
+
+@defun = number-or-marker1 number-or-marker2
+@c This function tests whether its arguments are numerically equal, and
+@c returns @code{t} if so, @code{nil} otherwise.
+この関数は、引数が数値的に等しいか調べ、
+そうならば@code{t}を返し、さもなければ@code{nil}を返す。
+@end defun
+
+@defun /= number-or-marker1 number-or-marker2
+@c This function tests whether its arguments are numerically equal, and
+@c returns @code{t} if they are not, and @code{nil} if they are.
+この関数は、引数が数値的に等しいか調べ、
+等しくなければ@code{t}を返し、等しければ@code{nil}を返す。
+@end defun
+
+@defun <  number-or-marker1 number-or-marker2
+@c This function tests whether its first argument is strictly less than
+@c its second argument.  It returns @code{t} if so, @code{nil} otherwise.
+この関数は、第1引数が第2引数より小さいか調べ、
+そうならば@code{t}を返し、さもなければ@code{nil}を返す。
+@end defun
+
+@defun <=  number-or-marker1 number-or-marker2
+@c This function tests whether its first argument is less than or equal
+@c to its second argument.  It returns @code{t} if so, @code{nil}
+@c otherwise.
+この関数は、第1引数が第2引数より小さいか、あるいは、等しいか調べ、
+そうならば@code{t}を返し、さもなければ@code{nil}を返す。
+@end defun
+
+@defun >  number-or-marker1 number-or-marker2
+@c This function tests whether its first argument is strictly greater
+@c than its second argument.  It returns @code{t} if so, @code{nil}
+@c otherwise.
+この関数は、第1引数が第2引数より大きいか調べ、
+そうならば@code{t}を返し、さもなければ@code{nil}を返す。
+@end defun
+
+@defun >=  number-or-marker1 number-or-marker2
+@c This function tests whether its first argument is greater than or
+@c equal to its second argument.  It returns @code{t} if so, @code{nil}
+@c otherwise.
+この関数は、第1引数が第2引数より大きいか、あるいは、等しいか調べ、
+そうならば@code{t}を返し、さもなければ@code{nil}を返す。
+@end defun
+
+@defun max number-or-marker &rest numbers-or-markers
+@c This function returns the largest of its arguments.
+この関数は、引数の中で最大のものを返す。
+
+@example
+(max 20)
+     @result{} 20
+(max 1 2.5)
+     @result{} 2.5
+(max 1 3 2.5)
+     @result{} 3
+@end example
+@end defun
+
+@defun min number-or-marker &rest numbers-or-markers
+@c This function returns the smallest of its arguments.
+この関数は、引数の中で最小のものを返す。
+
+@example
+(min -4 1)
+     @result{} -4
+@end example
+@end defun
+
+@defun abs number
+@c This function returns the absolute value of @var{number}.
+この関数は、@var{number}の絶対値を返す。
+@end defun
+
+@node Numeric Conversions
+@c @section Numeric Conversions
+@section 数の変換
+@c @cindex rounding in conversions
+@cindex 丸め変換
+
+@c To convert an integer to floating point, use the function @code{float}.
+整数を浮動小数点数に変換するには、
+関数@code{float}を使います。
+
+@defun float number
+@c This returns @var{number} converted to floating point.
+@c If @var{number} is already a floating point number, @code{float} returns
+@c it unchanged.
+この関数は、浮動小数点数に変換した@var{number}を返す。
+@var{number}がすでに浮動小数点数ならば、
+@code{float}は@var{number}を変更せずに返す。
+@end defun
+
+@c There are four functions to convert floating point numbers to integers;
+@c they differ in how they round.  These functions accept integer arguments
+@c also, and return such arguments unchanged.
+浮動小数点数を整数に変換する関数は4つあります。
+これらの関数は、整数も引数に取りますが、整数引数は変更せずに返します。
+
+@defun truncate number
+@c This returns @var{number}, converted to an integer by rounding towards
+@c zero.
+これは、0に向けて切り捨てて整数に変換した@var{number}を返す。
+@end defun
+
+@defun floor number &optional divisor
+@c This returns @var{number}, converted to an integer by rounding downward
+@c (towards negative infinity).
+これは、（負の無限大に向けて）切り下げて整数に変換した@var{number}を返す。
+
+@c If @var{divisor} is specified, @var{number} is divided by @var{divisor}
+@c before the floor is taken; this uses the kind of division operation that
+@c corresponds to @code{mod}, rounding downward.  An @code{arith-error}
+@c results if @var{divisor} is 0.
+@var{divisor}を指定すると、切り下げるまえに
+@var{number}を@var{divisor}で除算する。
+これには、@code{mod}に対応した除算を使い切り下げる。
+@var{divisor}が0であると、結果は@code{arith-error}になる。
+@end defun
+
+@defun ceiling number
+@c This returns @var{number}, converted to an integer by rounding upward
+@c (towards positive infinity).
+これは、（正の無限大に向けて）切り上げて整数に変換した@var{number}を返す。
+@end defun
+
+@defun round number
+@c This returns @var{number}, converted to an integer by rounding towards the
+@c nearest integer.  Rounding a value equidistant between two integers
+@c may choose the integer closer to zero, or it may prefer an even integer,
+@c depending on your machine.
+これは、もっとも近い整数に丸めて整数に変換した@var{number}を返す。
+2つの整数に等距離にある値を丸める場合には、
+使用している計算機に依存して、ゼロに近いほうの整数を選ぶか偶数を選ぶ。
+@end defun
+
+@node Arithmetic Operations
+@c @section Arithmetic Operations
+@section 算術演算
+
+@c   Emacs Lisp provides the traditional four arithmetic operations:
+@c addition, subtraction, multiplication, and division.  Remainder and modulus
+@c functions supplement the division functions.  The functions to
+@c add or subtract 1 are provided because they are traditional in Lisp and
+@c commonly used.
+Emacs Lispには、伝統的な四則演算、加算、減算、乗算、除算があります。
+除算関数を補う、余りと剰余の関数もあります。
+Lispの伝統でもあり、また、多用するので、1を加算したり減算する関数もあります。
+
+@c   All of these functions except @code{%} return a floating point value
+@c if any argument is floating.
+これらの関数は、@code{%}を除いて、引数が1つでも浮動小数点数であると、
+浮動小数点数を返します。
+
+@c   It is important to note that in Emacs Lisp, arithmetic functions
+@c do not check for overflow.  Thus @code{(1+ 134217727)} may evaluate to
+@c @minus{}134217728, depending on your hardware.
+Emacs Lispでは、算術関数は桁溢れ（オーバフロー）を検査しないことに
+注意してください。
+つまり、読者の計算機に依存しますが、
+@code{(1+ 134217727)}を評価すると@minus{}134217728になる場合もあります。
+
+@defun 1+ number-or-marker
+@c This function returns @var{number-or-marker} plus 1.
+@c For example,
+この関数は、@var{number-or-marker}足す1を返す。
+
+@example
+(setq foo 4)
+     @result{} 4
+(1+ foo)
+     @result{} 5
+@end example
+
+@c This function is not analogous to the C operator @code{++}---it does not
+@c increment a variable.  It just computes a sum.  Thus, if we continue,
+この関数はC言語の演算子@code{++}の類似ではない。
+つまり、変数を増加しない。
+したがって、つぎのようになる。
+
+@example
+foo
+     @result{} 4
+@end example
+
+@c If you want to increment the variable, you must use @code{setq},
+@c like this:
+変数を増加するには、つぎのように@code{setq}を使う必要がある。
+
+@example
+(setq foo (1+ foo))
+     @result{} 5
+@end example
+@end defun
+
+@defun 1- number-or-marker
+@c This function returns @var{number-or-marker} minus 1.
+この関数は、@var{number-or-marker}引く1を返す。
+@end defun
+
+@defun + &rest numbers-or-markers
+@c This function adds its arguments together.  When given no arguments,
+@c @code{+} returns 0.
+この関数は、引数をすべて加算する。
+引数を指定しないと@code{+}は0を返す。
+
+@example
+(+)
+     @result{} 0
+(+ 1)
+     @result{} 1
+(+ 1 2 3 4)
+     @result{} 10
+@end example
+@end defun
+
+@defun - &optional number-or-marker &rest more-numbers-or-markers
+@c The @code{-} function serves two purposes: negation and subtraction.
+@c When @code{-} has a single argument, the value is the negative of the
+@c argument.  When there are multiple arguments, @code{-} subtracts each of
+@c the @var{more-numbers-or-markers} from @var{number-or-marker},
+@c cumulatively.  If there are no arguments, the result is 0.
+関数@code{-}は、2つの役割、つまり、符号反転と減算を果たす。
+@code{-}に1つの引数を指定すると、
+その値は、引数の符号を反転したものである。
+複数個の引数を指定すると、@code{-}は、
+@var{number-or-marker}から@var{more-numbers-or-markers}の1つ1つを減算する。
+引数を指定しないと結果は0である。
+
+@example
+(- 10 1 2 3 4)
+     @result{} 0
+(- 10)
+     @result{} -10
+(-)
+     @result{} 0
+@end example
+@end defun
+
+@defun * &rest numbers-or-markers
+@c This function multiplies its arguments together, and returns the
+@c product.  When given no arguments, @code{*} returns 1.
+この関数は、引数をすべて掛け合わせた乗算結果を返す。
+引数を指定しないと@code{*}は1を返す。
+
+@example
+(*)
+     @result{} 1
+(* 1)
+     @result{} 1
+(* 1 2 3 4)
+     @result{} 24
+@end example
+@end defun
+
+@defun / dividend divisor &rest divisors
+@c This function divides @var{dividend} by @var{divisor} and returns the
+@c quotient.  If there are additional arguments @var{divisors}, then it
+@c divides @var{dividend} by each divisor in turn.  Each argument may be a
+@c number or a marker.
+この関数は、@var{dividend}を@var{divisor}で除し商を返す。
+追加の引数@var{divisors}を指定してあると、
+@var{dividend}を@var{divisors}の1つ1つで除す。
+各引数は数かマーカである。
+
+@c If all the arguments are integers, then the result is an integer too.
+@c This means the result has to be rounded.  On most machines, the result
+@c is rounded towards zero after each division, but some machines may round
+@c differently with negative arguments.  This is because the Lisp function
+@c @code{/} is implemented using the C division operator, which also
+@c permits machine-dependent rounding.  As a practical matter, all known
+@c machines round in the standard fashion.
+すべての引数が整数である場合、結果も整数となる。
+つまり、結果は切り捨てになる。
+ほとんどの計算機では各除算の結果は0に向けて切り捨てになるが、
+負の引数を別の方法で丸める計算機もある。
+これは、Lisp関数@code{/}をC言語の除算演算子で実装しているからであり、
+C言語の除算演算子では計算機依存に丸めることを許しているからである。
+実用上、すべての既知の計算機は標準的な方法で丸める。
+
+@c @cindex @code{arith-error} in division
+@cindex 除算の@code{arith-error}
+@cindex @code{arith-error}、除算
+@c If you divide an integer by 0, an @code{arith-error} error is signaled.
+@c (@xref{Errors}.)  Floating point division by zero returns either
+@c infinity or a NaN if your machine supports IEEE floating point;
+@c otherwise, it signals an @code{arith-error} error.
+整数を0で除算すると、エラー@code{arith-error}を通知する。
+（@pxref{Errors}。）
+浮動小数点数を0で除算すると、IEEE浮動小数点数を使う計算機では、
+無限大かNaNを返す。
+さもなければエラー@code{arith-error}を通知する。
+
+@example
+@group
+(/ 6 2)
+     @result{} 3
+@end group
+(/ 5 2)
+     @result{} 2
+(/ 5.0 2)
+     @result{} 2.5
+(/ 5 2.0)
+     @result{} 2.5
+(/ 5.0 2.0)
+     @result{} 2.5
+(/ 25 3 2)
+     @result{} 4
+(/ -17 6)
+     @result{} -2
+@end example
+
+@c The result of @code{(/ -17 6)} could in principle be -3 on some
+@c machines.
+原理的には、@code{(/ -17 6)}が-3になる計算機もある。
+@end defun
+
+@defun % dividend divisor
+@c @cindex remainder
+@cindex 余り
+@c This function returns the integer remainder after division of @var{dividend}
+@c by @var{divisor}.  The arguments must be integers or markers.
+この関数は、@var{dividend}を@var{divisor}で除したあとの整数の余りを返す。
+引数は整数かマーカである必要がある。
+
+@c For negative arguments, the remainder is in principle machine-dependent
+@c since the quotient is; but in practice, all known machines behave alike.
+負の引数では、余りは原理的に計算機依存である。
+実用上、すべての既知の計算機は同じようにふるまう。
+
+@c An @code{arith-error} results if @var{divisor} is 0.
+@var{divisor}が0であると@code{arith-error}になる。
+
+@example
+(% 9 4)
+     @result{} 1
+(% -9 4)
+     @result{} -1
+(% 9 -4)
+     @result{} 1
+(% -9 -4)
+     @result{} -1
+@end example
+
+@c For any two integers @var{dividend} and @var{divisor},
+2つの任意の整数@var{dividend}と@var{divisor}において、
+
+@example
+@group
+(+ (% @var{dividend} @var{divisor})
+   (* (/ @var{dividend} @var{divisor}) @var{divisor}))
+@end group
+@end example
+
+@noindent
+@c always equals @var{dividend}.
+は、つねに@var{dividend}に等しい。
+@end defun
+
+@defun mod dividend divisor
+@c @cindex modulus
+@cindex 剰余
+@c This function returns the value of @var{dividend} modulo @var{divisor};
+@c in other words, the remainder after division of @var{dividend}
+@c by @var{divisor}, but with the same sign as @var{divisor}.
+@c The arguments must be numbers or markers.
+この関数は、@var{dividend}の@var{divisor}による剰余を返す。
+いいかえれば、@var{dividend}を@var{divisor}で除した余りを返す。
+ただし、その符号は@var{divisor}と同じ。
+引数は数かマーカである必要がある。
+
+@c Unlike @code{%}, @code{mod} returns a well-defined result for negative
+@c arguments.  It also permits floating point arguments; it rounds the
+@c quotient downward (towards minus infinity) to an integer, and uses that
+@c quotient to compute the remainder.
+@code{%}と違い、
+@code{mod}は負の引数に対しても厳密に定義された結果を返す。
+浮動小数点の引数も許す。
+商を（負の無限大に向けて）切り下げて整数にし、
+その商を用いて余りを計算する。
+
+@c An @code{arith-error} results if @var{divisor} is 0.
+@var{divisor}が0であると@code{arith-error}になる。
+
+@example
+@group
+(mod 9 4)
+     @result{} 1
+@end group
+@group
+(mod -9 4)
+     @result{} 3
+@end group
+@group
+(mod 9 -4)
+     @result{} -3
+@end group
+@group
+(mod -9 -4)
+     @result{} -1
+@end group
+@group
+(mod 5.5 2.5)
+     @result{} .5
+@end group
+@end example
+
+@c For any two numbers @var{dividend} and @var{divisor},
+2つの任意の整数@var{dividend}と@var{divisor}において、
+
+@example
+@group
+(+ (mod @var{dividend} @var{divisor})
+   (* (floor @var{dividend} @var{divisor}) @var{divisor}))
+@end group
+@end example
+
+@noindent
+@c always equals @var{dividend}, subject to rounding error if either
+@c argument is floating point.  For @code{floor}, see @ref{Numeric
+@c Conversions}.
+は、つねに@var{dividend}に等しい。
+ただし、どちらかの引数が浮動小数点数の場合には、
+丸め誤差の範囲内で等しい。
+@code{floor}については、@ref{Numeric Conversions}を参照。
+@end defun
+
+@node Rounding Operations
+@c @section Rounding Operations
+@section 丸め演算
+@c @cindex rounding without conversion
+@cindex 変換せずに丸める
+@cindex 丸める
+
+@c The functions @code{ffloor}, @code{fceiling}, @code{fround}, and
+@c @code{ftruncate} take a floating point argument and return a floating
+@c point result whose value is a nearby integer.  @code{ffloor} returns the
+@c nearest integer below; @code{fceiling}, the nearest integer above;
+@c @code{ftruncate}, the nearest integer in the direction towards zero;
+@c @code{fround}, the nearest integer.
+関数、@code{ffloor}、@code{fceiling}、@code{fround}、@code{ftruncate}は、
+浮動小数点数引数を受け取り、その値に近い整数を値とする浮動小数点数を返します。
+@code{ffloor}は、もっとも近いより小さな整数を返します。
+@code{fceiling}は、もっとも近いより大きな整数を返します。
+@code{ftruncate}は、0に向けて切り捨てたもっとも近い整数を返します。
+@code{fround}は、もっとも近い整数を返します。
+
+@defun ffloor float
+@c This function rounds @var{float} to the next lower integral value, and
+@c returns that value as a floating point number.
+この関数は、@var{float}をこれより小さな整数値に切り下げ、
+その値を浮動小数点数として返す。
+@end defun
+
+@defun fceiling float
+@c This function rounds @var{float} to the next higher integral value, and
+@c returns that value as a floating point number.
+この関数は、@var{float}をこれより大きな整数値に切り上げ、
+その値を浮動小数点数として返す。
+@end defun
+
+@defun ftruncate float
+@c This function rounds @var{float} towards zero to an integral value, and
+@c returns that value as a floating point number.
+この関数は、@var{float}を0に向けて整数値に切り捨て、
+その値を浮動小数点数として返す。
+@end defun
+
+@defun fround float
+@c This function rounds @var{float} to the nearest integral value,
+@c and returns that value as a floating point number.
+この関数は、@var{float}をもっとも近い整数値に丸め、
+その値を浮動小数点数として返す。
+@end defun
+
+@node Bitwise Operations
+@c @section Bitwise Operations on Integers
+@section 整数のビット演算
+
+@c   In a computer, an integer is represented as a binary number, a
+@c sequence of @dfn{bits} (digits which are either zero or one).  A bitwise
+@c operation acts on the individual bits of such a sequence.  For example,
+@c @dfn{shifting} moves the whole sequence left or right one or more places,
+@c reproducing the same pattern ``moved over''.
+計算機内部では、整数は2進数、つまり、
+@dfn{ビット}（bit、各桁は0か1）列で表現されます。
+ビット演算は、そのようなビット列の各ビットごとに作用します。
+たとえば、@dfn{シフト}（shifting）は、ビット列を全体として左や右に
+1桁以上移動して、その『移動後の』パターンを結果とします。
+
+@c   The bitwise operations in Emacs Lisp apply only to integers.
+Emacs Lispにおけるビット演算は整数に限ります。
+
+@defun lsh integer1 count
+@c @cindex logical shift
+@cindex 論理シフト
+@c @code{lsh}, which is an abbreviation for @dfn{logical shift}, shifts the
+@c bits in @var{integer1} to the left @var{count} places, or to the right
+@c if @var{count} is negative, bringing zeros into the vacated bits.  If
+@c @var{count} is negative, @code{lsh} shifts zeros into the leftmost
+@c (most-significant) bit, producing a positive result even if
+@c @var{integer1} is negative.  Contrast this with @code{ash}, below.
+@dfn{論理シフト}（logical shift）の略からきている@code{lsh}は、
+@var{integer1}のビット列を@var{count}桁左へ、
+あるいは、@var{count}が負ならば右へずらし、空いたビットには0を詰める。
+@var{count}が負であれば、@code{lsh}は最左（最上位）ビットに0を詰め、
+@var{integer1}が負であっても結果は正になる。
+これと対照的なのが下の@code{ash}。
+
+@c Here are two examples of @code{lsh}, shifting a pattern of bits one
+@c place to the left.  We show only the low-order eight bits of the binary
+@c pattern; the rest are all zero.
+@code{lsh}の例を2つ示す。
+ビットパターンを1桁左へずらす。
+ビットパターンの上位ビットはすべて0なので下位8ビットだけを示す。
+
+@example
+@group
+(lsh 5 1)
+     @result{} 10
+@c ;; @r{Decimal 5 becomes decimal 10.}
+;; @r{10進数5は、 10進数10になる}
+00000101 @result{} 00001010
+
+(lsh 7 1)
+     @result{} 14
+@c ;; @r{Decimal 7 becomes decimal 14.}
+;; @r{10進数7は、10進数14になる}
+00000111 @result{} 00001110
+@end group
+@end example
+
+@noindent
+@c As the examples illustrate, shifting the pattern of bits one place to
+@c the left produces a number that is twice the value of the previous
+@c number.
+例からわかるように、ビットパターンを1桁左へずらすと、
+もとの数値の2倍の数になる。
+
+@c Shifting a pattern of bits two places to the left produces results
+@c like this (with 8-bit binary numbers):
+ビットパターンを2桁左へずらすと、（8ビット長の2進数では）つぎのようになる。
+
+@example
+@group
+(lsh 3 2)
+     @result{} 12
+@c ;; @r{Decimal 3 becomes decimal 12.}
+;; @r{10進数3は、10進数12になる}
+00000011 @result{} 00001100       
+@end group
+@end example
+
+@c On the other hand, shifting one place to the right looks like this:
+一方、右へずらすとつぎのようになる。
+
+@example
+@group
+(lsh 6 -1)
+     @result{} 3
+@c ;; @r{Decimal 6 becomes decimal 3.}
+;; @r{10進数6は、10進数3になる}
+00000110 @result{} 00000011       
+@end group
+
+@group
+(lsh 5 -1)
+     @result{} 2
+@c ;; @r{Decimal 5 becomes decimal 2.}
+;; @r{10進数5は、10進数2になる}
+00000101 @result{} 00000010       
+@end group
+@end example
+
+@noindent
+@c As the example illustrates, shifting one place to the right divides the
+@c value of a positive integer by two, rounding downward.
+例からわかるように、ビットパターンを1桁右へずらすと、
+正の整数の数を2で除して切り下げる。
+
+@c The function @code{lsh}, like all Emacs Lisp arithmetic functions, does
+@c not check for overflow, so shifting left can discard significant bits
+@c and change the sign of the number.  For example, left shifting
+@c 134,217,727 produces @minus{}2 on a 28-bit machine:
+Emacs Lispのすべての算術関数と同様に、
+関数@code{lsh}は桁溢れ（オーバフロー）を検査しないので、
+左へずらすと上位ビットを捨てさり数の符号を変えてしまうことがある。
+たとえば、28ビット長の計算機では、
+134,217,727を左へずらすと@minus{}2になる。
+
+@example
+@c (lsh 134217727 1)          ; @r{left shift}
+(lsh 134217727 1)          ; @r{左シフト}
+     @result{} -2
+@end example
+
+@c In binary, in the 28-bit implementation, the argument looks like this:
+28ビット長の実装の2進数では、引数はつぎのようになっている。
+
+@example
+@group
+@c ;; @r{Decimal 134,217,727}
+;; @r{10進数134,217,727}
+0111  1111 1111  1111 1111  1111 1111         
+@end group
+@end example
+
+@noindent
+@c which becomes the following when left shifted:
+これを左へずらすと、つぎのようになる
+
+@example
+@group
+@c ;; @r{Decimal @minus{}2}
+;; @r{10進数@minus{}2}
+1111  1111 1111  1111 1111  1111 1110         
+@end group
+@end example
+@end defun
+
+@defun ash integer1 count
+@c @cindex arithmetic shift
+@cindex 算術シフト
+@c @code{ash} (@dfn{arithmetic shift}) shifts the bits in @var{integer1}
+@c to the left @var{count} places, or to the right if @var{count}
+@c is negative.
+@code{ash}（@dfn{算術シフト}（arithmetic shift））は、
+@var{integer1}のビットを@var{count}桁左へ、あるいは、
+@var{count}が負ならば右へずらす。
+
+@c @code{ash} gives the same results as @code{lsh} except when
+@c @var{integer1} and @var{count} are both negative.  In that case,
+@c @code{ash} puts ones in the empty bit positions on the left, while
+@c @code{lsh} puts zeros in those bit positions.
+@code{ash}は@code{lsh}と同じ結果になるが、
+@var{integer1}と@var{count}の両者が負の場合を除く。
+この場合、@code{ash}は左の空いたビットには1を入れるが、
+@code{lsh}はそのようなビットには0を入れる。
+
+@c Thus, with @code{ash}, shifting the pattern of bits one place to the right
+@c looks like this:
+したがって、@code{ash}でビットパターンを1桁右へずらすとつぎのようになる。
+
+@example
+@group
+(ash -6 -1) @result{} -3            
+@c ;; @r{Decimal @minus{}6 becomes decimal @minus{}3.}
+;; @r{10進数@minus{}6は、10進数@minus{}3になる}
+1111  1111 1111  1111 1111  1111 1010
+     @result{} 
+1111  1111 1111  1111 1111  1111 1101
+@end group
+@end example
+
+@c In contrast, shifting the pattern of bits one place to the right with
+@c @code{lsh} looks like this:
+対照的に、@code{lsh}でビットパターンを1桁右へずらすとつぎのようになる。
+
+@example
+@group
+(lsh -6 -1) @result{} 134217725
+@c ;; @r{Decimal @minus{}6 becomes decimal 134,217,725.}
+;; @r{10進数@minus{}6は、10進数134,217,725になる}
+1111  1111 1111  1111 1111  1111 1010
+     @result{} 
+0111  1111 1111  1111 1111  1111 1101
+@end group
+@end example
+
+@c Here are other examples:
+他の例を以下にしめす。
+
+@c !!! Check if lined up in smallbook format!  XDVI shows problem
+@c     with smallbook but not with regular book! --rjc 16mar92
+@smallexample
+@group
+@c                    ;  @r{             28-bit binary values}
+                   ;  @r{             28ビット2進値}
+
+(lsh 5 2)          ;   5  =  @r{0000  0000 0000  0000 0000  0000 0101}
+     @result{} 20         ;      =  @r{0000  0000 0000  0000 0000  0001 0100}
+@end group
+@group
+(ash 5 2)
+     @result{} 20
+(lsh -5 2)         ;  -5  =  @r{1111  1111 1111  1111 1111  1111 1011}
+     @result{} -20        ;      =  @r{1111  1111 1111  1111 1111  1110 1100}
+(ash -5 2)
+     @result{} -20
+@end group
+@group
+(lsh 5 -2)         ;   5  =  @r{0000  0000 0000  0000 0000  0000 0101}
+     @result{} 1          ;      =  @r{0000  0000 0000  0000 0000  0000 0001}
+@end group
+@group
+(ash 5 -2)
+     @result{} 1
+@end group
+@group
+(lsh -5 -2)        ;  -5  =  @r{1111  1111 1111  1111 1111  1111 1011}
+     @result{} 4194302    ;      =  @r{0011  1111 1111  1111 1111  1111 1110}
+@end group
+@group
+(ash -5 -2)        ;  -5  =  @r{1111  1111 1111  1111 1111  1111 1011}
+     @result{} -2         ;      =  @r{1111  1111 1111  1111 1111  1111 1110}
+@end group
+@end smallexample
+@end defun
+
+@defun logand &rest ints-or-markers
+@c @cindex logical and
+@c @cindex bitwise and
+@cindex 論理積
+@cindex ビットごとの論理積
+@c This function returns the ``logical and'' of the arguments: the
+@c @var{n}th bit is set in the result if, and only if, the @var{n}th bit is
+@c set in all the arguments.  (``Set'' means that the value of the bit is 1
+@c rather than 0.)
+この関数は引数の『論理積』を返す。
+つまり、すべての引数の@var{n}番目のビットが1である場合に限り、
+結果の@var{n}番目のビットも1になる。
+
+@c For example, using 4-bit binary numbers, the ``logical and'' of 13 and
+@c 12 is 12: 1101 combined with 1100 produces 1100.
+@c In both the binary numbers, the leftmost two bits are set (i.e., they
+@c are 1's), so the leftmost two bits of the returned value are set.
+@c However, for the rightmost two bits, each is zero in at least one of
+@c the arguments, so the rightmost two bits of the returned value are 0's.
+たとえば、4ビットの2進数で考えると、
+13と12の『論理積』は12になる。
+つまり、1101に1100を組み合わせると1100になる。
+どちらの2進数も最左の2ビットは1なので、戻り値の最左の2ビットも1になる。
+しかし、最右の2ビットは、一方の引数ではそれぞれが0なので、
+戻り値の最右の2ビットも0になる。
+
+@noindent
+@c Therefore,
+したがって、つぎのとおり。
+
+@example
+@group
+(logand 13 12)
+     @result{} 12
+@end group
+@end example
+
+@c If @code{logand} is not passed any argument, it returns a value of
+@c @minus{}1.  This number is an identity element for @code{logand}
+@c because its binary representation consists entirely of ones.  If
+@c @code{logand} is passed just one argument, it returns that argument.
+@code{logand}にまったく引数を指定しないと値@minus{}1を返す。
+この数は2進表現ではすべて1だけなので、
+@code{logand}の恒等元である。
+@code{logand}に引数を1つだけ指定するとその引数を返す。
+
+@smallexample
+@group
+@c                    ; @r{               28-bit binary values}
+                   ; @r{               28ビット2進値}
+
+(logand 14 13)     ; 14  =  @r{0000  0000 0000  0000 0000  0000 1110}
+                   ; 13  =  @r{0000  0000 0000  0000 0000  0000 1101}
+     @result{} 12         ; 12  =  @r{0000  0000 0000  0000 0000  0000 1100}
+@end group
+
+@group
+(logand 14 13 4)   ; 14  =  @r{0000  0000 0000  0000 0000  0000 1110}
+                   ; 13  =  @r{0000  0000 0000  0000 0000  0000 1101}
+                   ;  4  =  @r{0000  0000 0000  0000 0000  0000 0100}
+     @result{} 4          ;  4  =  @r{0000  0000 0000  0000 0000  0000 0100}
+@end group
+
+@group
+(logand)
+     @result{} -1         ; -1  =  @r{1111  1111 1111  1111 1111  1111 1111}
+@end group
+@end smallexample
+@end defun
+
+@defun logior &rest ints-or-markers
+@c @cindex logical inclusive or
+@cindex 論理和
+@c @cindex bitwise or
+@cindex ビットごとの論理和
+@c This function returns the ``inclusive or'' of its arguments: the @var{n}th bit
+@c is set in the result if, and only if, the @var{n}th bit is set in at least
+@c one of the arguments.  If there are no arguments, the result is zero,
+@c which is an identity element for this operation.  If @code{logior} is
+@c passed just one argument, it returns that argument.
+この関数は引数の『論理和』を返す。
+つまり、少なくともどれか1つの引数の@var{n}番目のビットが1である場合に限り、
+結果の@var{n}番目のビットも1になる。
+引数を指定しないと0を返すが、これはこの演算の恒等元である。
+@code{logior}に引数を1つだけ指定するとその引数を返す。
+
+@smallexample
+@group
+@c                    ; @r{              28-bit binary values}
+                   ; @r{               28ビット2進値}
+
+(logior 12 5)      ; 12  =  @r{0000  0000 0000  0000 0000  0000 1100}
+                   ;  5  =  @r{0000  0000 0000  0000 0000  0000 0101}
+     @result{} 13         ; 13  =  @r{0000  0000 0000  0000 0000  0000 1101}
+@end group
+
+@group
+(logior 12 5 7)    ; 12  =  @r{0000  0000 0000  0000 0000  0000 1100}
+                   ;  5  =  @r{0000  0000 0000  0000 0000  0000 0101}
+                   ;  7  =  @r{0000  0000 0000  0000 0000  0000 0111}
+     @result{} 15         ; 15  =  @r{0000  0000 0000  0000 0000  0000 1111}
+@end group
+@end smallexample
+@end defun
+
+@defun logxor &rest ints-or-markers
+@c @cindex bitwise exclusive or
+@c @cindex logical exclusive or
+@cindex ビットごとの排他的論理和
+@cindex 排他的論理和
+@c This function returns the ``exclusive or'' of its arguments: the
+@c @var{n}th bit is set in the result if, and only if, the @var{n}th bit is
+@c set in an odd number of the arguments.  If there are no arguments, the
+@c result is 0, which is an identity element for this operation.  If
+@c @code{logxor} is passed just one argument, it returns that argument.
+この関数は引数の『排他的論理和』を返す。
+つまり、引数の@var{n}番目のビットが1であるものが奇数個の場合に限り、
+結果の@var{n}番目のビットも1になる。
+引数を指定しないと0を返すが、これはこの演算の恒等元である。
+@code{logxor}に引数を1つだけ指定するとその引数を返す。
+
+@smallexample
+@group
+@c                    ; @r{              28-bit binary values}
+                   ; @r{              28ビット2進値}
+
+(logxor 12 5)      ; 12  =  @r{0000  0000 0000  0000 0000  0000 1100}
+                   ;  5  =  @r{0000  0000 0000  0000 0000  0000 0101}
+     @result{} 9          ;  9  =  @r{0000  0000 0000  0000 0000  0000 1001}
+@end group
+
+@group
+(logxor 12 5 7)    ; 12  =  @r{0000  0000 0000  0000 0000  0000 1100}
+                   ;  5  =  @r{0000  0000 0000  0000 0000  0000 0101}
+                   ;  7  =  @r{0000  0000 0000  0000 0000  0000 0111}
+     @result{} 14         ; 14  =  @r{0000  0000 0000  0000 0000  0000 1110}
+@end group
+@end smallexample
+@end defun
+
+@defun lognot integer
+@c @cindex logical not
+@c @cindex bitwise not
+@cindex 論理否定
+@cindex ビットごとの否定
+@c This function returns the logical complement of its argument: the @var{n}th
+@c bit is one in the result if, and only if, the @var{n}th bit is zero in
+@c @var{integer}, and vice-versa.
+この関数は引数の論理的な補数を返す。
+つまり、@var{integer}の@var{n}番目のビットが0である場合に限り、
+結果の@var{n}番目のビットは1になる。
+
+@example
+(lognot 5)             
+     @result{} -6
+;;  5  =  @r{0000  0000 0000  0000 0000  0000 0101}
+;; @r{becomes}
+;; -6  =  @r{1111  1111 1111  1111 1111  1111 1010}
+@end example
+@end defun
+
+@node Math Functions
+@c @section Standard Mathematical Functions
+@section 標準数学関数
+@c @cindex transcendental functions
+@c @cindex mathematical functions
+@cindex 三角関数
+@cindex 数学関数
+
+@c   These mathematical functions allow integers as well as floating point
+@c numbers as arguments.
+これらの数学関数は浮動小数点数に加えて整数も引数として受け付けます。
+
+@defun sin arg
+@defunx cos arg
+@defunx tan arg
+@c These are the ordinary trigonometric functions, with argument measured
+@c in radians.
+これらは普通の三角関数であり、引数は弧度法で表す。
+@end defun
+
+@defun asin arg
+@c The value of @code{(asin @var{arg})} is a number between @minus{}pi/2
+@c and pi/2 (inclusive) whose sine is @var{arg}; if, however, @var{arg}
+@c is out of range (outside [-1, 1]), then the result is a NaN.
+@code{(asin @var{arg})}の値は@minus{}pi/2からpi/2までの数であり、
+その正弦（sin）は@var{arg}に等しい。
+しかし、@var{arg}が（[-1, 1]の）範囲を越えていると結果はNaN。
+@end defun
+
+@defun acos arg
+@c The value of @code{(acos @var{arg})} is a number between 0 and pi
+@c (inclusive) whose cosine is @var{arg}; if, however, @var{arg}
+@c is out of range (outside [-1, 1]), then the result is a NaN.
+@code{(acos @var{arg})}の値は0からpiまでの数であり、
+その余弦（cos）は@var{arg}に等しい。
+しかし、@var{arg}が（[-1, 1]の）範囲を越えていると結果はNaN。
+@end defun
+
+@defun atan arg
+@c The value of @code{(atan @var{arg})} is a number between @minus{}pi/2
+@c and pi/2 (exclusive) whose tangent is @var{arg}.
+@code{(atan @var{arg})}の値は@minus{}pi/2からpi/2までの数であり、
+その正接（tan）は@var{arg}に等しい。
+@end defun
+
+@defun exp arg
+@c This is the exponential function; it returns
+これは指数関数であり、
+@tex
+$e$
+@end tex
+@ifinfo
+@i{e}
+@end ifinfo
+@c to the power @var{arg}.
+の@var{arg}乗を返す。
+@tex
+$e$
+@end tex
+@ifinfo
+@i{e}
+@end ifinfo
+@c is a fundamental mathematical constant also called the base of natural
+@c logarithms.
+は数学の基本定数であり、自然対数の底とも呼ぶ。
+@end defun
+
+@defun log arg &optional base
+@c This function returns the logarithm of @var{arg}, with base @var{base}.
+@c If you don't specify @var{base}, the base
+この関数は@var{arg}の@var{base}を底とする対数を返す。
+@var{base}を指定しなければ、底として
+@tex
+$e$
+@end tex
+@ifinfo
+@i{e}
+@end ifinfo
+@c is used.  If @var{arg}
+@c is negative, the result is a NaN.
+を使う。
+@var{arg}が負であると結果はNaN。
+@end defun
+
+@ignore
+@defun expm1 arg
+This function returns @code{(1- (exp @var{arg}))}, but it is more
+accurate than that when @var{arg} is negative and @code{(exp @var{arg})}
+is close to 1.
+@end defun
+
+@defun log1p arg
+This function returns @code{(log (1+ @var{arg}))}, but it is more
+accurate than that when @var{arg} is so small that adding 1 to it would
+lose accuracy.
+@end defun
+@end ignore
+
+@defun log10 arg
+@c This function returns the logarithm of @var{arg}, with base 10.  If
+@c @var{arg} is negative, the result is a NaN.  @code{(log10 @var{x})}
+@c @equiv{} @code{(log @var{x} 10)}, at least approximately.
+この関数は@var{arg}の10を底とする対数を返す。
+@var{arg}が負であると結果はNaN。
+少なくとも誤差を考慮すれば、
+@code{(log10 @var{x})} @equiv{} @code{(log @var{x} 10)}。
+@end defun
+
+@defun expt x y
+@c This function returns @var{x} raised to power @var{y}.  If both
+@c arguments are integers and @var{y} is positive, the result is an
+@c integer; in this case, it is truncated to fit the range of possible
+@c integer values.
+この関数は@var{x}の@var{y}乗を返す。
+どちらの引数も整数であり@var{y}が正ならば、結果は整数。
+この場合、結果は整数値の可能な範囲に切り詰められる。
+@end defun
+
+@defun sqrt arg
+@c This returns the square root of @var{arg}.  If @var{arg} is negative,
+@c the value is a NaN.
+この関数は@var{arg}の平方根を返す。
+@var{arg}が負であると値はNaN。
+@end defun
+
+@node Random Numbers
+@c @section Random Numbers
+@section 乱数
+@c @cindex random numbers
+@cindex 乱数
+
+@c A deterministic computer program cannot generate true random numbers.
+@c For most purposes, @dfn{pseudo-random numbers} suffice.  A series of
+@c pseudo-random numbers is generated in a deterministic fashion.  The
+@c numbers are not truly random, but they have certain properties that
+@c mimic a random series.  For example, all possible values occur equally
+@c often in a pseudo-random series.
+決定論的な計算機プログラムは真の乱数を発生できません。
+しかし、ほとんどの目的には@dfn{疑似乱数}（pseudo-random numbers）で十分です。
+一連の疑似乱数を決定論的な方法で生成します。
+それらの数は真の乱数ではありませんが、
+乱数列のある種の性質に似た性質があります。
+たとえば、疑似乱数列でもすべての可能な数がしばしば等しく生起します。
+
+@c In Emacs, pseudo-random numbers are generated from a ``seed'' number.
+@c Starting from any given seed, the @code{random} function always
+@c generates the same sequence of numbers.  Emacs always starts with the
+@c same seed value, so the sequence of values of @code{random} is actually
+@c the same in each Emacs run!  For example, in one operating system, the
+@c first call to @code{(random)} after you start Emacs always returns
+@c -1457731, and the second one always returns -7692030.  This
+@c repeatability is helpful for debugging.
+Emacsでは、疑似乱数は『種』となる数から生成します。
+指定した任意の種から始めても、関数@code{random}は同じ数の列を生成します。
+Emacsはつねに同じ種の値で計算し始めるため、
+それぞれのEmacsの実行でも@code{random}は実際には同じ数の列を生成します。
+たとえば、あるオペレーティングシステムで、
+Emacs開始直後に@code{random}を呼ぶとつねに-1457731を返し、
+つぎに呼ぶとつねに-7692030を返します。
+このような再現性はデバッグには有利です。
+
+@c If you want truly unpredictable random numbers, execute @code{(random
+@c t)}.  This chooses a new seed based on the current time of day and on
+@c Emacs's process @sc{id} number.
+予測不可能な乱数が必要ならば@code{(random t)}を実行します。
+これは、現在時刻とEmacsプロセスの@sc{id}番号に基づいて、
+新たな種の値を選びます。
+
+@defun random &optional limit
+@c This function returns a pseudo-random integer.  Repeated calls return a
+@c series of pseudo-random integers.
+この関数は疑似乱数の整数を返す。
+繰り返し呼び出すと一連の疑似乱数の整数を返す。
+
+@c If @var{limit} is a positive integer, the value is chosen to be
+@c nonnegative and less than @var{limit}.
+@var{limit}が正整数ならば、非負で@var{limit}未満になるように値を選ぶ。
+
+@c If @var{limit} is @code{t}, it means to choose a new seed based on the
+@c current time of day and on Emacs's process @sc{id} number.
+@var{limit}が@code{t}ならば、
+現在時刻とEmacsプロセスの@sc{id}番号に基づいて、
+新たな種の値を選ぶことを意味する。
+@c "Emacs'" is incorrect usage!
+
+@c On some machines, any integer representable in Lisp may be the result
+@c of @code{random}.  On other machines, the result can never be larger
+@c than a certain maximum or less than a certain (negative) minimum.
+@code{random}の結果は、Lispにおいて表現可能な任意の整数になる計算機もある。
+他の計算機では、結果はある最大値と（負数）最小値のあいだにある。
+@end defun

@@ -1,0 +1,3362 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/modes
+@node Modes, Documentation,  Keymaps, Top
+@c @chapter Major and Minor Modes
+@chapter メジャーモードとマイナモード
+@c @cindex mode
+@cindex モード
+
+@c   A @dfn{mode} is a set of definitions that customize Emacs and can be
+@c turned on and off while you edit.  There are two varieties of modes:
+@c @dfn{major modes}, which are mutually exclusive and used for editing
+@c particular kinds of text, and @dfn{minor modes}, which provide features
+@c that users can enable individually.
+@dfn{モード}（mode）とは、Emacsをカスタマイズする定義の集まりであり、
+読者は編集中にそれをオン／オフできます。
+モードには2種類あります。
+@dfn{メジャーモード}（major mode）は、互いに排他的で、
+特定種類のテキストの編集に使います。
+@dfn{マイナモード}（minor mode）は、
+ユーザーがそれぞれを独立にオンにできる機能を提供します。
+
+@c   This chapter describes how to write both major and minor modes, how to
+@c indicate them in the mode line, and how they run hooks supplied by the
+@c user.  For related topics such as keymaps and syntax tables, see
+@c @ref{Keymaps}, and @ref{Syntax Tables}.
+本章では、メジャーモードやマイナモードの書き方、
+それらをモード行に表示する方法、
+ユーザーが指定したフックをモードがどのように実行するかについて述べます。
+キーマップや構文テーブルなどの関連事項については、
+@ref{Keymaps}や@ref{Syntax Tables}を参照してください。
+
+@menu
+* Major Modes::        Defining major modes.
+* Minor Modes::        Defining minor modes.
+* Mode Line Format::   Customizing the text that appears in the mode line.
+* Imenu::              How a mode can provide a menu
+                         of definitions in the buffer.
+* Font Lock Mode::     How modes can highlight text according to syntax.
+* Hooks::              How to use hooks; how to write code that provides hooks.
+@end menu
+
+@node Major Modes
+@c @section Major Modes
+@section メジャーモード
+@c @cindex major mode
+@c @cindex Fundamental mode
+@cindex メジャーモード
+@cindex 基本（fundamental）モード
+
+@c   Major modes specialize Emacs for editing particular kinds of text.
+@c Each buffer has only one major mode at a time.
+メジャーモードは、特定種類のテキストの編集向けにEmacsを特化します。
+各バッファには、ある時点では1つのメジャーモードしかありません。
+
+@c   The least specialized major mode is called @dfn{Fundamental mode}.
+@c This mode has no mode-specific definitions or variable settings, so each
+@c Emacs command behaves in its default manner, and each option is in its
+@c default state.  All other major modes redefine various keys and options.
+@c For example, Lisp Interaction mode provides special key bindings for
+@c @kbd{C-j} (@code{eval-print-last-sexp}), @key{TAB}
+@c (@code{lisp-indent-line}), and other keys.
+もっとも特化されていないメジャーモードは、
+@dfn{基本（fundamental）モード}です。
+このモードには、モードに固有な定義や変数の設定がありません。
+そのため、Emacsの各コマンドはデフォルトのふるまいをし、
+各オプションもデフォルトの状態です。
+他のすべてのメジャーモードでは、さまざまなキーやオプションを再定義します。
+たとえば、lisp対話モードでは、
+@kbd{C-j}（@code{eval-print-last-sexp}）や
+@key{TAB}（@code{lisp-indent-line}）など他のキーに対しても
+特別なキーバインディングがあります。
+
+@c   When you need to write several editing commands to help you perform a
+@c specialized editing task, creating a new major mode is usually a good
+@c idea.  In practice, writing a major mode is easy (in contrast to
+@c writing a minor mode, which is often difficult).
+読者の特別な編集作業を補佐するために一群の編集コマンドを書く必要がある場合、
+新たなメジャーモードを作ることは一般にはよいことです。
+実際、メジャーモードを書くことは
+（マイナモードを書くことはしばしば難しくなるが、
+それに対比すれば）簡単です。
+
+@c   If the new mode is similar to an old one, it is often unwise to modify
+@c the old one to serve two purposes, since it may become harder to use and
+@c maintain.  Instead, copy and rename an existing major mode definition
+@c and alter the copy---or define a @dfn{derived mode} (@pxref{Derived
+@c Modes}).  For example, Rmail Edit mode, which is in
+@c @file{emacs/lisp/rmailedit.el}, is a major mode that is very similar to
+@c Text mode except that it provides three additional commands.  Its
+@c definition is distinct from that of Text mode, but was derived from it.
+新たなモードが既存のモードに類似していても、
+既存のモードを2つの目的を果たすように修正するのは
+賢いことではありません。
+そのようにすると、使い難く保守し難くなるからです。
+そのかわりに、既存のメジャーモードの定義をコピーし名前変えてから、
+コピーを変更します。
+あるいは、@dfn{派生モード} （derived mode）
+（@pxref{Derived Modes}）を定義します。
+たとえば、@file{emacs/lisp/rmailedit.el}にあるrmail編集モードは、
+テキスト（text）モードに非常によく似たメジャーモードですが、
+追加コマンドが3つあります。
+そのような定義がテキスト（text）モードとの違いになるのですが、
+rmail編集モードはテキスト（text）モードから派生したものです。
+
+@c   Rmail Edit mode offers an example of changing the major mode
+@c temporarily for a buffer, so it can be edited in a different way (with
+@c ordinary Emacs commands rather than Rmail commands).  In such cases, the
+@c temporary major mode usually has a command to switch back to the
+@c buffer's usual mode (Rmail mode, in this case).  You might be tempted to
+@c present the temporary redefinitions inside a recursive edit and restore
+@c the usual ones when the user exits; but this is a bad idea because it
+@c constrains the user's options when it is done in more than one buffer:
+@c recursive edits must be exited most-recently-entered first.  Using an
+@c alternative major mode avoids this limitation.  @xref{Recursive
+@c Editing}.
+rmail編集モードは、バッファのメジャーモードを一時的に変更して
+バッファを別の方法（rmailのコマンドではなく
+Emacsの普通のコマンド）で編集できるようにする例題です。
+そのような場合、一時的なメジャーモードには、普通、
+バッファの通常のモード（この場合にはrmailモード）に戻る
+コマンドがあります。
+読者は、再帰編集の中で一時的に再定義し、
+ユーザーが再帰編集を抜けるともとに戻す方法に魅了されるかもしれません。
+しかし、これを複数のバッファで行うと、
+再帰編集はもっとも最近に入った再帰からまず抜けるので、
+ユーザーの選択に制約を課すことになり悪い方法です。
+別のメジャーモードを使えばこのような制約を回避できます。
+@xref{Recursive Editing}。
+
+@c   The standard GNU Emacs Lisp library directory contains the code for
+@c several major modes, in files such as @file{text-mode.el},
+@c @file{texinfo.el}, @file{lisp-mode.el}, @file{c-mode.el}, and
+@c @file{rmail.el}.  You can study these libraries to see how modes are
+@c written.  Text mode is perhaps the simplest major mode aside from
+@c Fundamental mode.  Rmail mode is a complicated and specialized mode.
+標準のGNU Emacs Lispのライブラリのディレクトリには、
+@file{text-mode.el}、@file{texinfo.el}、@file{lisp-mode.el}、
+@file{c-mode.el}、@file{rmail.el}などのファイルに
+いくつかのメジャーモードのコードが収めてあります。
+モードの書き方を理解するためにこれらのライブラリを調べられます。
+テキスト（text）モードは、基本（fundamental）モードについで、
+もっとも単純なメジャーモードです。
+rmailモードは複雑な特化されたモードです。
+
+@menu
+* Major Mode Conventions::  Coding conventions for keymaps, etc.
+* Example Major Modes::     Text mode and Lisp modes.
+* Auto Major Mode::         How Emacs chooses the major mode automatically.
+* Mode Help::               Finding out how to use a mode.
+* Derived Modes::           Defining a new major mode based on another major 
+                              mode.
+@end menu
+
+@node Major Mode Conventions
+@c @subsection Major Mode Conventions
+@subsection メジャーモードの慣習
+
+@c   The code for existing major modes follows various coding conventions,
+@c including conventions for local keymap and syntax table initialization,
+@c global names, and hooks.  Please follow these conventions when you
+@c define a new major mode:
+既存のメジャーモードのコードでは、
+ローカルキーマップや構文テーブルの初期化、グローバルな名前、フックなどの
+さまざまなコーディング上の慣習を踏襲しています。
+読者が新たなメジャーモードを定義するときには、
+これらの慣習に従ってください。
+
+@itemize @bullet
+@item
+@c Define a command whose name ends in @samp{-mode}, with no arguments,
+@c that switches to the new mode in the current buffer.  This command
+@c should set up the keymap, syntax table, and buffer-local variables in an
+@c existing buffer, without changing the buffer's contents.
+カレントバッファにおいて新しいモードに切り替える
+引数なしのコマンドを定義し、その名前は@samp{-mode}で終ること。
+このコマンドが、キーマップ、構文テーブル、
+既存バッファにバッファローカルな変数を設定するが、
+バッファの内容は変更しないこと。
+
+@item
+@c Write a documentation string for this command that describes the
+@c special commands available in this mode.  @kbd{C-h m}
+@c (@code{describe-mode}) in your mode will display this string.
+このモードで使える特別なコマンドに関して記述した
+このコマンドに対する説明文字列を書く。
+読者のモードで@kbd{C-h m}（@code{describe-mode}）を使うと、
+この説明文字列を表示する。
+
+@c The documentation string may include the special documentation
+@c substrings, @samp{\[@var{command}]}, @samp{\@{@var{keymap}@}}, and
+@c @samp{\<@var{keymap}>}, that enable the documentation to adapt
+@c automatically to the user's own key bindings.  @xref{Keys in
+@c Documentation}.
+説明文字列では、@samp{\[@var{command}]}、@samp{\@{@var{keymap}@}}、
+@samp{\<@var{keymap}>}の特別な書き方を使え、
+これらはユーザー独自のキーバインディングに自動的に置き換えられる。
+@pxref{Keys in Documentation}。
+
+@item
+@c The major mode command should start by calling
+@c @code{kill-all-local-variables}.  This is what gets rid of the
+@c buffer-local variables of the major mode previously in effect.
+メジャーモードコマンドは、
+@code{kill-all-local-variables}の呼び出しから始めること。
+それ以前に有効であったメジャーモードのバッファローカルな変数に
+対処するためである。
+
+@item
+@c The major mode command should set the variable @code{major-mode} to the
+@c major mode command symbol.  This is how @code{describe-mode} discovers
+@c which documentation to print.
+メジャーモードコマンドは、
+変数@code{major-mode}にメジャーモードコマンドのシンボルを設定すること。
+これにより、@code{describe-mode}が表示すべき説明文を捜し出す。
+
+@item
+@c The major mode command should set the variable @code{mode-name} to the
+@c ``pretty'' name of the mode, as a string.  This string appears in the
+@c mode line.
+メジャーモードコマンドは、
+変数@code{mode-name}にモードの『愛称』を文字列として設定すること。
+この文字列がモード行に現れる。
+
+@item
+@c @cindex functions in modes
+@cindex モードの関数群
+@cindex 関数群、モード
+@c Since all global names are in the same name space, all the global
+@c variables, constants, and functions that are part of the mode should
+@c have names that start with the major mode name (or with an abbreviation
+@c of it if the name is long).  @xref{Coding Conventions}.
+すべてのグローバルな名前は同一の名前空間にあるので、
+モードの構成要素であるすべてのグローバル変数、定数、関数は、
+メジャーモード名（名前が長ければ、その省略）で始まること。
+@pxref{Coding Conventions}。
+
+@item
+@c @cindex keymaps in modes
+@cindex モードのキーマップ
+@cindex キーマップ、モード
+@c The major mode should usually have its own keymap, which is used as the
+@c local keymap in all buffers in that mode.  The major mode command should
+@c call @code{use-local-map} to install this local map.  @xref{Active
+@c Keymaps}, for more information.
+メジャーモードには、通常、それ独自のキーマップがあるはずで、
+当該モードのすべてのバッファでローカルキーマップとして使われる。
+メジャーモードコマンドは、@code{use-local-map}を呼び出して、
+そのローカルキーマップを設定すること。
+詳しくは、@pxref{Active Keymaps}。
+
+@c This keymap should be stored permanently in a global variable named
+@c @code{@var{modename}-mode-map}.  Normally the library that defines the
+@c mode sets this variable.
+このキーマップは、@code{@var{modename}-mode-map}という名前の
+グローバル変数に恒久的に保持すること。
+通常、モードを定義するライブラリでこの変数に設定する。
+
+@c @xref{Tips for Defining}, for advice about how to write the code to set
+@c up the mode's keymap variable.
+モードのキーマップ変数に設定するコードの書き方に関する助言については
+@pxref{Tips for Defining}。
+
+@item
+@c The key sequences bound in a major mode keymap should usually start with
+@c @kbd{C-c}, followed by a control character, a digit, or @kbd{@{},
+@c @kbd{@}}, @kbd{<}, @kbd{>}, @kbd{:} or @kbd{;}.  The other punctuation
+@c characters are reserved for minor modes, and ordinary letters are
+@c reserved for users.
+メジャーモードのキーマップでバインドされたキー列は、
+通常、@kbd{C-c}で始まり、コントロール文字、数字文字、@kbd{@{}、
+@kbd{@}}、@kbd{<}、@kbd{>}、@kbd{:}、@kbd{;}のいずれかが続くようにする。
+その他の句読点文字はマイナモード向けに予約されている。
+また、通常の英文字はユーザー向けに予約されている。
+
+@c It is reasonable for a major mode to rebind a key sequence with a
+@c standard meaning, if it implements a command that does ``the same job''
+@c in a way that fits the major mode better.  For example, a major mode for
+@c editing a programming language might redefine @kbd{C-M-a} to ``move to
+@c the beginning of a function'' in a way that works better for that
+@c language.
+メジャーモードにおいては、そのモードによく適合した形で
+『同じ仕事』を行うコマンドであるならば、
+標準的な意味を持つキー列に当該コマンドを再バインドしても合理的である。
+たとえば、プログラム言語編集用のメジャーモードでは、
+@kbd{C-M-a}を当該言語にうまく適合した方法で
+『関数の先頭へ移動する』コマンドに再定義する。
+
+@c Major modes such as Dired or Rmail that do not allow self-insertion of
+@c text can reasonably redefine letters and other printing characters as
+@c editing commands.  Dired and Rmail both do this.
+テキスト挿入を許さないdiredやrmailなどのメジャーモードでは、
+英文字や他の印字文字を編集コマンドとして再定義するのも合理的である。
+diredもrmailもこうしている。
+
+@item
+@c @cindex syntax tables in modes
+@cindex モードの構文テーブル
+@cindex 構文テーブル、モード
+@c The mode may have its own syntax table or may share one with other
+@c related modes.  If it has its own syntax table, it should store this in
+@c a variable named @code{@var{modename}-mode-syntax-table}.  @xref{Syntax
+@c Tables}.
+モードでは、独自の構文テーブルを用意するか、
+他の関連するモードと構文テーブルを共有する。
+独自の構文テーブルを用意する場合には、
+@code{@var{modename}-mode-syntax-table}という名前の変数に保持すること。
+@pxref{Syntax Tables}。
+
+@item
+@c If the mode handles a language that has a syntax for comments, it should
+@c set the variables that define the comment syntax.  @xref{Options for
+@c Comments,, Options Controlling Comments, emacs, The GNU Emacs Manual}.
+コメントを書ける言語を扱うモードでは、
+コメントの構文を定義する変数に設定すること。
+@pxref{Options for Comments,, コメントを制御するオプション, emacs,
+GNU Emacs マニュアル}。
+
+@item
+@c @cindex abbrev tables in modes
+@cindex モードの略語表
+@cindex 略語表、モード
+@c The mode may have its own abbrev table or may share one with other
+@c related modes.  If it has its own abbrev table, it should store this in
+@c a variable named @code{@var{modename}-mode-abbrev-table}.  @xref{Abbrev
+@c Tables}.
+モードでは、独自の略語表を用意するか、
+他の関連するモードと略語表を共有する。
+独自の略語表を用意する場合には、
+@code{@var{modename}-mode-abbrev-table}という名前の変数に保持すること。
+@pxref{Abbrev Tables}。
+
+@item
+@c The mode should specify how to do highlighting for Font Lock mode, by
+@c setting up a buffer-local value for the variable
+@c @code{font-lock-defaults} (@pxref{Font Lock Mode}).
+モードでは、
+バッファローカルな変数@code{font-lock-defaults}
+（@pxref{Font Lock Mode}）に設定して、
+フォントロック（font-lock）モードに対して強調表示の方法を指定すること。
+
+@item
+@c The mode should specify how Imenu should find the definitions or
+@c sections of a buffer, by setting up a buffer-local value for the
+@c variable @code{imenu-generic-expression} or
+@c @code{imenu-create-index-function} (@pxref{Imenu}).
+モードでは、
+バッファローカルな変数@code{imenu-generic-expression}か
+@code{imenu-create-index-function}（@pxref{Imenu}）に設定して、
+iメニューがどのようにバッファ内の定義や節を探すべきかを指定すること。
+
+@item
+@c Use @code{defvar} or @code{defcustom} to set mode-related variables, so
+@c that they are not reinitialized if they already have a value.  (Such
+@c reinitialization could discard customizations made by the user.)
+モードに関連する変数の設定には@code{defvar}か@code{defcustom}を使い、
+それらに値が設定されている場合には再初期化しないようにする。
+（再初期化するとユーザーのカスタマイズを廃棄してしまう。）
+
+@item
+@c @cindex buffer-local variables in modes
+@cindex モードのバッファローカルな変数
+@cindex バッファローカルな変数、モード
+@c To make a buffer-local binding for an Emacs customization variable, use
+@c @code{make-local-variable} in the major mode command, not
+@c @code{make-variable-buffer-local}.  The latter function would make the
+@c variable local to every buffer in which it is subsequently set, which
+@c would affect buffers that do not use this mode.  It is undesirable for a
+@c mode to have such global effects.  @xref{Buffer-Local Variables}.
+Emacsのカスタマイズ変数に対するバッファローカルな束縛は、
+メジャーモードコマンドにおいて
+@code{make-variable-buffer-local}ではなく
+@code{make-local-variable}で行う。
+前者の関数は、すべてのバッファにおいてそれ以降に設定される当該変数を
+バッファローカルにしてしまい、
+このモードを使わないバッファにも影響する。
+モードにそのような大局的な効果があるのは望ましくない。
+@pxref{Buffer-Local Variables}。
+
+@c It's OK to use @code{make-variable-buffer-local}, if you wish, for a
+@c variable used only within a single Lisp package.
+単一のLispパッケージ内のみにおいて使われる変数に対しては、
+必要ならば、@code{make-variable-buffer-local}を使ってもよい。
+
+@item
+@c @cindex mode hook
+@c @cindex major mode hook
+@cindex モードフック
+@cindex メジャーモードフック
+@c Each major mode should have a @dfn{mode hook} named
+@c @code{@var{modename}-mode-hook}.  The major mode command should run that
+@c hook, with @code{run-hooks}, as the very last thing it
+@c does.  @xref{Hooks}.
+各メジャーモードには、
+@code{@var{modename}-mode-hook}という名前の
+@dfn{モードフック}（mode hook）があること。
+モードコマンドは、最後に@code{run-hooks}を用いてフックを実行すること。
+@pxref{Hooks}。
+
+@item
+@c The major mode command may also run the hooks of some more basic modes.
+@c For example, @code{indented-text-mode} runs @code{text-mode-hook} as
+@c well as @code{indented-text-mode-hook}.  It may run these other hooks
+@c immediately before the mode's own hook (that is, after everything else),
+@c or it may run them earlier.
+メジャーモードコマンドは、より基本的なモードのフックを実行してもよい。
+たとえば、@code{indented-text-mode}は、
+@code{indented-text-mode-hook}に加えて@code{text-mode-hook}も実行する。
+自前のフックを実行する直前（つまり設定が終ったあと）
+にこれらの他のフックを実行するか、より初期の段階で実行してもよい。
+
+@item
+@c If something special should be done if the user switches a buffer from
+@c this mode to any other major mode, this mode can set up a buffer-local
+@c value for @code{change-major-mode-hook} (@pxref{Creating Buffer-Local}).
+ユーザーがバッファをこのモードから別のメジャーモードに切り替えたときに
+特別なことを行う必要がある場合、
+このモードでは、@code{change-major-mode-hook}（@pxref{Creating Buffer-Local}）
+のバッファローカルな値を設定しておく。
+
+@item
+@c If this mode is appropriate only for specially-prepared text, then the
+@c major mode command symbol should have a property named @code{mode-class}
+@c with value @code{special}, put on as follows:
+このモードが特別に準備したテキストに対してのみ有効な場合には、
+メジャーモードコマンドのシンボルには、
+つぎのように属性@code{mode-class}に値@code{special}を設定しておくこと。
+
+@c @cindex @code{mode-class} property
+@cindex @code{mode-class}属性
+@cindex 属性@code{mode-class}
+@cindex @code{special}
+@example
+(put 'funny-mode 'mode-class 'special)
+@end example
+
+@noindent
+@c This tells Emacs that new buffers created while the current buffer has
+@c Funny mode should not inherit Funny mode.  Modes such as Dired, Rmail,
+@c and Buffer List use this feature.
+これは、カレントバッファがfunnyモードのときに新たなバッファを
+作成しても、新しいバッファではfunnyモードを継承しないようにEmacsに指示する。
+dired、rmail、バッファ一覧などのモードではこの機能を使っている。
+
+@item
+@c If you want to make the new mode the default for files with certain
+@c recognizable names, add an element to @code{auto-mode-alist} to select
+@c the mode for those file names.  If you define the mode command to
+@c autoload, you should add this element in the same file that calls
+@c @code{autoload}.  Otherwise, it is sufficient to add the element in the
+@c file that contains the mode definition.  @xref{Auto Major Mode}.
+新しいモードを識別可能な特定の名前のファイルに対するデフォルトにしたい
+場合には、そのような名前のファイルに対して当該モードを選択するための
+要素を@code{auto-mode-alist}に追加する。
+モードコマンドを自動ロードと定義する場合、
+@code{autoload}を呼び出している同じファイルに
+そのような要素を追加しておくこと。
+そうでなければ、モード定義を収めたファイルに当該要素を入れるだけで十分である。
+@pxref{Auto Major Mode}。
+
+@item
+@c @cindex @file{.emacs} customization
+@cindex @file{.emacs}のカスタマイズ
+@cindex カスタマイズ、@file{.emacs}
+@c In the documentation, you should provide a sample @code{autoload} form
+@c and an example of how to add to @code{auto-mode-alist}, that users can
+@c include in their @file{.emacs} files.
+説明文には、ユーザーが個人のファイル@file{.emacs}に書けるように、
+@code{autoload}の例、
+@code{auto-mode-alist}への追加方法の例を記載すること。
+
+@item
+@c @cindex mode loading
+@cindex モードのロード
+@cindex ロード、モード
+@c The top-level forms in the file defining the mode should be written so
+@c that they may be evaluated more than once without adverse consequences.
+@c Even if you never load the file more than once, someone else will.
+モードを定義するファイルのトップレベルのフォームは、
+それらを複数回評価しても不利な結果にならないように書いておくこと。
+読者が当該ファイルを複数回ロードしなくても、誰かがやるかもしれない。
+@end itemize
+
+@node Example Major Modes
+@c @subsection Major Mode Examples
+@subsection メジャーモードの例
+
+@c   Text mode is perhaps the simplest mode besides Fundamental mode.
+@c Here are excerpts from  @file{text-mode.el} that illustrate many of
+@c the conventions listed above:
+基本（fundamental）モードを除くと、
+テキスト（text）モードはもっとも単純なモードです。
+上に述べた慣習の例示として、@file{text-mode.el}の抜粋をあげておきます。
+
+@smallexample
+@group
+@c ;; @r{Create mode-specific tables.}
+;; @r{モード固有の構文テーブルを作る}
+(defvar text-mode-syntax-table nil 
+  "Syntax table used while in text mode.")
+@end group
+
+@group
+(if text-mode-syntax-table
+@c     ()              ; @r{Do not change the table if it is already set up.}
+    ()              ; @r{構文テーブルが既存ならば変更しない}
+  (setq text-mode-syntax-table (make-syntax-table))
+  (modify-syntax-entry ?\" ".   " text-mode-syntax-table)
+  (modify-syntax-entry ?\\ ".   " text-mode-syntax-table)
+  (modify-syntax-entry ?' "w   " text-mode-syntax-table))
+@end group
+
+@group
+(defvar text-mode-abbrev-table nil
+  "Abbrev table used while in text mode.")
+(define-abbrev-table 'text-mode-abbrev-table ())
+@end group
+
+@group
+@c (defvar text-mode-map nil)   ; @r{Create a mode-specific keymap.}
+(defvar text-mode-map nil)   ; @r{モード固有のキーマップを作る}
+
+(if text-mode-map
+@c     ()              ; @r{Do not change the keymap if it is already set up.}
+    ()              ; @r{キーマップが既存ならば変更しない}
+  (setq text-mode-map (make-sparse-keymap))
+  (define-key text-mode-map "\t" 'indent-relative)
+  (define-key text-mode-map "\es" 'center-line)
+  (define-key text-mode-map "\eS" 'center-paragraph))
+@end group
+@end smallexample
+
+@c   Here is the complete major mode function definition for Text mode:
+つぎは、テキスト（text）モードのメジャーモード関数の完全な定義です。
+
+@smallexample
+@group
+(defun text-mode ()
+  "Major mode for editing text intended for humans to read@enddots{}
+ Special commands: \\@{text-mode-map@}
+@end group
+@group
+Turning on text-mode runs the hook `text-mode-hook'."
+  (interactive)
+  (kill-all-local-variables)
+  (use-local-map text-mode-map)
+@end group
+@group
+  (setq local-abbrev-table text-mode-abbrev-table)
+  (set-syntax-table text-mode-syntax-table)
+@end group
+@group
+  (make-local-variable 'paragraph-start)
+  (setq paragraph-start (concat "[ \t]*$\\|" page-delimiter))
+  (make-local-variable 'paragraph-separate)
+  (setq paragraph-separate paragraph-start)
+@end group
+@group
+  (setq mode-name "Text")
+  (setq major-mode 'text-mode)
+@c   (run-hooks 'text-mode-hook))      ; @r{Finally, this permits the user to}
+@c                                     ;   @r{customize the mode with a hook.}
+  (run-hooks 'text-mode-hook))      ; @r{最後に、フックによるモードの}
+                                    ;   @r{カスタマイズをユーザーに許す}
+@end group
+@end smallexample
+
+@cindex @file{lisp-mode.el}
+@c   The three Lisp modes (Lisp mode, Emacs Lisp mode, and Lisp
+@c Interaction mode) have more features than Text mode and the code is
+@c correspondingly more complicated.  Here are excerpts from
+@c @file{lisp-mode.el} that illustrate how these modes are written.
+3つのlispモード（lispモード、emacs-lispモード、lisp対話モード）には、
+テキスト（text）モードより多くの機能があり、
+それに応じてコードもより複雑です。
+これらのモードの書き方を例示する
+@file{lisp-mode.el}からの抜粋をあげておきます。
+
+@c @cindex syntax table example
+@cindex 構文テーブルの例
+@cindex 例、構文テーブル
+@smallexample
+@group
+@c ;; @r{Create mode-specific table variables.}
+;; @r{モード固有の構文テーブルを作成する}
+(defvar lisp-mode-syntax-table nil "")  
+(defvar emacs-lisp-mode-syntax-table nil "")
+(defvar lisp-mode-abbrev-table nil "")
+@end group
+
+@group
+@c (if (not emacs-lisp-mode-syntax-table) ; @r{Do not change the table}
+@c                                        ;   @r{if it is already set.}
+(if (not emacs-lisp-mode-syntax-table) ; @r{構文テーブルが既存ならば}
+                                       ;   @r{変更しない}
+    (let ((i 0))
+      (setq emacs-lisp-mode-syntax-table (make-syntax-table))
+@end group
+
+@group
+@c       ;; @r{Set syntax of chars up to 0 to class of chars that are}
+@c       ;;   @r{part of symbol names but not words.}
+@c       ;;   @r{(The number 0 is @code{48} in the @sc{ASCII} character set.)}
+      ;; @r{0までの文字に、単語構成文字ではないが}
+      ;; @r{シンボル名構成文字であるクラスを設定する}
+      ;; @r{(文字0は、@sc{ASCII}文字集合では@code{48})}
+      (while (< i ?0) 
+        (modify-syntax-entry i "_   " emacs-lisp-mode-syntax-table)
+        (setq i (1+ i)))
+      @dots{}
+@end group
+@group
+@c       ;; @r{Set the syntax for other characters.}
+      ;; @r{他の文字の構文を設定する}
+      (modify-syntax-entry ?  "    " emacs-lisp-mode-syntax-table)
+      (modify-syntax-entry ?\t "    " emacs-lisp-mode-syntax-table)
+      @dots{}
+@end group
+@group
+      (modify-syntax-entry ?\( "()  " emacs-lisp-mode-syntax-table)
+      (modify-syntax-entry ?\) ")(  " emacs-lisp-mode-syntax-table)
+      @dots{}))
+@c ;; @r{Create an abbrev table for lisp-mode.}
+;; @r{lispモード向けの略語表を作る}
+(define-abbrev-table 'lisp-mode-abbrev-table ())
+@end group
+@end smallexample
+
+@c   Much code is shared among the three Lisp modes.  The following
+@c function sets various variables; it is called by each of the major Lisp
+@c mode functions:
+3つのlispモードは多くのコードを共有しています。
+つぎの関数はさまざまな変数に設定します。
+lispモードの各メジャーモード関数が呼び出します。
+
+@smallexample
+@group
+(defun lisp-mode-variables (lisp-syntax)
+  (cond (lisp-syntax
+	  (set-syntax-table lisp-mode-syntax-table)))
+  (setq local-abbrev-table lisp-mode-abbrev-table)
+  @dots{}
+@end group
+@end smallexample
+
+@c   Functions such as @code{forward-paragraph} use the value of the
+@c @code{paragraph-start} variable.  Since Lisp code is different from
+@c ordinary text, the @code{paragraph-start} variable needs to be set
+@c specially to handle Lisp.  Also, comments are indented in a special
+@c fashion in Lisp and the Lisp modes need their own mode-specific
+@c @code{comment-indent-function}.  The code to set these variables is the
+@c rest of @code{lisp-mode-variables}.
+@code{forward-paragraph}などの関数は、
+変数@code{paragraph-start}の値を使います。
+Lispのコードは普通のテキストとは異なるので、
+Lispを扱えるように変数@code{paragraph-start}を特別に設定する必要があります。
+また、Lispではコメントの字下げは特殊な形なので、
+各lispモードには独自のモード固有の@code{comment-indent-function}が必要です。
+これらの変数に設定するコードが、
+@code{lisp-mode-variables}の残りの部分です。
+
+@smallexample
+@group
+  (make-local-variable 'paragraph-start)
+  (setq paragraph-start (concat page-delimiter "\\|$" ))
+  (make-local-variable 'paragraph-separate)
+  (setq paragraph-separate paragraph-start)
+  @dots{}
+@end group
+@group
+  (make-local-variable 'comment-indent-function)
+  (setq comment-indent-function 'lisp-comment-indent))
+@end group
+@end smallexample
+
+@c   Each of the different Lisp modes has a slightly different keymap.  For
+@c example, Lisp mode binds @kbd{C-c C-z} to @code{run-lisp}, but the other
+@c Lisp modes do not.  However, all Lisp modes have some commands in
+@c common.  The following code sets up the common commands:
+各lispモードでは、キーマップが多少異なります。
+たとえば、lispモードでは@kbd{C-c C-z}を@code{run-lisp}にバインドしますが、
+他のlispモードではそうしません。
+つぎのコードは、共通するコマンドを設定します。
+
+@smallexample
+@group
+(defvar shared-lisp-mode-map ()
+  "Keymap for commands shared by all sorts of Lisp modes.")
+
+(if shared-lisp-mode-map
+    ()
+   (setq shared-lisp-mode-map (make-sparse-keymap))
+   (define-key shared-lisp-mode-map "\e\C-q" 'indent-sexp)
+   (define-key shared-lisp-mode-map "\177"
+               'backward-delete-char-untabify))
+@end group
+@end smallexample
+
+@noindent
+@c And here is the code to set up the keymap for Lisp mode:
+つぎはlispモード向けのキーマップを設定するコードです。
+
+@smallexample
+@group
+(defvar lisp-mode-map ()
+  "Keymap for ordinary Lisp mode@enddots{}")
+
+(if lisp-mode-map
+    ()
+  (setq lisp-mode-map (make-sparse-keymap))
+  (set-keymap-parent lisp-mode-map shared-lisp-mode-map)
+  (define-key lisp-mode-map "\e\C-x" 'lisp-eval-defun)
+  (define-key lisp-mode-map "\C-c\C-z" 'run-lisp))
+@end group
+@end smallexample
+
+@c   Finally, here is the complete major mode function definition for
+@c Emacs Lisp mode.  
+最後に、emacs-lispモードのメジャーモード関数の完全な定義を示します。
+
+@smallexample
+@group
+(defun lisp-mode ()
+  "Major mode for editing Lisp code for Lisps other than GNU Emacs Lisp.
+Commands:
+Delete converts tabs to spaces as it moves back.
+Blank lines separate paragraphs.  Semicolons start comments.
+\\@{lisp-mode-map@}
+Note that `run-lisp' may be used either to start an inferior Lisp job
+or to switch back to an existing one.
+@end group
+
+@group
+Entry to this mode calls the value of `lisp-mode-hook'
+if that value is non-nil."
+  (interactive)
+  (kill-all-local-variables)
+@end group
+@group
+@c   (use-local-map lisp-mode-map)          ; @r{Select the mode's keymap.}
+@c   (setq major-mode 'lisp-mode)           ; @r{This is how @code{describe-mode}}
+@c                                          ;   @r{finds out what to describe.}
+@c   (setq mode-name "Lisp")                ; @r{This goes into the mode line.}
+@c   (lisp-mode-variables t)                ; @r{This defines various variables.}
+  (use-local-map lisp-mode-map)          ; @r{モードのキーマップを選択する}
+  (setq major-mode 'lisp-mode)           ; @r{これにより@code{describe-mode}は}
+                                         ; @r{説明文を探し出せる}
+  (setq mode-name "Lisp")                ; @r{モード行に表示される}
+  (lisp-mode-variables t)                ; @r{さまざまな変数を定義する}
+@end group
+@group
+  (setq imenu-case-fold-search t)
+  (set-syntax-table lisp-mode-syntax-table)
+@c   (run-hooks 'lisp-mode-hook))           ; @r{This permits the user to use a}
+@c                                          ;   @r{hook to customize the mode.}
+  (run-hooks 'lisp-mode-hook))           ; @r{フックによるモードの}
+                                         ; @r{カスタマイズをユーザーに許す}
+@end group
+@end smallexample
+
+@node Auto Major Mode
+@c @subsection How Emacs Chooses a Major Mode
+@subsection メジャーモードの選択方法
+
+@c   Based on information in the file name or in the file itself, Emacs
+@c automatically selects a major mode for the new buffer when a file is
+@c visited.  It also processes local variables specified in the file text.
+Emacsは、ファイル名やファイル自体の情報をもとに、
+当該ファイルを訪問するときの新しいバッファに対する
+メジャーモードを自動的に選択します。
+また、ファイル内のテキストで指定されたローカル変数も処理します。
+
+@c @deffn Command fundamental-mode
+@deffn コマンド fundamental-mode
+@c   Fundamental mode is a major mode that is not specialized for anything
+@c in particular.  Other major modes are defined in effect by comparison
+@c with this one---their definitions say what to change, starting from
+@c Fundamental mode.  The @code{fundamental-mode} function does @emph{not}
+@c run any hooks; you're not supposed to customize it.  (If you want Emacs
+@c to behave differently in Fundamental mode, change the @emph{global}
+@c state of Emacs.)
+基本（fundamental）モードは、特化してないメジャーモードである。
+他のメジャーモードは、実質的には、このモードとの対比で定義されている。
+つまり、基本（fundamental）モードから始めて、
+それらのメジャーモードではなにを変更するかを定義している。
+関数@code{fundamental-mode}はフックを実行@emph{しない}ため、
+読者はカスタマイズできない。
+（Emacsの基本（fundamental）モードのふるまいを変えたければ、
+Emacsの@emph{大局的な}状態を変える必要がある。）
+@end deffn
+
+@c @deffn Command normal-mode &optional find-file
+@deffn コマンド normal-mode &optional find-file
+@c This function establishes the proper major mode and buffer-local variable
+@c bindings for the current buffer.  First it calls @code{set-auto-mode},
+@c then it runs @code{hack-local-variables} to parse, and bind or
+@c evaluate as appropriate, the file's local variables.
+この関数は、カレントバッファに対して
+適切なメジャーモードとバッファローカルな変数を確立する。
+この関数はまず@code{set-auto-mode}を呼び出し、
+続いて、ファイルのローカル変数を必要に応じて解析、束縛、評価するために
+@code{hack-local-variables}を実行する。
+
+@c If the @var{find-file} argument to @code{normal-mode} is non-@code{nil},
+@c @code{normal-mode} assumes that the @code{find-file} function is calling
+@c it.  In this case, it may process a local variables list at the end of
+@c the file and in the @samp{-*-} line.  The variable
+@c @code{enable-local-variables} controls whether to do so.  @xref{File
+@c variables, , Local Variables in Files, emacs, The GNU Emacs Manual}, for
+@c the syntax of the local variables section of a file.
+@code{normal-mode}に対する引数@var{find-file}が@code{nil}以外であると、
+@code{normal-mode}は@code{find-file}から呼び出されたと仮定する。
+その場合、ファイルの末尾や@samp{-*-}の形式の行にある
+ローカル変数リストを処理することもある。
+変数@code{enable-local-variables}は、この処理を行うかどうかを制御する。
+ファイル内でのローカル変数リストの構文については、
+@xref{File Variables,, ファイルにローカルな変数, emacs, GNU Emacs マニュアル}。
+
+@c If you run @code{normal-mode} interactively, the argument
+@c @var{find-file} is normally @code{nil}.  In this case,
+@c @code{normal-mode} unconditionally processes any local variables list.
+読者が対話的に@code{normal-mode}を実行すると
+引数@var{find-file}は通常@code{nil}である。
+その場合、@code{normal-mode}は、ローカル変数リストを無条件に処理する。
+
+@c @cindex file mode specification error
+@cindex ファイルモード指定のエラー
+@c @code{normal-mode} uses @code{condition-case} around the call to the
+@c major mode function, so errors are caught and reported as a @samp{File
+@c mode specification error},  followed by the original error message.
+@code{normal-mode}は、メジャーモード関数を呼び出す周りでは
+@code{condition-case}を使うので、エラーを補足して
+@samp{File mode specification error}にもとのエラーメッセージを続けて
+エラーを報告する。
+@end deffn
+
+@defopt enable-local-variables
+@c This variable controls processing of local variables lists in files
+@c being visited.  A value of @code{t} means process the local variables
+@c lists unconditionally; @code{nil} means ignore them; anything else means
+@c ask the user what to do for each file.  The default value is @code{t}.
+この変数は、訪問したファイル内のローカル変数リストを処理するかどうかを
+制御する。
+値@code{t}は、ローカル変数リストを無条件に処理することを意味する。
+@code{nil}は、それらを無視することを意味する。
+それ以外の値であると、各ファイルごとにユーザーに問い合わせる。
+デフォルト値は@code{t}である。
+@end defopt
+
+@defvar ignored-local-variables
+@c This variable holds a list of variables that should not be
+@c set by a file's local variables list.  Any value specified
+@c for one of these variables is ignored.
+この変数は、ファイルのローカル変数リストで設定してはならない
+変数のリストを保持する。
+それらの変数に対して指定した値は無視される。
+@end defvar
+
+@c In addition to this list, any variable whose name has a non-@code{nil}
+@c @code{risky-local-variable} property is also ignored.
+このリストに加えて、
+属性@code{risky-local-variable}が@code{nil}以外の値である変数も無視されます。
+
+@defopt enable-local-eval
+@c This variable controls processing of @samp{Eval:} in local variables
+@c lists in files being visited.  A value of @code{t} means process them
+@c unconditionally; @code{nil} means ignore them; anything else means ask
+@c the user what to do for each file.  The default value is @code{maybe}.
+この変数は、訪問したファイル内のローカル変数リストの@samp{Eval:}を
+処理するかどうかを制御する。
+値@code{t}は、それらを無条件に処理することを意味する。
+@code{nil}は、それらを無視することを意味する。
+それ以外の値であると、各ファイルごとにユーザーに問い合わせる。
+デフォルト値は@code{maybe}である。
+@end defopt
+
+@defun set-auto-mode
+@c @cindex visited file mode
+@cindex 訪問したファイルのモード
+@cindex モード、訪問したファイル
+@c   This function selects the major mode that is appropriate for the
+@c current buffer.  It may base its decision on the value of the @w{@samp{-*-}}
+@c line, on the visited file name (using @code{auto-mode-alist}), on the
+@c @w{@samp{#!}} line (using @code{interpreter-mode-alist}), or on the
+@c file's local variables list.  However, this function does not look for
+@c the @samp{mode:} local variable near the end of a file; the
+@c @code{hack-local-variables} function does that.  @xref{Choosing Modes, ,
+@c How Major Modes are Chosen, emacs, The GNU Emacs Manual}.
+この関数は、カレントバッファに対して適切なメジャーモードを選択する。
+@w{@samp{-*-}}行の値、
+（@code{auto-mode-alist}を使って）訪問したファイルの名前、
+（@code{interpreter-mode-alist}を使って）@w{@samp{#!}}行、
+ファイルのローカル変数リストをもとに決定する。
+しかし、この関数はファイルの末尾付近にある
+ローカル変数@samp{mode:}は調べないが、
+関数@code{hack-local-variables}は調べる。
+@xref{Choosing Modes,, メジャーモードの選択方式, emacs,
+GNU Emacs マニュアル}。
+@end defun
+
+@defopt default-major-mode 
+@c This variable holds the default major mode for new buffers.  The
+@c standard value is @code{fundamental-mode}.
+この変数は、新たなバッファに対するデフォルトのメジャーモードを保持する。
+標準値は@code{fundamental-mode}である。
+
+@c If the value of @code{default-major-mode} is @code{nil}, Emacs uses
+@c the (previously) current buffer's major mode for the major mode of a new
+@c buffer.  However, if that major mode symbol has a @code{mode-class}
+@c property with value @code{special}, then it is not used for new buffers;
+@c Fundamental mode is used instead.  The modes that have this property are
+@c those such as Dired and Rmail that are useful only with text that has
+@c been specially prepared.
+@code{default-major-mode}の値が@code{nil}であると、
+Emacsは（以前の）カレントバッファのメジャーモードを
+新たなバッファのメジャーモードとする。
+しかし、メジャーモードコマンドのシンボルの属性@code{mode-class}の
+値が@code{special}であると、新たなバッファのメジャーモードにはせず、
+かわりに基本（fundamental）モードを使う。
+この属性を持つモードは、
+特別に準備したテキストに対してのみ有用であるdiredやrmailなどである。
+@end defopt
+
+@defun set-buffer-major-mode buffer
+@c This function sets the major mode of @var{buffer} to the value of
+@c @code{default-major-mode}.  If that variable is @code{nil}, it uses
+@c the current buffer's major mode (if that is suitable).
+この関数はバッファ@var{buffer}のメジャーモードを
+@code{default-major-mode}の値とする。
+この変数が@code{nil}であると、
+（適切ならば）カレントバッファのメジャーモードを使う。
+
+@c The low-level primitives for creating buffers do not use this function,
+@c but medium-level commands such as @code{switch-to-buffer} and
+@c @code{find-file-noselect} use it whenever they create buffers.
+バッファを作成する低レベルの基本関数ではこの関数を使わないが、
+@code{switch-to-buffer}や@code{find-file-noselect}などの
+中レベルのコマンドではバッファを作成するときにこのコマンドを使う。
+@end defun
+
+@defvar initial-major-mode
+@cindex @samp{*scratch*}
+@c The value of this variable determines the major mode of the initial
+@c @samp{*scratch*} buffer.  The value should be a symbol that is a major
+@c mode command.  The default value is @code{lisp-interaction-mode}.
+この変数の値は、最初のバッファ@samp{*scratch*}のメジャーモードを決定する。
+値は、メジャーモードコマンドのシンボルであること。
+デフォルト値は、@code{lisp-interaction-mode}である。
+@end defvar
+
+@defvar auto-mode-alist
+@c This variable contains an association list of file name patterns
+@c (regular expressions; @pxref{Regular Expressions}) and corresponding
+@c major mode commands.  Usually, the file name patterns test for suffixes,
+@c such as @samp{.el} and @samp{.c}, but this need not be the case.  An
+@c ordinary element of the alist looks like @code{(@var{regexp} .
+@c @var{mode-function})}.
+この変数は、ファイル名のパターン（正規表現、@pxref{Regular Expressions}）と
+対応するメジャーモードの連想リストを保持する。
+通常、ファイル名パターンでは@samp{.el}や@samp{.c}などの接尾辞を調べるが、
+そうでなくてもよい。
+連想リストの通常の要素は
+@code{(@var{regexp} . @var{mode-function})}の形である。
+
+@c For example,
+たとえばつぎのとおり。
+
+@smallexample
+@group
+(("\\`/tmp/fol/" . text-mode)
+ ("\\.texinfo\\'" . texinfo-mode)
+ ("\\.texi\\'" . texinfo-mode)
+@end group
+@group
+ ("\\.el\\'" . emacs-lisp-mode)
+ ("\\.c\\'" . c-mode) 
+ ("\\.h\\'" . c-mode)
+ @dots{})
+@end group
+@end smallexample
+
+@c When you visit a file whose expanded file name (@pxref{File Name
+@c Expansion}) matches a @var{regexp}, @code{set-auto-mode} calls the
+@c corresponding @var{mode-function}.  This feature enables Emacs to select
+@c the proper major mode for most files.
+展開したファイル名（@pxref{File Name Expansion}）が@var{regexp}に一致する
+ファイルを訪問すると、
+@code{set-auto-mode}は対応する@var{mode-function}を呼び出す。
+この機能により、Emacsはほとんどのファイルに対して
+適切なメジャーモードを選択する。
+
+@c If an element of @code{auto-mode-alist} has the form @code{(@var{regexp}
+@c @var{function} t)}, then after calling @var{function}, Emacs searches
+@c @code{auto-mode-alist} again for a match against the portion of the file
+@c name that did not match before.  This feature is useful for
+@c uncompression packages: an entry of the form @code{("\\.gz\\'"
+@c @var{function} t)} can uncompress the file and then put the uncompressed
+@c file in the proper mode according to the name sans @samp{.gz}.
+@code{auto-mode-alist}の要素が@code{(@var{regexp} @var{function} t)}の
+形であると、@var{function}を呼び出したあとで、
+Emacsはファイル名のそれまで一致しなかった部分について@code{auto-mode-alist}を
+再度探索する。
+この機能は解凍パッケージには有用である。
+@code{("\\.gz\\'" @var{function} t)}の形の要素で、
+ファイルを解凍し、@samp{.gz}を除いたファイル名に従って
+解凍済みファイルを適切なモードにできる。
+
+@c Here is an example of how to prepend several pattern pairs to
+@c @code{auto-mode-alist}.  (You might use this sort of expression in your
+@c @file{.emacs} file.)
+@code{auto-mode-alist}にいくつかのパターン対を追加する方法を示す。
+（この種の式を読者のファイル@file{.emacs}に使える。）
+
+@smallexample
+@group
+(setq auto-mode-alist
+  (append 
+@c    ;; @r{File name (within directory) starts with a dot.}
+   ;; @r{ドットで始まる（ディレクトリ名付きの）ファイル名}
+   '(("/\\.[^/]*\\'" . fundamental-mode)  
+@c      ;; @r{File name has no dot.}
+     ;; @r{ドットのないファイル名}
+     ("[^\\./]*\\'" . fundamental-mode)   
+@c      ;; @r{File name ends in @samp{.C}.}
+     ;; @r{@samp{.C}で終るファイル名}
+     ("\\.C\\'" . c++-mode))
+   auto-mode-alist))
+@end group
+@end smallexample
+@end defvar
+
+@defvar interpreter-mode-alist
+@c This variable specifies major modes to use for scripts that specify a
+@c command interpreter in an @samp{#!} line.  Its value is a list of
+@c elements of the form @code{(@var{interpreter} . @var{mode})}; for
+@c example, @code{("perl" . perl-mode)} is one element present by default.
+@c The element says to use mode @var{mode} if the file specifies
+@c an interpreter which matches @var{interpreter}.  The value of
+@c @var{interpreter} is actually a regular expression.
+この変数は、@samp{#!}行でコマンドインタープリタを指定している
+スクリプトに対して用いるメジャーモードを指定する。
+この値は、@code{(@var{interpreter} . @var{mode})}の形の要素から成る
+リストであること。
+たとえば、デフォルトには@code{("perl" . perl-mode)}の要素がある。
+各要素は、ファイルが指定するインタープリタが@var{interpreter}に
+一致したらモード@var{mode}を使うことを意味する。
+@var{interpreter}の値は、実際には正規表現である。
+
+@c This variable is applicable only when the @code{auto-mode-alist} does
+@c not indicate which major mode to use.
+@code{auto-mode-alist}が使用すべきメジャーモードが
+指定しなかった場合にのみこの変数を使う。
+@end defvar
+
+@defun hack-local-variables &optional force
+@c This function parses, and binds or evaluates as appropriate, any local
+@c variables specified by the contents of the current buffer.
+この関数は、カレントバッファの内容に指定されたローカル変数を
+必要に応じて、解析、束縛、評価する。
+
+@c The handling of @code{enable-local-variables} documented for
+@c @code{normal-mode} actually takes place here.  The argument @var{force}
+@c usually comes from the argument @var{find-file} given to
+@c @code{normal-mode}.
+@code{normal-mode}で述べた@code{enable-local-variables}の処理は、
+実際にはここで行う。
+引数@var{force}は、通常、
+@code{normal-mode}に与えられた引数@var{find-file}からくる。
+@end defun
+
+@node Mode Help
+@c @subsection Getting Help about a Major Mode
+@subsection メジャーモードに関するヘルプ
+@c @cindex mode help
+@c @cindex help for major mode
+@c @cindex documentation for major mode
+@cindex モードヘルプ
+@cindex メジャーモードについてのヘルプ
+@cindex ヘルプ、メジャーモード
+@cindex メジャーモードの説明文
+@cindex 説明文、メジャーモード
+
+@c   The @code{describe-mode} function is used to provide information
+@c about major modes.  It is normally called with @kbd{C-h m}.  The
+@c @code{describe-mode} function uses the value of @code{major-mode},
+@c which is why every major mode function needs to set the
+@c @code{major-mode} variable.
+関数@code{describe-mode}は、メジャーモードに関する情報を
+得るために使います。
+通常、@kbd{C-h m}で呼び出されます。
+関数@code{describe-mode}は@code{major-mode}の値を使いますが、
+そのために各メジャーモード関数が
+変数@code{major-mode}に設定する必要があるのです。
+
+@c @deffn Command describe-mode
+@deffn コマンド describe-mode
+@c This function displays the documentation of the current major mode.
+この関数は、現在のメジャーモードの説明文を表示する。
+
+@c The @code{describe-mode} function calls the @code{documentation}
+@c function using the value of @code{major-mode} as an argument.  Thus, it
+@c displays the documentation string of the major mode function.
+@c (@xref{Accessing Documentation}.)
+関数@code{describe-mode}は、@code{major-mode}の値を引数として
+関数@code{documentation}を呼び出す。
+そうして、メジャーモード関数の説明文字列を表示する。
+（@pxref{Accessing Documentation}。）
+@end deffn
+
+@defvar major-mode
+@c This variable holds the symbol for the current buffer's major mode.
+@c This symbol should have a function definition that is the command to
+@c switch to that major mode.  The @code{describe-mode} function uses the
+@c documentation string of the function as the documentation of the major
+@c mode.
+この変数は、カレントバッファのメジャーモードに対するシンボルを保持する。
+このシンボルは、当該メジャーモードに切り替えるためのコマンドを
+関数定義として持つこと。
+関数@code{describe-mode}は、
+メジャーモードの説明文として当該関数の説明文字列を使う。
+@end defvar
+
+@node Derived Modes
+@c @subsection Defining Derived Modes
+@subsection 派生モードの定義
+
+@c   It's often useful to define a new major mode in terms of an existing
+@c one.  An easy way to do this is to use @code{define-derived-mode}.
+既存のメジャーモードを用いて新たなメジャーモードを定義できると便利です。
+これを行う簡単な方法は@code{define-derived-mode}を使うことです。
+
+@defmac define-derived-mode variant parent name docstring body@dots{}
+@c This construct defines @var{variant} as a major mode command, using
+@c @var{name} as the string form of the mode name.
+これは、@var{name}をモード名を表す文字列として使って
+@var{variant}をメジャーモードコマンドとして定義する。
+
+@c The new command @var{variant} is defined to call the function
+@c @var{parent}, then override certain aspects of that parent mode:
+新たなコマンド@var{variant}は、関数@var{parent}を呼び出してから
+親モードの特定の機能を無効にするように定義される。
+
+@itemize @bullet 
+@item
+@c The new mode has its own keymap, named @code{@var{variant}-map}.
+@c @code{define-derived-mode} initializes this map to inherit from
+@c @code{@var{parent}-map}, if it is not already set.
+新たなモードは、@code{@var{variant}-map}という名前の
+独自のキーマップを持つ。
+@code{define-derived-mode}は、
+このキーマップが定義済みでなければ、
+@code{@var{parent}-map}から継承するようにこのキーマップを初期化する。
+
+@item
+@c The new mode has its own syntax table, kept in the variable
+@c @code{@var{variant}-syntax-table}.
+@c @code{define-derived-mode} initializes this variable by copying 
+@c @code{@var{parent}-syntax-table}, if it is not already set.
+新たなモードでは、変数に@code{@var{variant}-syntax-table}に
+独自の構文テーブルを保持する。
+この変数が定義済みでなければ、
+@code{@var{parent}-syntax-table}をコピーしてこの変数を初期化する。
+
+@item
+@c The new mode has its own abbrev table, kept in the variable
+@c @code{@var{variant}-abbrev-table}.
+@c @code{define-derived-mode} initializes this variable by copying 
+@c @code{@var{parent}-abbrev-table}, if it is not already set.
+新たなモードでは、変数に@code{@var{variant}-abbrev-table}に
+独自の略語表を保持する。
+この変数が定義済みでなければ、
+@code{@var{parent}-abbrev-table}をコピーしてこの変数を初期化する。
+
+@item
+@c The new mode has its own mode hook, @code{@var{variant}-hook},
+@c which it runs in standard fashion as the very last thing that it does.
+@c (The new mode also runs the mode hook of @var{parent} as part 
+@c of calling @var{parent}.)
+新たなモードには独自のモードフック@code{@var{variant}-hook}があり、
+通常どおり最後にこれを実行する。
+（新たなモードでは、@var{parent}を呼び出すことの一部として
+@var{parent}のモードフックも実行する。）
+@end itemize
+
+@c In addition, you can specify how to override other aspects of
+@c @var{parent} with @var{body}.  The command @var{variant}
+@c evaluates the forms in @var{body} after setting up all its usual 
+@c overrides, just before running @code{@var{variant}-hook}.
+さらに、@var{body}で@var{parent}の他の部分を無効にする方法を指定できる。
+コマンド@var{variant}は、@code{@var{variant}-hook}を呼び出す直前、
+通常の無効化処理を終えてから@var{body}のフォームを評価する。
+
+@c The argument @var{docstring} specifies the documentation string for the
+@c new mode.  If you omit @var{docstring}, @code{define-derived-mode}
+@c generates a documentation string.
+引数@var{docstring}は、新たなモードに対する説明文字列を指定する。
+@var{docstring}を省略すると、
+@code{define-derived-mode}は説明文字列を生成する。
+
+@c Here is a hypothetical example:
+仮想的な例を示す。
+
+@example
+(define-derived-mode hypertext-mode
+  text-mode "Hypertext"
+  "Major mode for hypertext.
+\\@{hypertext-mode-map@}"
+  (setq case-fold-search nil))
+
+(define-key hypertext-mode-map
+  [down-mouse-3] 'do-hyper-link)
+@end example
+@end defmac
+
+@node Minor Modes
+@c @section Minor Modes
+@section マイナモード
+@c @cindex minor mode
+@cindex マイナモード
+
+@c   A @dfn{minor mode} provides features that users may enable or disable
+@c independently of the choice of major mode.  Minor modes can be enabled
+@c individually or in combination.  Minor modes would be better named
+@c ``generally available, optional feature modes,'' except that such a name
+@c would be unwieldy.
+@dfn{マイナモード}（minor mode）は、メジャーモードの選択とは独立に
+ユーザーがオン／オフできる機能を提供します。
+マイナモードは、個別にも組み合わせてもオンにできます。
+マイナモードは、長すぎますが『汎用的に使えるオプション機能のモード』と
+命名したようがよいかもしれません。
+
+@c   A minor mode is not usually a modification of single major mode.  For
+@c example, Auto Fill mode works with any major mode that permits text
+@c insertion.  To be general, a minor mode must be effectively independent
+@c of the things major modes do.
+マイナモードは、普通、1つのメジャーモードを変更するだけではありません。
+たとえば、自動詰め込みモード（auto-fillモード）は、
+テキスト挿入を許す任意のメジャーモードで使えます。
+汎用的であるためには、マイナモードは
+メジャーモードが行うこととは実質的に独立である必要があります。
+
+@c   A minor mode is often much more difficult to implement than a major
+@c mode.  One reason is that you should be able to activate and deactivate
+@c minor modes in any order.  A minor mode should be able to have its
+@c desired effect regardless of the major mode and regardless of the other
+@c minor modes in effect.
+マイナモードは、メジャーモードに比べて、実装するのがしばしば困難です。
+1つの理由は、任意の順でマイナモードをオン／オフできるようにする
+必要があるからです。
+マイナモードは、メジャーモードや他のオンになっているマイナモードとは
+無関係にその望みの効果を発揮できる必要があります。
+
+@c   Often the biggest problem in implementing a minor mode is finding a
+@c way to insert the necessary hook into the rest of Emacs.  Minor mode
+@c keymaps make this easier than it used to be.
+しばしば、マイナモードを実装するうえでもっとも大きな問題は、
+Emacsの残りの部分に対して必要なフックを探すことです。
+マイナモードキーマップにより、従来に比べて簡単になります。
+
+@menu
+* Minor Mode Conventions::      Tips for writing a minor mode.
+* Keymaps and Minor Modes::     How a minor mode can have its own keymap.
+* Easy-Mmode::                  A convenient facility for defining minor modes.
+@end menu
+
+@node Minor Mode Conventions
+@c @subsection Conventions for Writing Minor Modes
+@subsection マイナモードを書くための慣習
+@c @cindex minor mode conventions
+@c @cindex conventions for writing minor modes
+@cindex マイナモードの慣習
+@cindex マイナモードを書くための慣習
+
+@c   There are conventions for writing minor modes just as there are for
+@c major modes.  Several of the major mode conventions apply to minor
+@c modes as well: those regarding the name of the mode initialization
+@c function, the names of global symbols, and the use of keymaps and
+@c other tables.
+メジャーモードに対するのと同じように、
+マイナモードを書くうえでの慣習があります。
+メジャーモードの慣習には、マイナモードにも適用されるものがあります。
+つまり、モードを初期化する関数の名前、
+グローバルシンボルの名前、キーマップやその他のテーブルや表の使い方です。
+
+@c   In addition, there are several conventions that are specific to
+@c minor modes.
+それらに加えて、マイナモードに固有な慣習もあります。
+
+@itemize @bullet
+@item
+@c @cindex mode variable
+@cindex モード変数
+@c Make a variable whose name ends in @samp{-mode} to control the minor
+@c mode.  We call this the @dfn{mode variable}.  The minor mode command
+@c should set this variable (@code{nil} to disable; anything else to
+@c enable).
+マイナモードを制御する変数の名前は@samp{-mode}で終ること。
+これを@dfn{モード変数}（mode variable）と呼ぶ。
+マイナモードコマンドは、この変数を
+（オフにするには@code{nil}、オンにするにはそれ以外に）設定
+すること。
+
+@c If it is possible, implement the mode so that setting the variable
+@c automatically enables or disables the mode.  Then the minor mode command
+@c does not need to do anything except set the variable.
+可能ならば、変数に設定すると
+自動的にモードがオン／オフされるようにモードを実装する。
+そうすると、マイナモードコマンドは、
+変数に設定する以外にはなにもしないでよくなる。
+
+@c This variable is used in conjunction with the @code{minor-mode-alist} to
+@c display the minor mode name in the mode line.  It can also enable
+@c or disable a minor mode keymap.  Individual commands or hooks can also
+@c check the variable's value.
+この変数は、モード行にマイナモード名を表示するために
+@code{minor-mode-alist}でも使われる。
+マイナモードキーマップを活性にしたり非活性にしたりもする。
+各コマンドやフックもこの変数の値を検査する。
+
+@c If you want the minor mode to be enabled separately in each buffer,
+@c make the variable buffer-local.
+各バッファごとに別々にマイナモードをオンにしたい場合には、
+この変数をバッファローカルにする。
+
+@item
+@c Define a command whose name is the same as the mode variable.
+@c Its job is to enable and disable the mode by setting the variable.
+モード変数と同じ名前のコマンドを定義する。
+その仕事は、当該変数に設定することでモードをオン／オフすることである。
+
+@c The command should accept one optional argument.  If the argument is
+@c @code{nil}, it should toggle the mode (turn it on if it is off, and off
+@c if it is on).  Otherwise, it should turn the mode on if the argument is
+@c a positive integer, a symbol other than @code{nil} or @code{-}, or a
+@c list whose @sc{car} is such an integer or symbol; it should turn the
+@c mode off otherwise.
+当該コマンドは、省略可能な引数を1つ受け取ること。
+引数が@code{nil}であればモードをトグル
+（オンであればオフに、オフであればオンに）する。
+さもなければ、引数が、正整数、@code{nil}以外のシンボル、
+@code{-}、あるいは、@sc{car}がそのような整数やシンボルであるようなリストの
+場合にはモードをオンにする。
+それ以外ではモードをオフにする。
+
+@c Here is an example taken from the definition of @code{transient-mark-mode}.
+@c It shows the use of @code{transient-mark-mode} as a variable that enables or
+@c disables the mode's behavior, and also shows the proper way to toggle,
+@c enable or disable the minor mode based on the raw prefix argument value.
+@code{transient-mark-mode}の定義から引用した例を示す。
+モードのふるまいをオン／オフする変数としての
+@code{transient-mark-mode}の使い方、
+および、生の前置引数に基づいたマイナモードの
+オン／オフ／トグルの仕方を示す。
+
+@smallexample
+@group
+(setq transient-mark-mode
+      (if (null arg) (not transient-mark-mode)
+        (> (prefix-numeric-value arg) 0)))
+@end group
+@end smallexample
+
+@item
+@c Add an element to @code{minor-mode-alist} for each minor mode
+@c (@pxref{Mode Line Variables}), if you want to indicate the minor mode in
+@c the mode line.  This element should be a list of the following form:
+モード行にマイナモードを表示したい場合には、
+各マイナモードについて要素を@code{minor-mode-alist}に追加する
+（@pxref{Mode Line Variables}）。
+この要素はつぎの形のリストであること。
+
+@smallexample
+(@var{mode-variable} @var{string})
+@end smallexample
+
+@c Here @var{mode-variable} is the variable that controls enabling of the
+@c minor mode, and @var{string} is a short string, starting with a space,
+@c to represent the mode in the mode line.  These strings must be short so
+@c that there is room for several of them at once.
+ここで、@var{mode-variable}はマイナモードのオン／オフを制御する変数であり、
+@var{string}はモード行でモードを表す短い空白で始まる文字列である。
+同時に複数のモードを表示できるように、これらの文字列は短いこと。
+
+@c When you add an element to @code{minor-mode-alist}, use @code{assq} to
+@c check for an existing element, to avoid duplication.  For example:
+@code{minor-mode-alist}に要素を追加するときには、
+重複を防ぐために既存の要素を検査する@code{assq}を使うこと。
+たとえばつぎのとおり。
+
+@smallexample
+@group
+(or (assq 'leif-mode minor-mode-alist)
+    (setq minor-mode-alist
+          (cons '(leif-mode " Leif") minor-mode-alist)))
+@end group
+@end smallexample
+@end itemize
+
+@c   You can also use @code{add-to-list} to add an element to this list
+@c just once (@pxref{Setting Variables}).
+このリストに要素を1回だけ追加するならば@code{add-to-list}も使えます
+（@pxref{Setting Variables}）。
+
+@node Keymaps and Minor Modes
+@c @subsection Keymaps and Minor Modes
+@subsection キーマップとマイナモード
+
+@c   Each minor mode can have its own keymap, which is active when the mode
+@c is enabled.  To set up a keymap for a minor mode, add an element to the
+@c alist @code{minor-mode-map-alist}.  @xref{Active Keymaps}.
+各マイナモードは、モードがオンのときに活性になる独自のキーマップを持てます。
+マイナモード向けのキーマップを設定するには、
+@code{minor-mode-map-alist}に要素を追加します。
+@xref{Active Keymaps}。
+
+@c @cindex @code{self-insert-command}, minor modes
+@cindex @code{self-insert-command}、マイナモード
+@c   One use of minor mode keymaps is to modify the behavior of certain
+@c self-inserting characters so that they do something else as well as
+@c self-insert.  In general, this is the only way to do that, since the
+@c facilities for customizing @code{self-insert-command} are limited to
+@c special cases (designed for abbrevs and Auto Fill mode).  (Do not try
+@c substituting your own definition of @code{self-insert-command} for the
+@c standard one.  The editor command loop handles this function specially.)
+マイナモードキーマップの1つの用途は、
+ある種の自己挿入文字のふるまいを変更して、
+自己挿入に加えてなにかを行わせるようにすることです。
+一般に、@code{self-insert-command}をカスタマイズする機構は
+（略語モードや自動詰め込みモード向けに設計された）特別な場合に限られるので、
+このようなことを行う唯一の方法です。
+（標準の@code{self-insert-command}の定義を読者独自の定義で置き換えないこと。
+エディタコマンドループはこの関数を特別扱いしている。）
+
+@c The key sequences bound in a minor mode should consist of @kbd{C-c}
+@c followed by a punctuation character @emph{other than} @kbd{@{},
+@c @kbd{@}}, @kbd{<}, @kbd{>}, @kbd{:} or @kbd{;}.  (Those few punctuation
+@c characters are reserved for major modes.)
+マイナモードでバインドしているキー列は、@kbd{C-c}で始まり、
+@kbd{@{}、@kbd{@}}、@kbd{<}、@kbd{>}、@kbd{:}、@kbd{;}@emph{以外}の
+句読点文字の1つが続くようにします。
+（除外した句読点文字はメジャーモード向けに予約されている。）
+
+@node Easy-Mmode
+@subsection Easy-Mmode
+
+@c   The easy-mmode package provides a convenient way of implementing a
+@c minor mode; with it, you can specify all about a simple minor mode in
+@c one self-contained definition.
+パッケージeasy-mmodeは、マイナモードを実装する便利な方法を提供します。
+これを使うと、単純なマイナモードを1つの自己完結した定義に指定できます。
+
+@defmac easy-mmode-define-minor-mode mode doc &optional init-value mode-indicator keymap
+@tindex easy-mmode-define-minor-mode
+@c This macro defines a new minor mode whose name is @var{mode} (a symbol).
+このマクロは、@var{mode}（シンボル）という名前の新しいマイナモードを定義する。
+
+@c This macro defines a command named @var{mode} which toggles the minor
+@c mode, and has @var{doc} as its documentation string.
+このマクロは、マイナモードをトグルする
+@var{mode}という名前のコマンドを定義し、
+その説明文字列を@var{doc}とする。
+
+@c It also defines a variable named @var{mode}, which is set to @code{t} or
+@c @code{nil} by enabling or disabling the mode.  The variable is
+@c initialized to @var{init-value}.
+また、@var{mode}という名前の変数も定義する。
+この変数はモードのオン／オフにしたがって@code{t}/@code{nil}に設定される。
+この変数は@var{init-value}に初期化される。
+
+@c The string @var{mode-indicator} says what to display in the mode line
+@c when the mode is enabled; if it is @code{nil}, the mode is not displayed
+@c in the mode line.
+文字列@var{mode-indicator}は、モードがオンのときにモード行に
+表示される文字列である。
+それが@code{nil}であるとモード行にはモードを表示しない。
+
+@c The optional argument @var{keymap} specifies the keymap for the minor mode.
+@c It can be a variable name, whose value is the keymap, or it can be an alist
+@c specifying bindings in this form:
+省略可能な引数@var{keymap}は、マイナモードのキーマップを指定する。
+これは、値がキーマップであるような変数の名前か、
+つぎの形のバインディングを指定した連想リストであること。
+
+@example
+(@var{key-sequence} . @var{definition})
+@end example
+@end defmac
+
+@c   Here is an example of using @code{easy-mmode-define-minor-mode}:
+@code{easy-mmode-define-minor-mode}を使った例を示します。
+
+@smallexample
+(easy-mmode-define-minor-mode hungry-mode
+  "Toggle Hungry mode.
+With no argument, this command toggles the mode. 
+Non-null prefix argument turns on the mode.
+Null prefix argument turns off the mode.
+
+When Hungry mode is enabled, the control delete key
+gobbles all preceding whitespace except the last.
+See the command \\[hungry-electric-delete]."
+@c  ;; The initial value.
+ ;; 初期値
+ nil
+@c  ;; The indicator for the mode line.
+ ;; モード行への表示
+ " Hungry"
+@c  ;; The minor mode bindings.
+ ;; マイナモードのバインディング
+ '(("\C-\^?" . hungry-electric-delete)
+   ("\C-\M-\^?"
+    . (lambda () 
+        (interactive)
+        (hungry-electric-delete t)))))
+@end smallexample
+
+@noindent
+@c This defines a minor mode named ``Hungry mode'', a command named
+@c @code{hungry-mode} to toggle it, a variable named @code{hungry-mode}
+@c which indicates whether the mode is enabled, and a variable named
+@c @code{hungry-mode-map} which holds the keymap that is active when the
+@c mode is enabled.  It initializes the keymap with key bindings for
+@c @kbd{C-@key{DEL}} and @kbd{C-M-@key{DEL}}.
+これは、『hungryモード』という名前のマイナモードを定義します。
+モードをトグルするコマンドの名前は@code{hungry-mode}、
+モードのオン／オフを表す変数の名前は@code{hungry-mode}、
+モードがオンのときに活性なキーマップを保持する
+変数の名前は@code{hungry-mode-map}です。
+@kbd{C-@key{DEL}}と@kbd{C-M-@key{DEL}}に対するキーバインディングで
+キーマップを初期化します。
+
+@node Mode Line Format
+@c @section Mode Line Format
+@section モード行の書式
+@c @cindex mode line
+@cindex モード行の書式
+
+@c   Each Emacs window (aside from minibuffer windows) includes a mode line,
+@c which displays status information about the buffer displayed in the
+@c window.  The mode line contains information about the buffer, such as its
+@c name, associated file, depth of recursive editing, and the major and
+@c minor modes.
+Emacsの（ミニバッファ専用ウィンドウを除く）各ウィンドウにはモード行があって、
+ウィンドウに表示しているバッファに関する状態情報を表示しています。
+モード行には、バッファ名、対応するファイル、再帰編集の深さ、
+メジャーモードとマイナモードなどのバッファに関する情報が含まれます。
+
+@c   This section describes how the contents of the mode line are
+@c controlled.  We include it in this chapter because much of the
+@c information displayed in the mode line relates to the enabled major and
+@c minor modes.
+本節では、モード行の内容の制御方法について述べます。
+モード行に表示される情報のほとんどは
+オンになっているメジャーモードとマイナモードに関係するので、
+本章に含めます。
+
+@c   @code{mode-line-format} is a buffer-local variable that holds a
+@c template used to display the mode line of the current buffer.  All
+@c windows for the same buffer use the same @code{mode-line-format} and
+@c their mode lines appear the same (except for scrolling percentages, and
+@c line and column numbers).
+@code{mode-line-format}は、カレントバッファのモード行に表示する
+雛型を保持しているバッファローカルな変数です。
+同一バッファに対するすべてのウィンドウは同じ@code{mode-line-format}を使い、
+それらのモード行は（スクロールの割合や行やコラム位置を除いて）
+同じように表示されます。
+
+@c   The mode line of a window is normally updated whenever a different
+@c buffer is shown in the window, or when the buffer's modified-status
+@c changes from @code{nil} to @code{t} or vice-versa.  If you modify any of
+@c the variables referenced by @code{mode-line-format} (@pxref{Mode Line
+@c Variables}), or any other variables and data structures that affect how
+@c text is displayed (@pxref{Display}), you may want to force an update of
+@c the mode line so as to display the new information or display it in
+@c the new way.
+ウィンドウのモード行は、通常、ウィンドウに別のバッファを表示したときや、
+バッファの変更状態が@code{nil}から@code{t}へあるいはその逆の変化をしたときに
+更新されます。
+@code{mode-line-format}（@pxref{Mode Line Variables}）が参照する
+変数を修正したり、テキストの表示方法に影響するその他の変数やデータ構造
+（@pxref{Display}）を変更したときには、新しい情報を表示したり
+新たな方法で表示するためにモード行の更新を強制できます。
+
+@c Emacs 19 feature
+@defun force-mode-line-update
+@c Force redisplay of the current buffer's mode line.
+カレントバッファのモード行の更新を強制する。
+@end defun
+
+@c   The mode line is usually displayed in inverse video; see
+@c @code{mode-line-inverse-video} in @ref{Inverse Video}.
+モード行は、通常、反転表示されます。
+@ref{Inverse Video}の@code{mode-line-inverse-video}を参照してください。
+
+@menu
+* Mode Line Data::        The data structure that controls the mode line.
+* Mode Line Variables::   Variables used in that data structure.
+* %-Constructs::          Putting information into a mode line.
+@end menu
+
+@node Mode Line Data
+@c @subsection The Data Structure of the Mode Line
+@subsection モード行のデータ構造
+@c @cindex mode line construct
+@cindex モード行構成
+
+@c   The mode line contents are controlled by a data structure of lists,
+@c strings, symbols, and numbers kept in the buffer-local variable
+@c @code{mode-line-format}.  The data structure is called a @dfn{mode line
+@c construct}, and it is built in recursive fashion out of simpler mode line
+@c constructs.  The same data structure is used for constructing
+@c frame titles (@pxref{Frame Titles}).
+モード行の内容は、バッファローカルな変数@code{mode-line-format}に
+保持されたリスト、文字列、シンボル、数から成るデータ構造で制御されます。
+このデータ構造を@dfn{モード行構成}（mode line construct）と呼びます。
+これは単純なモード行構成から再帰的に構築します。
+同じデータ構造はフレームタイトル（@pxref{Frame Titles}）を
+構築するためにも使われます。
+
+@defvar mode-line-format
+@c The value of this variable is a mode line construct with overall
+@c responsibility for the mode line format.  The value of this variable
+@c controls which other variables are used to form the mode line text, and
+@c where they appear.
+この変数の値は、モード行全体の書式に責任を持つモード行構成である。
+この変数の値は、モード行のテキストを作るためにどの変数を使うか、
+それらはモード行のどこに現れるかを制御する。
+@end defvar
+
+@c   A mode line construct may be as simple as a fixed string of text, but
+@c it usually specifies how to use other variables to construct the text.
+@c Many of these variables are themselves defined to have mode line
+@c constructs as their values.
+モード行構成は、定まったテキストの文字列のように単純でもかまいませんが、
+普通は、テキストを作るための別の変数の使い方を指定します。
+それらの変数の多くはそれ自身、それらの値として
+モード行構成を持つように定義されています。
+
+@c   The default value of @code{mode-line-format} incorporates the values
+@c of variables such as @code{mode-name} and @code{minor-mode-alist}.
+@c Because of this, very few modes need to alter @code{mode-line-format}
+@c itself.  For most purposes, it is sufficient to alter some of the
+@c variables that @code{mode-line-format} refers to.
+@code{mode-line-format}のデフォルト値は、
+@code{mode-name}や@code{minor-mode-alist}などの変数の値を使います。
+多くの目的には、@code{mode-line-format}が参照するいくつかの変数を
+変えるだけで十分です。
+
+@c   A mode line construct may be a list, a symbol, or a string.  If the
+@c value is a list, each element may be a list, a symbol, or a string.
+モード行構成は、リスト、シンボル、文字列のいずれかです。
+その値がリストであれば、その各要素はリスト、シンボル、文字列のいずれかです。
+
+@table @code
+@c @cindex percent symbol in mode line
+@cindex モード行のパーセント記号
+@cindex パーセント記号、モード行
+@item @var{string}
+@c A string as a mode line construct is displayed verbatim in the mode line
+@c except for @dfn{@code{%}-constructs}.  Decimal digits after the @samp{%}
+@c specify the field width for space filling on the right (i.e., the data
+@c is left justified).  @xref{%-Constructs}.
+モード行構成としての文字列は、
+@dfn{@code{%}記法}を除いて、モード行にそのまま表示される。
+@samp{%}のうしろの10進数は、右側に空白を埋める
+（つまりデータは左端に揃えられる）ときのフィールド幅を指定する。
+@pxref{%-Constructs}。
+
+@item @var{symbol}
+@c A symbol as a mode line construct stands for its value.  The value of
+@c @var{symbol} is used as a mode line construct, in place of @var{symbol}.
+@c However, the symbols @code{t} and @code{nil} are ignored; so is any
+@c symbol whose value is void.
+モード行構成としてのシンボルは、その値を表す。
+@var{symbol}の値は、@var{symbol}のかわりにモード行構成として使われる。
+しかし、@code{t}や@code{nil}のシンボル、および、シンボルの値が空のものは
+無視する。
+
+@c There is one exception: if the value of @var{symbol} is a string, it is
+@c displayed verbatim: the @code{%}-constructs are not recognized.
+例外が1つある：@code{ }
+@var{symbol}の値が文字列であると、@code{%}記法を処理せずに
+文字列をそのまま表示する。
+
+@item (@var{string} @var{rest}@dots{}) @r{or} (@var{list} @var{rest}@dots{})
+@c A list whose first element is a string or list means to process all the
+@c elements recursively and concatenate the results.  This is the most
+@c common form of mode line construct.
+最初の要素が文字列かリストであるリストは、
+すべての要素を再帰的に処理し、結果を連結することを意味する。
+これはもっとも多用されるモード行構成の形である。
+
+@item (@var{symbol} @var{then} @var{else})
+@c A list whose first element is a symbol is a conditional.  Its meaning
+@c depends on the value of @var{symbol}.  If the value is non-@code{nil},
+@c the second element, @var{then}, is processed recursively as a mode line
+@c element.  But if the value of @var{symbol} is @code{nil}, the third
+@c element, @var{else}, is processed recursively.  You may omit @var{else};
+@c then the mode line element displays nothing if the value of @var{symbol}
+@c is @code{nil}.
+最初の要素がシンボルであるリストは条件節であり、
+その意味は@var{symbol}の値に依存する。
+その値が@code{nil}以外であると、
+2番目の要素@var{then}をモード行構成として再帰的に処理する。
+@var{symbol}の値が@code{nil}であると、
+3番目の要素@var{else}をモード行構成として再帰的に処理する。
+@var{else}は省略してもよいが、その場合、
+@var{symbol}の値が@code{nil}であるところの要素はモード行に表示されない。
+
+@item (@var{width} @var{rest}@dots{})
+@c A list whose first element is an integer specifies truncation or
+@c padding of the results of @var{rest}.  The remaining elements
+@c @var{rest} are processed recursively as mode line constructs and
+@c concatenated together.  Then the result is space filled (if
+@c @var{width} is positive) or truncated (to @minus{}@var{width} columns,
+@c if @var{width} is negative) on the right.
+最初の要素が整数であるリストは、
+@var{rest}の結果の切り詰めや引き伸しを指定する。
+残りの要素@var{rest}はモード行構成として再帰的に処理され連結される。
+（@var{width}が正であれば）結果の右端に空白を追加したり、
+（@var{width}が負であれば）結果を（@minus{}@var{width}幅に）
+右端から切り詰める。
+
+@c For example, the usual way to show what percentage of a buffer is above
+@c the top of the window is to use a list like this: @code{(-3 "%p")}.
+たとえば、ウィンドウの上端より上にバッファの何割があるかを表示するには、
+@code{(-3 "%p")}のようなリストを使う。
+@end table
+
+@c   If you do alter @code{mode-line-format} itself, the new value should
+@c use the same variables that appear in the default value (@pxref{Mode
+@c Line Variables}), rather than duplicating their contents or displaying
+@c the information in another fashion.  This way, customizations made by
+@c the user or by Lisp programs (such as @code{display-time} and major
+@c modes) via changes to those variables remain effective.
+読者が@code{mode-line-format}自体を変更するときには、
+新しい値では、デフォルト値（@pxref{Mode Line Variables}）に現れる
+ものと同じ変数を使い、それらの値をコピーして使ったり、
+別の書式で情報を表示したりしないでください。
+こうしておけば、それらの変数に対する変更を介した
+ユーザーや（@code{display-time}やメジャーモードなどの）Lispプログラムが行った
+カスタマイズが効果を発揮できます。
+
+@c @cindex Shell mode @code{mode-line-format}
+@cindex シェルモードの@code{mode-line-format}
+@cindex @code{mode-line-format}、シェルモード
+@c   Here is an example of a @code{mode-line-format} that might be
+@c useful for @code{shell-mode}, since it contains the host name and default
+@c directory.
+ホスト名やデフォルトディレクトリを含んだ
+@code{shell-mode}に有用な@code{mode-line-format}の例を示します。
+
+@example
+@group
+(setq mode-line-format
+  (list "-"
+   'mode-line-mule-info
+   'mode-line-modified
+   'mode-line-frame-identification
+   "%b--" 
+@end group
+@group
+@c    ;; @r{Note that this is evaluated while making the list.}
+@c    ;; @r{It makes a mode line construct which is just a string.}
+   ;; @r{リストを作るときに評価されることに注意}
+   ;; @r{単なる文字列のモード行構成を作る}
+   (getenv "HOST")
+@end group
+   ":" 
+   'default-directory
+   "   "
+   'global-mode-string
+   "   %[("
+   'mode-name 
+   'mode-line-process  
+   'minor-mode-alist 
+   "%n" 
+   ")%]--"
+@group
+   '(which-func-mode ("" which-func-format "--"))
+   '(line-number-mode "L%l--")
+   '(column-number-mode "C%c--")
+   '(-3 . "%p")
+   "-%-"))
+@end group
+@end example
+
+@noindent
+@c (The variables @code{line-number-mode}, @code{column-number-mode}
+@c and @code{which-func-mode} enable particular minor modes; as usual,
+@c these variable names are also the minor mode command names.)
+（変数@code{line-number-mode}、@code{column-number-mode}、
+@code{which-func-mode}は特定のマイナモードをオンにする。
+通常どおり、これらの変数の名前はマイナモードコマンドの名前でもある。）
+
+@node Mode Line Variables
+@c @subsection Variables Used in the Mode Line
+@subsection モード行に使われる変数
+
+@c   This section describes variables incorporated by the
+@c standard value of @code{mode-line-format} into the text of the mode
+@c line.  There is nothing inherently special about these variables; any
+@c other variables could have the same effects on the mode line if
+@c @code{mode-line-format} were changed to use them.
+本節では、@code{mode-line-format}の標準値でモード行のテキストに
+含められる変数について述べます。
+これらの変数に関しては、本来特別なことはありません。
+別の変数を使うように@code{mode-line-format}を変更すれば、
+別の変数でもモード行において同じ効果を発揮します。
+
+@defvar mode-line-mule-info
+@tindex mode-line-mule-info
+@c This variable holds the value of the mode-line construct that displays
+@c information about the language environment, buffer coding system, and
+@c current input method.  @xref{Non-ASCII Characters}.
+この変数は、言語環境、バッファのコーディングシステム、
+現在の入力方式に関する情報を表示するモード行構成の値を保持する。
+@pxref{Non-ASCII Characters}。
+@end defvar
+
+@defvar mode-line-modified
+@c This variable holds the value of the mode-line construct that displays
+@c whether the current buffer is modified.
+この変数は、カレントバッファが変更されたかどうかを表示する
+モード行構成の値を保持する。
+
+@c The default value of @code{mode-line-modified} is @code{("%1*%1+")}.
+@c This means that the mode line displays @samp{**} if the buffer is
+@c modified, @samp{--} if the buffer is not modified, @samp{%%} if the
+@c buffer is read only, and @samp{%*} if the buffer is read only and
+@c modified.
+@code{mode-line-modified}のデフォルト値は@code{("%1*%1+")}である。
+これは、バッファが変更されていると@samp{**}を、
+未変更ならば@samp{--}を、読み出し専用ならば@samp{%%}を、
+読み出し専用でしかも変更されていれば@samp{%*}を
+モード行に表示することを意味する。
+
+@c Changing this variable does not force an update of the mode line.
+この変数を変更してもモード行の更新を強制しない。
+@end defvar
+
+@defvar mode-line-frame-identification
+@tindex mode-line-frame-identification
+@c This variable identifies the current frame.  The default value is
+@c @code{" "} if you are using a window system which can show multiple
+@c frames, or @code{"-%F "} on an ordinary terminal which shows only one
+@c frame at a time.
+この変数はカレントフレームを識別する。
+複数のフレームを表示できるウィンドウシステムを使用している場合には
+デフォルト値は@code{" "}であり、
+ある時点で1つのフレームしか表示できない普通の端末を使用している場合には
+@code{"-%F "}である。
+@end defvar
+
+@defvar mode-line-buffer-identification
+@c This variable identifies the buffer being displayed in the window.  Its
+@c default value is @code{("%12b")}, which displays the buffer name, padded
+@c with spaces to at least 12 columns.
+この変数はウィンドウに表示しているバッファを識別する。
+デフォルト値は@code{("%12b")}であり、
+空白で埋めて最低12コラムでバッファ名を表示する。
+@end defvar
+
+@defvar global-mode-string
+@c This variable holds a mode line spec that appears in the mode line by
+@c default, just after the buffer name.  The command @code{display-time}
+@c sets @code{global-mode-string} to refer to the variable
+@c @code{display-time-string}, which holds a string containing the time and
+@c load information.
+この変数は、デフォルトでモード行のバッファ名の直後に現れる
+モード行指定を保持する。
+コマンド@code{display-time}は、
+@code{global-mode-string}が時刻と負荷情報を含んだ
+変数@code{display-time-string}を参照するように設定する。
+
+@c The @samp{%M} construct substitutes the value of
+@c @code{global-mode-string}, but that is obsolete, since the variable is
+@c included in the mode line from @code{mode-line-format}.
+@samp{%M}記法は@code{global-mode-string}の値を使うが、
+この変数は@code{mode-line-format}でモード行に含まれるため
+@samp{%M}は廃れた記法である。
+@end defvar
+
+@defvar mode-name
+@c This buffer-local variable holds the ``pretty'' name of the current
+@c buffer's major mode.  Each major mode should set this variable so that the
+@c mode name will appear in the mode line.
+このバッファローカルな変数は、
+カレントバッファのメジャーモードの『愛称』を保持する。
+各メジャーモードは、モード行にモード名が現れるようにこの変数に設定すること。
+@end defvar
+
+@defvar minor-mode-alist
+@c This variable holds an association list whose elements specify how the
+@c mode line should indicate that a minor mode is active.  Each element of
+@c the @code{minor-mode-alist} should be a two-element list:
+この変数は、モード行にマイナモードがオンであることを表示する方法を
+指定する要素からなる連想リストを保持する。
+@code{minor-mode-alist}の各要素は、2要素リストであること。
+
+@example
+(@var{minor-mode-variable} @var{mode-line-string})
+@end example
+
+@c More generally, @var{mode-line-string} can be any mode line spec.  It
+@c appears in the mode line when the value of @var{minor-mode-variable} is
+@c non-@code{nil}, and not otherwise.  These strings should begin with
+@c spaces so that they don't run together.  Conventionally, the
+@c @var{minor-mode-variable} for a specific mode is set to a non-@code{nil}
+@c value when that minor mode is activated.
+より一般的には、@var{mode-line-string}はどのようなモード行指定でもよい。
+それは、@var{minor-mode-variable}の値が@code{nil}以外のときに
+モード行に現れ、さもなければ現れない。
+これらの文字列は、繋がらないように空白で始まること。
+慣習的には、特定モードに対する@var{minor-mode-variable}は、
+当該マイナモードがオンであると@code{nil}以外に設定される。
+
+@c The default value of @code{minor-mode-alist} is:
+@code{minor-mode-alist}のデフォルト値はつぎのとおり。
+
+@example
+@group
+minor-mode-alist
+@result{} ((vc-mode vc-mode)
+    (abbrev-mode " Abbrev") 
+    (overwrite-mode overwrite-mode) 
+    (auto-fill-function " Fill")         
+    (defining-kbd-macro " Def")
+    (isearch-mode isearch-mode))
+@end group
+@end example
+
+@c @code{minor-mode-alist} itself is not buffer-local.  Each variable
+@c mentioned in the alist should be buffer-local if its minor mode can be
+@c enabled separately in each buffer.
+@code{minor-mode-alist}自体はバッファローカルではない。
+マイナモードが各バッファごとにオンにできる場合には、
+連想リストに指定した対応する各変数はバッファローカルであること。
+@end defvar
+
+@defvar mode-line-process
+@c This buffer-local variable contains the mode line information on process
+@c status in modes used for communicating with subprocesses.  It is
+@c displayed immediately following the major mode name, with no intervening
+@c space.  For example, its value in the @samp{*shell*} buffer is
+@c @code{(":%s")}, which allows the shell to display its status along
+@c with the major mode as: @samp{(Shell:@: run)}.  Normally this variable
+@c is @code{nil}.
+このバッファローカルな変数は、
+サブプロセスとの通信用に使われているモードの処理状態に関する
+モード行の情報を保持する。
+メジャーモード名の直後に空白で区切らずに表示される。
+たとえば、バッファ@samp{*shell*}におけるこの変数の値は@code{(":%s")}であり、
+シェルがその状態をメジャーモードとともに@samp{(Shell:@: run)}のように
+表示できる。
+通常、この変数は@code{nil}である。
+@end defvar
+
+@defvar default-mode-line-format
+@c This variable holds the default @code{mode-line-format} for buffers
+@c that do not override it.  This is the same as @code{(default-value
+@c 'mode-line-format)}.
+この変数は、@code{mode-line-format}を変更していないバッファの
+デフォルトの@code{mode-line-format}の値を保持する。
+これは@code{(default-value 'mode-line-format)}と同じである。
+
+@c The default value of @code{default-mode-line-format} is this list:
+@code{default-mode-line-format}のデフォルト値はつぎのリストである。
+
+@example
+@group
+("-"
+ mode-line-mule-info
+ mode-line-modified
+ mode-line-frame-identification
+ mode-line-buffer-identification
+@end group
+ "   "
+ global-mode-string
+@group
+ "   %[("
+ mode-name 
+ mode-line-process
+ minor-mode-alist 
+ "%n" 
+ ")%]--"
+@end group
+@group
+ (which-func-mode ("" which-func-format "--"))
+ (line-number-mode "L%l--")
+ (column-number-mode "C%c--")
+ (-3 . "%p")
+ "-%-")
+@end group
+@end example
+@end defvar
+
+@defvar vc-mode
+@c The variable @code{vc-mode}, buffer-local in each buffer, records
+@c whether the buffer's visited file is maintained with version control,
+@c and, if so, which kind.  Its value is @code{nil} for no version control,
+@c or a string that appears in the mode line.
+各バッファにおいてバッファローカルな変数@code{vc-mode}は、
+バッファで訪問したファイルが版管理されているか、
+そうならばその方式を記録している。
+版管理されていない場合はその値は@code{nil}、
+さもなければモード行に表示される文字列である。
+@end defvar
+
+@node %-Constructs
+@c @subsection @code{%}-Constructs in the Mode Line
+@subsection モード行の@code{%}記法
+
+@c   The following table lists the recognized @code{%}-constructs and what
+@c they mean.  In any construct except @samp{%%}, you can add a decimal
+@c integer after the @samp{%} to specify how many characters to display.
+以下は、認識される@code{%}記法とその意味の表です。
+@samp{%%}以外の記法では、
+最大表示文字数を指定する10進数を@samp{%}のあとに追加できます。
+
+@table @code
+@item %b
+@c The current buffer name, obtained with the @code{buffer-name} function.
+@c @xref{Buffer Names}.
+関数@code{buffer-name}で得られたカレントバッファ名。
+@pxref{Buffer Names}。
+
+@item %f
+@c The visited file name, obtained with the @code{buffer-file-name}
+@c function.  @xref{Buffer File Name}.
+関数@code{buffer-file-name}で得られた訪問したファイルの名前。
+@pxref{Buffer File Name}。
+
+@item %F
+@c The title (only on a window system) or the name of the selected frame.
+@c @xref{Window Frame Parameters}.
+選択しているフレームのタイトル（ウィンドウシステム上のみ）か名前。
+@pxref{Window Frame Parameters}。
+
+@item %c
+@c The current column number of point.
+ポイントの現在のコラム番号。
+
+@item %l
+@c The current line number of point.
+ポイントの現在の行番号。
+
+@item %*
+@c @samp{%} if the buffer is read only (see @code{buffer-read-only}); @*
+@c @samp{*} if the buffer is modified (see @code{buffer-modified-p}); @*
+@c @samp{-} otherwise.  @xref{Buffer Modification}.
+バッファが読み出し専用であれば@samp{%}（@code{buffer-read-only}を参照）、@*
+バッファが変更されていれば@samp{*}（@code{buffer-modified-p}を参照）、@*
+さもなければ@samp{-}。
+@pxref{Buffer Modification}。
+
+@item %+
+@c @samp{*} if the buffer is modified (see @code{buffer-modified-p}); @*
+@c @samp{%} if the buffer is read only (see @code{buffer-read-only}); @*
+@c @samp{-} otherwise.  This differs from @samp{%*} only for a modified
+@c read-only buffer.  @xref{Buffer Modification}.
+バッファが変更されていれば@samp{*}（@code{buffer-modified-p}を参照）、@*
+バッファが読み出し専用であれば@samp{%}（@code{buffer-read-only}を参照）、@*
+さもなければ@samp{-}。
+@samp{%*}との違いは、変更された読み出し専用バッファに対してのみである。
+@pxref{Buffer Modification}。
+
+@item %&
+@c @samp{*} if the buffer is modified, and @samp{-} otherwise.
+バッファが変更されていれば@samp{*}、さもなければ@samp{-}である。
+
+@item %s
+@c The status of the subprocess belonging to the current buffer, obtained with
+@c @code{process-status}.  @xref{Process Information}.
+@code{process-status}で得たカレントバッファに属するサブプロセスの状態。
+@pxref{Process Information}。
+
+@item %t
+@c Whether the visited file is a text file or a binary file.  (This is a
+@c meaningful distinction only on certain operating systems.)
+訪問したファイルがテキストファイルであるかバイナリファイルであるかを表す。
+（特定のオペレーティングシステムでのみ意味を持つ。）
+
+@item %p
+@c The percentage of the buffer text above the @strong{top} of window, or
+@c @samp{Top}, @samp{Bottom} or @samp{All}.
+ウィンドウの@strong{上端}の上にあるバッファのテキストの割合、
+あるいは、@samp{Top}、@samp{Bottom}、@samp{All}のいずれかである。
+
+@item %P
+@c The percentage of the buffer text that is above the @strong{bottom} of
+@c the window (which includes the text visible in the window, as well as
+@c the text above the top), plus @samp{Top} if the top of the buffer is
+@c visible on screen; or @samp{Bottom} or @samp{All}.
+ウィンドウの@strong{下端}の上にあるバッファのテキスト
+（ウィンドウに見えてるテキストと上端の上にあるテキスト）の割合に
+バッファの先頭が見えていれば@samp{Top}を加えたもの、
+あるいは、@samp{Bottom}、@samp{All}のいずれかである。
+
+@item %n
+@c @samp{Narrow} when narrowing is in effect; nothing otherwise (see
+@c @code{narrow-to-region} in @ref{Narrowing}).
+ナロイングしていると@samp{Narrow}、さもなければなにもなし。
+（@ref{Narrowing}の@code{narrow-to-region}を参照）。
+
+@item %[
+@c An indication of the depth of recursive editing levels (not counting
+@c minibuffer levels): one @samp{[} for each editing level.
+@c @xref{Recursive Editing}.
+（ミニバッファのレベルを除く）再帰編集レベルの深さを表す。
+各編集レベルごとに1つの@samp{[}。
+@pxref{Recursive Editing}。
+
+@item %]
+@c One @samp{]} for each recursive editing level (not counting minibuffer
+@c levels).
+（ミニバッファのレベルを除く）各再帰編集レベルごとに1つの@samp{]}。
+
+@item %%
+@c The character @samp{%}---this is how to include a literal @samp{%} in a
+@c string in which @code{%}-constructs are allowed.
+文字@samp{%}。
+@code{%}記法を許す文字列に@samp{%}をそのまま含めるための方法である。
+
+@item %-
+@c Dashes sufficient to fill the remainder of the mode line.
+モード行の残り部分を埋めるに十分な個数のダッシュ。
+@end table
+
+@c The following two @code{%}-constructs are still supported, but they are
+@c obsolete, since you can get the same results with the variables
+@c @code{mode-name} and @code{global-mode-string}.
+つぎの2つの@code{%}記法はまだ使えますが、
+変数@code{mode-name}や@code{global-mode-string}を
+使って同じ効果を得られるのでこれらは廃れた記法です。
+
+@table @code
+@item %m
+@c The value of @code{mode-name}.
+@code{mode-name}の値。
+
+@item %M
+@c The value of @code{global-mode-string}.  Currently, only
+@c @code{display-time} modifies the value of @code{global-mode-string}.
+@code{global-mode-string}の値。
+現在、@code{display-time}は@code{global-mode-string}の値を変更する。
+@end table
+
+@node Imenu
+@c @section Imenu
+@section iメニュー
+
+@c @cindex Imenu
+@cindex iメニュー
+@c   @dfn{Imenu} is a feature that lets users select a definition or
+@c section in the buffer, from a menu which lists all of them, to go
+@c directly to that location in the buffer.  Imenu works by constructing a
+@c buffer index which lists the names and positions of the definitions or
+@c portions of in the buffer, so the user can pick one of them to move to.
+@c This section explains how to customize Imenu for a major mode.
+@dfn{iメニュー}（Imenu）とは、ユーザーが
+バッファ内の定義や節の一覧からその1つを選ぶと
+バッファ内の当該箇所へ直接移動できる機能です。
+iメニューは、
+バッファ内の定義や部分の名前や位置を表すバッファインデックスを
+構築しておくことで動作し、
+当該箇所へ移動するためにユーザーがそれらの1つを選べるようにします。
+本節ではメジャーモードに対するiメニューをカスタマイズする方法を説明します。
+
+@c   The usual and simplest way is to set the variable
+@c @code{imenu-generic-expression}:
+普通のもっとも単純な方法は、
+変数@code{imenu-generic-expression}に設定することです。
+
+@defvar imenu-generic-expression
+@c This variable, if non-@code{nil}, specifies regular expressions for
+@c finding definitions for Imenu.  In the simplest case, elements should
+@c look like this:
+この変数が@code{nil}以外であると、
+iメニュー向けの定義を探すための正規表現を指定する。
+もっとも単純な場合、要素はつぎのような形である。
+
+@example
+(@var{menu-title} @var{regexp} @var{subexp})
+@end example
+
+@c Here, if @var{menu-title} is non-@code{nil}, it says that the matches
+@c for this element should go in a submenu of the buffer index;
+@c @var{menu-title} itself specifies the name for the submenu.  If
+@c @var{menu-title} is @code{nil}, the matches for this element go directly
+@c in the top level of the buffer index.
+ここで、@var{menu-title}が@code{nil}以外であると、
+この要素に一致したものはバッファインデックスのサブメニューに置くことを
+意味する。
+@var{menu-title}自体はサブメニューの名前を指定する。
+@var{menu-title}が@code{nil}であると、
+この要素に一致したものはバッファインデックスのメニューに直接置かれる。
+
+@c The second item in the list, @var{regexp}, is a regular expression
+@c (@pxref{Regular Expressions}); wherever it matches, that is a definition
+@c to mention in the buffer index.  The third item, @var{subexp}, indicates
+@c which subexpression in @var{regexp} matches the definition's name.
+リストの2番目の要素@var{regexp}は正規表現
+（@pxref{Regular Expressions}）であり、
+これに一致した箇所がバッファインデックスに現れる定義になる。
+3番目の要素@var{subexp}は、
+定義の名前に一致する@var{regexp}の部分式である。
+
+@c An element can also look like this:
+要素はつぎの形でもよい。
+
+@example
+(@var{menu-title} @var{regexp} @var{index} @var{function} @var{arguments}@dots{})
+@end example
+
+@c Each match for this element creates a special index item which, if
+@c selected by the user, calls @var{function} with arguments
+@c @var{item-name}, the buffer position, and @var{arguments}.
+この要素に一致するものは、バッファインデックスの特別な項目になり、
+ユーザーが当該項目を選ぶと、
+@var{item-name}、バッファ位置、@var{arguments}を引数として
+@var{function}を呼び出す。
+
+@c For Emacs Lisp mode, @var{pattern} could look like this:
+emacs-lispモード向けには、@var{pattern}はつぎのようになる。
+
+@c should probably use imenu-syntax-alist and \\sw rather than [-A-Za-z0-9+]
+@example
+@group
+((nil "^\\s-*(def\\(un\\|subst\\|macro\\|advice\\)\
+\\s-+\\([-A-Za-z0-9+]+\\)" 2)
+@end group
+@group
+ ("*Vars*" "^\\s-*(def\\(var\\|const\\)\
+\\s-+\\([-A-Za-z0-9+]+\\)" 2)
+@end group
+@group
+ ("*Types*"
+  "^\\s-*\
+(def\\(type\\|struct\\|class\\|ine-condition\\)\
+\\s-+\\([-A-Za-z0-9+]+\\)" 2))
+@end group
+@end example
+
+@c Setting this variable makes it buffer-local in the current buffer.
+この変数に設定すると、
+カレントバッファにおいてバッファローカルな変数になる。
+@end defvar
+
+@defvar imenu-case-fold-search
+@c This variable controls whether matching against
+@c @var{imenu-generic-expression} is case-sensitive: @code{t}, the default,
+@c means matching should ignore case.
+この変数は、@var{imenu-generic-expression}との一致に際して
+大文字小文字を区別するかどうかを制御する。
+デフォルトは@code{t}であり、大文字小文字を区別せずに一致をとる。
+
+@c Setting this variable makes it buffer-local in the current buffer.
+この変数に設定すると、
+カレントバッファにおいてバッファローカルな変数になる。
+@end defvar
+
+@defvar imenu-syntax-alist
+@c This variable is an alist of syntax table modifiers to use while
+@c processing @code{imenu-generic-expression}, to override the syntax table
+@c of the current buffer.  Each element should have this form:
+この変数は、@code{imenu-generic-expression}を処理中に
+カレントバッファの構文テーブルに優先する
+構文テーブルの変更部分の連想リストである。
+各要素はつぎの形であること。
+
+@example
+(@var{characters} . @var{syntax-description})
+@end example
+
+@c The @sc{car}, @var{characters}, can be either a character or a string.
+@c The element says to give that character or characters the syntax
+@c specified by @var{syntax-description}, which is passed to
+@c @code{modify-syntax-entry} (@pxref{Syntax Table Functions}).
+@sc{car}の@var{characters}は、文字か文字列である。
+それらの文字は、指定した構文@var{syntax-description}であることを意味する。
+これは@code{modify-syntax-entry}（@pxref{Syntax Table Functions}）に
+渡される。
+
+@c This feature is typically used to give word syntax to characters which
+@c normally have symbol syntax, and thus to simplify
+@c @code{imenu-generic-expression} and speed up matching.
+@c For example, Fortran mode uses it this way:
+この機能は典型的には、
+通常のシンボル構成文字を単語構成文字として扱い、
+@code{imenu-generic-expression}を単純化し一致処理を速くする。
+たとえば、fortranモードではつぎのように使っている。
+
+@example
+  (setq imenu-syntax-alist '(("_$" . "w")))
+@end example
+
+@c The @code{imenu-generic-expression} patterns can then use @samp{\\sw+}
+@c instead of @samp{\\(\\sw\\|\\s_\\)+}.  Note that this technique may be
+@c inconvenient to use when the mode needs to limit the initial character
+@c of a name to a smaller set of characters than are allowed in the rest
+@c of a name.
+こうすると、@code{imenu-generic-expression}のパターンでは、
+@samp{\\(\\sw\\|\\s_\\)+}のかわりに@samp{\\sw+}を使える。
+この技法は、名前の先頭文字の集合を名前の残りの文字の集合よりも
+小さく制限する必要があるモードで使うには不便であることに注意してほしい。
+
+@c Setting this variable makes it buffer-local in the current buffer.
+この変数に設定すると、
+カレントバッファにおいてバッファローカルな変数になる。
+@end defvar
+
+@c   Another way to customize Imenu for a major mode is to set the
+@c variables @code{imenu-prev-index-position-function} and
+@c @code{imenu-extract-index-name-function}:
+メジャーモードのiメニューをカスタマイズする別の方法は、
+変数@code{imenu-prev-index-position-function}や
+@code{imenu-extract-index-name-function}に設定することです。
+
+@defvar imenu-prev-index-position-function
+@c If this variable is non-@code{nil}, its value should be a function for
+@c finding the next definition to mention in the buffer index, moving
+@c backwards in the file.
+この変数が@code{nil}以外であると、その値は、
+バッファインデックスに置くつぎの定義を
+ファイルで後向きに探すための関数であること。
+
+@c The function should leave point at the place to be connected to the
+@c index item; it should return @code{nil} if it doesn't find another item.
+その関数は、バッファインデックスの項目に対応する箇所にポイントを置くこと。
+項目がみつからなければ@code{nil}を返すこと。
+
+@c Setting this variable makes it buffer-local in the current buffer.
+この変数に設定すると、
+カレントバッファにおいてバッファローカルな変数になる。
+@end defvar
+
+@defvar imenu-extract-index-name-function
+@c If this variable is non-@code{nil}, its value should be a function to
+@c return the name for a definition, assuming point is in that definition
+@c as the @code{imenu-prev-index-position-function} function would leave
+@c it.
+この関数が@code{nil}以外であると、その値は、
+ポイントが変数@code{imenu-prev-index-position-function}が返した
+定義の部分にあると仮定して、当該定義の名前を返す関数であること。
+
+@c Setting this variable makes it buffer-local in the current buffer.
+この変数に設定すると、
+カレントバッファにおいてバッファローカルな変数になる。
+@end defvar
+
+@c   The last way to customize Imenu for a major mode is to set the
+@c variables @code{imenu-create-index-function}:
+メジャーモードのiメニューをカスタマイズする最後の方法は、
+変数@code{imenu-create-index-function}に設定することです。
+
+@defvar imenu-create-index-function
+@c This variable specifies the function to use for creating a buffer index.
+@c The function should take no arguments, and return an index for the
+@c current buffer.  It is called within @code{save-excursion}, so where it
+@c leaves point makes no difference.
+この関数は、バッファインデックスの作成に使う関数を指定する。
+その関数は引数なしで、カレントバッファに対するインデックスを返すこと。
+@code{save-excursion}の内側から呼ばれるので、
+その関数がポイントをどこに置こうと関係ない。
+
+@c The default value is a function that uses
+@c @code{imenu-generic-expression} to produce the index alist.  If you
+@c specify a different function, then @code{imenu-generic-expression} is
+@c not used.
+デフォルト値は、インデックスの連想リストを生成するために
+@code{imenu-generic-expression}を使う関数である。
+読者が別の関数を指定すれば、@code{imenu-generic-expression}は使われない。
+
+@c Setting this variable makes it buffer-local in the current buffer.
+この変数に設定すると、
+カレントバッファにおいてバッファローカルな変数になる。
+@end defvar
+
+@defvar imenu-index-alist
+@c This variable holds the index alist for the current buffer.
+@c Setting it makes it buffer-local in the current buffer.
+この変数は、カレントバッファに対するインデックスの連想リストを保持する。
+この変数に設定すると、
+カレントバッファにおいてバッファローカルな変数になる。
+
+@c Simple elements in the alist look like @code{(@var{index-name}
+@c . @var{index-position})}.  Selecting a simple element has the effect of
+@c moving to position @var{index-position} in the buffer.
+連想リストの単純な要素は@code{(@var{index-name} . @var{index-position})}
+のような形である。
+このような単純な要素を選ぶと、
+バッファ内で@var{index-position}へ移動する効果がある。
+
+@c Special elements look like @code{(@var{index-name} @var{position}
+@c @var{function} @var{arguments}@dots{})}.  Selecting a special element
+@c performs
+特別な要素は@code{(@var{index-name} @var{position}
+@var{function} @var{arguments}@dots{})}のような形である。
+このような特別な要素を選ぶと、
+つぎのようなフォームを実行する。
+
+@example
+(funcall @var{function} @var{index-name} @var{position} @var{arguments}@dots{})
+@end example
+
+@c A nested sub-alist element looks like @code{(@var{index-name}
+@c @var{sub-alist})}.
+入れ子になった部分連想リストの要素は
+@code{(@var{index-name}  @var{sub-alist})}のような形である。
+@end defvar
+
+@node Font Lock Mode
+@c @section Font Lock Mode
+@section フォントロック（font-lock）モード
+@c @cindex Font Lock Mode
+@cindex フォントロック（font-lock）モード
+
+@c   @dfn{Font Lock mode} is a feature that automatically attaches
+@c @code{face} properties to certain parts of the buffer based on their
+@c syntactic role.  How it parses the buffer depends on the major mode;
+@c most major modes define syntactic criteria for which faces to use, in
+@c which contexts.  This section explains how to customize Font Lock for a
+@c particular language---in other words, for a particular major mode.
+@dfn{フォントロック（font-lock）モード}とは、
+バッファ内の特定部分に対して、それらの構文上の役割に応じた
+属性@code{face}を自動的に付加する機能のことです。
+バッファを解析する方法はメジャーモードに依存しますが、
+ほとんどのメジャーモードでは、
+どの文脈でどのフェイスを使うかを指示する条件を定義します。
+本節では、特定の言語向けに、いいかえれば、
+特定のメジャーモード向けに
+フォントロックをカスタマイズする方法を説明します。
+
+@c   Font Lock mode finds text to highlight in two ways: through syntactic
+@c parsing based on the syntax table, and through searching (usually for
+@c regular expressions).  Syntactic fontification happens first; it finds
+@c comments and string constants, and highlights them using
+@c @code{font-lock-comment-face} and @code{font-lock-string-face}
+@c (@pxref{Faces for Font Lock}); search-based fontification follows.
+フォントロック（font-lock）モードは、強調表示すべきテキストを
+2つの方法で、つまり、構文テーブルに基づいた構文解析、あるいは、
+（通常、正規表現による）探索で探します。
+構文解析による処理を最初に行ってコメントや文字列定数を探し、
+@code{font-lock-comment-face}や@code{font-lock-string-face}
+（@pxref{Faces for Font Lock}）を使ってそれらを強調表示します。
+探索による処理がこれに続きます。
+
+@menu
+* Font Lock Basics::
+* Search-based Fontification::
+* Other Font Lock Variables::
+* Levels of Font Lock::
+* Faces for Font Lock::
+* Syntactic Font Lock::
+@end menu
+
+@node Font Lock Basics
+@c @subsection Font Lock Basics
+@subsection フォントロック（font-lock）の基本
+
+@c   There are several variables that control how Font Lock mode highlights
+@c text.  But major modes should not set any of these variables directly.
+@c Instead, it should set @code{font-lock-defaults} as a buffer-local
+@c variable.  The value assigned to this variable is used, if and when Font
+@c Lock mode is enabled, to set all the other variables.
+フォントロック（font-lock）モードがテキストを強調表示する方法を
+制御する変数がいくつかあります。
+しかし、メジャーモードでこれらの変数を直接に設定するべきではありません。
+そのかわりに、バッファローカルな
+変数@code{font-lock-defaults}に設定すべきです。
+フォントロック（font-lock）モードがオンになると、
+この変数に設定された値を使って他のすべての変数に設定します。
+
+@defvar font-lock-defaults
+@c This variable is set by major modes, as a buffer-local variable, to
+@c specify how to fontify text in that mode.  The value should look like
+@c this:
+この変数はメジャーモードがバッファローカルな変数として設定し、
+当該モードにおいてテキストをどのように表示するかを指定する。
+値はつぎの形であること。
+
+@example
+(@var{keywords} @var{keywords-only} @var{case-fold}
+ @var{syntax-alist} @var{syntax-begin} @var{other-vars}@dots{})
+@end example
+
+@c The first element, @var{keywords}, indirectly specifies the value of
+@c @code{font-lock-keywords}.  It can be a symbol, a variable whose value
+@c is list to use for @code{font-lock-keywords}.  It can also be a list of
+@c several such symbols, one for each possible level of fontification.  The
+@c first symbol specifies how to do level 1 fontification, the second
+@c symbol how to do level 2, and so on.
+最初の要素@var{keywords}は、
+間接的に@code{font-lock-keywords}の値を指定する。
+要素@var{keywords}がシンボルであると、
+その変数としての値が@code{font-lock-keywords}に使われる。
+あるいは、要素@var{keywords}がそのようなシンボルのリストであると、
+各シンボルが1つのレベルの表示方法を指定する。
+最初のシンボルはレベル1の表示方法、
+2番目のシンボルはレベル2の表示方法といった具合である。
+
+@c The second element, @var{keywords-only}, specifies the value of the
+@c variable @code{font-lock-keywords-only}.  If this is non-@code{nil},
+@c syntactic fontification (of strings and comments) is not performed.
+2番目の要素@var{keywords-only}は、
+変数@code{font-lock-keywords-only}の値を指定する。
+これが@code{nil}以外であると（文字列やコメントの）構文による処理を行わない。
+
+@c The third element, @var{case-fold}, specifies the value of
+@c @code{font-lock-case-fold-search}.  If it is non-@code{nil}, Font Lock
+@c mode ignores case when searching as directed by
+@c @code{font-lock-keywords}.
+3番目の要素@var{case-fold}は、
+@code{font-lock-case-fold-search}の値を指定する。
+これが@code{nil}以外であると、フォントロック（font-lock）モードは
+@code{font-lock-keywords}で指定された探索で
+大文字小文字を区別しない。
+
+@c If the fourth element, @var{syntax-alist}, is non-@code{nil}, it should be
+@c a list of cons cells of the form @code{(@var{char-or-string}
+@c . @var{string})}.  These are used to set up a syntax table for
+@c fontification (@pxref{Syntax Table Functions}).  The resulting syntax
+@c table is stored in @code{font-lock-syntax-table}.
+4番目の要素@var{syntax-alist}が@code{nil}以外である場合、
+それは@code{(@var{char-or-string} . @var{string})}の形の
+コンスセルのリストであること。
+これらは表示方法を選ぶための構文テーブルの設定に使われる
+（@pxref{Syntax Table Functions}）。
+得られた構文テーブルは@code{font-lock-syntax-table}に保持される。
+
+@c The fifth element, @var{syntax-begin}, specifies the value of
+@c @code{font-lock-beginning-of-syntax-function} (see below).
+5番目の要素@var{syntax-begin}は、
+@code{font-lock-beginning-of-syntax-function}の値を指定する
+（下記参照）。
+
+@c Any further elements @var{other-vars} are have form
+@c @code{(@var{variable} . @var{value})}.  This kind of element means to
+@c make @var{variable} buffer-local and then set it to @var{value}.  This
+@c is used to set other variables that affect fontification.
+@var{other-vars}以降の要素は、
+@code{(@var{variable} . @var{value})}という形である。
+この種の要素は、表示方法の選択に影響する
+その他の変数に設定するために使われる。
+@end defvar
+
+@node Search-based Fontification
+@c @subsection Search-based Fontification
+@subsection 探索に基づくフォント選択
+
+@c   The most important variable for customizing Font Lock mode is
+@c @code{font-lock-keywords}.  It specifies the search criteria for
+@c search-based fontification.
+フォントロック（font-lock）モードのカスタマイズにおいて
+もっとも重要な変数は@code{font-lock-keywords}です。
+探索に基づく表示方法の選択における探索条件を指定します。
+
+@defvar font-lock-keywords
+@c This variable's value is a list of the keywords to highlight.  Be
+@c careful when composing regular expressions for this list; a poorly
+@c written pattern can dramatically slow things down!
+この変数の値は、強調表示するべきキーワードのリストである。
+このリストに正規表現を書く場合には注意すること。
+貧弱な書き方をしたパターンであると、動作を劇的に遅くする！
+@end defvar
+
+@c   Each element of @code{font-lock-keywords} specifies how to find
+@c certain cases of text, and how to highlight those cases.  Font Lock mode
+@c processes the elements of @code{font-lock-keywords} one by one, and for
+@c each element, it finds and handles all matches.  Ordinarily, once
+@c part of the text has been fontified already, this cannot be overridden
+@c by a subsequent match in the same text; but you can specify different
+@c behavior using the @var{override} element of a @var{highlighter}.
+@code{font-lock-keywords}の各要素は、
+特定のテキストの探し方と
+当該テキストをどのように強調表示するか指定します。
+フォントロック（font-lock）モードは、
+@code{font-lock-keywords}の要素を1つ1つ処理し、
+各要素において、それに一致するものすべてを探して処理します。
+通常、すでに表示方法を選択済みのテキスト部分については、
+それ以降の要素に一致しても表示方法を変えません。
+しかし、@var{highlighter}の要素@var{override}を使って、
+異なるふるまいを指定できます。
+
+@c   Each element of @code{font-lock-keywords} should have one of these
+@c forms:
+@code{font-lock-keywords}の各要素はつぎのいずれかの形です。
+
+@table @code
+@item @var{regexp}
+@c Highlight all matches for @var{regexp} using
+@c @code{font-lock-keyword-face}.  For example,
+正規表現@var{regexp}に一致したものはすべて
+@code{font-lock-keyword-face}を使って強調表示する。
+
+@example
+@c ;; @r{Highlight discrete occurrences of @samp{foo}}
+@c ;; @r{using @code{font-lock-keyword-face}.}
+;; @r{孤立した@samp{foo}の出現は}
+;; @r{@code{font-lock-keyword-face}で強調表示する。}
+"\\<foo\\>"
+@end example
+
+@c The function @code{regexp-opt} (@pxref{Syntax of Regexps}) is useful for
+@c calculating optimal regular expressions to match a number of different
+@c keywords.
+関数@code{regexp-opt}（@pxref{Syntax of Regexps}）は、
+異なる複数個のキーワードに一致する最適な正規表現を
+計算するのに有用である。
+
+@item @var{function}
+@c Find text by calling @var{function}, and highlight the matches
+@c it finds using @code{font-lock-keyword-face}.
+関数@var{function}を呼び出してテキストを探し、
+それが探し出したものを@code{font-lock-keyword-face}を使って強調表示する。
+
+@c When @var{function} is called, it receives one argument, the limit of
+@c the search.  It should return non-@code{nil} if it succeeds, and set the
+@c match data to describe the match that was found.
+@var{function}は、探索限界を引数として呼び出される。
+みつかれば@code{nil}以外を返すとともに
+みつけた部分を表すマッチデータを設定する。
+
+@item (@var{matcher} . @var{match})
+@c In this kind of element, @var{matcher} stands for either a regular
+@c expression or a function, as described above.  The @sc{cdr},
+@c @var{match}, specifies which subexpression of @var{matcher} should be
+@c highlighted (instead of the entire text that @var{matcher} matched).
+この種の要素では、@var{matcher}は、上に述べた正規表現か関数を表す。
+@sc{cdr}の@var{match}は、（@var{matcher}に一致した部分全体のかわりに）
+強調表示すべき@var{matcher}の部分式を指定する。
+
+@example
+@c ;; @r{Highlight the @samp{bar} in each occurrences of @samp{fubar},}
+@c ;; @r{using @code{font-lock-keyword-face}.}
+;; @r{@samp{fubar}の各出現の@samp{bar}を}
+;; @r{@code{font-lock-keyword-face}で強調表示}
+("fu\\(bar\\)" . 1)
+@end example
+
+@c If you use @code{regexp-opt} to produce the regular expression
+@c @var{matcher}, then you can use @code{regexp-opt-depth} (@pxref{Syntax
+@c of Regexps}) to calculate the value for @var{match}.
+正規表現@var{matcher}を作るために@code{regexp-opt}を使った場合、
+@var{match}の値を計算するには
+@code{regexp-opt-depth}（@pxref{Syntax of Regexps}）を使える。
+
+@item (@var{matcher} . @var{facename})
+@c In this kind of element, @var{facename} is an expression whose value
+@c specifies the face name to use for highlighting.
+この種の要素では、@var{facename}は、
+強調表示に使うフェイス名を指定する値を表す式である。
+
+@example
+@c ;; @r{Highlight occurrences of @samp{fubar},}
+@c ;; @r{using the face which is the value of @code{fubar-face}.}
+;; @r{@samp{fubar}の出現は、@code{fubar-face}の値で}
+;; @r{表されたフェイスを使って強調表示}
+("fubar" . fubar-face)
+@end example
+
+@item (@var{matcher} . @var{highlighter})
+@c In this kind of element, @var{highlighter} is a list
+@c which specifies how to highlight matches found by @var{matcher}.
+@c It has the form
+この種の要素では、@var{highlighter}は、
+@var{matcher}に一致した部分の強調表示方法を指定するリストである。
+つぎの形であること。
+
+@example
+(@var{subexp} @var{facename} @var{override} @var{laxmatch})
+@end example
+
+@c The @sc{car}, @var{subexp}, is an integer specifying which subexpression
+@c of the match to fontify (0 means the entire matching text).  The second
+@c subelement, @var{facename}, specifies the face, as described above.
+@sc{car}の@var{subexp}は、
+強調表示すべき一致部分の部分式を指定する整数
+（0は一致部分全体を意味する）である。
+2番目の要素@var{facename}は、上に述べたようにフェイスを指定する。
+
+@c The last two values in @var{highlighter}, @var{override} and
+@c @var{laxmatch}, are flags.  If @var{override} is @code{t}, this element
+@c can override existing fontification made by previous elements of
+@c @code{font-lock-keywords}.  If it is @code{keep}, then each character is
+@c fontified if it has not been fontified already by some other element.
+@c If it is @code{prepend}, the face @var{facename} is added to the
+@c beginning of the @code{face} property.  If it is @code{append}, the face
+@c @var{facename} is added to the end of the @code{face} property.
+@var{highlighter}の最後の2つの要素、
+@var{override}と@var{laxmatch}はフラグである。
+@var{override}が@code{t}であると、当該要素は、
+@code{font-lock-keywords}のまえの要素で決定済みの
+表示方法に優先することを表す。
+@code{keep}であると、他の要素では表示方法が決定していない
+各文字の表示方法を表す。
+@code{prepend}であると、
+属性@code{face}の先頭にフェイス@var{facename}を追加する。
+@code{append}であると、
+属性@code{face}の末尾にフェイス@var{facename}を追加する。
+
+@c If @var{laxmatch} is non-@code{nil}, it means there should be no error
+@c if there is no subexpression numbered @var{subexp} in @var{matcher}.
+@var{laxmatch}が@code{nil}以外であると、
+@var{matcher}で一致したものの中に@var{subexp}番目の部分式が
+なくてもエラーとしないことを意味する。
+
+@c Here are some examples of elements of this kind, and what they do:
+この種の要素とその動作の例を示す。
+
+@smallexample
+@c ;; @r{Highlight occurrences of either @samp{foo} or @samp{bar},}
+@c ;; @r{using @code{foo-bar-face}, even if they have already been highlighted.}
+@c ;; @r{@code{foo-bar-face} should be a variable whose value is a face.}
+;; @r{@samp{foo}や@samp{bar}の出現の表示方法がすでに決まっていても}
+;; @r{@code{foo-bar-face}で強調表示する}
+;; @r{@code{foo-bar-face}の値はフェイスであること}
+("foo\\|bar" 0 foo-bar-face t)
+
+@c ;; @r{Highlight the first subexpression within each occurrences}
+@c ;; @r{that the function @code{fubar-match} finds,}
+@c ;; @r{using the face which is the value of @code{fubar-face}.}
+;; @r{関数@code{fubar-match}がみつけた各出現内の最初の部分式を}
+;; @r{@code{fubar-face}の値が表すフェイスで強調表示する}
+(fubar-match 1 fubar-face)
+@end smallexample
+
+@item (@var{matcher} @var{highlighters}@dots{})
+@c This sort of element specifies several @var{highlighter} lists for a
+@c single @var{matcher}.  In order for this to be useful, each
+@c @var{highlighter} should have a different value of @var{subexp}; that is,
+@c each one should apply to a different subexpression of @var{matcher}.
+この種の要素は、1つの@var{matcher}に対して
+複数のリスト@var{highlighter}を指定する。
+これが有用であるためには、
+各@var{highlighter}で@var{subexp}の値が異なること。
+つまり、それぞれを@var{matcher}の異なる部分式に適用できること。
+
+@ignore
+@item (@var{matcher} . @var{anchored})
+In this kind of element, @var{anchored} acts much like a
+@var{highlighter}, but it is more complex and can specify multiple
+successive searches.
+
+For highlighting single items, typically only @var{highlighter} is
+required.  However, if an item or (typically) items are to be
+highlighted following the instance of another item (the anchor) then
+@var{anchored} may be required.
+
+It has this format:
+
+@example
+(@var{submatcher} @var{pre-match-form} @var{post-match-form} @var{highlighters}@dots{})
+@end example
+
+@c I can't parse this text -- rms
+where @var{submatcher} is much like @var{matcher}, with one
+exception---see below.  @var{pre-match-form} and @var{post-match-form}
+are evaluated before the first, and after the last, instance
+@var{anchored}'s @var{submatcher} is used.  Therefore they can be used
+to initialize before, and cleanup after, @var{submatcher} is used.
+Typically, @var{pre-match-form} is used to move to some position
+relative to the original @var{submatcher}, before starting with
+@var{anchored}'s @var{submatcher}.  @var{post-match-form} might be used
+to move, before resuming with @var{anchored}'s parent's @var{matcher}.
+
+For example, an element of the form highlights (if not already highlighted):
+
+@example
+("\\<anchor\\>" (0 anchor-face) ("\\<item\\>" nil nil (0 item-face)))
+@end example
+
+Discrete occurrences of @samp{anchor} in the value of
+@code{anchor-face}, and subsequent discrete occurrences of @samp{item}
+(on the same line) in the value of @code{item-face}.  (Here
+@var{pre-match-form} and @var{post-match-form} are @code{nil}.
+Therefore @samp{item} is initially searched for starting from the end of
+the match of @samp{anchor}, and searching for subsequent instance of
+@samp{anchor} resumes from where searching for @samp{item} concluded.)
+
+The above-mentioned exception is as follows.  The limit of the
+@var{submatcher} search defaults to the end of the line after
+@var{pre-match-form} is evaluated.  However, if @var{pre-match-form}
+returns a position greater than the position after @var{pre-match-form}
+is evaluated, that position is used as the limit of the search.  It is
+generally a bad idea to return a position greater than the end of the
+line; in other words, the @var{submatcher} search should not span lines.
+
+@item (@var{matcher} @var{highlighters-or-anchoreds} ...)
+@end ignore
+
+@item (eval . @var{form})
+@c Here @var{form} is an expression to be evaluated the first time
+@c this value of @code{font-lock-keywords} is used in a buffer.
+@c Its value should have one of the forms described in this table.
+@var{form}は、バッファにおいて@code{font-lock-keywords}のこの値が
+始めて使われたときに評価すべき式である。
+その値は、この表にあげた形の1つであること。
+@end table
+
+@c @strong{Warning:} Do not design an element of @code{font-lock-keywords}
+@c to match text which spans lines; this does not work reliably.  While
+@c @code{font-lock-fontify-buffer} handles multi-line patterns correctly,
+@c updating when you edit the buffer does not, since it considers text one
+@c line at a time.
+@strong{警告：}@code{ }
+@code{font-lock-keywords}の要素は、
+行をまたがって一致するように設計しないこと。
+そのような処理は信頼性がない。
+@code{font-lock-fontify-buffer}は、行にまたがるパターンを正しく扱えるが、
+読者がバッファを編集したときの更新処理では、
+一度に1行ずつ処理するために正しく扱えない。
+
+@node Other Font Lock Variables
+@c @subsection Other Font Lock Variables
+@subsection その他のフォントロック変数
+
+@c   This section describes additional variables that a major mode
+@c can set by means of @code{font-lock-defaults}.
+本節では、@code{font-lock-defaults}を用いてメジャーモードで
+設定できる他の変数について述べます。
+
+@defvar font-lock-keywords-only
+@c Non-@code{nil} means Font Lock should not fontify comments or strings
+@c syntactically; it should only fontify based on
+@c @code{font-lock-keywords}.
+@code{nil}以外であると、フォントロック（font-lock）モードは、
+構文に基づいてコメントや文字列を強調表示すべきでないことを意味する。
+@code{font-lock-keywords}に基づく強調表示のみを行う。
+@end defvar
+
+@ignore
+Other variables include those for buffer-specialized fontification functions,
+`font-lock-fontify-buffer-function', `font-lock-unfontify-buffer-function',
+`font-lock-fontify-region-function', `font-lock-unfontify-region-function',
+`font-lock-inhibit-thing-lock' and `font-lock-maximum-size'.
+@end ignore
+
+@defvar font-lock-keywords-case-fold-search
+@c Non-@code{nil} means that regular expression matching for the sake of
+@c @code{font-lock-keywords} should be case-insensitive.
+@code{nil}以外であると、@code{font-lock-keywords}の
+正規表現探索では大文字小文字を区別しないことを意味する。
+@end defvar
+
+@defvar font-lock-syntax-table
+@c This variable specifies the syntax table to use for fontification of
+@c comments and strings.
+この変数は、コメントや文字列の表示方法に用いる
+構文テーブルを指定する。
+@end defvar
+
+@defvar font-lock-beginning-of-syntax-function
+@c If this variable is non-@code{nil}, it should be a function to move
+@c point back to a position that is syntactically at ``top level'' and
+@c outside of strings or comments.  Font Lock uses this when necessary
+@c to get the right results for syntactic fontification.
+この変数が@code{nil}以外であると、
+ポイントを構文上の『トップレベル』で文字列やコメントの外側に
+後方移動する関数であること。
+フォントロック（font-lock）モードは、
+構文に基づく処理において正しい結果を得るために
+必要に応じてこの関数を使う。
+
+@c This function is called with no arguments.  It should leave point at the
+@c beginning of any enclosing syntactic block.  Typical values are
+@c @code{beginning-of-line} (i.e., the start of the line is known to be
+@c outside a syntactic block), or @code{beginning-of-defun} for programming
+@c modes or @code{backward-paragraph} for textual modes (i.e., the
+@c mode-dependent function is known to move outside a syntactic block).
+関数は引数なしで呼び出される。
+ポイントを構文ブロックの先頭に置くこと。
+典型的な値は、
+@code{beginning-of-line}（行頭は構文ブロックの外側である）、
+あるいは、
+プログラム向けのモードでは@code{beginning-of-defun}、
+テキスト向けのモードでは@code{backward-paragraph}
+（モード固有の関数は構文ブロックの外側にポイントを移動する）である。
+
+@c If the value is @code{nil}, the beginning of the buffer is used as a
+@c position outside of a syntactic block.  This cannot be wrong, but it can
+@c be slow.
+値が@code{nil}であると、バッファの先頭を構文ブロックの外側の位置として使う。
+これは誤りではないが、動作を遅くする。
+@end defvar
+
+@defvar font-lock-mark-block-function
+@c If this variable is non-@code{nil}, it should be a function that is
+@c called with no arguments, to choose an enclosing range of text for
+@c refontification for the command @kbd{M-g M-g}
+@c (@code{font-lock-fontify-block}).
+この変数が@code{nil}以外であると、
+コマンド@kbd{M-g M-g}（@code{font-lock-fontify-block}）による
+再表示のためにテキストの括られた範囲を選ぶために
+引数なしで呼ばれ関数であること。
+
+@c The function should report its choice by placing the region around it.
+@c A good choice is a range of text large enough to give proper results,
+@c but not too large so that refontification becomes slow.  Typical values
+@c are @code{mark-defun} for programming modes or @code{mark-paragraph} for
+@c textual modes.
+関数は、選んだ範囲にリージョンを設定すること。
+正しい結果を得られるように大きめのテキスト範囲を選ぶのがよいが、
+再表示処理が遅くならないように大きすぎないこと。
+典型的な値は、プログラム向けモードでは@code{mark-defun}、
+テキスト向けモードでは@code{mark-paragraph}である。
+@end defvar
+
+@node Levels of Font Lock
+@c @subsection Levels of Font Lock
+@subsection フォントロックのレベル
+
+@c   Many major modes offer three different levels of fontification.  You
+@c can define multiple levels by using a list of symbols for @var{keywords}
+@c in @code{font-lock-defaults}.  Each symbol specifies one level of
+@c fontification; it is up to the user to choose one of these levels.  The
+@c chosen level's symbol value is used to initialize
+@c @code{font-lock-keywords}.
+多くのメジャーモードでは、3段階の表示方法を提供します。
+@code{font-lock-defaults}の@var{keywords}に
+シンボルのリストを使って複数レベルを定義できます。
+各シンボルは1つのレベルの表示方法を指定します。
+どのレベルを選ぶかはユーザーの責任です。
+指定したレベルのシンボルの値は@code{font-lock-keywords}の初期化に使われます。
+
+@c   Here are the conventions for how to define the levels of
+@c fontification:
+表示方法のレベルを定義する際の慣習をあげておきます。
+
+@itemize @bullet
+@item
+@c Level 1: highlight function declarations, file directives (such as include or
+@c import directives), strings and comments.  The idea is speed, so only
+@c the most important and top-level components are fontified.
+レベル1：@code{ }
+関数宣言、（includeやimportなどの）ファイル指定、文字列、
+コメントを強調表示する。
+速さが肝心であり、重要な構文やトップレベルの構成要素のみを強調表示する。
+
+@item
+@c Level 2: in addition to level 1, highlight all language keywords,
+@c including type names that act like keywords, as well as named constant
+@c values.  The idea is that all keywords (either syntactic or semantic)
+@c should be fontified appropriately.
+レベル2：@code{ }
+レベル1に加えて、キーワードのようにふるまう型名を含む
+当該言語のすべてのキーワード、名前付き定数。
+（構文的な、あるいは、意味的な）すべてのキーワードを
+適切に強調表示するのが目的。
+
+@item
+@c Level 3: in addition to level 2, highlight the symbols being defined in
+@c function and variable declarations, and all builtin function names,
+@c wherever they appear.
+レベル3：@code{ }
+レベル2に加えて、
+関数や変数宣言で定義されたシンボル、適切なすべての組み込み関数の名前。
+@end itemize
+
+@node Faces for Font Lock
+@c @subsection Faces for Font Lock
+@subsection フォントロックのフェイス
+
+@c   You can make Font Lock mode use any face, but several faces are
+@c defined specifically for Font Lock mode.  Each of these symbols is both
+@c a face name, and a variable whose default value is the symbol itself.
+@c Thus, the default value of @code{font-lock-comment-face} is
+@c @code{font-lock-comment-face}.  This means you can write
+@c @code{font-lock-comment-face} in a context such as
+@c @code{font-lock-keywords} where a face-name-valued expression is used.
+フォントロック（font-lock）モードでは任意のフェイスを使えますが、
+フォントロック（font-lock）モード向けに特別に定義さたフェイスがあります。
+これらのシンボルのおのおのは、フェイス名でもあり、
+シンボル自身をデフォルト値とする変数でもあります。
+つまり、@code{font-lock-comment-face}のデフォルト値は、
+@code{font-lock-comment-face}です。
+これは、
+フェイス名を値に持つような式を書く@code{font-lock-keywords}などの場面で、
+@code{font-lock-comment-face}と書けることを意味します。
+
+@table @code
+@item font-lock-comment-face
+@vindex font-lock-comment-face
+@c Used (typically) for comments.
+（典型的には）コメントに使われる。
+
+@item font-lock-string-face
+@vindex font-lock-string-face
+@c Used (typically) for string constants.
+（典型的には）文字列に使われる。
+
+@item font-lock-keyword-face
+@vindex font-lock-keyword-face
+@c Used (typically) for keywords---names that have special syntactic
+@c significance, like @code{for} and @code{if} in C.
+（典型的には）キーワード、つまり、
+Cの@code{for}や@code{if}のように構文的に重要な名前に使われる。
+
+@item font-lock-builtin-face
+@vindex font-lock-builtin-face
+@c Used (typically) for built-in function names.
+（典型的には）組み込み関数の名前に使われる。
+
+@item font-lock-function-name-face
+@vindex font-lock-function-name-face
+@c Used (typically) for the name of a function being defined or declared,
+@c in a function definition or declaration. 
+（典型的には）関数定義／宣言内において、
+定義／宣言されている関数の名前に使われる。
+
+@item font-lock-variable-name-face
+@vindex font-lock-variable-name-face
+@c Used (typically) for the name of a variable being defined or declared,
+@c in a variable definition or declaration.
+（典型的には）変数定義／宣言内において、
+定義／宣言されている変数の名前に使われる。
+
+@item font-lock-type-face
+@vindex font-lock-type-face
+@c Used (typically) for names of user-defined data types,
+@c where they are defined and where they are used.
+（典型的には）ユーザー定義のデータ型の名前が定義／参照される場所において、
+それらの名前に使われる。
+
+@item font-lock-constant-face
+@vindex font-lock-constant-face
+@c Used (typically) for constant names.
+（典型的には）定数の名前に使われる。
+
+@item font-lock-warning-face
+@vindex font-lock-warning-face
+@c Used (typically) for constructs that are peculiar, or that greatly
+@c change the meaning of other text.  For example, this is used for
+@c @samp{;;;###autoload} cookies in Emacs Lisp, and for @code{#error}
+@c directives in C.
+（典型的には）独特な構文や別のテキストの意味を大きく変えるようなものに
+使われる。
+たとえば、Emacs Lispの@samp{;;;###autoload}や
+Cの@code{#error}指定に使われる。
+@end table
+
+@node Syntactic Font Lock
+@c @subsection Syntactic Font Lock
+@subsection 構文的なフォントロック
+
+@c   Font Lock mode can be used to update @code{syntax-table} properties
+@c automatically.  This is useful in languages for which a single syntax
+@c table by itself is not sufficient.
+フォントロック（font-lock）モードは、
+属性@code{syntax-table}を自動更新するためにも使えます。
+1つの構文テーブルだけでは十分でないような言語において有用です。
+
+@defvar font-lock-syntactic-keywords
+@c This variable enables and controls syntactic Font Lock.  Its value
+@c should be a list of elements of this form:
+この変数は構文的なフォントロックをオンにし制御する。
+その値はつぎの形の要素からなるリストであること。
+
+@example
+(@var{matcher} @var{subexp} @var{syntax} @var{override} @var{laxmatch})
+@end example
+
+@c The parts of this element have the same meanings as in the corresponding
+@c sort of element of @code{font-lock-keywords},
+この要素の各部分には、つぎの@code{font-lock-keywords}の対応する種類の要素と
+同じ意味がある。
+
+@example
+(@var{matcher} @var{subexp} @var{facename} @var{override} @var{laxmatch})
+@end example
+
+@c However, instead of specifying the value @var{facename} to use for the
+@c @code{face} property, it specifies the value @var{syntax} to use for the
+@c @code{syntax-table} property.  Here, @var{syntax} can be a variable
+@c whose value is a syntax table, a syntax entry of the form
+@c @code{(@var{syntax-code} . @var{matching-char})}, or an expression whose
+@c value is one of those two types.
+しかし、属性@code{face}に使う値@var{facename}を指定するかわりに、
+属性@code{syntax-table}に使う値@var{syntax}を指定する。
+ここで、@var{syntax}は、構文テーブルを値とする変数、
+@code{(@var{syntax-code} . @var{matching-char})}の形の構文テーブルの項目、
+あるいは、この2種類のどちらかを値とする式である。
+@end defvar
+
+@node Hooks
+@c @section Hooks
+@section フック
+@c @cindex hooks
+@cindex フック
+
+@c   A @dfn{hook} is a variable where you can store a function or functions
+@c to be called on a particular occasion by an existing program.  Emacs
+@c provides hooks for the sake of customization.  Most often, hooks are set
+@c up in the @file{.emacs} file, but Lisp programs can set them also.
+@c @xref{Standard Hooks}, for a list of standard hook variables.
+@dfn{フック}（hook）とは、既存のプログラムから特定の場面で
+呼び出される（1つか一連の）関数を収めた変数です。
+Emacsは、カスタマイズのためにフックを用意しています。
+ほとんどの場合、フックはファイル@file{.emacs}で設定しますが、
+Lispプログラムが行ってもかまいません。
+標準のフック関数一覧については、@xref{Standard Hooks}。
+
+@c @cindex normal hook
+@cindex ノーマルフック
+@c   Most of the hooks in Emacs are @dfn{normal hooks}.  These variables
+@c contain lists of functions to be called with no arguments.  When the
+@c hook name ends in @samp{-hook}, that tells you it is normal.  We try to
+@c make all hooks normal, as much as possible, so that you can use them in
+@c a uniform way.
+Emacsの多くのフックは@dfn{ノーマルフック}（normal hook）です。
+これらの変数は、引数なしで呼び出される関数のリストを保持しています。
+フック名が@samp{-hook}で終っていると、ノーマルフックを意味します。
+読者がそれらを単一の方法で使えるように、
+可能な限りノーマルフックにするように心掛けています。
+
+@c   Every major mode function is supposed to run a normal hook called the
+@c @dfn{mode hook} as the last step of initialization.  This makes it easy
+@c for a user to customize the behavior of the mode, by overriding the
+@c buffer-local variable assignments already made by the mode.  But hooks
+@c are used in other contexts too.  For example, the hook
+@c @code{suspend-hook} runs just before Emacs suspends itself
+@c (@pxref{Suspending Emacs}).
+各メジャーモード関数は、
+その初期化の最終段階で@dfn{モードフック}（mode hook）と呼ばれる
+ノーマルフックを実行すると期待されます。
+これにより、モードがすでに設定したバッファローカルな変数を上書きすることで、
+ユーザーがモードのふるまいをカスタマイズしやすくしています。
+しかし、フックは別の場面でも使われています。
+たとえば、フック@code{suspend-hook}は、
+Emacsが自身を一時休止する直前に実行されます。
+（@pxref{Suspending Emacs}）。
+
+@c   The recommended way to add a hook function to a normal hook is by
+@c calling @code{add-hook} (see below).  The hook functions may be any of
+@c the valid kinds of functions that @code{funcall} accepts (@pxref{What Is
+@c a Function}).  Most normal hook variables are initially void;
+@c @code{add-hook} knows how to deal with this.
+ノーマルフックにフック関数を追加する推奨方法は、
+@code{add-hook}（下記参照）を呼ぶことです。
+フック関数は、@code{funcall}（@pxref{What Is a Function}）が
+受け付けるならばどんな種類の関数でもかまいません。
+ほとんどのノーマルフック変数は最初は空ですが、
+@code{add-hook}はその扱い方を知っています。
+
+@c @cindex abnormal hook
+@cindex アブノーマルフック
+@c   If the hook variable's name does not end with @samp{-hook}, that
+@c indicates it is probably an @dfn{abnormal hook}; you should look at its
+@c documentation to see how to use the hook properly.
+フック変数の名前が@samp{-hook}で終らない場合、
+それが@dfn{アブノーマルフック}（abnormal hook）であることを表します。
+読者は、そのようなフックの正しい使い方を説明書で調べるべきです。
+
+@c   If the variable's name ends in @samp{-functions} or @samp{-hooks},
+@c then the value is a list of functions, but it is abnormal in that either
+@c these functions are called with arguments or their values are used in
+@c some way.  You can use @code{add-hook} to add a function to the list,
+@c but you must take care in writing the function.  (A few of these
+@c variables are actually normal hooks which were named before we
+@c established the convention of using @samp{-hook} for them.)
+変数名が@samp{-functions}や@samp{-hooks}で終っていると、
+その値は関数のリストですが、
+それらの関数を引数ありで呼び出したり、
+関数の戻り値をどこかで使うという意味でアブノーマル（異常）なのです。
+リストに関数を追加するには@code{add-hook}を使えますが、
+関数を書くときには注意する必要があります。
+（これらの変数のうち、実際にはノーマルフックであるものもある。
+ノーマルフックには@samp{-hook}を使うという慣習を
+確立するまえに命名したものである。）
+
+@c   If the variable's name ends in @samp{-function}, then its value
+@c is just a single function, not a list of functions.
+変数名が@samp{-function}で終っていると、
+その値は、関数のリストではなく、1つの関数です。
+
+@c   Here's an example that uses a mode hook to turn on Auto Fill mode when
+@c in Lisp Interaction mode:
+lisp対話モードで自動詰め込み（auto-fill）モードをオンにするために
+モードフックを使った例を示します。
+
+@example
+(add-hook 'lisp-interaction-mode-hook 'turn-on-auto-fill)
+@end example
+
+@c   At the appropriate time, Emacs uses the @code{run-hooks} function to
+@c run particular hooks.  This function calls the hook functions that have
+@c been added with @code{add-hook}.
+適当な時期に、Emacsは関数@code{run-hooks}を使って
+特定のフックを実行します。
+この関数は、@code{add-hook}で追加されたフック関数を呼び出します。
+
+@defun run-hooks &rest hookvar
+@c This function takes one or more hook variable names as arguments, and
+@c runs each hook in turn.  Each @var{hookvar} argument should be a symbol
+@c that is a hook variable.  These arguments are processed in the order
+@c specified.
+この関数は複数個のフック変数名を引数にとり、各フックを順に実行する。
+各引数@var{hookvar}は、フック変数のシンボルであること。
+これらの引数は、指定された順に処理される。
+
+@c If a hook variable has a non-@code{nil} value, that value may be a
+@c function or a list of functions.  If the value is a function (either a
+@c lambda expression or a symbol with a function definition), it is called.
+@c If it is a list, the elements are called, in order.  The hook functions
+@c are called with no arguments.  Nowadays, storing a single function in
+@c the hook variable is semi-obsolete; you should always use a list of
+@c functions.
+フック変数が@code{nil}以外の値であると、
+その値は、関数か関数のリストである。
+値が関数（ラムダ式や関数定義を持つシンボル）であると、それを呼び出す。
+値がリストであると、順番にその要素を呼び出す。
+フック関数は、引数なしで呼び出される。
+現在、フック変数に1つの関数を入れることは廃れかけている。
+つねに関数のリストを使うべきである。
+
+@c For example, here's how @code{emacs-lisp-mode} runs its mode hook:
+例として、@code{emacs-lisp-mode}がそのモードフックをどのように
+実行するかを示す。
+
+@example
+(run-hooks 'emacs-lisp-mode-hook)
+@end example
+@end defun
+
+@defun run-hook-with-args hook &rest args
+@c This function is the way to run an abnormal hook which passes arguments
+@c to the hook functions.  It calls each of the hook functions, passing
+@c each of them the arguments @var{args}.
+この関数は、フック関数に引数を渡すアブノーマルフックを実行する方法である。
+各フック関数に引数@var{args}を渡して呼び出す。
+@end defun
+
+@defun run-hook-with-args-until-failure hook &rest args
+@c This function is the way to run an abnormal hook which passes arguments
+@c to the hook functions, and stops as soon as any hook function fails.  It
+@c calls each of the hook functions, passing each of them the arguments
+@c @var{args}, until some hook function returns @code{nil}.  Then it stops,
+@c and returns @code{nil} if some hook function did, and otherwise
+@c returns a non-@code{nil} value.
+この関数は、フック関数に引数を渡すアブノーマルフックを実行するが、
+フック関数が失敗するとただちに止める方法である。
+フック関数が@code{nil}を返すまで、
+各フック関数に引数@var{args}を渡して呼び出す。
+@code{nil}が返ってくると@code{nil}で戻る。
+さもなければ、@code{nil}以外の値を返す。
+@end defun
+
+@defun run-hook-with-args-until-success hook &rest args
+@c This function is the way to run an abnormal hook which passes arguments
+@c to the hook functions, and stops as soon as any hook function succeeds.
+@c It calls each of the hook functions, passing each of them the arguments
+@c @var{args}, until some hook function returns non-@code{nil}.  Then it
+@c stops, and returns whatever was returned by the last hook function
+@c that was called.
+この関数は、フック関数に引数を渡すアブノーマルフックを実行するが、
+フック関数が成功するとただちに止める方法である。
+フック関数が@code{nil}以外を返すまで、
+各フック関数に引数@var{args}を渡して呼び出す。
+@code{nil}以外が返ってくると
+最後に呼び出したフック関数の戻り値を返す。
+@end defun
+
+@defun add-hook hook function &optional append local
+@c This function is the handy way to add function @var{function} to hook
+@c variable @var{hook}.  The argument @var{function} may be any valid Lisp
+@c function with the proper number of arguments.  For example,
+この関数はフック変数@var{hook}に関数@var{function}を追加する
+手軽な方法である。
+引数@var{function}は、正しい個数の引数をとる任意の正しいLisp関数であること。
+たとえば、
+
+@example
+(add-hook 'text-mode-hook 'my-text-hook-function)
+@end example
+
+@noindent
+@c adds @code{my-text-hook-function} to the hook called @code{text-mode-hook}.
+は、@code{text-mode-hook}というフックに
+@code{my-text-hook-function}を追加する。
+
+@c You can use @code{add-hook} for abnormal hooks as well as for normal
+@c hooks.
+@code{add-hook}は、ノーマルフックに加えてアブノーマルフックにも使える。
+
+@c It is best to design your hook functions so that the order in which they
+@c are executed does not matter.  Any dependence on the order is ``asking
+@c for trouble.''  However, the order is predictable: normally,
+@c @var{function} goes at the front of the hook list, so it will be
+@c executed first (barring another @code{add-hook} call).  If the optional
+@c argument @var{append} is non-@code{nil}, the new hook function goes at
+@c the end of the hook list and will be executed last.
+フック関数は実行順序に依存しないように設計するのが最良である。
+実行順序に依存すると『トラブルを呼び込む』ようなものである。
+しかし、順序は予測できる。
+通常、@var{function}はフックリストの先頭に置かれるので、
+（ほかに@code{add-hook}の呼び出しがなければ）最初に実行される。
+省略可能な引数@var{append}が@code{nil}以外であると、
+新たなフック関数はフックリストの末尾に置かれ、
+最後に実行される。
+
+@c If @var{local} is non-@code{nil}, that says to make the new hook
+@c function buffer-local in the current buffer.  Before you can do this, you must
+@c make the hook itself buffer-local by calling @code{make-local-hook}
+@c (@strong{not} @code{make-local-variable}).  If the hook itself is not
+@c buffer-local, then the value of @var{local} makes no difference---the
+@c hook function is always global.
+@var{local}が@code{nil}以外であると、
+新たなフック関数をカレントバッファにバッファローカルにすることを意味する。
+これを行うまえに、（@code{make-local-variable}@strong{ではなく}）
+@code{make-local-hook}を呼んで
+フック自身をバッファローカルにしておく必要がある。
+フック自身がバッファローカルでないと、@var{local}の値は意味を持たない。
+フック関数はつねにグローバルである。
+@end defun
+
+@defun remove-hook hook function &optional local
+@c This function removes @var{function} from the hook variable @var{hook}.
+この関数は、フック変数@var{hook}から@var{function}を取り除く。
+
+@c If @var{local} is non-@code{nil}, that says to remove @var{function}
+@c from the buffer-local hook list instead of from the global hook list.
+@c If the hook variable itself is not buffer-local, then the value of
+@c @var{local} makes no difference.
+@var{local}が@code{nil}以外であると、
+グローバルなフックリストではなくバッファローカルなフックリストから
+@var{function}を削除することを指定する。
+フック変数自身がバッファローカルでないと、@var{local}の値は意味を持たない。
+@end defun
+
+@defun make-local-hook hook
+@c This function makes the hook variable @code{hook} buffer-local in the
+@c current buffer.  When a hook variable is buffer-local, it can have
+@c buffer-local and global hook functions, and @code{run-hooks} runs all of
+@c them.
+この関数は、フック変数@code{hook}をカレントバッファにバッファローカルにする。
+フック変数がバッファローカルであると、
+バッファローカルなフック関数とグローバルなフック関数を持つことができ、
+@code{run-hooks}はそれらすべてを実行する。
+
+@c This function works by making @code{t} an element of the buffer-local
+@c value.  That serves as a flag to use the hook functions in the default
+@c value of the hook variable as well as those in the buffer-local value.
+@c Since @code{run-hooks} understands this flag, @code{make-local-hook}
+@c works with all normal hooks.  It works for only some non-normal
+@c hooks---those whose callers have been updated to understand this meaning
+@c of @code{t}.
+この関数は、バッファローカルな値の要素を@code{t}にすることで動作する。
+これは、バッファローカルな値に加えてフック変数のデフォルト値にある
+フック関数を使うことを表すフラグである。
+@code{run-hooks}はこのフラグを理解し、
+@code{make-local-hook}はすべてのノーマルフックを処理できる。
+アブノーマルフックに関しては、
+@code{t}の意味を理解するように更新したものだけが処理できる。
+
+@c Do not use @code{make-local-variable} directly for hook variables; it is
+@c not sufficient.
+フック変数に対して@code{make-local-variable}を直接使わないこと。
+それだけでは不十分である。
+@end defun

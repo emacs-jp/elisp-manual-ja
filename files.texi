@@ -1,0 +1,3565 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/files
+@node Files, Backups and Auto-Saving, Documentation, Top
+@comment  node-name,  next,  previous,  up
+@c @chapter Files
+@chapter ファイル
+
+@c   In Emacs, you can find, create, view, save, and otherwise work with
+@c files and file directories.  This chapter describes most of the
+@c file-related functions of Emacs Lisp, but a few others are described in
+@c @ref{Buffers}, and those related to backups and auto-saving are
+@c described in @ref{Backups and Auto-Saving}.
+Emacsでは、ファイルやディレクトリを
+探したり、作成したり、眺めたり、保存したり、その他のことをできます。
+本章では、Emacs Lispのファイル関連の関数のほとんどについて説明しますが、
+他の一部は@ref{Buffers}で、バックアップや自動保存に関することは
+@ref{Backups and Auto-Saving}で説明します。
+
+@c   Many of the file functions take one or more arguments that are file
+@c names.  A file name is actually a string.  Most of these functions
+@c expand file name arguments by calling @code{expand-file-name}, so that
+@c @file{~} is handled correctly, as are relative file names (including
+@c @samp{../}).  These functions don't recognize environment variable
+@c substitutions such as @samp{$HOME}.  @xref{File Name Expansion}.
+ファイル関数の多くは、ファイル名の引数を1つないし複数個取ります。
+ファイル名は実際には文字列です。
+これらのほとんどの関数では、@code{expand-file-name}を呼び出して
+ファイル名引数を展開することで@file{~}や
+（@samp{../}を含む）相対ファイル名を正しく処理します。
+これらの関数は、@samp{$HOME}などの環境変数置換は認識しません。
+@xref{File Name Expansion}。
+
+@menu
+* Visiting Files::           Reading files into Emacs buffers for editing.
+* Saving Buffers::           Writing changed buffers back into files.
+* Reading from Files::       Reading files into buffers without visiting.
+* Writing to Files::         Writing new files from parts of buffers.
+* File Locks::               Locking and unlocking files, to prevent
+                               simultaneous editing by two people.
+* Information about Files::  Testing existence, accessibility, size of files.
+* Changing Files::           Renaming files, changing protection, etc.
+* File Names::               Decomposing and expanding file names.
+* Contents of Directories::  Getting a list of the files in a directory.
+* Create/Delete Dirs::	     Creating and Deleting Directories.
+* Magic File Names::	     Defining "magic" special handling
+			       for certain file names.
+* Format Conversion::        Conversion to and from various file formats.
+@end menu
+
+@node Visiting Files
+@c @section Visiting Files
+@section ファイルの訪問
+@c @cindex finding files
+@c @cindex visiting files
+@cindex ファイルを探す
+@cindex ファイルを訪問する
+
+@c   Visiting a file means reading a file into a buffer.  Once this is
+@c done, we say that the buffer is @dfn{visiting} that file, and call the
+@c file ``the visited file'' of the buffer.
+ファイルを訪問するとは、ファイルをバッファに読み込むことです。
+いったんこうすると、バッファはそのファイルを
+@dfn{訪問している}（visiting）といい、
+そのファイルをバッファの『訪問しているファイル』と呼びます。
+
+@c   A file and a buffer are two different things.  A file is information
+@c recorded permanently in the computer (unless you delete it).  A buffer,
+@c on the other hand, is information inside of Emacs that will vanish at
+@c the end of the editing session (or when you kill the buffer).  Usually,
+@c a buffer contains information that you have copied from a file; then we
+@c say the buffer is visiting that file.  The copy in the buffer is what
+@c you modify with editing commands.  Such changes to the buffer do not
+@c change the file; therefore, to make the changes permanent, you must
+@c @dfn{save} the buffer, which means copying the altered buffer contents
+@c back into the file.
+ファイルとバッファは2つの異なるものです。
+ファイルは、コンピュータ内に（読者が削除しない限り）恒久的に
+記録されている情報です。
+一方、バッファはEmacs内部にある情報であり、
+編集セッションを終了する（あるいはバッファを削除する）と消えてしまいます。
+通常、バッファにはファイルからコピーした情報があります。
+つまり、バッファはそのファイルを訪問しているのです。
+読者は、バッファ内のコピーを編集コマンドで修正するのです。
+バッファに対するそのような変更では、ファイルは変更しません。
+したがって、変更を恒久的なものにするには、
+読者はバッファを@dfn{保存}（save）する、つまり、
+バッファの変更した内容をファイルにコピーし戻す必要があります。
+
+@c   In spite of the distinction between files and buffers, people often
+@c refer to a file when they mean a buffer and vice-versa.  Indeed, we say,
+@c ``I am editing a file,'' rather than, ``I am editing a buffer that I
+@c will soon save as a file of the same name.''  Humans do not usually need
+@c to make the distinction explicit.  When dealing with a computer program,
+@c however, it is good to keep the distinction in mind.
+ファイルとバッファの区別にも関わらず、
+バッファを意味してファイルといったり、その逆のいい方をしばしばします。
+もちろん、『同じ名前のファイルにただちに保存するつもりでバッファを
+編集している』とはいわずに『ファイルを編集している』といいます。
+しばしば、人間は明確に区別する必要はありません。
+しかし、コンピュータプログラムを扱ううえでは、
+区別を心得ておくことがよいのです。
+
+@menu
+* Visiting Functions::         The usual interface functions for visiting.
+* Subroutines of Visiting::    Lower-level subroutines that they use.
+@end menu
+
+@node Visiting Functions
+@c @subsection Functions for Visiting Files
+@subsection ファイルを訪問する関数
+
+@c   This section describes the functions normally used to visit files.
+@c For historical reasons, these functions have names starting with
+@c @samp{find-} rather than @samp{visit-}.  @xref{Buffer File Name}, for
+@c functions and variables that access the visited file name of a buffer or
+@c that find an existing buffer by its visited file name.
+本節では、ファイルを訪問するために通常使う関数について述べます。
+歴史的な理由で、これらの関数は@samp{visit-}でなく@samp{find-}という
+名前で始まります。
+バッファで訪問したファイルの名前を参照するための関数や変数、ならびに、
+訪問したファイルの名前で既存バッファを探すための関数や変数については、
+@xref{Buffer File Name}。
+
+@c   In a Lisp program, if you want to look at the contents of a file but
+@c not alter it, the fastest way is to use @code{insert-file-contents} in a
+@c temporary buffer.  Visiting the file is not necessary and takes longer.
+@c @xref{Reading from Files}.
+Lispプログラムにおいて、ファイルの内容を変更せずにその内容を調べたいときには、
+もっとも速い方法は一時的なバッファで@code{insert-file-contents}を
+使うことです。
+ファイルを訪問する必要はありませんし、それには余計に時間がかかります。
+@xref{Reading from Files}。
+
+@c @deffn Command find-file filename
+@deffn コマンド find-file filename
+@c This command selects a buffer visiting the file @var{filename},
+@c using an existing buffer if there is one, and otherwise creating a 
+@c new buffer and reading the file into it.  It also returns that buffer.
+このコマンドはファイル@var{filename}を訪問したバッファを選択する。
+そのようなバッファが既存ならば当該バッファを使う。
+さもなければ、新たなバッファを作成してファイルを読み込む。
+当該バッファを返す。
+
+@c The body of the @code{find-file} function is very simple and looks
+@c like this:
+関数@code{find-file}の本体は非常に簡単で、つぎのとおりである。
+
+@example
+(switch-to-buffer (find-file-noselect filename))
+@end example
+
+@noindent
+@c (See @code{switch-to-buffer} in @ref{Displaying Buffers}.)
+（@ref{Displaying Buffers}の@code{switch-to-buffer}を参照。）
+
+@c When @code{find-file} is called interactively, it prompts for
+@c @var{filename} in the minibuffer.
+@code{find-file}が対話的に呼び出されると、
+ミニバッファで@var{filename}を問い合わせる。
+@end deffn
+
+@defun find-file-noselect filename &optional nowarn rawfile
+@c This function is the guts of all the file-visiting functions.  It finds
+@c or creates a buffer visiting the file @var{filename}, and returns it.
+@c It uses an existing buffer if there is one, and otherwise creates a new
+@c buffer and reads the file into it.  You may make the buffer current or
+@c display it in a window if you wish, but this function does not do so.
+この関数は、ファイルを訪問するすべての関数の基である。
+ファイル@var{filename}を訪問した／するバッファを探し／作成し、
+当該バッファを返す。
+そのようなバッファが既存ならば当該バッファを使う。
+さもなければ、新たなバッファを作成してファイルを読み込む。
+必要に応じて、バッファをカレントバッファにしたり
+ウィンドウに表示できるが、この関数はそこまでは行わない。
+
+@c When @code{find-file-noselect} uses an existing buffer, it first
+@c verifies that the file has not changed since it was last visited or
+@c saved in that buffer.  If the file has changed, then this function asks
+@c the user whether to reread the changed file.  If the user says
+@c @samp{yes}, any changes previously made in the buffer are lost.
+@code{find-file-noselect}が既存バッファを使うときには、
+ファイルの内容が当該バッファに最後に訪問してから、あるいは、
+当該バッファを最後に保存してから変更されたかどうかまず確認する。
+ファイルが変更されていれば、この関数は変更されたファイルを
+再度読み込むかどうかユーザーに問い合わせる。
+ユーザーが@samp{yes}と答えると、バッファ内の変更は破棄される。
+
+@c This function displays warning or advisory messages in various peculiar
+@c cases, unless the optional argument @var{nowarn} is non-@code{nil}.  For
+@c example, if it needs to create a buffer, and there is no file named
+@c @var{filename}, it displays the message @samp{New file} in the echo
+@c area, and leaves the buffer empty.
+省略可能な引数@var{nowarn}が@code{nil}であると、
+この関数はさまざまな場面で警告／助言メッセージを表示する。
+たとえば、バッファを作成する必要があり、かつ、
+指定したファイル@var{filename}がない場合には、
+エコー領域にメッセージ@samp{New file}を表示し、バッファは空にしておく。
+
+@c The @code{find-file-noselect} function normally calls
+@c @code{after-find-file} after reading the file (@pxref{Subroutines of
+@c Visiting}).  That function sets the buffer major mode, parses local
+@c variables, warns the user if there exists an auto-save file more recent
+@c than the file just visited, and finishes by running the functions in
+@c @code{find-file-hooks}.
+関数@code{find-file-noselect}は、
+ファイルを読み込み終えると通常@code{after-find-file}を呼び出す
+（@pxref{Subroutines of Visiting}）。
+その関数は、バッファのメジャーモードを設定し、ローカル変数を解析し、
+訪問したファイルより新しい自動保存ファイルが存在するとユーザーに警告を発し、
+@code{find-file-hooks}の関数を実行して処理を終える。
+
+@c If the optional argument @var{rawfile} is non-@code{nil}, then
+@c @code{after-find-file} is not called, and the
+@c @code{find-file-not-found-hooks} are not run in case of failure.  What's
+@c more, a non-@code{nil} @var{rawfile} value suppresses coding system
+@c conversion (@pxref{Coding Systems}) and format conversion (@pxref{Format
+@c Conversion}).
+省略可能な引数@var{rawfile}が@code{nil}以外であると、
+@code{after-find-file}を呼び出さず、
+失敗しても@code{find-file-not-found-hooks}を実行しない。
+さらに、@var{rawfile}の値が@code{nil}以外であると、
+コーディングシステムの変換（@pxref{Coding Systems}）や
+書式変換（@pxref{Format Conversion}）も行わない。
+
+@c The @code{find-file-noselect} function returns the buffer that is
+@c visiting the file @var{filename}.
+関数@code{find-file-noselect}は、
+ファイル@var{filename}を訪問したバッファを返す。
+
+@example
+@group
+(find-file-noselect "/etc/fstab")
+     @result{} #<buffer fstab>
+@end group
+@end example
+@end defun
+
+@c @deffn Command find-file-other-window filename
+@deffn コマンド find-file-other-window filename
+@c This command selects a buffer visiting the file @var{filename}, but
+@c does so in a window other than the selected window.  It may use another
+@c existing window or split a window; see @ref{Displaying Buffers}.
+このコマンドは、選択しているウィンドウ以外のウィンドウにおいて、
+ファイル@var{filename}を訪問したバッファを選択する。
+別の既存ウィンドウを使うか、ウィンドウを分割する。
+@ref{Displaying Buffers}を参照。
+
+@c When this command is called interactively, it prompts for
+@c @var{filename}.
+このコマンドが対話的に呼び出されると、
+@var{filename}を問い合わせる。
+@end deffn
+
+@c @deffn Command find-file-read-only filename
+@deffn コマンド find-file-read-only filename
+@c This command selects a buffer visiting the file @var{filename}, like
+@c @code{find-file}, but it marks the buffer as read-only.  @xref{Read Only
+@c Buffers}, for related functions and variables.
+このコマンドは、@code{find-file}のようにファイル@var{filename}を訪問した
+バッファを選択するが、当該バッファは読み出し専用となる。
+@xref{Read Only Buffers}。
+
+@c When this command is called interactively, it prompts for
+@c @var{filename}.
+このコマンドが対話的に呼び出されると、
+@var{filename}を問い合わせる。
+@end deffn
+
+@c @deffn Command view-file filename
+@deffn コマンド view-file filename
+@c This command visits @var{filename} using View mode, returning to the
+@c previous buffer when you exit View mode.  View mode is a minor mode that
+@c provides commands to skim rapidly through the file, but does not let you
+@c modify the text.  Entering View mode runs the normal hook
+@c @code{view-mode-hook}.  @xref{Hooks}.
+このコマンドは、閲覧（view）モードで@var{filename}を訪問し、
+閲覧（view）モードを抜けるとそれ以前のバッファに戻る。
+閲覧（view）モードは、ファイルを素早く眺めるためのコマンドを与えるが
+テキストの変更は許さないマイナモードである。
+閲覧（view）モードに入ると、ノーマルフック@code{view-mode-hook}を実行する。
+@pxref{Hooks}。
+
+@c When @code{view-file} is called interactively, it prompts for
+@c @var{filename}.
+@code{view-file}が対話的に呼び出されると、
+@var{filename}を問い合わせる。
+@end deffn
+
+@defvar find-file-hooks
+@c The value of this variable is a list of functions to be called after a
+@c file is visited.  The file's local-variables specification (if any) will
+@c have been processed before the hooks are run.  The buffer visiting the
+@c file is current when the hook functions are run.
+この変数の値は、ファイルを訪問後に呼び出される関数のリストである。
+ファイルにローカル変数指定（があれば）は、
+フックを実行するまえに処理される。
+フック関数が実行されときには、
+ファイルを訪問したバッファはカレントバッファになっている。
+
+@c This variable works just like a normal hook, but we think that renaming
+@c it would not be advisable.  @xref{Hooks}.
+この変数はノーマルフックのように動作するが、
+改名すべきではないと考えている。
+@pxref{Hooks}。
+@end defvar
+
+@defvar find-file-not-found-hooks
+@c The value of this variable is a list of functions to be called when
+@c @code{find-file} or @code{find-file-noselect} is passed a nonexistent
+@c file name.  @code{find-file-noselect} calls these functions as soon as
+@c it detects a nonexistent file.  It calls them in the order of the list,
+@c until one of them returns non-@code{nil}.  @code{buffer-file-name} is
+@c already set up.
+この変数の値は、@code{find-file}や@code{find-file-noselect}に
+存在しないファイルを与えたときに呼び出される関数のリストである。
+@code{find-file-noselect}は、ファイルが存在しないことがわかると
+ただちにこれらの関数を呼び出す。
+@code{nil}以外の値が返されるまで、リストに現れる順に呼び出す。
+@code{buffer-file-name}は設定済みである。
+
+@c This is not a normal hook because the values of the functions are
+@c used, and in many cases only some of the functions are called.
+関数の値を使い、しかも、一部の関数だけを呼び出すので、
+これはノーマルフックではない。
+@end defvar
+
+@node Subroutines of Visiting
+@comment  node-name,  next,  previous,  up
+@c @subsection Subroutines of Visiting
+@subsection 訪問するためのサブルーティン
+
+@c   The @code{find-file-noselect} function uses two important subroutines
+@c which are sometimes useful in user Lisp code: @code{create-file-buffer}
+@c and @code{after-find-file}.  This section explains how to use them.
+関数@code{find-file-noselect}は、ユーザーのLispコードでも有用な
+2つの重要なサブルーティン、@code{create-file-buffer}と
+@code{after-find-file}を使います。
+本節ではそれらの使い方を説明します。
+
+@defun create-file-buffer filename
+@c This function creates a suitably named buffer for visiting
+@c @var{filename}, and returns it.  It uses @var{filename} (sans directory)
+@c as the name if that name is free; otherwise, it appends a string such as
+@c @samp{<2>} to get an unused name.  See also @ref{Creating Buffers}.
+この関数は、@var{filename}を訪問するのに適するように命名した
+バッファを作成しそれを返す。
+（ディレクトリを除外した）@var{filename}が使用中の名前でなければ、
+それを名前とする。
+さもなければ、未使用の名前を得るために@samp{<2>}などの文字列を付加する。
+@ref{Creating Buffers}も参照。
+
+@c @strong{Please note:} @code{create-file-buffer} does @emph{not}
+@c associate the new buffer with a file and does not select the buffer.
+@c It also does not use the default major mode.
+@strong{注意：}@code{ }
+@code{create-file-buffer}は、
+新たなバッファをファイルに対応付け@emph{ない}し、
+当該バッファを選択しない。
+デフォルトのメジャーモードも使わない。
+
+@example
+@group
+(create-file-buffer "foo")
+     @result{} #<buffer foo>
+@end group
+@group
+(create-file-buffer "foo")
+     @result{} #<buffer foo<2>>
+@end group
+@group
+(create-file-buffer "foo")
+     @result{} #<buffer foo<3>>
+@end group
+@end example
+
+@c This function is used by @code{find-file-noselect}.
+@c It uses @code{generate-new-buffer} (@pxref{Creating Buffers}).
+この関数は@code{find-file-noselect}で使われる。
+この関数は@code{generate-new-buffer}（@pxref{Creating Buffers}）を使う。
+@end defun
+
+@defun after-find-file &optional error warn
+@c This function sets the buffer major mode, and parses local variables
+@c (@pxref{Auto Major Mode}).  It is called by @code{find-file-noselect}
+@c and by the default revert function (@pxref{Reverting}).
+この関数は、バッファのメジャーモードを設定し、
+ローカル変数を解析する（@pxref{Auto Major Mode}）。
+@code{find-file-noselect}や
+デフォルトの復元処理関数（@pxref{Reverting}）から呼ばれる。
+
+@c @cindex new file message
+@c @cindex file open error
+@cindex 新規ファイルメッセージ
+@cindex ファイルオープンエラー
+@c If reading the file got an error because the file does not exist, but
+@c its directory does exist, the caller should pass a non-@code{nil} value
+@c for @var{error}.  In that case, @code{after-find-file} issues a warning:
+@c @samp{(New File)}.  For more serious errors, the caller should usually not
+@c call @code{after-find-file}.
+ディレクトリはあるのにファイルが存在しないために
+ファイルの読み込みがエラーになった場合には、
+呼び出し側は@var{error}の値として@code{nil}以外を渡すこと。
+その場合、@code{after-find-file}は警告@samp{(New File)}を表示する。
+より重大なエラーの場合には、@code{after-find-file}を呼び出すべきでない。
+
+@c If @var{warn} is non-@code{nil}, then this function issues a warning
+@c if an auto-save file exists and is more recent than the visited file.
+@var{warn}が@code{nil}以外であると、
+自動保存ファイルが存在しそれが訪問したファイルより新しい場合には、
+この関数は警告を発する。
+
+@c The last thing @code{after-find-file} does is call all the functions
+@c in the list @code{find-file-hooks}.
+@code{after-find-file}が最後に行うことは、
+リスト@code{find-file-hooks}内のすべての関数を呼び出すことである。
+@end defun
+
+@node Saving Buffers
+@c @section Saving Buffers
+@section バッファの保存
+
+@c   When you edit a file in Emacs, you are actually working on a buffer
+@c that is visiting that file---that is, the contents of the file are
+@c copied into the buffer and the copy is what you edit.  Changes to the
+@c buffer do not change the file until you @dfn{save} the buffer, which
+@c means copying the contents of the buffer into the file.
+Emacsでファイルを編集するときには、
+ファイルを訪問したバッファを実際には扱っています。
+つまり、ファイルの内容はバッファにコピーされ、
+そのコピーを編集しているのです。
+バッファを変更しても、当該バッファを@dfn{保存}（save）するまで、
+つまり、バッファの内容をファイルへコピーするまでは、
+ファイルを変更しません。
+
+@c @deffn Command save-buffer &optional backup-option
+@deffn コマンド save-buffer &optional backup-option
+@c This function saves the contents of the current buffer in its visited
+@c file if the buffer has been modified since it was last visited or saved.
+@c Otherwise it does nothing.
+この関数は、最後に訪問／保存してからカレントバッファが変更されていれば、
+カレントバッファの内容を訪問しているファイルへ保存する。
+
+@c @code{save-buffer} is responsible for making backup files.  Normally,
+@c @var{backup-option} is @code{nil}, and @code{save-buffer} makes a backup
+@c file only if this is the first save since visiting the file.  Other
+@c values for @var{backup-option} request the making of backup files in
+@c other circumstances:
+@code{save-buffer}は、バックアップの作成に責任がある。
+通常、@var{backup-option}は@code{nil}であり、
+@code{save-buffer}は、ファイルを訪問してから
+最初に保存するときにのみバックアップファイルを作成する。
+@var{backup-option}が別の値であると、
+別の場面でもバックアップファイルを作成することを指示する。
+
+@itemize @bullet
+@item
+@c With an argument of 4 or 64, reflecting 1 or 3 @kbd{C-u}'s, the
+@c @code{save-buffer} function marks this version of the file to be
+@c backed up when the buffer is next saved.
+引数が1つか3つの@kbd{C-u}を反映した4か64であると、
+関数@code{save-buffer}は、バッファをつぎに保存したときに
+ファイルの現在の版をバックアップするように印を付ける。
+
+@item
+@c With an argument of 16 or 64, reflecting 2 or 3 @kbd{C-u}'s, the
+@c @code{save-buffer} function unconditionally backs up the previous
+@c version of the file before saving it.
+引数が2つか3つの@kbd{C-u}を反映した16か64であると、
+@code{save-buffer}は、保存するまえに無条件に
+ファイルのまえの版をバックアップする。
+@end itemize
+@end deffn
+
+@c @deffn Command save-some-buffers &optional save-silently-p exiting
+@deffn コマンド save-some-buffers &optional save-silently-p exiting
+@c This command saves some modified file-visiting buffers.  Normally it
+@c asks the user about each buffer.  But if @var{save-silently-p} is
+@c non-@code{nil}, it saves all the file-visiting buffers without querying
+@c the user.
+このコマンドは、ファイルを訪問している変更されたバッファを保存する。
+通常、各バッファについてユーザーに問い合わせる。
+しかし、@var{save-silently-p}が@code{nil}以外であると、
+ユーザーに問い合わせずにファイルを訪問しているバッファをすべて保存する。
+
+@c The optional @var{exiting} argument, if non-@code{nil}, requests this
+@c function to offer also to save certain other buffers that are not
+@c visiting files.  These are buffers that have a non-@code{nil}
+@c buffer-local value of @code{buffer-offer-save}.  (A user who says yes to
+@c saving one of these is asked to specify a file name to use.)  The
+@c @code{save-buffers-kill-emacs} function passes a non-@code{nil} value
+@c for this argument.
+省略可能な引数@var{exiting}が@code{nil}以外であると、
+この関数は、ファイルを訪問していないある種のバッファを保存する機会も与える。
+@code{buffer-offer-save}のバッファローカルな値が
+@code{nil}以外のバッファが対象となる。
+（ユーザーがこれらのバッファの1つを保存するように答えると、
+ファイル名を指定するように聞いてくる。）
+関数@code{save-buffers-kill-emacs}は、
+この引数に@code{nil}以外の値を渡す。
+@end deffn
+
+@c @deffn Command write-file filename
+@deffn コマンド write-file filename
+@c This function writes the current buffer into file @var{filename}, makes
+@c the buffer visit that file, and marks it not modified.  Then it renames
+@c the buffer based on @var{filename}, appending a string like @samp{<2>}
+@c if necessary to make a unique buffer name.  It does most of this work by
+@c calling @code{set-visited-file-name} (@pxref{Buffer File Name}) and
+@c @code{save-buffer}.
+この関数は、カレントバッファをファイル@var{filename}に保存し、
+当該ファイルを訪問しているバッファとし、さらに未変更という印を付ける。
+続いて、バッファ名を一意にするために必要ならば@samp{<2>}のような
+文字列を付加して、バッファを@var{filename}に基づいた名前に改名する。
+この処理のほとんどは、@code{set-visited-file-name}（@pxref{Buffer File Name}）
+と@code{save-buffer}を呼び出して行う。
+@end deffn
+
+@c   Saving a buffer runs several hooks.  It also performs format
+@c conversion (@pxref{Format Conversion}), and may save text properties in
+@c ``annotations'' (@pxref{Saving Properties}).
+バッファを保存すると、いくつかのフックを実行します。
+また、書式変換（@pxref{Format Conversion}）を行い、
+テキスト属性を『注記』（annotations）（@pxref{Saving Properties}）に
+保存することもあります。
+
+@defvar write-file-hooks
+@c The value of this variable is a list of functions to be called before
+@c writing out a buffer to its visited file.  If one of them returns
+@c non-@code{nil}, the file is considered already written and the rest of
+@c the functions are not called, nor is the usual code for writing the file
+@c executed.
+この変数の値は、バッファを訪問しているファイルに書き出すまえに
+呼ばれる関数のリストである。
+それらの1つが@code{nil}以外を返すと、すでにファイルに書き出したとみなして
+残りの関数を呼び出さず、ファイルに書き出すための通常のコードも実行しない。
+
+@c If a function in @code{write-file-hooks} returns non-@code{nil}, it
+@c is responsible for making a backup file (if that is appropriate).
+@c To do so, execute the following code:
+@code{write-file-hooks}の関数が@code{nil}以外を返すときには、
+その関数には（必要ならば）バックアップファイルを作成する責任がある。
+そのためにはつぎのコードを実行する。
+
+@example
+(or buffer-backed-up (backup-buffer))
+@end example
+
+@c You might wish to save the file modes value returned by
+@c @code{backup-buffer} and use that to set the mode bits of the file that
+@c you write.  This is what @code{save-buffer} normally does.
+@code{backup-buffer}が返したファイルモードの値を保存しておき、
+読者が書くファイルのモードにその値を使いたい場合がある。
+@code{save-buffer}は通常そのようにする。
+
+@c The hook functions in @code{write-file-hooks} are also responsible for
+@c encoding the data (if desired): they must choose a suitable coding
+@c system (@pxref{Lisp and Coding Systems}), perform the encoding
+@c (@pxref{Explicit Encoding}), and set @code{last-coding-system-used} to
+@c the coding system that was used (@pxref{Encoding and I/O}).
+@code{write-file-hooks}のフック関数は、
+（必要ならば）データの符号化にも責任がある。
+適切なコーディングシステム（@pxref{Lisp and Coding Systems}）を選び、
+符号化（@pxref{Explicit Encoding}）を行い、
+使用したコーディングシステムを@code{last-coding-system-used}に設定する
+（@pxref{Encoding and I/O}）。
+
+@c Do not make this variable buffer-local.  To set up buffer-specific hook
+@c functions, use @code{write-contents-hooks} instead.
+この変数をバッファローカルにはしないこと。
+バッファ固有のフック関数を指定するには、
+かわりに@code{write-contents-hooks}を使う。
+
+@c Even though this is not a normal hook, you can use @code{add-hook} and
+@c @code{remove-hook} to manipulate the list.  @xref{Hooks}.
+これはノーマルフックではないが、
+@code{add-hook}と@code{remove-hook}でリストを扱える。
+@pxref{Hooks}。
+@end defvar
+
+@c Emacs 19 feature
+@defvar local-write-file-hooks
+@c This works just like @code{write-file-hooks}, but it is intended to be
+@c made buffer-local in particular buffers, and used for hooks that pertain
+@c to the file name or the way the buffer contents were obtained.
+これは@code{write-file-hooks}のように働くが、
+特定のバッファにバッファローカルにするように意図してあり、
+ファイル名に関するフックやバッファ内容を得た方法に関する
+フックとして使われる。
+
+@c The variable is marked as a permanent local, so that changing the major
+@c mode does not alter a buffer-local value.  This is convenient for
+@c packages that read ``file'' contents in special ways, and set up hooks
+@c to save the data in a corresponding way.
+変数は恒久的にバッファローカルと印が付いているので、
+メジャーモードを変更してもバッファローカルな値は変更されない。
+これは、『ファイル』の内容を特別な方法で読み込み、
+対応した方法でデータを保存するフックを設定するようなパッケージには便利である。
+@end defvar
+
+@c Emacs 19 feature
+@defvar write-contents-hooks
+@c This works just like @code{write-file-hooks}, but it is intended for
+@c hooks that pertain to the contents of the file, as opposed to hooks that
+@c pertain to where the file came from.  Such hooks are usually set up by
+@c major modes, as buffer-local bindings for this variable.
+この変数は@code{write-file-hooks}のように働くが、
+ファイルの場所に関するフックではなく、
+ファイルの内容に関するフックであると意図されている。
+そのようなフックは、この変数のバッファローカルな束縛として
+メジャーモードが通常設定する。
+
+@c This variable automatically becomes buffer-local whenever it is set;
+@c switching to a new major mode always resets this variable.  When you use
+@c @code{add-hooks} to add an element to this hook, you should @emph{not}
+@c specify a non-@code{nil} @var{local} argument, since this variable is
+@c used @emph{only} buffer-locally.
+この変数に設定すると自動的にバッファローカルになる。
+このフックに要素を追加するために@code{add-hooks}を使うときには、
+引数@var{local}に@code{nil}以外を指定し@emph{ない}こと。
+この変数はバッファローカル@emph{のみ}であるからである。
+@end defvar
+
+@c Emacs 19 feature
+@defvar after-save-hook
+@c This normal hook runs after a buffer has been saved in its visited file.
+@c One use of this hook is in Fast Lock mode; it uses this hook to save the
+@c highlighting information in a cache file.
+このノーマルフックは、バッファを訪問したファイルに
+保存し終えてから実行される。
+このフックの用途の1つは高速ロック（fast-lock）モードである。
+このフックを使って強調表示情報をキャッシュファイルに保存する。
+@end defvar
+
+@defvar file-precious-flag
+@c If this variable is non-@code{nil}, then @code{save-buffer} protects
+@c against I/O errors while saving by writing the new file to a temporary
+@c name instead of the name it is supposed to have, and then renaming it to
+@c the intended name after it is clear there are no errors.  This procedure
+@c prevents problems such as a lack of disk space from resulting in an
+@c invalid file.
+この変数が@code{nil}以外ならば、
+@code{save-buffer}は保存処理中の入出力エラーに備えて対処する。
+つまり、目的の名前のファイルにではなく一時的な名前の新規ファイルに書き出し、
+エラーがないことを確認してから目的の名前に改名する。
+これにより、不正なファイルに起因する問題からディスク容量の不足といった
+問題を回避できる。
+
+@c As a side effect, backups are necessarily made by copying.  @xref{Rename
+@c or Copy}.  Yet, at the same time, saving a precious file always breaks
+@c all hard links between the file you save and other file names.
+副作用として、バックアップも必然的にコピーして行う。
+@pxref{Rename or Copy}。
+それと同時に、大事な（precious）ファイルとして保存すると、
+読者が保存したファイルと別のファイル名とのあいだの
+ハードリンクをつねに切ってしまう。
+
+@c Some modes give this variable a non-@code{nil} buffer-local value
+@c in particular buffers.
+特定のバッファではこの変数に@code{nil}以外のバッファローカルな値を
+指定するモードもある。
+@end defvar
+
+@defopt require-final-newline
+@c This variable determines whether files may be written out that do
+@c @emph{not} end with a newline.  If the value of the variable is
+@c @code{t}, then @code{save-buffer} silently adds a newline at the end of
+@c the file whenever the buffer being saved does not already end in one.
+@c If the value of the variable is non-@code{nil}, but not @code{t}, then
+@c @code{save-buffer} asks the user whether to add a newline each time the
+@c case arises.
+この変数は、改行で終ら@emph{ない}ファイルを書き出すかどうかを決定する。
+この変数の値が@code{t}であると、@code{save-buffer}は、
+保存するバッファが改行で終っていないと黙ってファイルの末尾に改行を追加する。
+この変数の値が@code{t}ではない@code{nil}以外であると、
+@code{save-buffer}は、必要な場面では
+改行を追加するかどうかユーザーに問い合わせる。
+
+@c If the value of the variable is @code{nil}, then @code{save-buffer}
+@c doesn't add newlines at all.  @code{nil} is the default value, but a few
+@c major modes set it to @code{t} in particular buffers.
+この変数の値が@code{nil}であると、@code{save-buffer}は改行を追加しない。
+デフォルト値は@code{nil}であるが、特定のバッファでは@code{t}に
+設定するメジャーモードもある。
+@end defopt
+
+@c   See also the function @code{set-visited-file-name} (@pxref{Buffer File
+@c Name}).
+関数@code{set-visited-file-name}（@pxref{Buffer File Name}）も
+参照してください。
+
+@node Reading from Files
+@comment  node-name,  next,  previous,  up
+@c @section Reading from Files
+@section ファイルの読み込み
+
+@c   You can copy a file from the disk and insert it into a buffer
+@c using the @code{insert-file-contents} function.  Don't use the user-level
+@c command @code{insert-file} in a Lisp program, as that sets the mark.
+関数@code{insert-file-contents}を使って
+ディスクからファイルをバッファへコピーできます。
+ユーザーレベルのコマンド@code{insert-file}はマークを設定するので
+Lispプログラムでは使わないでください。
+
+@defun insert-file-contents filename &optional visit beg end replace
+@c This function inserts the contents of file @var{filename} into the
+@c current buffer after point.  It returns a list of the absolute file name
+@c and the length of the data inserted.  An error is signaled if
+@c @var{filename} is not the name of a file that can be read.
+この関数は、ファイル@var{filename}の内容をカレントバッファの
+ポイントのうしろに挿入する。
+絶対ファイル名と挿入したデータの長さから成るリストを返す。
+@var{filename}が読み込めるファイルの名前でないと、エラーを通知する。
+
+@c The function @code{insert-file-contents} checks the file contents
+@c against the defined file formats, and converts the file contents if
+@c appropriate.  @xref{Format Conversion}.  It also calls the functions in
+@c the list @code{after-insert-file-functions}; see @ref{Saving
+@c Properties}.
+関数@code{insert-file-contents}は、
+ファイルの内容を定義済みのファイルの書式と比較し、
+必要ならばファイルの内容を変換する。
+@pxref{Format Conversion}。
+リスト@code{after-insert-file-functions}の関数も呼び出す。
+@ref{Saving Properties}を参照。
+
+@c If @var{visit} is non-@code{nil}, this function additionally marks the
+@c buffer as unmodified and sets up various fields in the buffer so that it
+@c is visiting the file @var{filename}: these include the buffer's visited
+@c file name and its last save file modtime.  This feature is used by
+@c @code{find-file-noselect} and you probably should not use it yourself.
+@var{visit}が@code{nil}以外であると、
+この関数はバッファを未変更と印を付け、
+ファイル@var{filename}を訪問しているバッファとなるように
+バッファのさまざまな部分を設定する。
+これには、バッファが訪問しているファイルの名前、ファイル更新時刻を含む。
+この機能は@code{find-file-noselect}で使われており、
+読者自身が使うことはないであろう。
+
+@c If @var{beg} and @var{end} are non-@code{nil}, they should be integers
+@c specifying the portion of the file to insert.  In this case, @var{visit}
+@c must be @code{nil}.  For example,
+@var{beg}と@var{end}が@code{nil}以外であると、
+それらは挿入すべきファイルの部分を指定する整数であること。
+この場合、@var{visit}は@code{nil}であること。
+たとえば、
+
+@example
+(insert-file-contents filename nil 0 500)
+@end example
+
+@noindent
+@c inserts the first 500 characters of a file.
+はファイルの最初の500文字を挿入する。
+
+@c If the argument @var{replace} is non-@code{nil}, it means to replace the
+@c contents of the buffer (actually, just the accessible portion) with the
+@c contents of the file.  This is better than simply deleting the buffer
+@c contents and inserting the whole file, because (1) it preserves some
+@c marker positions and (2) it puts less data in the undo list.
+引数@var{replace}が@code{nil}以外であると、
+バッファの内容（実際には参照可能な部分のみ）を
+ファイルの内容で置き換えることを意味する。
+これは、単純にバッファの内容を削除してからファイル全体を挿入するより
+好ましい。
+なぜなら、（1）マーカ位置を保存できる場合がある、
+（2）アンドゥリストにほとんどデータを入れない、からである。
+
+@c It is possible to read a special file (such as a FIFO or an I/O device)
+@c with @code{insert-file-contents}, as long as @var{replace} and
+@c @var{visit} are @code{nil}.
+@var{replace}と@var{visit}が@code{nil}である限り、
+@code{insert-file-contents}で（FIFOや入出力装置などの）
+特別なファイルを読むことも可能である。
+@end defun
+
+@defun insert-file-contents-literally filename &optional visit beg end replace
+@tindex insert-file-contents-literally
+@c This function works like @code{insert-file-contents} except that it does
+@c not do format decoding (@pxref{Format Conversion}), does not do
+@c character code conversion (@pxref{Coding Systems}), does not run
+@c @code{find-file-hooks}, does not perform automatic uncompression, and so
+@c on.
+この関数は@code{insert-file-contents}のように動作するが、
+書式を変換しない（@pxref{Format Conversion}）、
+文字コードを変換しない（@pxref{Coding Systems}）、
+@code{find-file-hooks}を実行しない、自動的に解凍しないなどが異なる。
+@end defun
+
+@c If you want to pass a file name to another process so that another
+@c program can read the file, use the function @code{file-local-copy}; see
+@c @ref{Magic File Names}.
+別のプログラムが読めるようにファイル名を別のプロセスに渡すには、
+関数@code{file-local-copy}を使います。
+@ref{Magic File Names}を参照してください。
+
+@node Writing to Files
+@comment  node-name,  next,  previous,  up
+@c @section Writing to Files
+@section ファイルへの書き出し
+
+@c   You can write the contents of a buffer, or part of a buffer, directly
+@c to a file on disk using the @code{append-to-file} and
+@c @code{write-region} functions.  Don't use these functions to write to
+@c files that are being visited; that could cause confusion in the
+@c mechanisms for visiting.
+関数@code{append-to-file}や@code{write-region}を使って、
+バッファの内容やその一部をディスク上のファイルへ直接書き出せます。
+訪問しているファイルには、これらの関数で書き出さないでください。
+訪問の機構に混乱をきたすことがあります。
+
+@c @deffn Command append-to-file start end filename
+@deffn コマンド append-to-file start end filename
+@c This function appends the contents of the region delimited by
+@c @var{start} and @var{end} in the current buffer to the end of file
+@c @var{filename}.  If that file does not exist, it is created.  This
+@c function returns @code{nil}.
+この関数は、カレントバッファの@var{start}から@var{end}で
+区切られる領域の内容をファイル@var{filename}の末尾に追加する。
+当該ファイルが存在しなければ作成する。
+この関数は@code{nil}を返す。
+
+@c An error is signaled if @var{filename} specifies a nonwritable file,
+@c or a nonexistent file in a directory where files cannot be created.
+書き込めないファイルを@var{filename}に指定したり、
+ファイルを作成できないディレクトリ上の存在しないファイルを
+@var{filename}に指定するとエラーを通知する。
+@end deffn
+
+@c @deffn Command write-region start end filename &optional append visit confirm
+@deffn コマンド write-region start end filename &optional append visit confirm
+@c This function writes the region delimited by @var{start} and @var{end}
+@c in the current buffer into the file specified by @var{filename}.
+この関数は、カレントバッファの@var{start}から@var{end}で
+区切られる領域の内容を@var{filename}で指定したファイルに書き出す。
+
+@c @c Emacs 19 feature
+@c If @var{start} is a string, then @code{write-region} writes or appends
+@c that string, rather than text from the buffer.
+@var{start}が文字列であると、
+@code{write-region}はバッファのテキストではなく
+その文字列を書いたり追加する。
+
+@c If @var{append} is non-@code{nil}, then the specified text is appended
+@c to the existing file contents (if any).
+@var{append}が@code{nil}以外であると、
+指定したテキストを既存ファイル（があれば）の内容に追加する。
+
+@c If @var{confirm} is non-@code{nil}, then @code{write-region} asks
+@c for confirmation if @var{filename} names an existing file.
+@var{confirm}が@code{nil}以外であると、
+@var{filename}が既存ファイルの名前であると
+@code{write-region}は確認を求める。
+
+@c If @var{visit} is @code{t}, then Emacs establishes an association
+@c between the buffer and the file: the buffer is then visiting that file.
+@c It also sets the last file modification time for the current buffer to
+@c @var{filename}'s modtime, and marks the buffer as not modified.  This
+@c feature is used by @code{save-buffer}, but you probably should not use
+@c it yourself.
+@var{visit}が@code{t}であると、
+Emacsはバッファとファイルの対応を確立する。
+つまり、バッファはそのファイルを訪問していることになる。
+さらに、カレントバッファの最終ファイル更新時刻を
+@var{filename}の更新時刻にし、
+バッファには未変更と印を付ける。
+この機能は@code{save-buffer}が使っているが、
+読者自身が使うことはないであろう。
+
+@c @c Emacs 19 feature
+@c If @var{visit} is a string, it specifies the file name to visit.  This
+@c way, you can write the data to one file (@var{filename}) while recording
+@c the buffer as visiting another file (@var{visit}).  The argument
+@c @var{visit} is used in the echo area message and also for file locking;
+@c @var{visit} is stored in @code{buffer-file-name}.  This feature is used
+@c to implement @code{file-precious-flag}; don't use it yourself unless you
+@c really know what you're doing.
+@var{visit}が文字列であると、訪問するファイルの名前を指定する。
+このようにして、データを1つのファイル（@var{filename}）に書き出す一方で、
+バッファは別のファイル（@var{visit}）を訪問していると設定できる。
+引数@var{visit}はエコー領域のメッセージに使われ、
+ファイルのロックにも使われる。
+@var{visit}は@code{buffer-file-name}に保存される。
+この機能は@code{file-precious-flag}の実装に使われているが、
+読者は、なにをしているか理解できない限り、この機能を使わないこと。
+
+@c The function @code{write-region} converts the data which it writes to
+@c the appropriate file formats specified by @code{buffer-file-format}.
+@c @xref{Format Conversion}.  It also calls the functions in the list
+@c @code{write-region-annotate-functions}; see @ref{Saving Properties}.
+関数@code{write-region}は、書き出すデータを
+@code{buffer-file-format}で指定される適切なファイル書式に変換する。
+@pxref{Format Conversion}。
+さらに、リスト@code{write-region-annotate-functions}の関数も呼び出す。
+@ref{Saving Properties}を参照。
+
+@c Normally, @code{write-region} displays the message @samp{Wrote
+@c @var{filename}} in the echo area.  If @var{visit} is neither @code{t}
+@c nor @code{nil} nor a string, then this message is inhibited.  This
+@c feature is useful for programs that use files for internal purposes,
+@c files that the user does not need to know about.
+通常、@code{write-region}はエコー領域にメッセージ
+@samp{Wrote @var{filename}}を表示する。
+@var{visit}が@code{t}でも@code{nil}でも文字列でもないと、
+このメッセージは表示しない。
+この機能は、ユーザーが知る必要のない
+内部目的にファイルを使うプログラムに有用である。
+@end deffn
+
+@defmac with-temp-file file body...
+@tindex with-temp-file
+@c The @code{with-temp-file} macro evaluates the @var{body} forms with a
+@c temporary buffer as the current buffer; then, at the end, it writes the
+@c buffer contents into file @var{file}.  It kills the temporary buffer
+@c when finished, restoring the buffer that was current before the
+@c @code{with-temp-file} form.  Then it returns the value of the last form
+@c in @var{body}.
+マクロ@code{with-temp-file}は、一時的なバッファをカレントバッファとして
+フォーム@var{body}を評価する。
+そして最後にバッファの内容をファイル@var{file}に書き出す。
+終了すると一時的なバッファを削除し、
+フォーム@code{with-temp-file}のまえにカレントバッファであったバッファに戻る。
+@var{body}の最後のフォームの値を返す。
+
+@c The current buffer is restored even in case of an abnormal exit via
+@c @code{throw} or error (@pxref{Nonlocal Exits}).
+@code{throw}やエラーによる異常終了（@pxref{Nonlocal Exits}）であっても
+カレントバッファに戻る。
+
+@c See also @code{with-temp-buffer} in @ref{Current Buffer}.
+@ref{Current Buffer}の@code{with-temp-buffer}も参照。
+@end defmac
+
+@node File Locks
+@c @section File Locks
+@section ファイルロック
+@c @cindex file locks
+@cindex ファイルロック
+@cindex ロック、ファイル
+
+@c   When two users edit the same file at the same time, they are likely to
+@c interfere with each other.  Emacs tries to prevent this situation from
+@c arising by recording a @dfn{file lock} when a file is being modified.
+@c Emacs can then detect the first attempt to modify a buffer visiting a
+@c file that is locked by another Emacs job, and ask the user what to do.
+2人のユーザーが同時に同じファイルを編集すると、互いに干渉し合います。
+Emacsは、ファイルが変更されると@dfn{ファイルロック}（file lock）を
+記録することで、このような状況が発生しないように努めます。
+すると、Emacsは別のEmacsがロックしているファイルを訪問した
+バッファを変更しようとする最初の試みを検出でき、
+ユーザーにどうすべきかを問い合わせます。
+
+@c   File locks are not completely reliable when multiple machines can
+@c share file systems.  When file locks do not work, it is possible for two
+@c users to make changes simultaneously, but Emacs can still warn the user
+@c who saves second.  Also, the detection of modification of a buffer
+@c visiting a file changed on disk catches some cases of simultaneous
+@c editing; see @ref{Modification Time}.
+複数の計算機がファイルシステムを共有している場合には、
+ファイルロックには完全な信頼性はありません。
+ファイルロックが働かないと、
+2人のユーザーが同時に変更する可能性がありますが、
+それでも、Emacsは2番目に保存したユーザーに警告できます。
+また、ディスク上で変更されたファイルを訪問しているバッファの変更を
+検出することで、同時編集のある場面を捕捉できます。
+@ref{Modification Time}を参照してください。
+
+@defun file-locked-p filename
+@c This function returns @code{nil} if the file @var{filename} is not
+@c locked.  It returns @code{t} if it is locked by this Emacs process, and
+@c it returns the name of the user who has locked it if it is locked by
+@c some other job.
+ファイル@var{filename}がロックされていなければ、この関数は@code{nil}を返す。
+このEmacsプロセスがロックしているときには@code{t}を返す。
+他のEmacsがロックしている場合には、ロックしているユーザーの名前を返す。
+
+@example
+@group
+(file-locked-p "foo")
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@defun lock-buffer &optional filename
+@c   This function locks the file @var{filename}, if the current buffer is
+@c modified.  The argument @var{filename} defaults to the current buffer's
+@c visited file.  Nothing is done if the current buffer is not visiting a
+@c file, or is not modified.
+この関数は、カレントバッファが変更されていれば
+ファイル@var{filename}をロックする。
+引数@var{filename}のデフォルトは、
+カレントバッファで訪問しているファイルである。
+カレントバッファがファイルを訪問していなかったり、
+未変更ならばなにもしない。
+@end defun
+
+@defun unlock-buffer
+@c This function unlocks the file being visited in the current buffer,
+@c if the buffer is modified.  If the buffer is not modified, then
+@c the file should not be locked, so this function does nothing.  It also
+@c does nothing if the current buffer is not visiting a file.
+この関数は、バッファが変更されていれば、
+カレントバッファで訪問しているファイルのロックを解除する。
+バッファが未変更ならばファイルをロックしていないはずであり、
+この関数はなにもしない。
+カレントバッファがファイルを訪問していなければ、
+やはりなにもしない。
+@end defun
+
+@defun ask-user-about-lock file other-user
+@c This function is called when the user tries to modify @var{file}, but it
+@c is locked by another user named @var{other-user}.  The default
+@c definition of this function asks the user to say what to do.  The value
+@c this function returns determines what Emacs does next:
+この関数は、別のユーザー@var{other-user}がロックしている
+ファイル@var{file}をユーザーが変更しようとしたときに呼び出される。
+この関数のデフォルトの定義は、ユーザーになにをすべきか
+問い合わせることである。
+この関数の戻り値がEmacsのつぎの動作を決定する。
+
+@itemize @bullet
+@item
+@c A value of @code{t} says to grab the lock on the file.  Then
+@c this user may edit the file and @var{other-user} loses the lock.
+値が@code{t}であると、ファイルのロックを取得することを意味する。
+すると、このユーザーはファイルを編集でき、
+別のユーザー@var{other-user}はロックを失う。
+
+@item
+@c A value of @code{nil} says to ignore the lock and let this
+@c user edit the file anyway.
+値が@code{nil}であると、ロックを無視して
+とにかくユーザーにファイルの編集を許す。
+
+@item
+@kindex file-locked
+@c This function may instead signal a @code{file-locked} error, in which
+@c case the change that the user was about to make does not take place.
+この関数はエラー@code{file-locked}を通知する。
+この場合、ユーザーが行おうとしていた変更は行われない。
+
+@c The error message for this error looks like this:
+このエラーのエラーメッセージはつぎのようである。
+
+@example
+@error{} File is locked: @var{file} @var{other-user}
+@end example
+
+@noindent
+@c where @code{file} is the name of the file and @var{other-user} is the
+@c name of the user who has locked the file.
+ここで、@code{file}はファイル名であり、
+@var{other-user}はそのファイルをロックしているユーザー名である。
+@end itemize
+
+@c If you wish, you can replace the @code{ask-user-about-lock} function
+@c with your own version that makes the decision in another way.  The code
+@c for its usual definition is in @file{userlock.el}.
+読者は、関数@code{ask-user-about-lock}を
+別の方法で決定する読者独自のものに置き換えてもよい。
+通常の定義に対応したコードは@file{userlock.el}にある。
+@end defun
+
+@node Information about Files
+@c @section Information about Files
+@section ファイルに関する情報
+
+@c   The functions described in this section all operate on strings that
+@c designate file names.  All the functions have names that begin with the
+@c word @samp{file}.  These functions all return information about actual
+@c files or directories, so their arguments must all exist as actual files
+@c or directories unless otherwise noted.
+本節に述べる関数はすべて、ファイル名を表す文字列に作用します。
+すべての関数の名前は単語@samp{file}で始まり、
+それらの引数は、特に断らないかぎり、
+既存のファイルやディレクトリである必要があります。
+
+@menu
+* Testing Accessibility::   Is a given file readable?  Writable?
+* Kinds of Files::          Is it a directory?  A symbolic link?
+* Truenames::		    Eliminating symbolic links from a file name.
+* File Attributes::         How large is it?  Any other names?  Etc.
+@end menu
+
+@node Testing Accessibility
+@comment  node-name,  next,  previous,  up
+@c @subsection Testing Accessibility
+@subsection 参照可能性の検査
+@c @cindex accessibility of a file
+@c @cindex file accessibility
+@cindex ファイルの参照可能性
+@cindex 参照可能性、ファイル
+
+@c   These functions test for permission to access a file in specific ways.
+これらの関数は、特別な方法でファイル参照のパーミッションを検査します。
+
+@defun file-exists-p filename
+@c This function returns @code{t} if a file named @var{filename} appears
+@c to exist.  This does not mean you can necessarily read the file, only
+@c that you can find out its attributes.  (On Unix, this is true if the
+@c file exists and you have execute permission on the containing
+@c directories, regardless of the protection of the file itself.)
+ファイル@var{filename}が存在すれば、この関数は@code{t}を返す。
+これは必ずしもファイルを読めることは意味せず、
+単にファイルの属性を調べられるだけである。
+（UNIXでは、ファイルが存在し、かつ、
+それを収めたディレクトリに対する実行パーミッションがあれば、
+ファイル自体のパーミッションに関係なくこのようになる。）
+
+@c If the file does not exist, or if fascist access control policies
+@c prevent you from finding the attributes of the file, this function
+@c returns @code{nil}.
+ファイルが存在しなかったり、ファイルの属性を探す権限がなければ、
+この関数は@code{nil}を返す。
+@end defun
+
+@defun file-readable-p filename
+@c This function returns @code{t} if a file named @var{filename} exists
+@c and you can read it.  It returns @code{nil} otherwise.
+ファイル@var{filename}が存在しそれを読むことができるならば、
+この関数は@code{t}を返す。
+さもなければ@code{nil}を返す。
+
+@example
+@group
+(file-readable-p "files.texi")
+     @result{} t
+@end group
+@group
+(file-exists-p "/usr/spool/mqueue")
+     @result{} t
+@end group
+@group
+(file-readable-p "/usr/spool/mqueue")
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@c Emacs 19 feature
+@defun file-executable-p filename
+@c This function returns @code{t} if a file named @var{filename} exists and
+@c you can execute it.  It returns @code{nil} otherwise.  If the file is a
+@c directory, execute permission means you can check the existence and
+@c attributes of files inside the directory, and open those files if their
+@c modes permit.
+ファイル@var{filename}が存在しそれを実行できるならば、
+この関数は@code{t}を返す。
+さもなければ@code{nil}を返す。
+ファイルがディレクトリである場合、実行パーミッションは、
+ディレクトリ内のファイルの存在やその属性を検査でき、
+それらのファイルのモードが許せばオープンできることを意味する。
+@end defun
+
+@defun file-writable-p filename
+@c This function returns @code{t} if the file @var{filename} can be written
+@c or created by you, and @code{nil} otherwise.  A file is writable if the
+@c file exists and you can write it.  It is creatable if it does not exist,
+@c but the specified directory does exist and you can write in that
+@c directory.
+ファイル@var{filename}に書き出したり作成できるならば、
+この関数は@code{t}を返し、さもなければ@code{nil}を返す。
+ファイルに書き出せるのは、ファイルが存在し書ける場合である。
+作成できるのは、ファイルは存在しないが
+指定したディレクトリが存在しそのディレクトリに書ける場合である。
+
+@c In the third example below, @file{foo} is not writable because the
+@c parent directory does not exist, even though the user could create such
+@c a directory.
+以下の3番目の例では、@file{foo}の親ディレクトリが存在しないので、
+たとえディレクトリを作成できるとしても@file{foo}は書けない。
+
+@example
+@group
+(file-writable-p "~/foo")
+     @result{} t
+@end group
+@group
+(file-writable-p "/foo")
+     @result{} nil
+@end group
+@group
+(file-writable-p "~/no-such-dir/foo")
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@c Emacs 19 feature
+@defun file-accessible-directory-p dirname
+@c This function returns @code{t} if you have permission to open existing
+@c files in the directory whose name as a file is @var{dirname}; otherwise
+@c (or if there is no such directory), it returns @code{nil}.  The value
+@c of @var{dirname} may be either a directory name or the file name of a
+@c file which is a directory.
+ディレクトリ@var{dirname}の既存ファイルをオープンするパーミッションがあれば、
+この関数は@code{t}を返す。
+さもなければ（あるいは当該ディレクトリが存在しなければ）@code{nil}を返す。
+@var{dirname}の値はディレクトリ名である。
+
+@c Example: after the following,
+例：@code{ }つぎの例では、
+
+@example
+(file-accessible-directory-p "/foo")
+     @result{} nil
+@end example
+
+@noindent
+@c we can deduce that any attempt to read a file in @file{/foo/} will
+@c give an error.
+から、@file{/foo/}内のファイルを読もうとすると
+エラーになると推論できる。
+@end defun
+
+@defun access-file filename string
+@tindex access-file
+@c This function opens file @var{filename} for reading, then closes it and
+@c returns @code{nil}.  However, if the open fails, it signals an error
+@c using @var{string} as the error message text.
+この関数は、ファイル@var{filename}を読むためにオープンし、
+クローズしてから@code{nil}を返す。
+しかし、オープンに失敗すると@var{string}をエラーメッセージのテキストとした
+エラーを通知する。
+@end defun
+
+@defun file-ownership-preserved-p filename
+@c This function returns @code{t} if deleting the file @var{filename} and
+@c then creating it anew would keep the file's owner unchanged.
+もしファイル@var{filename}を削除して改めて作成しても
+ファイルの所有者が変更されなければ、この関数は@code{t}を返す。
+@end defun
+
+@defun file-newer-than-file-p filename1 filename2
+@c @cindex file age
+@c @cindex file modification time
+@cindex ファイルの古さ
+@cindex ファイル更新時刻
+@c This function returns @code{t} if the file @var{filename1} is
+@c newer than file @var{filename2}.  If @var{filename1} does not
+@c exist, it returns @code{nil}.  If @var{filename2} does not exist,
+@c it returns @code{t}.
+ファイル@var{filename1}が@var{filename2}より新しければ、
+この関数は@code{t}を返す。
+@var{filename1}が存在しなければ@code{nil}を返す。
+@var{filename2}が存在しなければ@code{t}を返す。
+
+@c In the following example, assume that the file @file{aug-19} was written
+@c on the 19th, @file{aug-20} was written on the 20th, and the file
+@c @file{no-file} doesn't exist at all.
+以下の例で、ファイル@file{aug-19}は19日に書かれ、
+ファイル@file{aug-20}は20日に書かれ、
+ファイル@file{no-file}は存在しないと仮定する。
+
+@example
+@group
+(file-newer-than-file-p "aug-19" "aug-20")
+     @result{} nil
+@end group
+@group
+(file-newer-than-file-p "aug-20" "aug-19")
+     @result{} t
+@end group
+@group
+(file-newer-than-file-p "aug-19" "no-file")
+     @result{} t
+@end group
+@group
+(file-newer-than-file-p "no-file" "aug-19")
+     @result{} nil
+@end group
+@end example
+
+@c You can use @code{file-attributes} to get a file's last modification
+@c time as a list of two numbers.  @xref{File Attributes}.
+@code{file-attributes}を使って、
+2つの数から成るリストとしてファイルの最終更新時刻を取得できる。
+@pxref{File Attributes}。
+@end defun
+
+@node Kinds of Files
+@comment  node-name,  next,  previous,  up
+@c @subsection Distinguishing Kinds of Files
+@subsection ファイルの種類の区別
+
+@c   This section describes how to distinguish various kinds of files, such
+@c as directories, symbolic links, and ordinary files.
+本節ではさまざまな種類のファイル、つまり、
+ディレクトリ、シンボリックリンク、普通のファイルを区別する方法を
+説明します。
+
+@defun file-symlink-p filename
+@c @cindex file symbolic links
+@cindex シンボリックリンク、ファイル
+@cindex ファイルのシンボリックリンク
+@c If the file @var{filename} is a symbolic link, the @code{file-symlink-p}
+@c function returns the file name to which it is linked.  This may be the
+@c name of a text file, a directory, or even another symbolic link, or it
+@c may be a nonexistent file name.
+ファイル@var{filename}がシンボリックリンクであると、
+関数@code{file-symlink-p}は当該リンクが指すファイルの名前を返す。
+これは、テキストファイル、ディレクトリ、別のシンボリックリンク、
+存在しないファイルの名前のいずれかである。
+
+@c If the file @var{filename} is not a symbolic link (or there is no such file),
+@c @code{file-symlink-p} returns @code{nil}.  
+ファイル@var{filename}がシンボリックリンクでない
+（あるいは当該ファイルが存在しない）場合、
+@code{file-symlink-p}は@code{nil}を返す。
+
+@example
+@group
+(file-symlink-p "foo")
+     @result{} nil
+@end group
+@group
+(file-symlink-p "sym-link")
+     @result{} "foo"
+@end group
+@group
+(file-symlink-p "sym-link2")
+     @result{} "sym-link"
+@end group
+@group
+(file-symlink-p "/bin")
+     @result{} "/pub/bin"
+@end group
+@end example
+
+@c !!! file-symlink-p: should show output of ls -l for comparison
+@end defun
+
+@defun file-directory-p filename
+@c This function returns @code{t} if @var{filename} is the name of an
+@c existing directory, @code{nil} otherwise.
+ファイル@var{filename}が既存ディレクトリの名前であると@code{t}を返し、
+さもなければ@code{nil}を返す。
+
+@example
+@group
+(file-directory-p "~rms")
+     @result{} t
+@end group
+@group
+(file-directory-p "~rms/lewis/files.texi")
+     @result{} nil
+@end group
+@group
+(file-directory-p "~rms/lewis/no-such-file")
+     @result{} nil
+@end group
+@group
+(file-directory-p "$HOME")
+     @result{} nil
+@end group
+@group
+(file-directory-p
+ (substitute-in-file-name "$HOME"))
+     @result{} t
+@end group
+@end example
+@end defun
+
+@defun file-regular-p filename
+@c This function returns @code{t} if the file @var{filename} exists and is
+@c a regular file (not a directory, symbolic link, named pipe, terminal, or
+@c other I/O device).
+ファイル@var{filename}が存在しそれが普通のファイル
+（ディレクトリでもシンボリックリンクでも名前付きパイプでも
+端末でもその他の入出力装置でもない）であれば、
+この関数は@code{t}を返す。
+@end defun
+
+@node Truenames
+@c @subsection Truenames
+@subsection 実名
+@c @cindex truename (of file)
+@cindex 実名（ファイル）
+@cindex ファイルの実名
+
+@c @c Emacs 19 features
+@c   The @dfn{truename} of a file is the name that you get by following
+@c symbolic links until none remain, then simplifying away @samp{.}@: and
+@c @samp{..}@: appearing as components.  Strictly speaking, a file need not
+@c have a unique truename; the number of distinct truenames a file has is
+@c equal to the number of hard links to the file.  However, truenames are
+@c useful because they eliminate symbolic links as a cause of name
+@c variation.
+ファイルの@dfn{実名}（truename）とは、
+シンボリックリンクをすべて辿り尽くしてから、
+要素として現れる@samp{.}@: や@samp{..}@: を簡略化して得られる名前です。
+厳密にいえば、ファイルが一意の実名を持つ必要はありません。
+ファイルの異なる実名の個数は、当該ファイルに対するハードリンクの個数に
+等しいのです。
+それでも、実名はシンボリックリンクによる名前の変動を取り除くため、
+実名は有用です。
+
+@defun file-truename filename
+@c The function @code{file-truename} returns the true name of the file
+@c @var{filename}.  This is the name that you get by following symbolic
+@c links until none remain.  The argument must be an absolute file name.
+関数@code{file-truename}はファイル@var{filename}の実名を返す。
+これはシンボリックリンクをすべて辿り尽くして得られる名前である。
+引数は絶対ファイル名であること。
+@end defun
+
+@c   @xref{Buffer File Name}, for related information.
+関連情報については、@xref{Buffer File Name}。
+
+@node File Attributes
+@comment  node-name,  next,  previous,  up
+@c @subsection Other Information about Files
+@subsection ファイルに関する他の情報
+
+@c   This section describes the functions for getting detailed information
+@c about a file, other than its contents.  This information includes the
+@c mode bits that control access permission, the owner and group numbers,
+@c the number of names, the inode number, the size, and the times of access
+@c and modification.
+本節では、ファイルの内容以外の詳しい情報を得るための関数を説明します。
+この情報には、参照パーミッションを制御するモードビット、
+所有者とグループの番号、名前の個数、iノード番号、サイズ、
+参照時刻と更新時刻が含まれます。
+
+@defun file-modes filename
+@c @cindex permission
+@c @cindex file attributes
+@cindex パーミッション
+@cindex ファイルの属性
+@c This function returns the mode bits of @var{filename}, as an integer.
+@c The mode bits are also called the file permissions, and they specify
+@c access control in the usual Unix fashion.  If the low-order bit is 1,
+@c then the file is executable by all users, if the second-lowest-order bit
+@c is 1, then the file is writable by all users, etc.
+この関数は@var{filename}のモードビットを整数で返す。
+モードビットはファイルのパーミッションとも呼ばれ、
+UNIX流の参照制御を指定する。
+最下位ビットが1であると、当該ファイルはすべてのユーザーが実行でき、
+2番目の下位ビットが1であると、当該ファイルはすべてのユーザーが書ける
+といった具合である。
+
+@c The highest value returnable is 4095 (7777 octal), meaning that
+@c everyone has read, write, and execute permission, that the @sc{suid} bit
+@c is set for both others and group, and that the sticky bit is set.
+@c =  誤植?        owner
+戻り値の最大値は4095（8進数7777）であり、これは、
+だれもが読み／書き／実行でき、
+所有者とグループの両者にビット@sc{suid}が設定してあり、
+スティッキービットも設定されていることを意味する。
+
+@example
+@group
+(file-modes "~/junk/diffs")
+@c      @result{} 492               ; @r{Decimal integer.}
+     @result{} 492               ; @r{10進整数}
+@end group
+@group
+(format "%o" 492)
+@c      @result{} "754"             ; @r{Convert to octal.}
+     @result{} "754"             ; @r{8進数に変換}
+@end group
+
+@group
+(set-file-modes "~/junk/diffs" 438)
+     @result{} nil
+@end group
+
+@group
+(format "%o" 438)
+@c      @result{} "666"             ; @r{Convert to octal.}
+     @result{} "666"             ; @r{8進数に変換}
+@end group
+
+@group
+% ls -l diffs
+  -rw-rw-rw-  1 lewis 0 3063 Oct 30 16:00 diffs
+@end group
+@end example
+@end defun
+
+@defun file-nlinks filename
+@c This functions returns the number of names (i.e., hard links) that
+@c file @var{filename} has.  If the file does not exist, then this function
+@c returns @code{nil}.  Note that symbolic links have no effect on this
+@c function, because they are not considered to be names of the files they
+@c link to.
+この関数は、ファイル@var{filename}の
+名前（つまりハードリンク）の個数を返す。
+ファイルが存在しなければ、この関数は@code{nil}を返す。
+シンボリックリンクはそれが指すファイルの名前とはみなさないので、
+シンボリックリンクはこの関数には効果を持たない。
+
+@example
+@group
+% ls -l foo*
+-rw-rw-rw-  2 rms       4 Aug 19 01:27 foo
+-rw-rw-rw-  2 rms       4 Aug 19 01:27 foo1
+@end group
+
+@group
+(file-nlinks "foo")
+     @result{} 2
+@end group
+@group
+(file-nlinks "doesnt-exist")
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@defun file-attributes filename
+@c This function returns a list of attributes of file @var{filename}.  If
+@c the specified file cannot be opened, it returns @code{nil}.
+この関数はファイル@var{filename}の属性のリストを返す。
+オープンできないファイルを指定すると@code{nil}を返す。
+
+@c The elements of the list, in order, are:
+リストの要素は順につぎのとおりである。
+
+@enumerate 0
+@item
+@c @code{t} for a directory, a string for a symbolic link (the name
+@c linked to), or @code{nil} for a text file.
+ディレクトリは@code{t}、
+シンボリックリンクは（それが指す名前の）文字列、
+テキストファイルは@code{nil}である。
+
+@c Wordy so as to prevent an overfull hbox.  --rjc 15mar92
+@item
+@c The number of names the file has.  Alternate names, also known as hard
+@c links, can be created by using the @code{add-name-to-file} function
+@c (@pxref{Changing Files}).
+ファイルの名前の個数。
+別の名前、つまり、
+ハードリンクは関数@code{add-name-to-file}（@pxref{Changing Files}）
+を使って作成する。
+
+@item
+@c The file's @sc{uid}.
+ファイルの@sc{uid}（所有者番号）。
+
+@item
+@c The file's @sc{gid}.
+ファイルの@sc{gid}（グループ番号）。
+
+@item
+@c The time of last access, as a list of two integers.
+@c The first integer has the high-order 16 bits of time,
+@c the second has the low 16 bits.  (This is similar to the
+@c value of @code{current-time}; see @ref{Time of Day}.)
+2つの整数から成るリストとしての最終参照時刻。
+最初の整数は時刻の上位16ビットであり、2番目は下位16ビット。
+（これは@code{current-time}の値と同様。
+@ref{Time of Day}を参照。）
+
+@item
+@c The time of last modification as a list of two integers (as above).
+2つの整数から成るリストとしての最終更新時刻（上記と同様）。
+
+@item
+@c The time of last status change as a list of two integers (as above).
+2つの整数から成るリストとしての最終状態更新時刻（上記と同様）。
+
+@item
+@c The size of the file in bytes.
+バイト単位でのファイルのサイズ。
+
+@item
+@c The file's modes, as a string of ten letters or dashes,
+@c as in @samp{ls -l}.
+@samp{ls -l}と同様のファイルのモードを表す10文字の文字列。
+
+@item
+@c @code{t} if the file's @sc{gid} would change if file were
+@c deleted and recreated; @code{nil} otherwise.
+もしファイルを削除して再度作成した場合に
+ファイルの@sc{gid}（グループ番号）が変わる場合には@code{t}。
+さもなければ@code{nil}。
+
+@item
+@c The file's inode number.  If possible, this is an integer.  If the inode
+@c number is too large to be represented as an integer in Emacs Lisp, then
+@c the value has the form @code{(@var{high} . @var{low})}, where @var{low}
+@c holds the low 16 bits.
+ファイルのiノード番号。
+可能ならばこれは整数である。
+iノード番号がEmacs Lispの整数として表現できないほど大きな場合、
+値は@code{(@var{high} . @var{low})}の形である。
+ただし、@var{low}は下位16ビットである。
+
+@item
+@c The file system number of the file system that the file is in.  This
+@c element and the file's inode number together give enough information to
+@c distinguish any two files on the system---no two files can have the same
+@c values for both of these numbers.
+ファイルが置いてあるファイルシステムのファイルシステム番号。
+この要素とファイルのiノード番号により、
+システム上の任意の2つのファイルを区別するために十分な情報を与える。
+つまり、2つのファイルが同じ値のこれらの番号を持つことはない。
+@end enumerate
+
+@c For example, here are the file attributes for @file{files.texi}:
+たとえば、@file{files.texi}のファイル属性はつぎのようである。
+
+@example
+@group
+(file-attributes "files.texi")
+     @result{}  (nil 1 2235 75 
+          (8489 20284) 
+          (8489 20284) 
+          (8489 20285)
+          14906 "-rw-rw-rw-" 
+          nil 129500 -32252)
+@end group
+@end example
+
+@noindent
+@c and here is how the result is interpreted:
+この意味はつぎのとおりである。
+
+@table @code
+@item nil
+@c is neither a directory nor a symbolic link.
+ディレクトリでもシンボリックリンクでもない。
+
+@item 1
+@c has only one name (the name @file{files.texi} in the current default
+@c directory).
+唯一の名前（カレントディレクトリで@file{files.texi}）を持つ。
+
+@item 2235
+@c is owned by the user with @sc{uid} 2235.
+@sc{uid}（ユーザー番号）2235のユーザーが所有している。
+
+@item 75
+@c is in the group with @sc{gid} 75.
+@sc{gid}（グループ番号）75のグループに属する。
+
+@item (8489 20284)
+@c was last accessed on Aug 19 00:09.
+最後に参照されたのは8月19日00時09分である。
+
+@item (8489 20284)
+@c was last modified on Aug 19 00:09.
+最後に更新されたのは8月19日00時09分である。
+
+@item (8489 20285)
+@c last had its inode changed on Aug 19 00:09.
+最後にこのiノードを変更したのは8月19日00時09分である。
+
+@item 14906
+@c is 14906 characters long.
+長さは14906バイトである。
+
+@item "-rw-rw-rw-"
+@c has a mode of read and write access for the owner, group, and world.
+モードは、所有者／グループ／その他は読み書きできる。
+
+@item nil
+@c would retain the same @sc{gid} if it were recreated.
+再度作成しても@sc{gid}（グループ番号）は保存される。
+
+@item 129500
+@c has an inode number of 129500.
+iノード番号は129500。
+@item -32252
+@c is on file system number -32252.
+ファイルシステム番号は-32252。
+@end table
+@end defun
+
+@node Changing Files
+@c @section Changing File Names and Attributes
+@section ファイルの名前と属性の変更
+@c @cindex renaming files
+@c @cindex copying files
+@c @cindex deleting files
+@c @cindex linking files
+@c @cindex setting modes of files
+@cindex ファイルの改名
+@cindex ファイルのコピー
+@cindex ファイルの削除
+@cindex ファイルのリンク
+@cindex ファイルのモードの設定
+
+@c   The functions in this section rename, copy, delete, link, and set the
+@c modes of files.
+本節の関数は、ファイルを改名／コピー／削除／リンクしたり、
+ファイルのモードを設定するためのものです。
+
+@c   In the functions that have an argument @var{newname}, if a file by the
+@c name of @var{newname} already exists, the actions taken depend on the
+@c value of the argument @var{ok-if-already-exists}:
+引数@var{newname}をとる関数では、
+@var{newname}で指定したファイルが既存の場合、
+関数の動作は引数@var{ok-if-already-exists}の値に依存します。
+
+@itemize @bullet
+@item
+@c Signal a @code{file-already-exists} error if
+@c @var{ok-if-already-exists} is @code{nil}.
+@var{ok-if-already-exists}が@code{nil}であると、
+エラー@code{file-already-exists}を通知する。
+
+@item
+@c Request confirmation if @var{ok-if-already-exists} is a number.
+@var{ok-if-already-exists}が数であると、確認を必要とする。
+
+@item
+@c Replace the old file without confirmation if @var{ok-if-already-exists}
+@c is any other value.
+@var{ok-if-already-exists}がそれ以外の値であると、
+確認せずに古いファイルを置き換える。
+@end itemize
+
+@defun add-name-to-file oldname newname &optional ok-if-already-exists
+@c @cindex file with multiple names
+@c @cindex file hard link
+@cindex 複数の名前のファイル
+@cindex ファイルのハードリンク
+@c This function gives the file named @var{oldname} the additional name
+@c @var{newname}.  This means that @var{newname} becomes a new ``hard
+@c link'' to @var{oldname}.
+この関数は、@var{oldname}で指定したファイルに
+追加の名前@var{newname}を与える。
+つまり、@var{newname}は@var{oldname}への新たな『ハードリンク』になる。
+
+@c In the first part of the following example, we list two files,
+@c @file{foo} and @file{foo3}.
+つぎの例では、2つのファイル@file{foo}と@file{foo3}がある。
+
+@example
+@group
+% ls -li fo*
+81908 -rw-rw-rw-  1 rms       29 Aug 18 20:32 foo
+84302 -rw-rw-rw-  1 rms       24 Aug 18 20:31 foo3
+@end group
+@end example
+
+@c Now we create a hard link, by calling @code{add-name-to-file}, then list
+@c the files again.  This shows two names for one file, @file{foo} and
+@c @file{foo2}.
+@code{add-name-to-file}を呼んでハードリンクを作成し、
+ファイル一覧を表示し直す。
+1つのファイルに2つの名前@file{foo}と@file{foo2}があることがわかる。
+
+@example
+@group
+(add-name-to-file "foo" "foo2")
+     @result{} nil
+@end group
+
+@group
+% ls -li fo*
+81908 -rw-rw-rw-  2 rms       29 Aug 18 20:32 foo
+81908 -rw-rw-rw-  2 rms       29 Aug 18 20:32 foo2
+84302 -rw-rw-rw-  1 rms       24 Aug 18 20:31 foo3
+@end group
+@end example
+
+@c Finally, we evaluate the following:
+最後につぎの式を評価し
+
+@example
+(add-name-to-file "foo" "foo3" t)
+@end example
+
+@noindent
+@c and list the files again.  Now there are three names
+@c for one file: @file{foo}, @file{foo2}, and @file{foo3}.  The old
+@c contents of @file{foo3} are lost.
+ファイル一覧を表示し直す。
+今度は、1つのファイルに3つの名前@file{foo}、@file{foo2}、@file{foo3}がある。
+古い@file{foo3}の内容は失われている。
+
+@example
+@group
+(add-name-to-file "foo1" "foo3")
+     @result{} nil
+@end group
+
+@group
+% ls -li fo*
+81908 -rw-rw-rw-  3 rms       29 Aug 18 20:32 foo
+81908 -rw-rw-rw-  3 rms       29 Aug 18 20:32 foo2
+81908 -rw-rw-rw-  3 rms       29 Aug 18 20:32 foo3
+@end group
+@end example
+
+@c This function is meaningless on operating systems where multiple names
+@c for one file are not allowed.
+1つのファイルに複数の名前を許さないオペレーティングシステムでは、
+この関数は意味がない。
+
+@c See also @code{file-nlinks} in @ref{File Attributes}.
+@ref{File Attributes}の@code{file-nlinks}も参照。
+@end defun
+
+@c @deffn Command rename-file filename newname &optional ok-if-already-exists
+@deffn コマンド rename-file filename newname &optional ok-if-already-exists
+@c This command renames the file @var{filename} as @var{newname}.
+このコマンドは、ファイル@var{filename}を@var{newname}と改名する。
+
+@c If @var{filename} has additional names aside from @var{filename}, it
+@c continues to have those names.  In fact, adding the name @var{newname}
+@c with @code{add-name-to-file} and then deleting @var{filename} has the
+@c same effect as renaming, aside from momentary intermediate states.
+@var{filename}に@var{filename}以外の名前があれば、
+それらの名前は存在し続ける。
+実際、@code{add-name-to-file}で名前@var{newname}を追加してから
+@var{filename}を削除すると、一時的な中間状態があることを除けば、
+改名と同じ効果がある。
+
+@c In an interactive call, this function prompts for @var{filename} and
+@c @var{newname} in the minibuffer; also, it requests confirmation if
+@c @var{newname} already exists.
+対話的に呼び出されると、この関数は
+ミニバッファで@var{filename}と@var{newname}を聞く。
+また、@var{newname}が既存であると確認を求める。
+@end deffn
+
+@c @deffn Command copy-file oldname newname &optional ok-if-exists time
+@deffn コマンド copy-file oldname newname &optional ok-if-exists time
+@c This command copies the file @var{oldname} to @var{newname}.  An
+@c error is signaled if @var{oldname} does not exist.
+このコマンドはファイル@var{oldname}を@var{newname}へコピーする。
+@var{oldname}が存在しないとエラーを通知する。
+
+@c If @var{time} is non-@code{nil}, then this function gives the new file
+@c the same last-modified time that the old one has.  (This works on only
+@c some operating systems.)  If setting the time gets an error,
+@c @code{copy-file} signals a @code{file-date-error} error.
+@var{time}が@code{nil}以外であると、
+この関数は新たなファイルに古いファイルと同じ最終更新時刻を与える。
+（これは特定のオペレーティングシステムでのみ動作する。）
+時刻設定でエラーがあると、@code{copy-file}は
+エラー@code{file-date-error}を通知する。
+
+@c = 誤植 filename → oldname
+@c In an interactive call, this function prompts for @var{filename} and
+@c @var{newname} in the minibuffer; also, it requests confirmation if
+@c @var{newname} already exists.
+対話的に呼び出されると、この関数は
+ミニバッファで@var{oldname}と@var{newname}を聞く。
+また、@var{newname}が既存であると確認を求める。
+@end deffn
+
+@c @deffn Command delete-file filename
+@deffn コマンド delete-file filename
+@pindex rm
+@c This command deletes the file @var{filename}, like the shell command
+@c @samp{rm @var{filename}}.  If the file has multiple names, it continues
+@c to exist under the other names.
+このコマンドは、シェルコマンド@samp{rm @var{filename}}と同様に
+ファイル@var{filename}を削除する。
+ファイルに複数の名前があると、他の名前では存在し続ける。
+
+@c A suitable kind of @code{file-error} error is signaled if the file
+@c does not exist, or is not deletable.  (On Unix, a file is deletable if
+@c its directory is writable.)
+ファイルが存在しなかったり削除できないと、
+エラー@code{file-error}の適切な種類が通知される。
+（UNIXでは、ファイルを収めたディレクトリに書けると
+当該ファイルは削除可能である。）
+
+@c See also @code{delete-directory} in @ref{Create/Delete Dirs}.
+@ref{Create/Delete Dirs}の@code{delete-directory}も参照。
+@end deffn
+
+@c @deffn Command make-symbolic-link filename newname  &optional ok-if-exists
+@deffn コマンド make-symbolic-link filename newname  &optional ok-if-exists
+@pindex ln
+@kindex file-already-exists
+@c This command makes a symbolic link to @var{filename}, named
+@c @var{newname}.  This is like the shell command @samp{ln -s
+@c @var{filename} @var{newname}}.
+このコマンドは、@var{filename}に対するシンボリックリンク@var{newname}を
+作成する。
+これはシェルコマンド@samp{ln -s @var{filename} @var{newname}}と同じである。
+
+@c In an interactive call, this function prompts for @var{filename} and
+@c @var{newname} in the minibuffer; also, it requests confirmation if
+@c @var{newname} already exists.
+対話的に呼び出されると、この関数は
+ミニバッファで@var{filename}と@var{newname}を聞く。
+また、@var{newname}が既存であると確認を求める。
+@end deffn
+
+@c @defun define-logical-name varname string
+@c = 誤植？                      name
+@defun define-logical-name name string
+@c This function defines the logical name @var{name} to have the value
+@c @var{string}.  It is available only on VMS.
+この関数は論理名@var{name}に値@var{string}を定義する。
+VMSでのみ使える。
+@end defun
+
+@defun set-file-modes filename mode
+@c This function sets mode bits of @var{filename} to @var{mode} (which must
+@c be an integer).  Only the low 12 bits of @var{mode} are used.
+この関数は@var{filename}のモードビットを
+@var{mode}（整数であること）と設定する。
+@var{mode}の下位12ビットのみを使う。
+@end defun
+
+@c Emacs 19 feature
+@defun set-default-file-modes mode
+@c This function sets the default file protection for new files created by
+@c Emacs and its subprocesses.  Every file created with Emacs initially has
+@c this protection.  On Unix, the default protection is the bitwise
+@c complement of the ``umask'' value.
+この関数は、Emacsやそのサブプロセスが作成する新規ファイルの
+デフォルトのファイルモードを設定する。
+Emacsが作成する各ファイルは最初このモードになる。
+UNIXでは、デフォルトのモードは『umask』の値の1の補数である。
+
+@c The argument @var{mode} must be an integer.  On most systems, only the
+@c low 9 bits of @var{mode} are meaningful.
+引数@var{mode}は整数であること。
+ほとんどのシステムでは、@var{mode}の下位9ビットのみが意味を持つ。
+
+@c Saving a modified version of an existing file does not count as creating
+@c the file; it does not change the file's mode, and does not use the
+@c default file protection.
+既存ファイルの変更を保存することはファイルの作成とはみなさないため、
+ファイルのモードは変わらず、デフォルトのファイルモードを使わない。
+@end defun
+
+@defun default-file-modes
+@c This function returns the current default protection value.
+この関数は、現在のデフォルトのファイルモードの値を返す。
+@end defun
+
+@c @cindex MS-DOS and file modes
+@c @cindex file modes and MS-DOS
+@cindex MS-DOSとファイルモード
+@cindex ファイルモードとMS-DOS
+@c   On MS-DOS, there is no such thing as an ``executable'' file mode bit.
+@c So Emacs considers a file executable if its name ends in @samp{.com},
+@c @samp{.bat} or @samp{.exe}.  This is reflected in the values returned
+@c by @code{file-modes} and @code{file-attributes}.
+MS-DOSでは、『実行可能』ファイルモードビットのようなものはありません。
+そのためEmacsは、@samp{.com}、@samp{.bat}、@samp{.exe}のいずれかで
+終る名前のファイルを実行可能であるとみなします。
+これは、@code{file-modes}や@code{file-attributes}が返す値に反映されます。
+
+@node File Names
+@c @section File Names
+@section ファイル名
+@c @cindex file names
+@cindex ファイル名
+
+@c   Files are generally referred to by their names, in Emacs as elsewhere.
+@c File names in Emacs are represented as strings.  The functions that
+@c operate on a file all expect a file name argument.
+他の場面と同様にEmacsでは、一般にファイルはその名前で参照します。
+Emacsではファイル名は文字列で表します。
+ファイルを操作する関数はすべてファイル名引数を仮定します。
+
+@c   In addition to operating on files themselves, Emacs Lisp programs
+@c often need to operate on file names; i.e., to take them apart and to use
+@c part of a name to construct related file names.  This section describes
+@c how to manipulate file names.
+ファイル自体の操作に加えて、Emacs Lispプログラムは
+ファイルの名前そのものを操作する必要があります。
+つまり、ファイル名を分解したり、関連するファイル名を作成するために
+その一部を使います。
+本節ではファイル名を操作する方法を説明します。
+
+@c   The functions in this section do not actually access files, so they
+@c can operate on file names that do not refer to an existing file or
+@c directory.
+本節の関数は実際にはファイルを参照しませんから、
+既存のファイルやディレクトリを表さないファイル名を操作できます。
+
+@c   On VMS, all these functions understand both VMS file-name syntax and
+@c Unix syntax.  This is so that all the standard Lisp libraries can
+@c specify file names in Unix syntax and work properly on VMS without
+@c change.  On MS-DOS and MS-Windows, these functions understand MS-DOS or
+@c MS-Windows file-name syntax as well as Unix syntax.
+VMSでは、これらの関数はすべて、VMSのファイル名構文と
+UNIXの構文の両方を理解します。
+つまり、標準LispライブラリはUNIX構文でファイル名を指定でき、
+変更せずにVMS上で正しく動作します。
+MS-DOSやMS-Windowsでは、これらの関数は、
+UNIX構文に加えてMS-DOSやMS-Windowsのファイル名構文を理解します。
+
+@menu
+* File Name Components::  The directory part of a file name, and the rest.
+* Directory Names::       A directory's name as a directory
+                            is different from its name as a file.
+* Relative File Names::   Some file names are relative to a current directory.
+* File Name Expansion::   Converting relative file names to absolute ones.
+* Unique File Names::     Generating names for temporary files.
+* File Name Completion::  Finding the completions for a given file name.
+* Standard File Names::   If your package uses a fixed file name,
+                            how to handle various operating systems simply.
+@end menu
+
+@node File Name Components
+@c @subsection File Name Components
+@subsection ファイル名の構成要素
+@c @cindex directory part (of file name)
+@c @cindex nondirectory part (of file name)
+@c @cindex version number (in file name)
+@cindex ディレクトリ部分（ファイル名）
+@cindex 非ディレクトリ部分（ファイル名）
+@cindex 版番号（ファイル名）
+
+@c   The operating system groups files into directories.  To specify a
+@c file, you must specify the directory and the file's name within that
+@c directory.  Therefore, Emacs considers a file name as having two main
+@c parts: the @dfn{directory name} part, and the @dfn{nondirectory} part
+@c (or @dfn{file name within the directory}).  Either part may be empty.
+@c Concatenating these two parts reproduces the original file name.
+オペレーティングシステムは、一連のファイルをディレクトリにまとめます。
+ファイルを指定するには、ディレクトリと当該ディレクトリ内のファイルの名前を
+指定する必要があります。
+そのためEmacsは、ファイル名には2つの部分、
+@dfn{ディレクトリ名}（directory name）部分と
+@dfn{非ディレクトリ名}（nondirectory name）部分
+（つまり@dfn{ディレクトリ内のファイル名}）があるとみなします。
+どちらかの部分は空でもかまいません。
+これらの2つの部分を連結するともとのファイル名になります。
+
+@c   On Unix, the directory part is everything up to and including the last
+@c slash; the nondirectory part is the rest.  The rules in VMS syntax are
+@c complicated.
+UNIXでは、ディレクトリ部分は最後のスラッシュまでを含んだ部分であり、
+非ディレクトリ部分は残りの部分です。
+VMSの構文規則は複雑です。
+
+@c   For some purposes, the nondirectory part is further subdivided into
+@c the name proper and the @dfn{version number}.  On Unix, only backup
+@c files have version numbers in their names.  On VMS, every file has a
+@c version number, but most of the time the file name actually used in
+@c Emacs omits the version number, so that version numbers in Emacs are
+@c found mostly in directory lists.
+ある種の目的のために、非ディレクトリ部分をさらに
+名前だけの部分と@dfn{版番号}（version number）に分けます。
+UNIXでは、バックアップファイルだけにそれらの名前に版番号があります。
+VMSでは各ファイルに版番号がありますが、
+ほとんどの場合、Emacsで実際に使うファイル名では版番号を省略します。
+そのため、Emacsで版番号が見えるのは多くの場合ディレクトリ一覧です。
+
+@defun file-name-directory filename
+@c This function returns the directory part of @var{filename} (or
+@c @code{nil} if @var{filename} does not include a directory part).  On
+@c Unix, the function returns a string ending in a slash.  On VMS, it
+@c returns a string ending in one of the three characters @samp{:},
+@c @samp{]}, or @samp{>}.
+この関数は@var{filename}のディレクトリ部分
+（ディレクトリ部分がなければ@code{nil}）を返す。
+UNIXでは、この関数はスラッシュで終る文字列を返す。
+VMSでは、@samp{:}、@samp{]}、@samp{>}のいずれかで終る文字列を返す。
+
+@example
+@group
+@c (file-name-directory "lewis/foo")  ; @r{Unix example}
+(file-name-directory "lewis/foo")  ; @r{UNIXの例}
+     @result{} "lewis/"
+@end group
+@group
+@c (file-name-directory "foo")        ; @r{Unix example}
+(file-name-directory "foo")        ; @r{UNIXの例}
+     @result{} nil
+@end group
+@group
+@c (file-name-directory "[X]FOO.TMP") ; @r{VMS example}
+(file-name-directory "[X]FOO.TMP") ; @r{VMSの例}
+     @result{} "[X]"
+@end group
+@end example
+@end defun
+
+@defun file-name-nondirectory filename
+@c This function returns the nondirectory part of @var{filename}.
+この関数は@var{filename}の非ディレクトリ部分を返す。
+
+@example
+@group
+(file-name-nondirectory "lewis/foo")
+     @result{} "foo"
+@end group
+@group
+(file-name-nondirectory "foo")
+     @result{} "foo"
+@end group
+@group
+@c ;; @r{The following example is accurate only on VMS.}
+;; @r{つぎの例はVMSでのみ正確である}
+(file-name-nondirectory "[X]FOO.TMP")
+     @result{} "FOO.TMP"
+@end group
+@end example
+@end defun
+
+@defun file-name-sans-versions filename
+@c This function returns @var{filename} with any file version numbers,
+@c backup version numbers, or trailing tildes deleted.
+この関数は、@var{filename}から版番号、バックアップ版番号、
+末尾のティルダをすべて削除したものを返す。
+
+@example
+@group
+(file-name-sans-versions "~rms/foo.~1~")
+     @result{} "~rms/foo"
+@end group
+@group
+(file-name-sans-versions "~rms/foo~")
+     @result{} "~rms/foo"
+@end group
+@group
+(file-name-sans-versions "~rms/foo")
+     @result{} "~rms/foo"
+@end group
+@group
+@c ;; @r{The following example applies to VMS only.}
+;; @r{つぎの例はVMSでのみ正確である}
+(file-name-sans-versions "foo;23")
+     @result{} "foo"
+@end group
+@end example
+@end defun
+
+@defun file-name-sans-extension filename
+@c This function returns @var{filename} minus its ``extension,'' if any.
+@c The extension, in a file name, is the part that starts with the last
+@c @samp{.} in the last name component.  For example,
+この関数は、@var{filename}からあれば『拡張子』を除いたものを返す。
+ファイル名の拡張子とは、
+名前の最後の部分にある@samp{.}で始まる部分である。
+たとえばつぎのとおりである。
+
+@example
+(file-name-sans-extension "foo.lose.c")
+     @result{} "foo.lose"
+(file-name-sans-extension "big.hack/foo")
+     @result{} "big.hack/foo"
+@end example
+@end defun
+
+@node Directory Names
+@comment  node-name,  next,  previous,  up
+@c @subsection Directory Names
+@subsection ディレクトリ名
+@c @cindex directory name
+@c @cindex file name of directory
+@cindex ディレクトリ名
+@cindex ディレクトリのファイル名
+
+@c   A @dfn{directory name} is the name of a directory.  A directory is a
+@c kind of file, and it has a file name, which is related to the directory
+@c name but not identical to it.  (This is not quite the same as the usual
+@c Unix terminology.)  These two different names for the same entity are
+@c related by a syntactic transformation.  On Unix, this is simple: a
+@c directory name ends in a slash, whereas the directory's name as a file
+@c lacks that slash.  On VMS, the relationship is more complicated.
+@dfn{ディレクトリ名}（directory name）とはディレクトリの名前です。
+ディレクトリはファイルの一種であり、ファイル名を持ちますが、
+それはディレクトリ名に関連付けられますが同一ではありません。
+（これはUNIXの通常の用語と同じではない。）
+同じものに対するこれらの異なる2つの名前は、構文の変換で関連付けます。
+UNIXではこれは簡単であり、ディレクトリ名はスラッシュで終りますが、
+ファイルとしてのディレクトリの名前にはスラッシュはありません。
+VMSでは、関係はより複雑です。
+
+@c   The difference between a directory name and its name as a file is
+@c subtle but crucial.  When an Emacs variable or function argument is
+@c described as being a directory name, a file name of a directory is not
+@c acceptable.
+ディレクトリ名とそのファイルとしての名前との違いはわずかですが重大です。
+Emacsの変数や関数引数がディレクトリ名と記述されているときには、
+ディレクトリのファイルとしての名前は受け付けません。
+
+@c   The following two functions convert between directory names and file
+@c names.  They do nothing special with environment variable substitutions
+@c such as @samp{$HOME}, and the constructs @samp{~}, and @samp{..}.
+つぎの2つの関数はディレクトリ名とファイルとしての名前を相互に変換します。
+これらは、@samp{$HOME}などの環境変数置換や
+@samp{~}や@samp{..}などの構造にはなにも特別なことはしません。
+
+@defun file-name-as-directory filename
+@c This function returns a string representing @var{filename} in a form
+@c that the operating system will interpret as the name of a directory.  In
+@c Unix, this means appending a slash to the string (if it does not already
+@c end in one).  On VMS, the function converts a string of the form
+@c @file{[X]Y.DIR.1} to the form @file{[X.Y]}.
+この関数は、オペレーティングシステムが
+ディレクトリ名と解釈する表現で表した@var{filename}の文字列を返す。
+UNIXでは、文字列に（最後にスラッシュがなければ）スラッシュを
+付加することを意味する。
+VMSでは、@file{[X]Y.DIR.1}の形の文字列を@file{[X.Y]}の形に変換する。
+
+@example
+@group
+(file-name-as-directory "~rms/lewis")
+     @result{} "~rms/lewis/"
+@end group
+@end example
+@end defun
+
+@defun directory-file-name dirname
+@c This function returns a string representing @var{dirname} in a form that
+@c the operating system will interpret as the name of a file.  On Unix,
+@c this means removing the final slash from the string.  On VMS, the
+@c function converts a string of the form @file{[X.Y]} to
+@c @file{[X]Y.DIR.1}.
+この関数は、オペレーティングシステムが
+ファイルの名前と解釈する表現で表した@var{dirname}の文字列を返す。
+UNIXでは、文字列の最後のスラッシュを取り除くことを意味する。
+VMSでは、@file{[X.Y]}の形の文字列を@file{[X]Y.DIR.1}の形に変換する。
+
+@example
+@group
+(directory-file-name "~lewis/")
+     @result{} "~lewis"
+@end group
+@end example
+@end defun
+
+@c @cindex directory name abbreviation
+@cindex ディレクトリ名の省略形
+@cindex 省略形、ディレクトリ名
+@c   Directory name abbreviations are useful for directories that are
+@c normally accessed through symbolic links.  Sometimes the users recognize
+@c primarily the link's name as ``the name'' of the directory, and find it
+@c annoying to see the directory's ``real'' name.  If you define the link
+@c name as an abbreviation for the ``real'' name, Emacs shows users the
+@c abbreviation instead.
+シンボリックリンクを介して通常参照されるディレクトリには
+ディレクトリ名の省略形が有用です。
+ユーザーはリンクの名前をディレクトリの『名前』としばしばみなし、
+ディレクトリの『本当の』名前を見るのをわずらわしく思うことがあります。
+リンク名を『本当の』名前の省略形と定義しておくと、
+Emacsはユーザーに省略形を表示します。
+
+@defvar directory-abbrev-alist
+@c The variable @code{directory-abbrev-alist} contains an alist of
+@c abbreviations to use for file directories.  Each element has the form
+@c @code{(@var{from} . @var{to})}, and says to replace @var{from} with
+@c @var{to} when it appears in a directory name.  The @var{from} string is
+@c actually a regular expression; it should always start with @samp{^}.
+@c The function @code{abbreviate-file-name} performs these substitutions.
+変数@code{directory-abbrev-alist}は、
+ディレクトリに使う省略形の連想リストを保持する。
+各要素は@code{(@var{from} . @var{to})}の形であり、
+ディレクトリ名に@var{from}が現れるとこれを@var{to}に置き換えることを指示する。
+文字列@var{from}は実際には正規表現であり、つねに@samp{^}で始まること。
+関数@code{abbreviate-file-name}がこれらの置換を行う。
+
+@c You can set this variable in @file{site-init.el} to describe the
+@c abbreviations appropriate for your site.
+ファイル@file{site-init.el}でこの変数に設定し、
+読者のサイトに適した省略形を記述できる。
+
+@c Here's an example, from a system on which file system @file{/home/fsf}
+@c and so on are normally accessed through symbolic links named @file{/fsf}
+@c and so on.
+ファイルシステム@file{/home/fsf}などをシンボリック名@file{/fsf}で通常参照する
+システムの例をつぎに示す。
+
+@example
+(("^/home/fsf" . "/fsf")
+ ("^/home/gp" . "/gp")
+ ("^/home/gd" . "/gd"))
+@end example
+@end defvar
+
+@c   To convert a directory name to its abbreviation, use this
+@c function:
+ディレクトリ名をその省略形に変換するには、つぎの関数を使います。
+
+@defun abbreviate-file-name dirname
+@c This function applies abbreviations from @code{directory-abbrev-alist}
+@c to its argument, and substitutes @samp{~} for the user's home
+@c directory.
+この関数は、@code{directory-abbrev-alist}の省略形を引数に適用し、
+ユーザーのホームディレクトリを@samp{~}に置き換える。
+@end defun
+
+@node Relative File Names
+@c @subsection Absolute and Relative File Names
+@subsection ファイルの絶対名と相対名
+@c @cindex absolute file name
+@c @cindex relative file name
+@cindex 絶対ファイル名
+@cindex 相対ファイル名
+
+@c   All the directories in the file system form a tree starting at the
+@c root directory.  A file name can specify all the directory names
+@c starting from the root of the tree; then it is called an @dfn{absolute}
+@c file name.  Or it can specify the position of the file in the tree
+@c relative to a default directory; then it is called a @dfn{relative}
+@c file name.  On Unix, an absolute file name starts with a slash or a
+@c tilde (@samp{~}), and a relative one does not.  The rules on VMS are
+@c complicated.
+ファイルシステム内のすべてのディレクトリは、
+ルートディレクトリから始まる木を形作ります。
+ファイル名では、木のルートから始まるすべてのディレクトリ名を指定できて、
+これを@dfn{絶対}（absolute）ファイル名と呼びます。
+あるいは、デフォルトディレクトリを基準に
+木の中でのファイルの位置を指定することもでき、
+これを@dfn{相対}（relative）ファイル名と呼びます。
+UNIXでは、絶対ファイル名はスラッシュかティルダ（@samp{~}）で始まり、
+相対ファイル名はそれらでは始まりません。
+VMSでの規則は複雑です。
+
+@defun file-name-absolute-p filename
+@c This function returns @code{t} if file @var{filename} is an absolute
+@c file name, @code{nil} otherwise.  On VMS, this function understands both
+@c Unix syntax and VMS syntax.
+この関数は、ファイル@var{filename}が絶対ファイル名であれば@code{t}を返し、
+さもなければ@code{nil}を返す。
+VMS上では、この関数はUNIXの構文とVMSの構文の両方を理解する。
+
+@example
+@group
+(file-name-absolute-p "~rms/foo")
+     @result{} t
+@end group
+@group
+(file-name-absolute-p "rms/foo")
+     @result{} nil
+@end group
+@group
+(file-name-absolute-p "/user/rms/foo")
+     @result{} t
+@end group
+@end example
+@end defun
+
+@node File Name Expansion
+@c @subsection Functions that Expand Filenames
+@subsection ファイル名を展開する関数
+@c @cindex expansion of file names
+@cindex ファイル名を展開する関数
+
+@c   @dfn{Expansion} of a file name means converting a relative file name
+@c to an absolute one.  Since this is done relative to a default directory,
+@c you must specify the default directory name as well as the file name to
+@c be expanded.  Expansion also simplifies file names by eliminating
+@c redundancies such as @file{./} and @file{@var{name}/../}.
+ファイル名の@dfn{展開}（expansion）とは、
+相対ファイル名を絶対ファイル名に変換することです。
+これはデフォルトディレクトリを基準に行うので、
+展開すべきファイル名に加えて、デフォルトディレクトリの名前も
+指定する必要があります。
+また、展開では、@file{./}や@file{@var{name}/../}のような冗長部分を
+取り除いてファイル名を単純にします。
+
+@defun expand-file-name filename &optional directory
+@c This function converts @var{filename} to an absolute file name.  If
+@c @var{directory} is supplied, it is the default directory to start with
+@c if @var{filename} is relative.  (The value of @var{directory} should
+@c itself be an absolute directory name; it may start with @samp{~}.)
+@c Otherwise, the current buffer's value of @code{default-directory} is
+@c used.  For example:
+この関数は@var{filename}を絶対ファイル名に変換する。
+@var{directory}が与えられると、
+@var{filename}が相対ファイル名であれば、
+デフォルトディレクトリを基準にする。
+（@var{directory}の値そのものは絶対ディレクトリ名であること。
+@samp{~}で始まってもよい。）
+さもなければ、バッファの@code{default-directory}の値を使う。
+たとえばつぎのとおり。
+
+@example
+@group
+(expand-file-name "foo")
+     @result{} "/xcssun/users/rms/lewis/foo"
+@end group
+@group
+(expand-file-name "../foo")
+     @result{} "/xcssun/users/rms/foo"
+@end group
+@group
+(expand-file-name "foo" "/usr/spool/")
+     @result{} "/usr/spool/foo"
+@end group
+@group
+(expand-file-name "$HOME/foo")
+     @result{} "/xcssun/users/rms/lewis/$HOME/foo"
+@end group
+@end example
+
+@c Filenames containing @samp{.} or @samp{..} are simplified to their
+@c canonical form:
+@samp{.}や@samp{..}を含むファイル名は、それらの正則な形に単純化する。
+
+@example
+@group
+(expand-file-name "bar/../foo")
+     @result{} "/xcssun/users/rms/lewis/foo"
+@end group
+@end example
+
+@c Note that @code{expand-file-name} does @emph{not} expand environment
+@c variables; only @code{substitute-in-file-name} does that.
+@code{expand-file-name}は環境変数を展開@emph{しない}ことに注意。
+@code{substitute-in-file-name}だけがそれを行う。
+@end defun
+
+@c Emacs 19 feature
+@defun file-relative-name filename directory
+@c This function does the inverse of expansion---it tries to return a
+@c relative name that is equivalent to @var{filename} when interpreted
+@c relative to @var{directory}.
+この関数は展開の逆操作を行う。
+つまり、@var{directory}を基準に解釈すると
+@var{filename}と等価になる相対名を返す。
+
+@c On some operating systems, an absolute file name begins with a device
+@c name.  On such systems, @var{filename} has no relative equivalent based
+@c on @var{directory} if they start with two different device names.  In
+@c this case, @code{file-relative-name} returns @var{filename} in absolute
+@c form.
+絶対ファイル名が装置名で始まるシステムもある。
+そのようなシステムでは、@var{directory}と@var{filename}が
+2つの異なる装置名で始まると、
+@var{filename}に等価な@var{directory}を基準にした相対名はない。
+そのような場合、@code{file-relative-name}は
+絶対名の形で@var{filename}を返す。
+
+@example
+(file-relative-name "/foo/bar" "/foo/")
+     @result{} "bar"
+(file-relative-name "/foo/bar" "/hack/")
+     @result{} "/foo/bar"
+@end example
+@end defun
+
+@defvar default-directory
+@c The value of this buffer-local variable is the default directory for the
+@c current buffer.  It should be an absolute directory name; it may start
+@c with @samp{~}.  This variable is buffer-local in every buffer.
+このバッファローカルな変数の値は、
+カレントバッファのデフォルトディレクトリである。
+これは絶対ディレクトリ名であること。
+@samp{~}で始まってもよい。
+この変数は各バッファにおいてバッファローカルである。
+
+@c @code{expand-file-name} uses the default directory when its second
+@c argument is @code{nil}.
+@code{expand-file-name}は、その第2引数が@code{nil}であると
+デフォルトディレクトリを使う。
+
+@c On Unix systems, the value is always a string ending with a slash.
+UNIXでは、この値はつねにスラッシュで終る文字列である。
+
+@example
+@group
+default-directory
+     @result{} "/user/lewis/manual/"
+@end group
+@end example
+@end defvar
+
+@defun substitute-in-file-name filename
+@c This function replaces environment variables references in
+@c @var{filename} with the environment variable values.  Following standard
+@c Unix shell syntax, @samp{$} is the prefix to substitute an environment
+@c variable value.
+この関数は、@var{filename}内の環境変数の参照を
+環境変数の値で置き換える。
+UNIXのシェルの構文規則に従って、
+@samp{$}は環境変数の値に置換するための接頭辞である。
+
+@c The environment variable name is the series of alphanumeric characters
+@c (including underscores) that follow the @samp{$}.  If the character following
+@c the @samp{$} is a @samp{@{}, then the variable name is everything up to the
+@c matching @samp{@}}.
+環境変数名は、@samp{$}に続く（下線を含む）英数字の列である。
+@samp{$}のつぎの文字が@samp{@{}であると、
+対応する@samp{@}}までが変数名である。
+
+@c @c Wordy to avoid overfull hbox.  --rjc 15mar92
+@c Here we assume that the environment variable @code{HOME}, which holds
+@c the user's home directory name, has value @samp{/xcssun/users/rms}.
+ここでは、環境変数@code{HOME}はユーザーのホームディレクトリ名
+@samp{/xcssun/users/rms}を保持していると仮定する。
+
+@example
+@group
+(substitute-in-file-name "$HOME/foo")
+     @result{} "/xcssun/users/rms/foo"
+@end group
+@end example
+
+@c After substitution, if a @samp{~} or a @samp{/} appears following a
+@c @samp{/}, everything before the following @samp{/} is discarded:
+置換後、@samp{/}のつぎに@samp{~}か@samp{/}が現れると、
+@samp{/}までの部分をすべて取り除く。
+
+@example
+@group
+(substitute-in-file-name "bar/~/foo")
+     @result{} "~/foo"
+@end group
+@group
+(substitute-in-file-name "/usr/local/$HOME/foo")
+     @result{} "/xcssun/users/rms/foo"
+     ;; @r{@file{/usr/local/} has been discarded.}
+@end group
+@end example
+
+@c On VMS, @samp{$} substitution is not done, so this function does nothing
+@c on VMS except discard superfluous initial components as shown above.
+VMSでは、@samp{$}による置換は行わないため、
+この関数は冗長部分を取り除く以外にはなにも行わない。
+@end defun
+
+@node Unique File Names
+@c @subsection Generating Unique File Names
+@subsection 一意なファイル名の生成
+
+@c   Some programs need to write temporary files.  Here is the usual way to
+@c construct a name for such a file:
+一時的なファイルに書く必要があるプログラムもあります。
+そのようなファイル向けの名前を作る通常の方法はつぎのとおりです。
+
+@example
+(make-temp-name
+ (expand-file-name @var{name-of-application}
+                   temporary-file-directory))
+@end example
+
+@noindent
+@c The job of @code{make-temp-name} is to prevent two different users or
+@c two different jobs from trying to use the exact same file name.  This
+@c example uses the variable @code{temporary-file-directory} to decide
+@c where to put the temporary file.  All Emacs Lisp programs should
+@c use @code{temporary-file-directory} for this purpose, to give the user
+@c a uniform way to specify the directory for all temporary files.
+@code{make-temp-name}の仕事は、
+異なる2人のユーザーや異なる2つのジョブがまったく同じファイル名を
+使わないようにすることです。
+この例では、変数@code{temporary-file-directory}を使って
+一時的なファイルを置く場所を決めています。
+すべてのEmacs Lispプログラムでは、
+すべての一時的なファイル向けのディレクトリを指定する
+一意な方法をユーザーに提供するために、
+この目的には@code{temporary-file-directory}を使うべきです。
+
+@defun make-temp-name string
+@c This function generates a string that can be used as a unique file name.
+@c The name starts with @var{string}, and contains a number that is
+@c different in each Emacs job.
+この関数は、一意なファイル名として使える文字列を生成する。
+名前は@var{string}で始まり、各Emacsジョブごとに異なる数を含む。
+
+@example
+@group
+(make-temp-name "/tmp/foo")
+     @result{} "/tmp/foo232J6v"
+@end group
+@end example
+
+@c To prevent conflicts among different libraries running in the same
+@c Emacs, each Lisp program that uses @code{make-temp-name} should have its
+@c own @var{string}.  The number added to the end of @var{string}
+@c distinguishes between the same application running in different Emacs
+@c jobs.  Additional added characters permit a large number of distinct
+@c names even in one Emacs job.
+同じEmacsで動作している異なるライブラリのあいだで衝突しないように、
+@code{make-temp-name}を使う各Lispプログラムでは、
+独自の@var{string}を使うべきである。
+@var{string}の末尾に付加される数は、
+異なるEmacsジョブで動いている同じアプリケーションを区別する。
+文字を余計に追加することで、1つのEmacsジョブであっても
+異なる名前の個数を非常に多くできる。
+@end defun
+
+@defvar temporary-file-directory
+@c @cindex @code{TMPDIR} environment variable.
+@c @cindex @code{TMP} environment variable.
+@cindex @code{TMPDIR}、環境変数
+@cindex 環境変数@code{TMPDIR}
+@cindex @code{TMP}、環境変数
+@cindex 環境変数@code{TMP}
+@c This variable specifies the directory name for creating temporary files.
+@c Its value should be a directory name (@pxref{Directory Names}), but it
+@c is good for Lisp programs to cope if the value is a directory's file
+@c name instead.  Using the value as the second argument to
+@c @code{expand-file-name} is a good way to achieve that.
+この変数は、一時的なファイルを作成するためのディレクトリ名を指定する。
+その値はディレクトリ名（@pxref{Directory Names}）であるべきだが、
+Lispプログラムにとっては、
+その値がディレクトリのファイルとしての名前であっても処理できるほうがよい。
+この値を@code{expand-file-name}の第2引数に使うと、
+そのようにできる。
+
+@c The default value is determined in a reasonable way for your operating
+@c system; on GNU and Unix systems it is based on the @code{TMP} and
+@c @code{TMPDIR} environment variables.
+デフォルト値は、読者のオペレーティングシステムにおいて
+合理的な方法で決定される。
+GNUとUNIXシステムでは、環境変数@code{TMP}や@code{TMPDIR}を基にする。
+
+@c Even if you do not use @code{make-temp-name} to choose the temporary
+@c file's name, you should still use this variable to decide which
+@c directory to put the file in.
+読者が一時的なファイル名を選ぶために@code{make-temp-name}を
+使わない場合であっても、
+一時的なファイル名を置くディレクトリを決めるために
+この変数を使うべきである。
+@end defvar
+
+@node File Name Completion
+@c @subsection File Name Completion
+@subsection ファイル名の補完
+@c @cindex file name completion subroutines
+@c @cindex completion, file name
+@cindex ファイル名の補完サブルーティン
+@cindex 補完、ファイル名
+
+@c   This section describes low-level subroutines for completing a file
+@c name.  For other completion functions, see @ref{Completion}.
+本節では、ファイル名の補完向けの低レベルのサブルーティンについて述べます。
+他の補完関数については、@ref{Completion}を参照してください。
+
+@defun file-name-all-completions partial-filename directory
+@c This function returns a list of all possible completions for a file
+@c whose name starts with @var{partial-filename} in directory
+@c @var{directory}.  The order of the completions is the order of the files
+@c in the directory, which is unpredictable and conveys no useful
+@c information.
+この関数は、ディレクトリ@var{directory}において
+@var{partial-filename}で始まる名前のファイルに対する
+すべての補完候補から成るリストを返す。
+候補の順番はディレクトリ内でのファイルの順番であり、
+それは予測できず有用な情報はなにもない。
+
+@c The argument @var{partial-filename} must be a file name containing no
+@c directory part and no slash.  The current buffer's default directory is
+@c prepended to @var{directory}, if @var{directory} is not absolute.
+引数@var{partial-filename}は、ディレクトリ部分やスラッシュを
+いっさい含まないファイル名であること。
+@var{directory}が絶対名でないと、
+カレントバッファのデフォルトディレクトリを@var{directory}のまえに補う。
+
+@c In the following example, suppose that @file{~rms/lewis} is the current
+@c default directory, and has five files whose names begin with @samp{f}:
+@c @file{foo}, @file{file~}, @file{file.c}, @file{file.c.~1~}, and
+@c @file{file.c.~2~}.@refill
+つぎの例で、カレントデフォルトディレクトリは@file{~rms/lewis}であり、
+@samp{f}で始まる名前のファイルは、
+@file{foo}、@file{file~}、@file{file.c}、@file{file.c.~1~}、
+@file{file.c.~2~}の5つであると仮定する。
+
+@example
+@group
+(file-name-all-completions "f" "")
+     @result{} ("foo" "file~" "file.c.~2~" 
+                "file.c.~1~" "file.c")
+@end group
+
+@group
+(file-name-all-completions "fo" "")  
+     @result{} ("foo")
+@end group
+@end example
+@end defun
+
+@defun file-name-completion filename directory
+@c This function completes the file name @var{filename} in directory
+@c @var{directory}.  It returns the longest prefix common to all file names
+@c in directory @var{directory} that start with @var{filename}.
+この関数は、ディレクトリ@var{directory}においてファイル名@var{filename}を
+補完する。
+ディレクトリ@var{directory}において@var{filename}で始まる
+すべてのファイル名に共通な最長の文字列を返す。
+
+@c If only one match exists and @var{filename} matches it exactly, the
+@c function returns @code{t}.  The function returns @code{nil} if directory
+@c @var{directory} contains no name starting with @var{filename}.
+@var{filename}で始まるものがたった1つであり完全に一致すると、
+この関数は@code{t}を返す。
+ディレクトリ@var{directory}に@var{filename}で始まる名前がないと
+@code{nil}を返す。
+
+@c In the following example, suppose that the current default directory
+@c has five files whose names begin with @samp{f}: @file{foo},
+@c @file{file~}, @file{file.c}, @file{file.c.~1~}, and
+@c @file{file.c.~2~}.@refill
+つぎの例で、カレントデフォルトディレクトリには
+@samp{f}で始まる名前のファイルは、
+@file{foo}、@file{file~}、@file{file.c}、@file{file.c.~1~}、
+@file{file.c.~2~}の5つであると仮定する。
+
+@example
+@group
+(file-name-completion "fi" "")
+     @result{} "file"
+@end group
+
+@group
+(file-name-completion "file.c.~1" "")
+     @result{} "file.c.~1~"
+@end group
+
+@group
+(file-name-completion "file.c.~1~" "")
+     @result{} t
+@end group
+
+@group
+(file-name-completion "file.c.~3" "")
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@defopt completion-ignored-extensions
+@c @code{file-name-completion} usually ignores file names that end in any
+@c string in this list.  It does not ignore them when all the possible
+@c completions end in one of these suffixes or when a buffer showing all
+@c possible completions is displayed.@refill
+@code{file-name-completion}は、このリスト内のいずれかの文字列で終る
+名前のファイルを通常無視する。
+補完候補すべてがこれらの接頭辞の1つで終る場合や、
+補完候補すべてを含んだバッファが表示されている場合には無視しない。
+
+@c A typical value might look like this:
+典型的な値はつぎのとおりである。
+
+@example
+@group
+completion-ignored-extensions
+     @result{} (".o" ".elc" "~" ".dvi")
+@end group
+@end example
+@end defopt
+
+@node Standard File Names
+@c @subsection Standard File Names
+@subsection 標準ファイル名
+
+@c   Most of the file names used in Lisp programs are entered by the user.
+@c But occasionally a Lisp program needs to specify a standard file name
+@c for a particular use---typically, to hold customization information
+@c about each user.  For example, abbrev definitions are stored (by
+@c default) in the file @file{~/.abbrev_defs}; the @code{completion}
+@c package stores completions in the file @file{~/.completions}.  These are
+@c two of the many standard file names used by parts of Emacs for certain
+@c purposes.
+Lispプログラムで使われるほとんどのファイル名は、
+ユーザーが入力したものです。
+しかし、Lispプログラムでは、
+特定目的の標準ファイル名を指定する必要がある場合があります。
+典型的には、各ユーザーごとのカスタマイズ情報を保持するものです。
+たとえば、省略形の定義は（デフォルトでは）
+ファイル@file{~/.abbrev_defs}に保存されます。
+パッケージ@code{completion}は、
+補完情報をファイル@file{~/.completions}に保存します。
+これらは、Emacsで特定目的に使われる多くの標準ファイル名のうちの2つです。
+
+@c   Various operating systems have their own conventions for valid file
+@c names and for which file names to use for user profile data.  A Lisp
+@c program which reads a file using a standard file name ought to use, on
+@c each type of system, a file name suitable for that system.  The function
+@c @code{convert-standard-filename} makes this easy to do.
+さまざまなのオペレーティングシステムには、
+正しいファイル名やユーザーのプロフィールデータに使うファイル名に
+独自の慣習があります。
+標準ファイル名を使用するファイルを読み込むLispプログラムでは、
+各システムごとに当該システムに適したファイル名を使うべきです。
+関数@code{convert-standard-filename}は、これを簡単にします。
+
+@defun convert-standard-filename filename
+@c This function alters the file name @var{filename} to fit the conventions
+@c of the operating system in use, and returns the result as a new string.
+この関数は、ファイル名@var{filename}を使用しているオペレーティングシステム
+の慣習に従うように変換し、新たな文字列として結果を返す。
+@end defun
+
+@c   The recommended way to specify a standard file name in a Lisp program
+@c is to choose a name which fits the conventions of GNU and Unix systems,
+@c usually with a nondirectory part that starts with a period, and pass it
+@c to @code{convert-standard-filename} instead of using it directly.  Here
+@c is an example from the @code{completion} package:
+Lispプログラムにおいて標準ファイル名を指定する推奨方法は、
+GNUとUNIXシステムの慣習に従った名前を選ぶことです。
+つまり、ピリオドで始まる非ディレクトリ部分を選び、
+それを直接使うかわりに@code{convert-standard-filename}に渡します。
+パッケージ@code{completion}からの例をつぎに示します。
+
+@example
+(defvar save-completions-file-name
+        (convert-standard-filename "~/.completions")
+  "*The file name to save completions to.")
+@end example
+
+@c   On GNU and Unix systems, and on some other systems as well,
+@c @code{convert-standard-filename} returns its argument unchanged.  On
+@c some other systems, it alters the name to fit the system's conventions.
+GNUとUNIXシステム、および、他のいくつかのシステムでは、
+@code{convert-standard-filename}は引数を未変更で返します。
+別のシステムでは、システムの慣習に従うように名前を変更します。
+
+@c   For example, on MS-DOS the alterations made by this function include
+@c converting a leading @samp{.}  to @samp{_}, converting a @samp{_} in the
+@c middle of the name to @samp{.} if there is no other @samp{.}, inserting
+@c a @samp{.} after eight characters if there is none, and truncating to
+@c three characters after the @samp{.}.  (It makes other changes as well.)
+@c Thus, @file{.abbrev_defs} becomes @file{_abbrev.def}, and
+@c @file{.completions} becomes @file{_complet.ion}.
+たとえば、MS-DOSではこの関数は、先頭の@samp{.}を@samp{_}に、
+@samp{.}がどこにもなければ名前の途中の@samp{_}を@samp{.}に、
+8文字目のうしろに@samp{.}がなければ@samp{.}を挿入し、
+@samp{.}以降の3文字よりうしろを切り詰めるなどを行います。
+（これ以外にも変更する。）
+したがって、@file{.abbrev_defs}は@file{_abbrev.def}となり、
+@file{.completions}は@file{_complet.ion}となります。
+
+@node Contents of Directories
+@c @section Contents of Directories
+@section ディレクトリの内容
+@c @cindex directory-oriented functions
+@c @cindex file names in directory
+@cindex ディレクトリ向け関数
+@cindex ディレクトリ内のファイル名
+
+@c   A directory is a kind of file that contains other files entered under
+@c various names.  Directories are a feature of the file system.
+ディレクトリは、さまざまな名前で入れた別のファイルを
+収めているファイルの一種です。
+ディレクトリは、ファイルシステムの機能です。
+
+@c   Emacs can list the names of the files in a directory as a Lisp list,
+@c or display the names in a buffer using the @code{ls} shell command.  In
+@c the latter case, it can optionally display information about each file,
+@c depending on the options passed to the @code{ls} command.
+Emacsは、ディレクトリ内のファイル名をLispのリストとして一覧にしたり、
+シェルコマンド@code{ls}を使ってバッファに名前を表示できます。
+後者の場合、コマンド@code{ls}に渡したオプションに応じて、
+各ファイルに関する情報も表示できます。
+
+@defun directory-files directory &optional full-name match-regexp nosort
+@c This function returns a list of the names of the files in the directory
+@c @var{directory}.  By default, the list is in alphabetical order.
+この関数は、ディレクトリ@var{directory}内の
+ファイルの名前から成るリストを返す。
+デフォルトでは、リストはアルファベット順になる。
+
+@c If @var{full-name} is non-@code{nil}, the function returns the files'
+@c absolute file names.  Otherwise, it returns the names relative to
+@c the specified directory.
+@var{full-name}が@code{nil}以外であると、
+関数はファイルの絶対ファイル名を返す。
+さもなければ、指定したディレクトリに対する相対名を返す。
+
+@c If @var{match-regexp} is non-@code{nil}, this function returns only
+@c those file names that contain a match for that regular expression---the
+@c other file names are excluded from the list.
+@var{match-regexp}が@code{nil}以外であると、
+この関数は正規表現@var{match-regexp}に一致するファイル名のみを返す。
+つまり、他の名前のファイルはリストから除かれる。
+
+@c @c Emacs 19 feature
+@c If @var{nosort} is non-@code{nil}, @code{directory-files} does not sort
+@c the list, so you get the file names in no particular order.  Use this if
+@c you want the utmost possible speed and don't care what order the files
+@c are processed in.  If the order of processing is visible to the user,
+@c then the user will probably be happier if you do sort the names.
+@var{nosort}が@code{nil}以外であると、
+@code{directory-files}はリストをソートしないので、
+ファイル名の順番に規則はない。
+処理速度を最大にしてファイルの処理順序に拘らないならば、これを用いる。
+処理順序がユーザーに見える場合には、
+ソートしたほうがユーザーは幸せであろう。
+
+@example
+@group
+(directory-files "~lewis")
+     @result{} ("#foo#" "#foo.el#" "." ".."
+         "dired-mods.el" "files.texi" 
+         "files.texi.~1~")
+@end group
+@end example
+
+@c An error is signaled if @var{directory} is not the name of a directory
+@c that can be read.
+@var{directory}が読めないディレクトリの名前であるとエラーを通知する。
+@end defun
+
+@defun file-name-all-versions file dirname
+@c This function returns a list of all versions of the file named
+@c @var{file} in directory @var{dirname}.
+この関数は、ディレクトリ@var{dirname}内の@var{file}という名前の
+ファイルのすべての版から成るリストを返す。
+@end defun
+
+@defun insert-directory file switches &optional wildcard full-directory-p
+@c This function inserts (in the current buffer) a directory listing for
+@c directory @var{file}, formatted with @code{ls} according to
+@c @var{switches}.  It leaves point after the inserted text.
+この関数は、@code{ls}に@var{switches}を渡して表示した
+ディレクトリ@var{file}の一覧を（カレントバッファに）挿入する。
+ポイントは挿入したテキストのうしろに置かれる。
+
+@c The argument @var{file} may be either a directory name or a file
+@c specification including wildcard characters.  If @var{wildcard} is
+@c non-@code{nil}, that means treat @var{file} as a file specification with
+@c wildcards.
+引数@var{file}は、ディレクトリ名であるか
+ワイルドカードを含んだファイル指定である。
+@var{wildcard}が@code{nil}以外であると、
+@var{file}をワイルドカードを含むファイル指定として扱う。
+
+@c If @var{full-directory-p} is non-@code{nil}, that means the directory
+@c listing is expected to show the full contents of a directory.  You
+@c should specify @code{t} when @var{file} is a directory and switches do
+@c not contain @samp{-d}.  (The @samp{-d} option to @code{ls} says to
+@c describe a directory itself as a file, rather than showing its
+@c contents.)
+@var{full-directory-p}が@code{nil}以外であると、
+ディレクトリ一覧はディレクトリの全内容を表すと仮定することを意味する。
+@var{file}がディレクトリであり@var{switches}に@samp{-d}を含まない場合には、
+@code{t}を指定すべきである。
+（@code{ls}のオプション@samp{-d}は、
+ディレクトリの内容ではなく、ファイルとしてのディレクトリ自身を
+表示することを意味する。）
+
+@c This function works by running a directory listing program whose name is
+@c in the variable @code{insert-directory-program}.  If @var{wildcard} is
+@c non-@code{nil}, it also runs the shell specified by
+@c @code{shell-file-name}, to expand the wildcards.
+この関数は、変数@code{insert-directory-program}で指定される
+名前のディレクトリ表示プログラムを実行して動作する。
+@var{wildcard}が@code{nil}以外であると、
+ワイルドカードを展開するために@code{shell-file-name}で指定される
+シェルを実行する。
+@end defun
+
+@defvar insert-directory-program
+@c This variable's value is the program to run to generate a directory listing
+@c for the function @code{insert-directory}.
+この変数の値は、関数@code{insert-directory}で
+ディレクトリ一覧を生成するために実行するプログラムである。
+@end defvar
+
+@node Create/Delete Dirs
+@c @section Creating and Deleting Directories
+@section ディレクトリの作成と削除
+@c Emacs 19 features
+
+@c   Most Emacs Lisp file-manipulation functions get errors when used on
+@c files that are directories.  For example, you cannot delete a directory
+@c with @code{delete-file}.  These special functions exist to create and
+@c delete directories.
+Emacs Lispのほとんどのファイル操作関数は、
+ディレクトリであるファイルに使うとエラーになります。
+たとえば、@code{delete-file}ではディレクトリを削除できません。
+これらの特別な関数はディレクトリを作成したり削除するためのものです。
+
+@defun make-directory dirname
+@c This function creates a directory named @var{dirname}.
+この関数は@var{dirname}という名前のディレクトリを作る。
+@end defun
+
+@defun delete-directory dirname
+@c This function deletes the directory named @var{dirname}.  The function
+@c @code{delete-file} does not work for files that are directories; you
+@c must use @code{delete-directory} for them.  If the directory contains
+@c any files, @code{delete-directory} signals an error.
+この関数は、ディレクトリ@var{dirname}を削除する。
+関数@code{delete-file}は、ディレクトリであるファイルには使えない。
+ディレクトリには@code{delete-directory}を使う必要がある。
+ディレクトリ内にファイルがあると、@code{delete-directory}は
+エラーを通知する。
+@end defun
+
+@node Magic File Names
+@c @section Making Certain File Names ``Magic''
+@section ファイル名を『マジック』にする
+@c @cindex magic file names
+@cindex マジックファイル名
+
+@c @c Emacs 19 feature
+@c   You can implement special handling for certain file names.  This is
+@c called making those names @dfn{magic}.  The principal use for this
+@c feature is in implementing remote file names (@pxref{Remote Files,,
+@c Remote Files, emacs, The GNU Emacs Manual}).
+特定のファイル名を特別に扱うことができます。
+これをそれらの名前を@dfn{マジック}（magic）にするといいます。
+この機能の主な用途はリモートファイル名
+（@pxref{Remote Files,, リモートファイル, emacs, GNU Emacs マニュアル}）
+を実装することです。
+
+@c   To define a kind of magic file name, you must supply a regular
+@c expression to define the class of names (all those that match the
+@c regular expression), plus a handler that implements all the primitive
+@c Emacs file operations for file names that do match.
+マジックファイル名の種類を定義するには、
+名前のクラス（正規表現に一致するものすべて）を定義する正規表現と、
+それに一致するファイルに対する
+Emacsの基本ファイル操作を実装するハンドラを指定する必要があります。
+
+@c   The variable @code{file-name-handler-alist} holds a list of handlers,
+@c together with regular expressions that determine when to apply each
+@c handler.  Each element has this form:
+変数@code{file-name-handler-alist}は、
+ハンドラと当該ハンドラの適用を決定する正規表現からなるリストを保持します。
+各要素の形はつぎのとおりです。
+
+@example
+(@var{regexp} . @var{handler})
+@end example
+
+@noindent
+@c All the Emacs primitives for file access and file name transformation
+@c check the given file name against @code{file-name-handler-alist}.  If
+@c the file name matches @var{regexp}, the primitives handle that file by
+@c calling @var{handler}.
+Emacsのすべてのファイル操作基本関数とファイル名変換基本関数は、
+指定された名前を@code{file-name-handler-alist}に対して検査します。
+ファイル名が@var{regexp}に一致すると、
+基本関数は@var{handler}を呼び出して当該ファイルを処理します。
+
+@c The first argument given to @var{handler} is the name of the primitive;
+@c the remaining arguments are the arguments that were passed to that
+@c operation.  (The first of these arguments is typically the file name
+@c itself.)  For example, if you do this:
+@var{handler}に与える最初の引数は基本関数の名前です。
+残りの引数は当該操作に渡されるべき引数です。
+（それらの引数の最初のものは典型的にはファイル名自身である。）
+たとえば、つぎのようにした場合、
+
+@example
+(file-exists-p @var{filename})
+@end example
+
+@noindent
+@c and @var{filename} has handler @var{handler}, then @var{handler} is
+@c called like this:
+@var{filename}にハンドラ@var{handler}があると、
+@var{handler}はつぎのように呼び出されます。
+
+@example
+(funcall @var{handler} 'file-exists-p @var{filename})
+@end example
+
+@c Here are the operations that a magic file name handler gets to handle:
+つぎは、マジックファイル名のハンドラが処理すべき操作です。
+
+@ifinfo
+@noindent
+@c @code{add-name-to-file}, @code{copy-file}, @code{delete-directory},
+@c @code{delete-file},
+@c @code{diff-latest-backup-file},
+@c @code{directory-file-name},
+@c @code{directory-files},
+@c @code{dired-call-process},
+@c @code{dired-compress-file}, @code{dired-uncache},
+@c @code{expand-file-name},
+@c @code{file-accessible-directory-p},@*
+@c @code{file-attributes},
+@c @code{file-directory-p},
+@c @code{file-executable-p}, @code{file-exists-p},@*
+@c @code{file-local-copy},
+@c @code{file-modes}, @code{file-name-all-completions},@*
+@c @code{file-name-as-directory},
+@c @code{file-name-completion},
+@c @code{file-name-directory},
+@c @code{file-name-nondirectory},
+@c @code{file-name-sans-versions}, @code{file-newer-than-file-p},
+@c @code{file-ownership-preserved-p},
+@c @code{file-readable-p}, @code{file-regular-p}, @code{file-symlink-p},
+@c @code{file-truename}, @code{file-writable-p},
+@c @code{find-backup-file-name},
+@c @code{get-file-buffer},@*
+@c @code{insert-directory},
+@c @code{insert-file-contents},
+@c @code{load}, @code{make-directory},
+@c @code{make-symbolic-link}, @code{rename-file}, @code{set-file-modes},
+@c @code{set-visited-file-modtime}, @code{shell-command},@*
+@c @code{unhandled-file-name-directory},
+@c @code{vc-registered},
+@c @code{verify-visited-file-modtime},@*
+@c @code{write-region}.
+@code{add-name-to-file}、@code{copy-file}、@code{delete-directory}、
+@code{delete-file}、
+@code{diff-latest-backup-file}、
+@code{directory-file-name}、
+@code{directory-files}、
+@code{dired-call-process}、
+@code{dired-compress-file}、@code{dired-uncache}、
+@code{expand-file-name}、
+@code{file-accessible-directory-p}、@*
+@code{file-attributes}、
+@code{file-directory-p}、
+@code{file-executable-p}、@code{file-exists-p}、@*
+@code{file-local-copy}、
+@code{file-modes}、@code{file-name-all-completions}，@*
+@code{file-name-as-directory}、
+@code{file-name-completion}、
+@code{file-name-directory}、
+@code{file-name-nondirectory}、
+@code{file-name-sans-versions}、@code{file-newer-than-file-p}、
+@code{file-ownership-preserved-p}、
+@code{file-readable-p}、@code{file-regular-p}、@code{file-symlink-p}、
+@code{file-truename}、@code{file-writable-p}、
+@code{find-backup-file-name}、
+@code{get-file-buffer}、@*
+@code{insert-directory}、
+@code{insert-file-contents}、
+@code{load}, @code{make-directory}、
+@code{make-symbolic-link}、@code{rename-file}、@code{set-file-modes}、
+@code{set-visited-file-modtime}、@code{shell-command}、@*
+@code{unhandled-file-name-directory}、
+@code{vc-registered}、
+@code{verify-visited-file-modtime}、@*
+@code{write-region}。
+@end ifinfo
+@iftex
+@noindent
+@c @code{add-name-to-file}, @code{copy-file}, @code{delete-directory},
+@c @code{delete-file},
+@c @code{diff-latest-backup-file},
+@c @code{directory-file-name},
+@c @code{directory-files},
+@c @code{dired-call-process},
+@c @code{dired-compress-file}, @code{dired-uncache},
+@c @code{expand-file-name},
+@c @code{file-accessible-direc@discretionary{}{}{}tory-p},
+@c @code{file-attributes},
+@c @code{file-direct@discretionary{}{}{}ory-p},
+@c @code{file-executable-p}, @code{file-exists-p},
+@c @code{file-local-copy},
+@c @code{file-modes}, @code{file-name-all-completions},
+@c @code{file-name-as-directory},
+@c @code{file-name-completion},
+@c @code{file-name-directory},
+@c @code{file-name-nondirec@discretionary{}{}{}tory},
+@c @code{file-name-sans-versions}, @code{file-newer-than-file-p},
+@c @code{file-ownership-pre@discretionary{}{}{}served-p},
+@c @code{file-readable-p}, @code{file-regular-p}, @code{file-symlink-p},
+@c @code{file-truename}, @code{file-writable-p},
+@c @code{find-backup-file-name},
+@c @code{get-file-buffer},
+@c @code{insert-directory},
+@c @code{insert-file-contents},
+@c @code{load}, @code{make-direc@discretionary{}{}{}tory},
+@c @code{make-symbolic-link}, @code{rename-file}, @code{set-file-modes},
+@c @code{set-visited-file-modtime}, @code{shell-command},
+@c @code{unhandled-file-name-directory},
+@c @code{vc-regis@discretionary{}{}{}tered},
+@c @code{verify-visited-file-modtime},
+@c @code{write-region}.
+@code{add-name-to-file}、@code{copy-file}、@code{delete-directory}、
+@code{delete-file}、
+@code{diff-latest-backup-file}、
+@code{directory-file-name}、
+@code{directory-files}、
+@code{dired-call-process}、
+@code{dired-compress-file}、@code{dired-uncache}、
+@code{expand-file-name}、
+@code{file-accessible-direc@discretionary{}{}{}tory-p}、
+@code{file-attributes}、
+@code{file-direct@discretionary{}{}{}ory-p}、
+@code{file-executable-p}、@code{file-exists-p}、
+@code{file-local-copy}、
+@code{file-modes}、@code{file-name-all-completions}、
+@code{file-name-as-directory}、
+@code{file-name-completion}、
+@code{file-name-directory}、
+@code{file-name-nondirec@discretionary{}{}{}tory}、
+@code{file-name-sans-versions}、@code{file-newer-than-file-p}、
+@code{file-ownership-pre@discretionary{}{}{}served-p}、
+@code{file-readable-p}、@code{file-regular-p}、@code{file-symlink-p}、
+@code{file-truename}、@code{file-writable-p}、
+@code{find-backup-file-name}、
+@code{get-file-buffer}、
+@code{insert-directory}、
+@code{insert-file-contents}、
+@code{load}、@code{make-direc@discretionary{}{}{}tory}、
+@code{make-symbolic-link}、@code{rename-file}、@code{set-file-modes}、
+@code{set-visited-file-modtime}、@code{shell-command}、
+@code{unhandled-file-name-directory}、
+@code{vc-regis@discretionary{}{}{}tered}、
+@code{verify-visited-file-modtime}、
+@code{write-region}。
+@end iftex
+
+@c Handlers for @code{insert-file-contents} typically need to clear the
+@c buffer's modified flag, with @code{(set-buffer-modified-p nil)}, if the
+@c @var{visit} argument is non-@code{nil}.  This also has the effect of
+@c unlocking the buffer if it is locked.
+@code{insert-file-contents}に対するハンドラは、
+引数@var{visit}が@code{nil}以外であるときには
+@code{(set-buffer-modified-p nil)}を使って
+バッファの変更フラグをクリアする必要が典型的にはあります。
+
+@c The handler function must handle all of the above operations, and
+@c possibly others to be added in the future.  It need not implement all
+@c these operations itself---when it has nothing special to do for a
+@c certain operation, it can reinvoke the primitive, to handle the
+@c operation ``in the usual way''.  It should always reinvoke the primitive
+@c for an operation it does not recognize.  Here's one way to do this:
+ハンドラ関数は、上のすべての操作、ならびに、
+将来追加されるものを扱える必要があります。
+これらの操作すべてをハンドラ自身で実装する必要はありません。
+特定の操作について特別なことを行う必要がなければ、
+『通常どおりに』操作を処理するために基本関数を再起動できます。
+ハンドラが認識できない操作については、
+基本関数を再起動するべきです。
+1つの方法はつぎのとおりです。
+
+@smallexample
+(defun my-file-handler (operation &rest args)
+@c   ;; @r{First check for the specific operations}
+@c   ;; @r{that we have special handling for.}
+  ;; @r{まず、特別に扱う必要がある操作かどうか検査する}
+  (cond ((eq operation 'insert-file-contents) @dots{})
+        ((eq operation 'write-region) @dots{})
+        @dots{}
+@c         ;; @r{Handle any operation we don't know about.}
+        ;; @r{知らない操作を扱う}
+        (t (let ((inhibit-file-name-handlers
+                  (cons 'my-file-handler 
+                        (and (eq inhibit-file-name-operation operation)
+                             inhibit-file-name-handlers)))
+                 (inhibit-file-name-operation operation))
+             (apply operation args)))))
+@end smallexample
+
+@c When a handler function decides to call the ordinary Emacs primitive for
+@c the operation at hand, it needs to prevent the primitive from calling
+@c the same handler once again, thus leading to an infinite recursion.  The
+@c example above shows how to do this, with the variables
+@c @code{inhibit-file-name-handlers} and
+@c @code{inhibit-file-name-operation}.  Be careful to use them exactly as
+@c shown above; the details are crucial for proper behavior in the case of
+@c multiple handlers, and for operations that have two file names that may
+@c each have handlers.
+ハンドラ関数で、指定された操作についてはEmacsの通常の基本関数を呼び出すと
+決定したときには、基本関数から同じハンドラが再度呼ばれて
+無限再帰になることを防ぐ必要があります。
+上の例は、変数@code{inhibit-file-name-handlers}と
+@code{inhibit-file-name-operation}を使ってこれを行う方法を示すものです。
+それらを上に示したとおりに使うように注意してください。
+複数のハンドラがあったり、
+2つのファイルを扱う操作において各ファイルにハンドラがある場合には、
+この詳細は重要です。
+
+@defvar inhibit-file-name-handlers
+@c This variable holds a list of handlers whose use is presently inhibited
+@c for a certain operation.
+この変数は、特定操作については
+現在適用を禁止されているハンドラのリストを保持する。
+@end defvar
+
+@defvar inhibit-file-name-operation
+@c The operation for which certain handlers are presently inhibited.
+特定のハンドラにおいて現在禁止されている操作。
+@end defvar
+
+@defun find-file-name-handler file operation
+@c This function returns the handler function for file name @var{file}, or
+@c @code{nil} if there is none.  The argument @var{operation} should be the
+@c operation to be performed on the file---the value you will pass to the
+@c handler as its first argument when you call it.  The operation is needed
+@c for comparison with @code{inhibit-file-name-operation}.
+この関数はファイル名@var{file}に対するハンドラ関数を返す。
+ハンドラがなければ@code{nil}を返す。
+引数@var{operation}は、ファイルに対して適用する操作であること。
+つまり、ハンドラを呼び出すときに第1引数として渡される値。
+当該操作は@code{inhibit-file-name-operation}と比較する必要がある。
+@end defun
+
+@defun file-local-copy filename
+@c This function copies file @var{filename} to an ordinary non-magic file,
+@c if it isn't one already.
+この関数は、ファイル@var{filename}がマジックでない普通のファイルでなければ、
+@var{filename}をマジックでない普通のファイルにコピーする。
+
+@c If @var{filename} specifies a magic file name, which programs
+@c outside Emacs cannot directly read or write, this copies the contents to
+@c an ordinary file and returns that file's name.
+@var{filename}が、
+Emacsの外側のプログラムからは直接読んだり書けないマジックファイル名であると、
+この関数は普通のファイルにコピーしてそのファイルの名前を返す。
+
+@c If @var{filename} is an ordinary file name, not magic, then this function
+@c does nothing and returns @code{nil}.
+@var{filename}が普通のファイル名でマジックでなければ、
+この関数はなにもせずに@code{nil}を返す。
+@end defun
+
+@defun unhandled-file-name-directory filename
+@c This function returns the name of a directory that is not magic.  It
+@c uses the directory part of @var{filename} if that is not magic.  For a
+@c magic file name, it invokes the file name handler, which therefore
+@c decides what value to return.
+この関数は、マジックではないディレクトリの名前を返す。
+@var{filename}がマジックでなければ、
+@var{filename}のディレクトリ部分を使う。
+マジックファイル名であると、ファイル名ハンドラを起動し、
+当該ハンドラがどんな値を返すか決定する。
+
+@c This is useful for running a subprocess; every subprocess must have a
+@c non-magic directory to serve as its current directory, and this function
+@c is a good way to come up with one.
+これは実行中のサブプロセスに有用である。
+各サブプロセスには、カレントディレクトリとしてマジックでないディレクトリが
+必要であり、この関数はそれを扱うのによい方法である。
+@end defun
+
+@node Format Conversion
+@c @section File Format Conversion
+@section ファイル書式変換
+
+@c @cindex file format conversion
+@c @cindex encoding file formats
+@c @cindex decoding file formats
+@cindex ファイル書式変換
+@cindex ファイル書式の符号化
+@cindex ファイル書式の復号化
+@c   The variable @code{format-alist} defines a list of @dfn{file formats},
+@c which describe textual representations used in files for the data (text,
+@c text-properties, and possibly other information) in an Emacs buffer.
+@c Emacs performs format conversion if appropriate when reading and writing
+@c files.
+変数@code{format-alist}は、
+Emacsバッファ内のデータ（テキスト、テキスト属性、その他の情報）を
+ファイル内でテキスト表現する方法を記述した
+@dfn{ファイル書式}（file format）のリストを定義します。
+Emacsはファイルを読み書きするときに必要ならば書式変換を行います。
+
+@defvar format-alist
+@c This list contains one format definition for each defined file format.
+このリストは、各ファイル書式の定義を含んだリストである。
+@end defvar
+
+@c @cindex format definition
+@cindex 書式定義
+@c Each format definition is a list of this form:
+各書式定義はつぎの形のリストです。
+
+@example
+(@var{name} @var{doc-string} @var{regexp} @var{from-fn} @var{to-fn} @var{modify} @var{mode-fn})
+@end example
+
+@c Here is what the elements in a format definition mean:
+書式定義の各要素の意味はつぎのとおりです。
+
+@table @var
+@item name
+@c The name of this format.
+当該書式の名前。
+
+@item doc-string
+@c A documentation string for the format.
+当該書式の説明文字列。
+
+@item regexp
+@c A regular expression which is used to recognize files represented in
+@c this format.
+当該書式で表現されたファイルを認識するために使用する正規表現。
+
+@item from-fn
+@c A shell command or function to decode data in this format (to convert
+@c file data into the usual Emacs data representation).
+当該書式のデータを復号化（ファイル内のデータをEmacsの通常のデータ表現へ
+変換）するためのシェルコマンドか関数。
+
+@c A shell command is represented as a string; Emacs runs the command as a
+@c filter to perform the conversion.
+シェルコマンドは文字列で表現し、
+Emacsは変換を行うために当該コマンドをフィルタとして実行する。
+
+@c If @var{from-fn} is a function, it is called with two arguments, @var{begin}
+@c and @var{end}, which specify the part of the buffer it should convert.
+@c It should convert the text by editing it in place.  Since this can
+@c change the length of the text, @var{from-fn} should return the modified
+@c end position.
+@var{from-fn}が関数であると、
+バッファの変換すべき部分を指定する@var{begin}と@var{end}の2つの引数で
+呼ばれる。
+当該関数はその場で編集してテキストを変換すること。
+これによりテキストの長さが変わる可能性があるので、
+@var{from-fn}は変更部分の末尾位置を返すこと。
+
+@c One responsibility of @var{from-fn} is to make sure that the beginning
+@c of the file no longer matches @var{regexp}.  Otherwise it is likely to
+@c get called again.
+@var{from-fn}の責任の1つは、
+ファイルの先頭が@var{regexp}で始まらないように保証することである。
+さもないと、再度呼び出される可能性がある。
+
+@item to-fn
+@c A shell command or function to encode data in this format---that is, to
+@c convert the usual Emacs data representation into this format.
+当該書式にデータを符号化するためのシェルコマンドか関数。
+つまり、Emacsの通常のデータ表現を当該書式に変換する。
+
+@c If @var{to-fn} is a string, it is a shell command; Emacs runs the
+@c command as a filter to perform the conversion.
+@var{to-fn}が文字列であるとそれはシェルコマンドであり、
+Emacsは変換を行うために当該コマンドをフィルタとして実行する。
+
+@c If @var{to-fn} is a function, it is called with two arguments, @var{begin}
+@c and @var{end}, which specify the part of the buffer it should convert.
+@c There are two ways it can do the conversion:
+@var{to-fn}が関数であると、
+バッファの変換すべき部分を指定する@var{begin}と@var{end}の2つの引数で
+呼ばれる。
+変換を行うには2つの方法がある。
+
+@itemize @bullet
+@item
+@c By editing the buffer in place.  In this case, @var{to-fn} should
+@c return the end-position of the range of text, as modified.
+その場でバッファを編集する。
+この場合、@var{to-fn}は変更したテキスト範囲の終了位置を返すこと。
+
+@item
+@c By returning a list of annotations.  This is a list of elements of the
+@c form @code{(@var{position} . @var{string})}, where @var{position} is an
+@c integer specifying the relative position in the text to be written, and
+@c @var{string} is the annotation to add there.  The list must be sorted in
+@c order of position when @var{to-fn} returns it.
+注記のリストを返す。
+このリストは、@code{(@var{position} . @var{string})}の形の要素から成り、
+@var{position}は書き出すべきテキスト内での相対位置を指定する整数、
+@var{string}はそこに追加すべき注記である。
+@var{to-fn}がリストを返すときには、
+リストは@var{position}の順にソートしてあること。
+
+@c When @code{write-region} actually writes the text from the buffer to the
+@c file, it intermixes the specified annotations at the corresponding
+@c positions.  All this takes place without modifying the buffer.
+@code{write-region}がバッファからファイルへ実際に書き出すとき、
+指定された注記を対応する位置に埋め込む。
+これらすべては、バッファを変更せずに行われる。
+@end itemize
+
+@item modify
+@c A flag, @code{t} if the encoding function modifies the buffer, and
+@c @code{nil} if it works by returning a list of annotations.
+フラグであり、
+符号化関数がバッファを変更する場合には@code{t}、
+注記のリストを返す場合には@code{nil}である。
+
+@item mode
+@c A mode function to call after visiting a file converted from this
+@c format.
+当該書式から変換されたファイルを訪問後に呼び出されるモード関数。
+@end table
+
+@c The function @code{insert-file-contents} automatically recognizes file
+@c formats when it reads the specified file.  It checks the text of the
+@c beginning of the file against the regular expressions of the format
+@c definitions, and if it finds a match, it calls the decoding function for
+@c that format.  Then it checks all the known formats over again.
+@c It keeps checking them until none of them is applicable.
+関数@code{insert-file-contents}は、指定されたファイルを読み込むときに
+ファイル書式を自動的に認識します。
+ファイルの先頭のテキストを書式定義の正規表現に対して検査して、
+一致がみつかれば当該書式の復号化関数を呼び出します。
+そして、既知の書式について再度調べ直します。
+適用できる書式がなくなるまで検査し続けます。
+
+@c Visiting a file, with @code{find-file-noselect} or the commands that use
+@c it, performs conversion likewise (because it calls
+@c @code{insert-file-contents}); it also calls the mode function for each
+@c format that it decodes.  It stores a list of the format names in the
+@c buffer-local variable @code{buffer-file-format}.
+関数@code{find-file-noselect}やこれを使うコマンドでファイルを訪問すると、
+（@code{insert-file-contents}を呼び出すので）同様に変換を行います。
+さらに、この関数は、復号した各書式についてモード関数を呼び出します。
+バッファローカルな変数@code{buffer-file-format}に
+書式名のリストを保存します。
+
+@defvar buffer-file-format
+@c This variable states the format of the visited file.  More precisely,
+@c this is a list of the file format names that were decoded in the course
+@c of visiting the current buffer's file.  It is always buffer-local in all
+@c buffers.
+この変数は、訪問したファイルの書式を記述している。
+より正確には、カレントバッファのファイルを訪問する過程で
+復号したファイル書式名のリストである。
+この変数は、すべてのバッファにおいてつねにバッファローカルである。
+@end defvar
+
+@c When @code{write-region} writes data into a file, it first calls the
+@c encoding functions for the formats listed in @code{buffer-file-format},
+@c in the order of appearance in the list.
+@code{write-region}がデータをファイルに書き出すときには、まず、
+@code{buffer-file-format}で指定された書式の符号化関数を
+リストに現れる順に呼び出します。
+
+@c @deffn Command format-write-file file format
+@deffn コマンド format-write-file file format
+@c This command writes the current buffer contents into the file @var{file}
+@c in format @var{format}, and makes that format the default for future
+@c saves of the buffer.  The argument @var{format} is a list of format
+@c names.
+このコマンドは、カレントバッファの内容を書式@var{format}にて
+ファイル@var{file}に書き出す。
+さらに、当該書式をバッファを将来保存するときのデフォルトとする。
+引数@var{format}は、書式名のリストである。
+@end deffn
+
+@c @deffn Command format-find-file file format
+@deffn コマンド format-find-file file format
+@c This command finds the file @var{file}, converting it according to
+@c format @var{format}.  It also makes @var{format} the default if the
+@c buffer is saved later.
+このコマンドは、ファイル@var{file}を探し、
+それを書式@var{format}に従って変換する。
+さらに、当該書式をバッファをのちに保存するときのデフォルトとする。
+
+@c The argument @var{format} is a list of format names.  If @var{format} is
+@c @code{nil}, no conversion takes place.  Interactively, typing just
+@c @key{RET} for @var{format} specifies @code{nil}.
+引数@var{format}は、書式名のリストである。
+@var{format}が@code{nil}であると、変換を行わない。
+対話的に呼び出した場合、
+@var{format}に@code{nil}を指定するには@key{RET}のみを打つ。
+@end deffn
+
+@c @deffn Command format-insert-file file format &optional beg end
+@deffn コマンド format-insert-file file format &optional beg end
+@c This command inserts the contents of file @var{file}, converting it
+@c according to format @var{format}.  If @var{beg} and @var{end} are
+@c non-@code{nil}, they specify which part of the file to read, as in
+@c @code{insert-file-contents} (@pxref{Reading from Files}).
+このコマンドは、ファイル@var{file}の内容を書式@var{format}に従って
+変換して挿入する。
+@var{beg}と@var{end}が@code{nil}以外であると、
+それらは、@code{insert-file-contents}（@pxref{Reading from Files}）と同様に、
+読み込むべきファイルの部分を指定する。
+
+@c The return value is like what @code{insert-file-contents} returns: a
+@c list of the absolute file name and the length of the data inserted
+@c (after conversion).
+戻り値は、@code{insert-file-contents}が返す値に似ており、
+絶対ファイル名と挿入データの（変換後の）長さのリストである。
+
+@c The argument @var{format} is a list of format names.  If @var{format} is
+@c @code{nil}, no conversion takes place.  Interactively, typing just
+@c @key{RET} for @var{format} specifies @code{nil}.
+引数@var{format}は、書式名のリストである。
+@var{format}が@code{nil}であると、変換を行わない。
+対話的に呼び出した場合、
+@var{format}に@code{nil}を指定するには@key{RET}のみを打つ。
+@end deffn
+
+@defvar auto-save-file-format
+@c This variable specifies the format to use for auto-saving.  Its value is
+@c a list of format names, just like the value of
+@c @code{buffer-file-format}; however, it is used instead of
+@c @code{buffer-file-format} for writing auto-save files.  This variable is
+@c always buffer-local in all buffers.
+この変数は、自動保存に対して使用する書式を指定する。
+その値は、@code{buffer-file-format}の値のように、書式名のリストであるが、
+@code{buffer-file-format}のかわりに
+自動保存ファイルを書くために使われる。
+この変数は、すべてのバッファにおいてつねにバッファローカルである。
+@end defvar

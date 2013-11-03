@@ -1,0 +1,15 @@
+2003-10-30  Matsushita  <akihisa@mail.ne.jp>
+
+	* buffers.texi (Buffer Gap): マージ完了
+
+	* backups.texi (Reverting): マージ完了
+	既訳で分かりにくい部分があるので、後で見直すこと。
+
+	* anti.texi (Antinews): 一次役完了
+
+2003-10-29  Matsushita  <akihisa@mail.ne.jp>
+
+	* advice.texi (Combined Definition): マージ完了
+
+	* abbrevs.texi (Standard Abbrev Tables, Standard Abbrev Tables): マージ完了
+

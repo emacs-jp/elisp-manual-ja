@@ -1,0 +1,1418 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/positions
+@node Positions, Markers, Frames, Top
+@c @chapter Positions
+@chapter バッファ内の位置
+@c @cindex position (in buffer)
+@cindex 位置（バッファ内）
+
+@c   A @dfn{position} is the index of a character in the text of a buffer.
+@c More precisely, a position identifies the place between two characters
+@c (or before the first character, or after the last character), so we can
+@c speak of the character before or after a given position.  However, we
+@c often speak of the character ``at'' a position, meaning the character
+@c after that position.
+バッファ内@dfn{位置}（position）は、
+バッファ内のテキストの文字を添字付けします。
+より正確にいえば、バッファ内位置は2つの文字のあいだの箇所
+（あるいは、先頭文字ではそのまえ、最後の文字ではそのうしろ）を識別して、
+指定位置のまえやうしろの文字を指定できるようにします。
+しかし、しばしば位置『にある』文字といいますが、
+これは位置の直後の文字を意味します。
+
+@c   Positions are usually represented as integers starting from 1, but can
+@c also be represented as @dfn{markers}---special objects that relocate
+@c automatically when text is inserted or deleted so they stay with the
+@c surrounding characters.  @xref{Markers}.
+バッファ内位置は、通常、1から始まる整数で表しますが、
+@dfn{マーカ}（marker）で表すこともできます。
+マーカは特別なオブジェクトであり、
+テキストを挿入したり削除しても
+同じ周りの文字に留まるように自動的に再配置されます。
+@xref{Markers}。
+
+@menu
+* Point::         The special position where editing takes place.
+* Motion::        Changing point.
+* Excursions::    Temporary motion and buffer changes.
+* Narrowing::     Restricting editing to a portion of the buffer.
+@end menu
+
+@node Point
+@c @section Point
+@section ポイント
+@c @cindex point
+@cindex ポイント
+
+@c   @dfn{Point} is a special buffer position used by many editing
+@c commands, including the self-inserting typed characters and text
+@c insertion functions.  Other commands move point through the text
+@c to allow editing and insertion at different places.
+@dfn{ポイント}（point）は、
+自己挿入文字やテキスト挿入関数を含む多くの編集コマンドが使う
+バッファ内の特別な位置です。
+他のコマンドは、バッファ内の別の箇所で編集したり挿入できるように
+ポイントをテキスト内で移動します。
+
+@c   Like other positions, point designates a place between two characters
+@c (or before the first character, or after the last character), rather
+@c than a particular character.  Usually terminals display the cursor over
+@c the character that immediately follows point; point is actually before
+@c the character on which the cursor sits.
+他のバッファ内位置と同様に、ポイントは文字そのものではなく、
+2つの文字のあいだの箇所
+（あるいは、先頭文字ではそのまえ、最後の文字ではそのうしろ）を指定します。
+通常、端末では、ポイントの直後の文字に重ねてカーソルを表示します。
+ポイントはカーソルがある文字のまえに実際にはあります。
+
+@c @cindex point with narrowing
+@cindex ナロイング中のポイント
+@c   The value of point is a number between 1 and the buffer size plus 1.
+@c If narrowing is in effect (@pxref{Narrowing}), then point is constrained
+@c to fall within the accessible portion of the buffer (possibly at one end
+@c of it).
+ポイントの値は、1からバッファのサイズ足す1です。
+ナロイング（@pxref{Narrowing}）していると、
+ポイントはバッファの参照可能な
+（バッファの端を含むかもしれない）範囲内に制限されます。
+
+@c   Each buffer has its own value of point, which is independent of the
+@c value of point in other buffers.  Each window also has a value of point,
+@c which is independent of the value of point in other windows on the same
+@c buffer.  This is why point can have different values in various windows
+@c that display the same buffer.  When a buffer appears in only one window,
+@c the buffer's point and the window's point normally have the same value,
+@c so the distinction is rarely important.  @xref{Window Point}, for more
+@c details.
+各バッファには独自のポイント値があり、
+それは他のバッファのポイント値とは独立です。
+各ウィンドウにも独自のポイント値があり、
+同じバッファを表示している他のウィンドウのポイント値とは独立です。
+このようなわけで、同じバッファを表示しているさまざまなウィンドウで
+異なるポイント値を持てるのです。
+1つのウィンドウだけにバッファが表示されているときには、
+バッファのポイントとウィンドウのポイントは、通常、同じ値であり、
+それらを区別することはほとんど重要ではありません。
+詳しくは、@xref{Window Point}。
+
+@defun point
+@c @cindex current buffer position
+@cindex カレントバッファ内の位置
+@c This function returns the value of point in the current buffer,
+@c as an integer.
+この関数はカレントバッファのポイント値を整数で返す。
+
+@need 700
+@example
+@group
+(point)
+     @result{} 175
+@end group
+@end example
+@end defun
+
+@defun point-min
+@c This function returns the minimum accessible value of point in the
+@c current buffer.  This is normally 1, but if narrowing is in effect, it
+@c is the position of the start of the region that you narrowed to.
+@c (@xref{Narrowing}.)
+この関数は、カレントバッファで参照可能なポイント値の最小値を返す。
+これは通常1であるが、
+ナロイングしているときには、ナロイングした領域の開始位置である。
+（@pxref{Narrowing}。）
+@end defun
+
+@defun point-max
+@c This function returns the maximum accessible value of point in the
+@c current buffer.  This is @code{(1+ (buffer-size))}, unless narrowing is
+@c in effect, in which case it is the position of the end of the region
+@c that you narrowed to.  (@xref{Narrowing}).
+この関数は、カレントバッファで参照可能なポイント値の最大値を返す。
+ナロイングしていなければ、これは@code{(1+ (buffer-size))}である。
+ナロイングしているときには、ナロイングした領域の終了位置である。
+（@pxref{Narrowing}。）
+@end defun
+
+@defun buffer-end flag
+@c This function returns @code{(point-min)} if @var{flag} is less than 1,
+@c @code{(point-max)} otherwise.  The argument @var{flag} must be a number.
+この関数は、@var{flag}が1未満であれば@code{(point-min)}を返し、
+さもなければ@code{(point-max)}を返す。
+引数@var{flag}は整数であること。
+@end defun
+
+@defun buffer-size
+@c This function returns the total number of characters in the current
+@c buffer.  In the absence of any narrowing (@pxref{Narrowing}),
+@c @code{point-max} returns a value one larger than this.
+この関数は、カレントバッファ内の総文字数を返す。
+ナロイング（@pxref{Narrowing}）していなければ、
+@code{point-max}はこの値より1大きな値を返す。
+
+@example
+@group
+(buffer-size)
+     @result{} 35
+@end group
+@group
+(point-max)
+     @result{} 36
+@end group
+@end example
+@end defun
+
+@node Motion
+@c @section Motion
+@section 移動
+
+@c   Motion functions change the value of point, either relative to the
+@c current value of point, relative to the beginning or end of the buffer,
+@c or relative to the edges of the selected window.  @xref{Point}.
+移動関数は、現在のポイント値やバッファの先頭や末尾を基準にして、
+あるいは、選択されているウィンドウの端を基準にして、
+ポイント値を変更します。
+@xref{Point}。
+
+@menu
+* Character Motion::       Moving in terms of characters.
+* Word Motion::            Moving in terms of words.
+* Buffer End Motion::      Moving to the beginning or end of the buffer.
+* Text Lines::             Moving in terms of lines of text.
+* Screen Lines::           Moving in terms of lines as displayed.
+* List Motion::            Moving by parsing lists and sexps.
+* Skipping Characters::    Skipping characters belonging to a certain set.
+@end menu
+
+@node Character Motion
+@c @subsection Motion by Characters
+@subsection 文字単位の移動
+
+@c   These functions move point based on a count of characters.
+@c @code{goto-char} is the fundamental primitive; the other functions use
+@c that.
+これらの関数は、文字数に基づいてポイントを移動します。
+@code{goto-char}が基本になる基本関数であり、他の関数はこれを使っています。
+
+@c @deffn Command goto-char position
+@deffn コマンド goto-char position
+@c This function sets point in the current buffer to the value
+@c @var{position}.  If @var{position} is less than 1, it moves point to the
+@c beginning of the buffer.  If @var{position} is greater than the length
+@c of the buffer, it moves point to the end.
+この関数は、カレントバッファのポイント位置を値@var{position}とする。
+@var{position}が1未満であると、バッファの先頭にポイントを移動する。
+@var{position}がバッファの長さより大きい場合には、
+バッファの末尾にポイントを移動する。
+
+@c If narrowing is in effect, @var{position} still counts from the
+@c beginning of the buffer, but point cannot go outside the accessible
+@c portion.  If @var{position} is out of range, @code{goto-char} moves
+@c point to the beginning or the end of the accessible portion.
+ナロイングしている場合であっても、
+@var{position}はバッファの先頭から数えるが、
+参照可能部分の外側にはポイントは移動できない。
+@var{position}が範囲外であると、
+@code{goto-char}は参照可能部分の先頭か末尾にポイントを移動する。
+
+@c When this function is called interactively, @var{position} is the
+@c numeric prefix argument, if provided; otherwise it is read from the
+@c minibuffer.
+この関数を対話的に呼び出すと、
+前置引数があれば@var{position}は数値前置引数である。
+さもなければミニバッファから読む。
+
+@c @code{goto-char} returns @var{position}.
+@code{goto-char}は@var{position}を返す。
+@end deffn
+
+@c @deffn Command forward-char &optional count
+@deffn コマンド forward-char &optional count
+@c @c @kindex beginning-of-buffer
+@c @c @kindex end-of-buffer
+@c This function moves point @var{count} characters forward, towards the
+@c end of the buffer (or backward, towards the beginning of the buffer, if
+@c @var{count} is negative).  If the function attempts to move point past
+@c the beginning or end of the buffer (or the limits of the accessible
+@c portion, when narrowing is in effect), an error is signaled with error
+@c code @code{beginning-of-buffer} or @code{end-of-buffer}.
+この関数は、前方へ、つまり、バッファの末尾に向けて
+（@var{count}が負であれば、後方へ、つまり、バッファの先頭へ向けて）
+@var{count}文字分ポイントを移動する。
+バッファの先頭や末尾を越えて
+（ナロイングしているときには参照可能部分を越えて）
+ポイントを移動しようとすると、
+@code{beginning-of-buffer}か@code{end-of-buffer}のエラーコードで
+エラーを通知する。
+
+@c In an interactive call, @var{count} is the numeric prefix argument.
+対話的に呼び出されると、@var{count}は数値前置引数である。
+@end deffn
+
+@c @deffn Command backward-char &optional count
+@deffn コマンド backward-char &optional count
+@c This function moves point @var{count} characters backward, towards the
+@c beginning of the buffer (or forward, towards the end of the buffer, if
+@c @var{count} is negative).  If the function attempts to move point past
+@c the beginning or end of the buffer (or the limits of the accessible
+@c portion, when narrowing is in effect), an error is signaled with error
+@c code @code{beginning-of-buffer} or @code{end-of-buffer}.
+この関数は、後方へ、つまり、バッファの先頭に向けて
+（@var{count}が負であれば、前方へ、つまり、バッファの末尾へ向けて）
+@var{count}文字分ポイントを移動する。
+バッファの先頭や末尾を越えて
+（ナロイングしているときには参照可能部分を越えて）
+ポイントを移動しようとすると、
+@code{beginning-of-buffer}か@code{end-of-buffer}のエラーコードで
+エラーを通知する。
+
+@c In an interactive call, @var{count} is the numeric prefix argument.
+対話的に呼び出されると、@var{count}は数値前置引数である。
+@end deffn
+
+@node Word Motion
+@c @subsection Motion by Words
+@subsection 単語単位の移動
+
+@c   These functions for parsing words use the syntax table to decide
+@c whether a given character is part of a word.  @xref{Syntax Tables}.
+これらの単語を解析する関数は、
+当該文字が単語の一部かどうかを判定するために構文テーブルを使います。
+@xref{Syntax Tables}。
+
+@c @deffn Command forward-word count
+@deffn コマンド forward-word count
+@c This function moves point forward @var{count} words (or backward if
+@c @var{count} is negative).  ``Moving one word'' means moving until point
+@c crosses a word-constituent character and then encounters a
+@c word-separator character (or the boundary of the accessible part of the
+@c buffer).
+この関数は、前方へ（@var{count}が負ならば後方へ）
+@var{count}単語分ポイントを移動する。
+『1単語分移動する』とは、
+単語構成文字を越えてから単語区切り文字（あるいはバッファの参照可能部分の
+境界）に出会うまでポイントを移動することを意味する。
+
+@c If it is possible to move @var{count} words, without being stopped by
+@c the buffer boundary (except perhaps after the last word), the value is
+@c @code{t}.  Otherwise, the return value is @code{nil} and point stops
+@c at the buffer boundary.
+バッファの境界で止まらず（最後の単語は除く）に
+@var{count}単語分移動できると、値は@code{t}である。
+さもなければ値は@code{nil}であり、ポイントはバッファの境界で止まる。
+
+@c In an interactive call, @var{count} is set to the numeric prefix
+@c argument.
+対話的に呼び出されると、@var{count}は数値前置引数である。
+@end deffn
+
+@c @deffn Command backward-word count
+@deffn コマンド backward-word count
+@c This function is just like @code{forward-word}, except that it moves
+@c backward until encountering the front of a word, rather than forward.
+この関数は@code{forward-word}と同様であるが、
+前方へではなく後方へ単語の先頭に出会うまで移動する。
+
+@c In an interactive call, @var{count} is set to the numeric prefix
+@c argument.
+対話的に呼び出されると、@var{count}は数値前置引数である。
+
+@c This function is rarely used in programs, as it is more efficient to
+@c call @code{forward-word} with a negative argument.
+この関数は、プログラムではほとんど使われない。
+負の引数で@code{forward-word}を呼び出すほうが効率的だからである。
+@end deffn
+
+@defvar words-include-escapes
+@c @c Emacs 19 feature
+@c This variable affects the behavior of @code{forward-word} and everything
+@c that uses it.  If it is non-@code{nil}, then characters in the
+@c ``escape'' and ``character quote'' syntax classes count as part of
+@c words.  Otherwise, they do not.
+この変数は、@code{forward-word}とそれを使うもののふるまいに影響する。
+@code{nil}以外であると、『エスケープ』や『文字クォート』の
+構文クラスに属する文字も単語の一部とみなす。
+さもなければ、単語の一部とはみなさない。
+@end defvar
+
+@node Buffer End Motion
+@c @subsection Motion to an End of the Buffer
+@subsection バッファの両端への移動
+
+@c   To move point to the beginning of the buffer, write:
+バッファの先頭にポイントを移動するには、つぎのように書きます。
+
+@example
+@group
+(goto-char (point-min))
+@end group
+@end example
+
+@noindent
+@c Likewise, to move to the end of the buffer, use:
+同様に、バッファの末尾に移動するには、つぎのようにします。
+
+@example
+@group
+(goto-char (point-max))
+@end group
+@end example
+
+@c   Here are two commands that users use to do these things.  They are
+@c documented here to warn you not to use them in Lisp programs, because
+@c they set the mark and display messages in the echo area.
+上のことを行うためにユーザーが使うコマンドが2つあります。
+これらはマークを設定してエコー領域にメッセージを表示するので、
+これらをLispプログラムからは使わないように警告しておきます。
+
+@c @deffn Command beginning-of-buffer &optional n
+@deffn コマンド beginning-of-buffer &optional n
+@c This function moves point to the beginning of the buffer (or the limits
+@c of the accessible portion, when narrowing is in effect), setting the
+@c mark at the previous position.  If @var{n} is non-@code{nil}, then it
+@c puts point @var{n} tenths of the way from the beginning of the buffer.
+この関数は、バッファ（あるいはナロイングしているときには参照可能部分）
+の先頭にポイントを移動し、移動前の位置にマークを設定する。
+@var{n}が@code{nil}以外であると、
+バッファの先頭から10分の@var{n}の箇所にポイントを移動する。
+
+@c In an interactive call, @var{n} is the numeric prefix argument,
+@c if provided; otherwise @var{n} defaults to @code{nil}.
+対話的に呼び出すと、前置引数があれば@var{n}は数値前置引数である。
+さもなければ@var{n}のデフォルトは@code{nil}である。
+
+@c @strong{Warning:} Don't use this function in Lisp programs!
+@strong{警告：}@code{ }Lispプログラムではこの関数を使わないこと！
+@end deffn
+
+@c @deffn Command end-of-buffer &optional n
+@deffn コマンド end-of-buffer &optional n
+@c This function moves point to the end of the buffer (or the limits of
+@c the accessible portion, when narrowing is in effect), setting the mark
+@c at the previous position.  If @var{n} is non-@code{nil}, then it puts
+@c point @var{n} tenths of the way from the end of the buffer.
+この関数は、バッファ（あるいはナロイングしているときには参照可能部分）
+の末尾にポイントを移動し、移動前の位置にマークを設定する。
+@var{n}が@code{nil}以外であると、
+バッファの末尾から10分の@var{n}の箇所にポイントを移動する。
+
+@c In an interactive call, @var{n} is the numeric prefix argument,
+@c if provided; otherwise @var{n} defaults to @code{nil}.
+対話的に呼び出すと、前置引数があれば@var{n}は数値前置引数である。
+さもなければ@var{n}のデフォルトは@code{nil}である。
+
+@c @strong{Warning:} Don't use this function in Lisp programs!
+@strong{警告：}@code{ }Lispプログラムではこの関数を使わないこと！
+@end deffn
+
+@node Text Lines
+@c @subsection Motion by Text Lines
+@subsection テキスト行単位の移動
+@c @cindex lines
+@cindex 行
+
+@c   Text lines are portions of the buffer delimited by newline characters,
+@c which are regarded as part of the previous line.  The first text line
+@c begins at the beginning of the buffer, and the last text line ends at
+@c the end of the buffer whether or not the last character is a newline.
+@c The division of the buffer into text lines is not affected by the width
+@c of the window, by line continuation in display, or by how tabs and
+@c control characters are displayed.
+テキスト行とは、改行文字で区切られたバッファの部分です。
+改行文字はまえの行に属するとみなします。
+最初のテキスト行がバッファの先頭から始まり、
+バッファの末尾の文字が改行であってもなくても、
+最後のテキスト行はバッファの末尾で終ります。
+バッファをテキスト行に分割することは、
+ウィンドウの幅、表示上の行の継続、タブやコントロール文字の表示方法には
+影響されません。
+
+@c @deffn Command goto-line line
+@deffn コマンド goto-line line
+@c This function moves point to the front of the @var{line}th line,
+@c counting from line 1 at beginning of the buffer.  If @var{line} is less
+@c than 1, it moves point to the beginning of the buffer.  If @var{line} is
+@c greater than the number of lines in the buffer, it moves point to the
+@c end of the buffer---that is, the @emph{end of the last line} of the
+@c buffer.  This is the only case in which @code{goto-line} does not
+@c necessarily move to the beginning of a line.
+この関数は、バッファの先頭を1行目と数えて@var{line}行目の先頭に
+ポイントを移動する。
+@var{line}が1未満であると、バッファの先頭へポイントを移動する。
+@var{line}がバッファ内の行数より大きいと、
+バッファの末尾、つまり、@emph{バッファの最後の行の末尾}にポイントを移動する。
+これは、@code{goto-line}が行頭にポイントを移動しない唯一の場面である。
+
+@c If narrowing is in effect, then @var{line} still counts from the
+@c beginning of the buffer, but point cannot go outside the accessible
+@c portion.  So @code{goto-line} moves point to the beginning or end of the
+@c accessible portion, if the line number specifies an inaccessible
+@c position.
+ナロイングしているときでも、
+@var{line}はバッファの先頭から数えるが、
+参照可能部分の外側にはポイントは移動しない。
+したがって、行番号が参照不可な部分を指定するときには、
+@code{goto-line}は参照可能部分の先頭か末尾へポイントを移動する。
+
+@c The return value of @code{goto-line} is the difference between
+@c @var{line} and the line number of the line to which point actually was
+@c able to move (in the full buffer, before taking account of narrowing).
+@c Thus, the value is positive if the scan encounters the real end of the
+@c buffer before finding the specified line.  The value is zero if scan
+@c encounters the end of the accessible portion but not the real end of the
+@c buffer.
+@code{goto-line}の戻り値は、
+（ナロイングを考慮せずにバッファ全体でみた）
+@var{line}と実際のポイントの移動先の行の行番号との差である。
+したがって、指定した行に達するまえにバッファの末尾に出会うと値は正である。
+バッファの実際の末尾にではなく参照可能部分の末尾に出会うと値は0である。
+
+@c In an interactive call, @var{line} is the numeric prefix argument if
+@c one has been provided.  Otherwise @var{line} is read in the minibuffer.
+対話的に呼び出すと、
+前置引数があれば@var{line}は数値前置引数である。
+さもなければ@var{line}をミニバッファから読む。
+@end deffn
+
+@c @deffn Command beginning-of-line &optional count
+@deffn コマンド beginning-of-line &optional count
+@c This function moves point to the beginning of the current line.  With an
+@c argument @var{count} not @code{nil} or 1, it moves forward
+@c @var{count}@minus{}1 lines and then to the beginning of the line.
+この関数は、現在行の先頭にポイントを移動する。
+引数@var{count}が@code{nil}でも1でもないと、
+@var{count}@minus{}1行だけ前方へ移動してから行頭に移動する。
+
+@c If this function reaches the end of the buffer (or of the accessible
+@c portion, if narrowing is in effect), it positions point there.  No error
+@c is signaled.
+バッファ（ナロイングしているときには参照可能部分）の末尾に達すると
+ポイントをそこへ移動する。
+エラーは通知しない。
+@end deffn
+
+@c @deffn Command end-of-line &optional count
+@deffn コマンド end-of-line &optional count
+@c This function moves point to the end of the current line.  With an
+@c argument @var{count} not @code{nil} or 1, it moves forward
+@c @var{count}@minus{}1 lines and then to the end of the line.
+この関数は、現在行の末尾にポイントを移動する。
+引数@var{count}が@code{nil}でも1でもないと、
+@var{count}@minus{}1行だけ前方へ移動してから行末に移動する。
+
+@c If this function reaches the end of the buffer (or of the accessible
+@c portion, if narrowing is in effect), it positions point there.  No error
+@c is signaled.
+バッファ（ナロイングしているときには参照可能部分）の末尾に達すると
+ポイントをそこへ移動する。
+エラーは通知しない。
+@end deffn
+
+@c @deffn Command forward-line &optional count
+@deffn コマンド forward-line &optional count
+@c @cindex beginning of line
+@cindex 行頭
+@c This function moves point forward @var{count} lines, to the beginning of
+@c the line.  If @var{count} is negative, it moves point
+@c @minus{}@var{count} lines backward, to the beginning of a line.  If
+@c @var{count} is zero, it moves point to the beginning of the current
+@c line.
+この関数は、@var{count}行前方の行頭にポイントを移動する。
+@var{count}が負であると、
+@minus{}@var{count}行後方の行頭にポイントを移動する。
+@var{count}が0であると、現在行の先頭にポイントを移動する。
+
+@c If @code{forward-line} encounters the beginning or end of the buffer (or
+@c of the accessible portion) before finding that many lines, it sets point
+@c there.  No error is signaled.
+指定行数だけ移動するまえに
+バッファ（ナロイングしているときには参照可能部分）の先頭や末尾に達すると
+ポイントをそこへ移動する。
+エラーは通知しない。
+
+@c @code{forward-line} returns the difference between @var{count} and the
+@c number of lines actually moved.  If you attempt to move down five lines
+@c from the beginning of a buffer that has only three lines, point stops at
+@c the end of the last line, and the value will be 2.
+@code{forward-line}は、
+@var{count}と実際に移動した行数の差を返す。
+3行しかないバッファの先頭で5行前方へ移動しようとすると、
+ポイントは最後の行の末尾で止まり、値は2になる。
+
+@c In an interactive call, @var{count} is the numeric prefix argument.
+対話的に呼び出すと、@var{count}は数値前置引数である。
+@end deffn
+
+@defun count-lines start end
+@c @cindex lines in region
+@cindex リージョン内の行数
+@c This function returns the number of lines between the positions
+@c @var{start} and @var{end} in the current buffer.  If @var{start} and
+@c @var{end} are equal, then it returns 0.  Otherwise it returns at least
+@c 1, even if @var{start} and @var{end} are on the same line.  This is
+@c because the text between them, considered in isolation, must contain at
+@c least one line unless it is empty.
+この関数は、カレントバッファの@var{start}と@var{end}の
+あいだの部分にある行の行数を返す。
+@var{start}と@var{end}が等しければ0を返す。
+さもなければ、@var{start}と@var{end}が同じ行にある場合であっても
+少なくとも1を返す。
+というのは、それらのあいだのテキストは孤立しているとみなされ、
+空でなければ少なくとも1行はあるはずだからである。
+
+@c Here is an example of using @code{count-lines}:
+@code{count-lines}の使用例を示す。
+
+@example
+@group
+(defun current-line ()
+  "Return the vertical position of point@dots{}"
+  (+ (count-lines (window-start) (point))
+     (if (= (current-column) 0) 1 0)
+     -1))
+@end group
+@end example
+@end defun
+
+@ignore
+@c ================
+The @code{previous-line} and @code{next-line} commands are functions
+that should not be used in programs.  They are for users and are
+mentioned here only for completeness.
+
+@c @deffn Command previous-line count
+@deffn コマンド previous-line count
+@cindex goal column
+This function moves point up @var{count} lines (down if @var{count}
+is negative).  In moving, it attempts to keep point in the ``goal column''
+(normally the same column that it was at the beginning of the move).
+
+If there is no character in the target line exactly under the current
+column, point is positioned after the character in that line which
+spans this column, or at the end of the line if it is not long enough.
+
+If it attempts to move beyond the top or bottom of the buffer (or clipped
+region), then point is positioned in the goal column in the top or
+bottom line.  No error is signaled.
+
+In an interactive call, @var{count} will be the numeric
+prefix argument.
+
+The command @code{set-goal-column} can be used to create a semipermanent
+goal column to which this command always moves.  Then it does not try to
+move vertically.
+
+If you are thinking of using this in a Lisp program, consider using
+@code{forward-line} with a negative argument instead.  It is usually easier
+to use and more reliable (no dependence on goal column, etc.).
+@end deffn
+
+@c @deffn Command next-line count
+@deffn コマンド next-line count
+This function moves point down @var{count} lines (up if @var{count}
+is negative).  In moving, it attempts to keep point in the ``goal column''
+(normally the same column that it was at the beginning of the move).
+
+If there is no character in the target line exactly under the current
+column, point is positioned after the character in that line which
+spans this column, or at the end of the line if it is not long enough.
+
+If it attempts to move beyond the top or bottom of the buffer (or clipped
+region), then point is positioned in the goal column in the top or
+bottom line.  No error is signaled.
+
+In the case where the @var{count} is 1, and point is on the last
+line of the buffer (or clipped region), a new empty line is inserted at the
+end of the buffer (or clipped region) and point moved there.
+
+In an interactive call, @var{count} will be the numeric
+prefix argument.
+
+The command @code{set-goal-column} can be used to create a semipermanent
+goal column to which this command always moves.  Then it does not try to
+move vertically.
+
+If you are thinking of using this in a Lisp program, consider using
+@code{forward-line} instead.  It is usually easier
+to use and more reliable (no dependence on goal column, etc.).
+@end deffn
+
+@c ================
+@end ignore
+
+@c   Also see the functions @code{bolp} and @code{eolp} in @ref{Near Point}.
+@c These functions do not move point, but test whether it is already at the
+@c beginning or end of a line.
+@ref{Near Point}の関数@code{bolp}や@code{eolp}も参照してください。
+これらの関数はポイントを移動しませんが、ポイントがすでに行の先頭や末尾に
+あるかどうかを検査します。
+
+@node Screen Lines
+@c @subsection Motion by Screen Lines
+@subsection スクリーン行分の移動
+
+@c   The line functions in the previous section count text lines, delimited
+@c only by newline characters.  By contrast, these functions count screen
+@c lines, which are defined by the way the text appears on the screen.  A
+@c text line is a single screen line if it is short enough to fit the width
+@c of the selected window, but otherwise it may occupy several screen
+@c lines.
+前節の行単位の関数は、改行文字で区切られたテキスト行だけを数えます。
+対照的に、これらの関数は、スクリーン上にどのようにテキストが現れるかで
+定義されるスクリーン上の行を数えます。
+テキスト行が選択されているウィンドウの幅に収まるだけ短ければ、
+1テキスト行は1スクリーン行ですが、
+しかし、それ以外では1テキスト行は複数のスクリーン行を占めます。
+
+@c   In some cases, text lines are truncated on the screen rather than
+@c continued onto additional screen lines.  In these cases,
+@c @code{vertical-motion} moves point much like @code{forward-line}.
+@c @xref{Truncation}.
+テキスト行を複数のスクリーン行に継続せずに
+スクリーン上で切り詰める場合もあります。
+このような場合、@code{vertical-motion}は、
+@code{forward-line}によく似たポイントの移動を行います。
+@xref{Truncation}。
+
+@c   Because the width of a given string depends on the flags that control
+@c the appearance of certain characters, @code{vertical-motion} behaves
+@c differently, for a given piece of text, depending on the buffer it is
+@c in, and even on the selected window (because the width, the truncation
+@c flag, and display table may vary between windows).  @xref{Usual
+@c Display}.
+与えられた文字列の幅は、各文字の見ためを制御するフラグに依存するので、
+@code{vertical-motion}は、
+テキストを収めたバッファや選択されているウィンドウ
+（その幅や切り詰めフラグ、ウィンドウごとに異なりうる表示テーブルが
+あるため）に依存して、特定のテキスト部分に対して異なったふるまいをします。
+@xref{Usual Display}。
+
+@c   These functions scan text to determine where screen lines break, and
+@c thus take time proportional to the distance scanned.  If you intend to
+@c use them heavily, Emacs provides caches which may improve the
+@c performance of your code.  @xref{Truncation, cache-long-line-scans}.
+これらの関数は、スクリーン行がどこで区切れるかを決定するためにテキストを走査
+するので、走査する量に比例して時間がかかります。
+読者がこれらを多用する意図があるときには、
+読者のコードの効率を改善するキャッシュをEmacsが提供します。
+@xref{Truncation, cache-long-line-scans}。
+
+
+@defun vertical-motion count &optional window
+@c This function moves point to the start of the screen line @var{count}
+@c screen lines down from the screen line containing point.  If @var{count}
+@c is negative, it moves up instead.
+この関数は、ポイントを含むスクリーン行から
+@var{count}スクリーン行数だけ下向きにポイントを移動する。
+@var{count}が負であると上向きに移動する。
+
+@c @code{vertical-motion} returns the number of screen lines over which it
+@c moved point.  The value may be less in absolute value than @var{count}
+@c if the beginning or end of the buffer was reached.
+@code{vertical-motion}は、ポイントを移動したスクリーン行数を返す。
+バッファの先頭や末尾に達すると、
+この値は絶対値では@var{count}より小さい。
+
+@c The window @var{window} is used for obtaining parameters such as the
+@c width, the horizontal scrolling, and the display table.  But
+@c @code{vertical-motion} always operates on the current buffer, even if
+@c @var{window} currently displays some other buffer.
+ウィンドウ@var{window}は、
+幅、水平スクロール、表示テーブルなどのパラメータを得るために使われる。
+しかし、@var{window}に別のバッファが表示されているとしても、
+@code{vertical-motion}はつねにカレントバッファに作用する。
+@end defun
+
+@c @deffn Command move-to-window-line count
+@deffn コマンド move-to-window-line count
+@c This function moves point with respect to the text currently displayed
+@c in the selected window.  It moves point to the beginning of the screen
+@c line @var{count} screen lines from the top of the window.  If
+@c @var{count} is negative, that specifies a position
+@c @w{@minus{}@var{count}} lines from the bottom (or the last line of the
+@c buffer, if the buffer ends above the specified screen position).
+この関数は、選択されているウィンドウに現在表示されているテキストに
+基づいてポイントを移動する。
+ウィンドウの先頭から@var{count}スクリーン行の先頭にポイントを移動する。
+@var{count}が負であると、底（あるいはバッファの末尾がスクリーンの
+底より上にある場合にはバッファの最終行）から数えて
+@w{@minus{}@var{count}}スクリーン行位置を指定する。
+
+@c If @var{count} is @code{nil}, then point moves to the beginning of the
+@c line in the middle of the window.  If the absolute value of @var{count}
+@c is greater than the size of the window, then point moves to the place
+@c that would appear on that screen line if the window were tall enough.
+@c This will probably cause the next redisplay to scroll to bring that
+@c location onto the screen.
+@var{count}が@code{nil}であると、
+ウィンドウの中央の行の先頭にポイントを移動する。
+@var{count} の絶対値がウィンドウのサイズよりも大きいときには、
+ウィンドウに十分な高さがあった場合に移動するであろう
+スクリーン行の箇所にポイントを移動する。
+そのため、スクロールして当該箇所がスクリーンに現れるように再表示する。
+
+@c In an interactive call, @var{count} is the numeric prefix argument.
+対話的に呼び出されると、@var{count}は数値前置引数である。
+
+@c The value returned is the window line number point has moved to, with
+@c the top line in the window numbered 0.
+戻り値は、ウィンドウの先頭行を0と数えて、移動先の行のウィンドウ行番号である。
+@end deffn
+
+@defun compute-motion from frompos to topos width offsets window
+@c This function scans the current buffer, calculating screen positions.
+@c It scans the buffer forward from position @var{from}, assuming that is
+@c at screen coordinates @var{frompos}, to position @var{to} or coordinates
+@c @var{topos}, whichever comes first.  It returns the ending buffer
+@c position and screen coordinates.
+この関数は、スクリーン上での位置を計算しながらカレントバッファを走査する。
+バッファ内位置@var{from}がスクリーン座標@var{frompos}に対応すると仮定して、
+@var{from}から前方へ向けて@var{to}か@var{topos}のどちらかに
+達するまでバッファを走査する。
+バッファ内の終了位置とスクリーン座標を返す。
+
+@c The coordinate arguments @var{frompos} and @var{topos} are cons cells of
+@c the form @code{(@var{hpos} . @var{vpos})}.
+座標引数@var{frompos}と@var{topos}は、
+@code{(@var{hpos} . @var{vpos})}の形のコンスセルである。
+
+@c The argument @var{width} is the number of columns available to display
+@c text; this affects handling of continuation lines.  Use the value
+@c returned by @code{window-width} for the window of your choice;
+@c normally, use @code{(window-width @var{window})}.
+引数@var{width}は、テキストを表示できるコラム数であり、
+これは継続行の扱いに影響する。
+読者が選んだウィンドウに対して@code{window-width}が返した値、
+つまり、通常、@code{(window-width @var{window})}を使う。
+
+@c The argument @var{offsets} is either @code{nil} or a cons cell of the
+@c form @code{(@var{hscroll} . @var{tab-offset})}.  Here @var{hscroll} is
+@c the number of columns not being displayed at the left margin; most
+@c callers get this by calling @code{window-hscroll}.  Meanwhile,
+@c @var{tab-offset} is the offset between column numbers on the screen and
+@c column numbers in the buffer.  This can be nonzero in a continuation
+@c line, when the previous screen lines' widths do not add up to a multiple
+@c of @code{tab-width}.  It is always zero in a non-continuation line.
+引数@var{offsets}は、@code{nil}であるか、
+@code{(@var{hscroll} . @var{tab-offset})}の形のコンスセルである。
+ここで、@var{hscroll}は左端に表示されていないコラム数であり、
+多くの場合は@code{window-hscroll}を呼び出して得た値を使う。
+一方、@var{tab-offset}はスクリーン上でのコラム番号と
+バッファ内でのコラム番号の差である。
+この値は、継続行においてまえのスクリーン行の幅が@code{tab-width}で終らない
+場合に0以外になる。
+継続しない行ではつねに0である。
+
+@c The window @var{window} serves only to specify which display table to
+@c use.  @code{compute-motion} always operates on the current buffer,
+@c regardless of what buffer is displayed in @var{window}.
+ウィンドウ@var{window}は、使用する表示テーブルを指定するためだけに使われる。
+@var{window}に表示されているバッファに関わらず、
+@code{compute-motion}はつねにカレントバッファに作用する。
+
+@c The return value is a list of five elements:
+戻り値は、5要素のリストである。
+
+@example
+(@var{pos} @var{vpos} @var{hpos} @var{prevhpos} @var{contin})
+@end example
+
+@noindent
+@c Here @var{pos} is the buffer position where the scan stopped, @var{vpos}
+@c is the vertical screen position, and @var{hpos} is the horizontal screen
+@c position.
+ここで、@var{pos}は走査を終えたバッファ内位置であり、
+@var{vpos}は垂直方向のスクリーン位置、
+@var{hpos}は水平方向のスクリーン位置である。
+
+@c The result @var{prevhpos} is the horizontal position one character back
+@c from @var{pos}.  The result @var{contin} is @code{t} if the last line
+@c was continued after (or within) the previous character.
+結果の@var{prevhpos}は、@var{pos}から1文字分戻った箇所の水平位置である。
+この文字のあとで最終行が継続しているときには、
+結果の@var{contin}は@code{t}である。
+
+@c For example, to find the buffer position of column @var{col} of screen line
+@c @var{line} of a certain window, pass the window's display start location
+@c as @var{from} and the window's upper-left coordinates as @var{frompos}.
+@c Pass the buffer's @code{(point-max)} as @var{to}, to limit the scan to
+@c the end of the accessible portion of the buffer, and pass @var{line} and
+@c @var{col} as @var{topos}.  Here's a function that does this:
+たとえば、あるウィンドウの@var{line}スクリーン行の@var{col}コラムに
+対応するバッファ内位置を探すには、
+@var{from}としてウィンドウの表示開始位置、
+@var{frompos}としてウィンドウの左上隅の座標を渡します。
+@var{to}にはバッファの@code{(point-max)}を渡して
+走査をバッファの参照可能部分のみに制限し、
+@var{topos}として@var{line}と@var{col}を渡す。
+つぎのように呼び出す。
+
+@example
+(defun coordinates-of-position (col line)
+  (car (compute-motion (window-start)
+                       '(0 . 0)
+                       (point-max)
+                       (cons col line)
+                       (window-width)
+                       (cons (window-hscroll) 0)
+                       (selected-window))))
+@end example
+
+@c When you use @code{compute-motion} for the minibuffer, you need to use
+@c @code{minibuffer-prompt-width} to get the horizontal position of the
+@c beginning of the first screen line.  @xref{Minibuffer Misc}.
+ミニバッファに対して@code{compute-motion}を使うときには、
+@code{minibuffer-prompt-width}を使って
+最初のスクリーン行の先頭の水平位置を得る必要がある。
+@pxref{Minibuffer Misc}。
+@end defun
+
+@node List Motion
+@comment  node-name,  next,  previous,  up
+@c @subsection Moving over Balanced Expressions 
+@subsection 式単位の移動
+@c @cindex sexp motion
+@c @cindex Lisp expression motion
+@c @cindex list motion
+@cindex S式単位の移動
+@cindex 移動、S式単位
+@cindex Lisp式単位の移動
+@cindex 移動、Lisp式
+@cindex リスト単位の移動
+@cindex 移動、リスト単位
+
+@c   Here are several functions concerned with balanced-parenthesis
+@c expressions (also called @dfn{sexps} in connection with moving across
+@c them in Emacs).  The syntax table controls how these functions interpret
+@c various characters; see @ref{Syntax Tables}.  @xref{Parsing
+@c Expressions}, for lower-level primitives for scanning sexps or parts of
+@c sexps.  For user-level commands, see @ref{Lists Commands,,, emacs, GNU
+@c Emacs Manual}.
+ここでは、釣り合った括弧で囲まれた式
+（Emacs内でそれらを単位に移動するときには@dfn{S式}（sexps）とも呼ばれる）を
+扱う関数について述べます。
+構文テーブルは、これらの関数がさまざまな文字を
+どのように解釈するかを制御します。
+@ref{Syntax Tables}を参照してください。
+S式やその一部を走査する下位レベルの基本関数については、
+@xref{Parsing Expressions}。
+ユーザーレベルのコマンドに関しては、
+@ref{List Commands,, リストとS式に対するコマンド, emacs,
+GNU Emacs マニュアル}を参照してください。
+
+@c @deffn Command forward-list arg
+@deffn コマンド forward-list arg
+@c This function moves forward across @var{arg} balanced groups of
+@c parentheses.  (Other syntactic entities such as words or paired string
+@c quotes are ignored.)
+この関数は、釣り合った括弧で囲まれたものを@var{arg}個前方へ飛び越えて移動する。
+（単語や文字列のクォート対などの他の構文要素は無視する。）
+@end deffn
+
+@c @deffn Command backward-list arg
+@deffn コマンド backward-list arg
+@c This function moves backward across @var{arg} balanced groups of
+@c parentheses.  (Other syntactic entities such as words or paired string
+@c quotes are ignored.)
+この関数は、釣り合った括弧で囲まれたものを@var{arg}個後方へ飛び越えて移動する。
+（単語や文字列のクォート対などの他の構文要素は無視する。）
+@end deffn
+
+@c @deffn Command up-list arg
+@deffn コマンド up-list arg
+@c This function moves forward out of @var{arg} levels of parentheses.
+@c A negative argument means move backward but still to a less deep spot.
+この関数は、前方へ向けて@var{arg}個の括弧のレベルを抜ける。
+負の引数では後方へ向けて浅いレベルへ移動する。
+@end deffn
+
+@c @deffn Command down-list arg
+@deffn コマンド down-list arg
+@c This function moves forward into @var{arg} levels of parentheses.  A
+@c negative argument means move backward but still go
+@c deeper in parentheses (@minus{}@var{arg} levels).
+この関数は、前方へ向けて@var{arg}個の括弧のレベルだけ深く入る。
+負の引数では後方へ向けて括弧の深い（@minus{}@var{arg}）レベルへ移動する。
+@end deffn
+
+@c @deffn Command forward-sexp arg
+@deffn コマンド forward-sexp arg
+@c This function moves forward across @var{arg} balanced expressions.
+@c Balanced expressions include both those delimited by parentheses and
+@c other kinds, such as words and string constants.  For example,
+この関数は、@var{arg}個の釣り合った式を前方へ向けて飛び越えて移動する。
+釣り合った式には、括弧で区切られたものに加えて、
+単語や文字列定数などの他の種類も含まれる。
+たとえばつぎのとおり。
+
+@example
+@group
+---------- Buffer: foo ----------
+(concat@point{} "foo " (car x) y z)
+---------- Buffer: foo ----------
+@end group
+
+@group
+(forward-sexp 3)
+     @result{} nil
+
+---------- Buffer: foo ----------
+(concat "foo " (car x) y@point{} z)
+---------- Buffer: foo ----------
+@end group
+@end example
+@end deffn
+
+@c @deffn Command backward-sexp arg
+@deffn コマンド backward-sexp arg
+@c This function moves backward across @var{arg} balanced expressions.
+この関数は、@var{arg}個の釣り合った式を後方へ向けて飛び越えて移動する。
+@end deffn
+
+@c @deffn Command beginning-of-defun arg
+@deffn コマンド beginning-of-defun arg
+@c This function moves back to the @var{arg}th beginning of a defun.  If
+@c @var{arg} is negative, this actually moves forward, but it still moves
+@c to the beginning of a defun, not to the end of one.
+この関数は、前方へ向けて@var{arg}個目の関数定義の先頭へ移動する。
+@var{arg}が負であると、後方へ向けて、
+関数定義の末尾ではなく関数定義の先頭へ移動する。
+@end deffn
+
+@c @deffn Command end-of-defun arg
+@deffn コマンド end-of-defun arg
+@c This function moves forward to the @var{arg}th end of a defun.  If
+@c @var{arg} is negative, this actually moves backward, but it still moves
+@c to the end of a defun, not to the beginning of one.
+この関数は、前方へ向けて@var{arg}個目の関数定義の末尾へ移動する。
+@var{arg}が負であると、後方へ向けて、
+関数定義の先頭ではなく関数定義の末尾へ移動する。
+@end deffn
+
+@defopt defun-prompt-regexp
+@c If non-@code{nil}, this variable holds a regular expression that
+@c specifies what text can appear before the open-parenthesis that starts a
+@c defun.  That is to say, a defun begins on a line that starts with a
+@c match for this regular expression, followed by a character with
+@c open-parenthesis syntax.
+この変数が@code{nil}以外であると、
+関数定義を始める開き括弧のまえに現れうるテキストを指定する正規表現を保持する。
+つまり、関数定義は、
+行の先頭がこの正規表現に一致するテキストで始まり、
+それに開き括弧の構文に属する文字が続く行で始まる。
+@end defopt
+
+@node Skipping Characters
+@comment  node-name,  next,  previous,  up
+@c @subsection Skipping Characters
+@subsection 文字群の飛び越し
+@c @cindex skipping characters
+@cindex 文字群の飛び越し
+
+@c   The following two functions move point over a specified set of
+@c characters.  For example, they are often used to skip whitespace.  For
+@c related functions, see @ref{Motion and Syntax}.
+つぎの2つの関数は、指定した種類の文字を飛び越えてポイントを移動します。
+たとえば、白文字を飛び越すためにこれらはしばしば使われます。
+関連する関数については、@ref{Motion and Syntax}を参照してください。
+
+@defun skip-chars-forward character-set &optional limit
+@c This function moves point in the current buffer forward, skipping over a
+@c given set of characters.  It examines the character following point,
+@c then advances point if the character matches @var{character-set}.  This
+@c continues until it reaches a character that does not match.  The
+@c function returns the number of characters moved over.
+この関数は、指定した文字の集まりを飛び越えて、
+カレントバッファ内で前方にポイントを移動する。
+ポイントのあとの文字を調べ、
+その文字が@var{character-set}に一致するとポイントを進める。
+これを@var{character-set}に一致しない文字に達するまで繰り返す。
+この関数は飛び越えた文字の個数を返す。
+
+@c The argument @var{character-set} is like the inside of a
+@c @samp{[@dots{}]} in a regular expression except that @samp{]} is never
+@c special and @samp{\} quotes @samp{^}, @samp{-} or @samp{\}.  Thus,
+@c @code{"a-zA-Z"} skips over all letters, stopping before the first
+@c nonletter, and @code{"^a-zA-Z"} skips nonletters stopping before the
+@c first letter.  @xref{Regular Expressions}.
+引数@var{character-set}は、正規表現の@samp{[@dots{}]}の内側と同じであるが、
+@samp{]}は特別扱いせず、@samp{\}は@samp{^}や@samp{-}や@samp{\}をクォートする。
+したがって、@code{"a-zA-Z"}はすべての英文字を飛び越えて
+最初の英文字でない文字のまえで止まる。
+@code{"^a-zA-Z"}は英文字でない文字を飛び越えて最初の英文字で止まる。
+@pxref{Regular Expressions}。
+
+@c If @var{limit} is supplied (it must be a number or a marker), it
+@c specifies the maximum position in the buffer that point can be skipped
+@c to.  Point will stop at or before @var{limit}.
+@var{limit}を指定すると（数かマーカであること）、
+ポイントを移動できるバッファ内の最大位置を指定する。
+ポイントは、@var{limit}で止まるか@var{limit}に達するまえに止まる。
+
+@c In the following example, point is initially located directly before the
+@c @samp{T}.  After the form is evaluated, point is located at the end of
+@c that line (between the @samp{t} of @samp{hat} and the newline).  The
+@c function skips all letters and spaces, but not newlines.
+つぎの例では、ポイントは最初は@samp{T}の直前に位置している。
+フォームを評価後には、ポイントはその行末
+（@samp{hat}の@samp{t}と改行のあいだ）に位置している。
+この関数は、すべての英文字と空白を飛び越えるが、改行は飛び越えない。
+
+@example
+@group
+---------- Buffer: foo ----------
+I read "@point{}The cat in the hat
+comes back" twice.
+---------- Buffer: foo ----------
+@end group
+
+@group
+(skip-chars-forward "a-zA-Z ")
+     @result{} nil
+
+---------- Buffer: foo ----------
+I read "The cat in the hat@point{}
+comes back" twice.
+---------- Buffer: foo ----------
+@end group
+@end example
+@end defun
+
+@defun skip-chars-backward character-set &optional limit
+@c This function moves point backward, skipping characters that match
+@c @var{character-set}, until @var{limit}.  It is just like
+@c @code{skip-chars-forward} except for the direction of motion.
+この関数は、@var{limit}に達するまで、
+後方へ向かって@var{character-set}に一致する文字を飛び越えてポイントを移動する。
+これは@code{skip-chars-forward}と同様であるが、移動方向が異なる。
+
+@c The return value indicates the distance traveled.  It is an integer that
+@c is zero or less.
+移動距離を表す値を返す。
+それは0以下の整数である。
+@end defun
+
+@node Excursions
+@c @section Excursions
+@section エクスカージョン
+@c @cindex excursion
+@cindex エクスカージョン
+
+@c   It is often useful to move point ``temporarily'' within a localized
+@c portion of the program, or to switch buffers temporarily.  This is
+@c called an @dfn{excursion}, and it is done with the @code{save-excursion}
+@c special form.  This construct saves the current buffer and its values of
+@c point and the mark so they can be restored after the completion of the
+@c excursion.
+プログラムの局所的な部分で『一時的に』ポイントを移動したり、
+一時的にバッファを切り替えられるとしばしば有用です。
+これを@dfn{エクスカージョン}（excursion、周遊）と呼び、
+スペシャルフォーム@code{save-excursion}で行います。
+この構文は、カレントバッファとそのポイントやマーカの値を保存し、
+エクスカージョンの完了後にそれらを復元します。
+
+@c   The forms for saving and restoring the configuration of windows are
+@c described elsewhere (see @ref{Window Configurations}, and @pxref{Frame
+@c Configurations}).
+ウィンドウの構成を保存したり復元するフォームは、
+別のところで述べてあります
+（@ref{Window Configurations}と@pxref{Frame Configurations}）。
+
+@defspec save-excursion forms@dots{}
+@c @cindex mark excursion
+@c @cindex point excursion
+@c @cindex current buffer excursion
+@cindex マーカのエクスカージョン
+@cindex ポイントのエクスカージョン
+@cindex カレントバッファのエクスカージョン
+@c The @code{save-excursion} special form saves the identity of the current
+@c buffer and the values of point and the mark in it, evaluates
+@c @var{forms}, and finally restores the buffer and its saved values of
+@c point and the mark.  All three saved values are restored even in case of
+@c an abnormal exit via @code{throw} or error (@pxref{Nonlocal Exits}).
+スペシャルフォーム@code{save-excursion}は、
+カレントバッファの識別子とそのポイントやマーカの値を保存し、
+@var{forms}を評価し、最後に、
+バッファと保存しておいたポイントやマーカの値を復元する。
+@code{throw}やエラーによる異常脱出（@pxref{Nonlocal Exits}）であっても、
+これらの保存した値を復元する。
+
+@c The @code{save-excursion} special form is the standard way to switch
+@c buffers or move point within one part of a program and avoid affecting
+@c the rest of the program.  It is used more than 4000 times in the Lisp
+@c sources of Emacs.
+スペシャルフォーム@code{save-excursion}は、
+プログラムの一部分だけでバッファやポイントを移動し
+プログラムの他の部分への影響を防ぐ標準的な方法である。
+EmacsのLispソースでは4000回以上も使われている。
+
+@c @code{save-excursion} does not save the values of point and the mark for
+@c other buffers, so changes in other buffers remain in effect after
+@c @code{save-excursion} exits.
+@code{save-excursion}は他のバッファのポイントやマークの値は保存しないので、
+他のバッファでの変更は@code{save-excursion}から抜けても持続する。
+
+@c @cindex window excursions
+@cindex ウィンドウのエクスカージョン
+@c Likewise, @code{save-excursion} does not restore window-buffer
+@c correspondences altered by functions such as @code{switch-to-buffer}.
+@c One way to restore these correspondences, and the selected window, is to
+@c use @code{save-window-excursion} inside @code{save-excursion}
+@c (@pxref{Window Configurations}).
+同様に、@code{save-excursion}は、
+@code{switch-to-buffer}などの関数で変更された
+ウィンドウとバッファの対応関係は復元しない。
+これらの対応関係や選択されているウィンドウを復元する1つの方法は、
+@code{save-excursion}の内側で@code{save-window-excursion}を
+使うことである（@pxref{Window Configurations}）。
+
+@c The value returned by @code{save-excursion} is the result of the last of
+@c @var{forms}, or @code{nil} if no @var{forms} are given.
+@code{save-excursion}の戻り値は、@var{forms}の最後の結果であるか、
+@var{forms}を与えなければ@code{nil}である。
+
+@example
+@group
+(save-excursion @var{forms})
+@equiv{}
+(let ((old-buf (current-buffer))
+      (old-pnt (point-marker))
+@end group
+      (old-mark (copy-marker (mark-marker))))
+  (unwind-protect
+      (progn @var{forms})
+    (set-buffer old-buf)
+@group
+    (goto-char old-pnt)
+    (set-marker (mark-marker) old-mark)))
+@end group
+@end example
+@end defspec
+
+@c   @strong{Warning:} Ordinary insertion of text adjacent to the saved
+@c point value relocates the saved value, just as it relocates all markers.
+@c Therefore, when the saved point value is restored, it normally comes
+@c before the inserted text.
+  @strong{警告：}@code{ }保存されたポイント値の箇所に
+普通にテキストを挿入すると、すべてのマーカを再配置するように
+保存されたポイント値を再配置する。
+したがって、保存されたポイント値が復元されると、
+ポイントは挿入されたテキストのまえに普通どおりにくる。
+
+@c   Although @code{save-excursion} saves the location of the mark, it does
+@c not prevent functions which modify the buffer from setting
+@c @code{deactivate-mark}, and thus causing the deactivation of the mark
+@c after the command finishes.  @xref{The Mark}.
+@code{save-excursion}はマーカの位置を保存しますが、
+バッファを変更する関数が@code{deactivate-mark}を行うことを防ぎませんから、
+コマンドが終了するとマーカが不活性になってしまいます。
+@xref{The Mark}。
+
+@node Narrowing
+@c @section Narrowing
+@section ナロイング
+@c @cindex narrowing
+@c @cindex restriction (in a buffer)
+@c @cindex accessible portion (of a buffer)
+@cindex ナロイング
+@cindex 制限（バッファ）
+@cindex 参照可能部分（バッファ）
+
+@c   @dfn{Narrowing} means limiting the text addressable by Emacs editing
+@c commands to a limited range of characters in a buffer.  The text that
+@c remains addressable is called the @dfn{accessible portion} of the
+@c buffer.
+@dfn{ナロイング}（narrowing）とは、
+Emacsの編集コマンドが参照できるテキストを
+バッファの制限された文字の範囲に限定することです。
+参照できるテキストのことをバッファの
+@dfn{参照可能部分}（accessible portion）と呼びます。
+
+@c   Narrowing is specified with two buffer positions which become the
+@c beginning and end of the accessible portion.  For most editing commands
+@c and most Emacs primitives, these positions replace the values of the
+@c beginning and end of the buffer.  While narrowing is in effect, no text
+@c outside the accessible portion is displayed, and point cannot move
+@c outside the accessible portion.
+ナロイングは、参照可能部分の先頭と末尾になる2つのバッファ内位置で指定します。
+ほとんどの編集コマンドやほとんどのEmacs基本関数にとっては、
+これらの位置はバッファの先頭や末尾の値を置き換えることになります。
+ナロイングしていると、参照可能部分の外側のテキストは表示されませんし、
+ポイントは参照可能部分の外側へは移動できません。
+
+@c   Values such as positions or line numbers, which usually count from the
+@c beginning of the buffer, do so despite narrowing, but the functions
+@c which use them refuse to operate on text that is inaccessible.
+通常はバッファの先頭から数える位置や行番号などの値は
+ナロイングしていても同様に数えますが、
+それらを使う関数は参照できないテキストを操作することを拒否します。
+
+@c   The commands for saving buffers are unaffected by narrowing; they save
+@c the entire buffer regardless of any narrowing.
+バッファを保存するコマンドはナロイングの影響を受けません。
+つまり、ナロイングに関係なくバッファ全体を保存します。
+
+@c @deffn Command narrow-to-region start end
+@deffn コマンド narrow-to-region start end
+@c This function sets the accessible portion of the current buffer to start
+@c at @var{start} and end at @var{end}.  Both arguments should be character
+@c positions.
+この関数は、カレントバッファの@var{start}で始まり@var{end}で終る部分を
+参照可能部分にする。
+どちらの引数も文字の位置であること。
+
+@c In an interactive call, @var{start} and @var{end} are set to the bounds
+@c of the current region (point and the mark, with the smallest first).
+対話的に呼び出されると、@var{start}と@var{end}は
+現在のリージョンの境界（ポイントとマークの小さいほうがさきにくる）である。
+@end deffn
+
+@c @deffn Command narrow-to-page move-count
+@deffn コマンド narrow-to-page move-count
+@c This function sets the accessible portion of the current buffer to
+@c include just the current page.  An optional first argument
+@c @var{move-count} non-@code{nil} means to move forward or backward by
+@c @var{move-count} pages and then narrow to one page.  The variable
+@c @code{page-delimiter} specifies where pages start and end
+@c (@pxref{Standard Regexps}).
+このコマンドは、カレントバッファの参照可能部分を
+現在のページのみを含むようにする。
+省略可能な第1引数@var{move-count}が@code{nil}以外であると、
+@var{move-count}ページだけ前方か後方へ移動してから
+1ページ分にナロイングする。
+変数@code{page-delimiter}がページの開始箇所と終了箇所を指定する
+（@pxref{Standard Regexps}）。
+
+@c In an interactive call, @var{move-count} is set to the numeric prefix
+@c argument.
+対話的に呼び出されると、@var{move-count}は数値前置引数である。
+@end deffn
+
+@c @deffn Command widen
+@deffn コマンド widen
+@c @cindex widening
+@cindex ワイドニング
+@c This function cancels any narrowing in the current buffer, so that the
+@c entire contents are accessible.  This is called @dfn{widening}.
+@c It is equivalent to the following expression:
+この関数は、カレントバッファのナロイングを解除し、
+全体を参照できるようにする。
+これを@dfn{ワイドニング}（widening）と呼ぶ。
+これはつぎの式と等価である。
+
+@example
+(narrow-to-region 1 (1+ (buffer-size)))
+@end example
+@end deffn
+
+@defspec save-restriction body@dots{}
+@c This special form saves the current bounds of the accessible portion,
+@c evaluates the @var{body} forms, and finally restores the saved bounds,
+@c thus restoring the same state of narrowing (or absence thereof) formerly
+@c in effect.  The state of narrowing is restored even in the event of an
+@c abnormal exit via @code{throw} or error (@pxref{Nonlocal Exits}).
+@c Therefore, this construct is a clean way to narrow a buffer temporarily.
+このスペシャルフォームは、現在の参照可能部分の境界を保存し、
+フォーム@var{body}を評価し、最後に、保存した境界を復元して
+まえと同じナロイング状態（あるいはナロイングなし）に復元する。
+@code{throw}やエラーによる異常脱出（@pxref{Nonlocal Exits}）であっても、
+ナロイング状態を復元する。
+
+@c The value returned by @code{save-restriction} is that returned by the
+@c last form in @var{body}, or @code{nil} if no body forms were given.
+@code{save-restriction}の戻り値は、@var{body}の最後の結果であるか、
+@var{body}を与えなければ@code{nil}である。
+
+@c @c Wordy to avoid overfull hbox.  --rjc 16mar92
+@c @strong{Caution:} it is easy to make a mistake when using the
+@c @code{save-restriction} construct.  Read the entire description here
+@c before you try it.
+@strong{注意：}@code{ }構文@code{save-restriction}を使うときには
+まちがいやすい。
+使うまえにこの説明全体を読むこと。
+
+@c If @var{body} changes the current buffer, @code{save-restriction} still
+@c restores the restrictions on the original buffer (the buffer whose
+@c restrictions it saved from), but it does not restore the identity of the
+@c current buffer.
+@var{body}でカレントバッファを切り替えても
+@code{save-restriction}はもとのバッファ（バッファの制限を保存したバッファ）に
+制限を復元するが、もとのカレントバッファには戻さない。
+
+@c @code{save-restriction} does @emph{not} restore point and the mark; use
+@c @code{save-excursion} for that.  If you use both @code{save-restriction}
+@c and @code{save-excursion} together, @code{save-excursion} should come
+@c first (on the outside).  Otherwise, the old point value would be
+@c restored with temporary narrowing still in effect.  If the old point
+@c value were outside the limits of the temporary narrowing, this would
+@c fail to restore it accurately.
+@code{save-restriction}はポイントやマークは復元@emph{しない}。
+それには@code{save-excursion}を使う。
+@code{save-restriction}と@code{save-excursion}の両者を
+一緒に使うときには、@code{save-excursion}が先に（外側に）くること。
+さもないと、古いポイント値は一時的なナロイングが有効な状態で復元される。
+古いポイント値が一時的なナロイングの範囲外にあると正しく復元できない。
+
+@c The @code{save-restriction} special form records the values of the
+@c beginning and end of the accessible portion as distances from the
+@c beginning and end of the buffer.  In other words, it records the amount
+@c of inaccessible text before and after the accessible portion.
+スペシャルフォーム@code{save-restriction}は、
+参照可能部分の先頭と末尾をバッファの先頭と末尾からの距離として記録する。
+いいかえれば、参照可能部分の前後の参照できないテキストの量を記録する。
+
+@c This method yields correct results if @var{body} does further narrowing.
+@c However, @code{save-restriction} can become confused if the body widens
+@c and then makes changes outside the range of the saved narrowing.  When
+@c this is what you want to do, @code{save-restriction} is not the right
+@c tool for the job.  Here is what you must use instead:
+この方法は、@var{body}でさらにナロイングしても正しい結果を生じる。
+しかし、@var{body}でワイドニングして保存されているナロイングの範囲外を
+変更すると@code{save-restriction}が混乱する。
+このようにしたいときには、
+@code{save-restriction}は正しい解法ではない。
+つぎのようにする必要がある。
+
+@example
+@group
+(let ((beg (point-min-marker))
+      (end (point-max-marker)))
+  (unwind-protect
+      (progn @var{body})
+    (save-excursion
+      (set-buffer (marker-buffer beg))
+      (narrow-to-region beg end))))
+@end group
+@end example
+
+@c Here is a simple example of correct use of @code{save-restriction}:
+@code{save-restriction}の正しい使い方の簡単な例を示す。
+
+@example
+@group
+---------- Buffer: foo ----------
+This is the contents of foo
+This is the contents of foo
+This is the contents of foo@point{}
+---------- Buffer: foo ----------
+@end group
+
+@group
+(save-excursion
+  (save-restriction
+    (goto-char 1)
+    (forward-line 2)
+    (narrow-to-region 1 (point))
+    (goto-char (point-min))
+    (replace-string "foo" "bar")))
+
+---------- Buffer: foo ----------
+This is the contents of bar
+This is the contents of bar
+This is the contents of foo@point{}
+---------- Buffer: foo ----------
+@end group
+@end example
+@end defspec

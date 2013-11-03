@@ -1,0 +1,48 @@
+@c =============================================================
+@c = 訳者まえがき
+@c = 大木敦雄＠大塚.筑波大学 = 2000/02/13
+@c =============================================================
+
+@unnumbered 訳者まえがき
+
+本書は、
+@display
+GNU Emacs Lisp Reference Manual
+For Emacs Version 20.3
+Revision 2.5, May 1998
+ISBN 1-882114-72-8
+@end display
+@noindent
+の日本語訳です。
+「GNU一般公有使用許諾書」の日本語訳については、
+引地さんのところの日本語訳を使わせていただいたことを
+ここに記して感謝いたします。
+
+日本語訳したtexinfoファイル
+@footnote{ファイル@code{elisp.dvi}の生成に必要なファイルのみ。
+また、infoに固有の部分は訳出してない。}
+は、
+@display
+ftp://ftp.ascii.co.jp/pub/GNU/elisp-manual-20/elisp-manual-20-2.5-jp.tgz
+@end display
+@noindent
+にあります。
+コマンド@code{texi2dvi}などでdviファイルを生成したり、
+GNU Emacsでinfoファイル
+@footnote{@file{elisp.texi}を訪問したバッファで
+@kbd{M-x texinfo-format-buffer}を実行する。
+ただし、接続関係の処理に不備がある。
+ファイルをすべてEUCコードにしておけば、
+@code{makeinfo}プログラムでも処理できる場合があるが、
+整形が美しくない部分がある。}
+へ変換できますので、ぜひ利用してください。
+
+なお、訳出時点（2000年2月末）ではGNU Emacsの最新版は20.6ですが、
+20.3→20.4→20.5（20.5a）→20.6に伴うEmacs Lispへの変更点については
+訂正していないことをご了承願います。
+
+@sp 3
+@noindent
+【改訂履歴】
+@display
+@end display

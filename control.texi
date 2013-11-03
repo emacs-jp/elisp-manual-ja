@@ -1,0 +1,1820 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/control
+@node Control Structures, Variables, Evaluation, Top
+@c @chapter Control Structures
+@chapter 制御構造
+@c @cindex special forms for control structures
+@c @cindex control structures
+@cindex 制御構造向けのスペシャルフォーム
+@cindex 制御構造
+
+@c   A Lisp program consists of expressions or @dfn{forms} (@pxref{Forms}).
+@c We control the order of execution of the forms by enclosing them in
+@c @dfn{control structures}.  Control structures are special forms which
+@c control when, whether, or how many times to execute the forms they
+@c contain.
+Lispプログラムは、式、すなわち、@dfn{フォーム}（forms、@pxref{Forms}）から
+成ります。
+フォームを@dfn{制御構造}（control structures）で囲むことで、
+フォームの実行順序を制御します。
+制御構造はスペシャルフォームであり、
+その内側にあるフォームの実行をいつ行うか、行わないか、
+何回行うかを制御します。
+
+@c   The simplest order of execution is sequential execution: first form
+@c @var{a}, then form @var{b}, and so on.  This is what happens when you
+@c write several forms in succession in the body of a function, or at top
+@c level in a file of Lisp code---the forms are executed in the order
+@c written.  We call this @dfn{textual order}.  For example, if a function
+@c body consists of two forms @var{a} and @var{b}, evaluation of the
+@c function evaluates first @var{a} and then @var{b}, and the function's
+@c value is the value of @var{b}.
+もっとも単純な実行順序は逐次実行です。
+最初のフォーム@var{a}を実行し、
+それからつぎのフォーム@var{b}を実行し、といった具合です。
+関数の本体やLispコードのファイルのトップレベルに複数のフォームを順に書くと、
+このようになります。
+つまり、書かれている順番にフォームを実行します。
+これを@dfn{テキスト上の順序}（textual order）と呼びます。
+たとえば、関数本体が2つのフォーム@var{a}と@var{b}から成る場合、
+関数を評価すると、まず@var{a}を評価し、つぎに@var{b}を評価して、
+関数の値は@var{b}の値になります。
+
+@c   Explicit control structures make possible an order of execution other
+@c than sequential.
+明示的な制御構造により、逐次実行以外の実行順序が可能になります。
+
+@c   Emacs Lisp provides several kinds of control structure, including
+@c other varieties of sequencing, conditionals, iteration, and (controlled)
+@c jumps---all discussed below.  The built-in control structures are
+@c special forms since their subforms are not necessarily evaluated or not
+@c evaluated sequentially.  You can use macros to define your own control
+@c structure constructs (@pxref{Macros}).
+Emacs Lispには数種類の制御構造があり、
+逐次実行の変形、条件付き実行、繰り返し実行、
+（制御された）ジャンプなどです。
+これらすべては、以下に説明します。
+組み込みの制御構造はスペシャルフォームです。
+というのは、それらのサブフォームは必ずしも評価しませんし、
+逐次評価するわけでもないからです。
+マクロを使えば、独自の制御構造の構文を定義できます（@pxref{Macros}）。
+
+@menu
+* Sequencing::             Evaluation in textual order.
+* Conditionals::           @code{if}, @code{cond}, @code{when}, @code{unless}.
+* Combining Conditions::   @code{and}, @code{or}, @code{not}.
+* Iteration::              @code{while} loops.
+* Nonlocal Exits::         Jumping out of a sequence.
+@end menu
+
+@node Sequencing
+@c @section Sequencing
+@section 逐次実行
+
+@c   Evaluating forms in the order they appear is the most common way
+@c control passes from one form to another.  In some contexts, such as in a
+@c function body, this happens automatically.  Elsewhere you must use a
+@c control structure construct to do this: @code{progn}, the simplest
+@c control construct of Lisp.
+現れる順番にフォームを評価することは、
+1つのフォームから別のフォームへ制御を移すもっとも一般的な方法です。
+関数本体などのある種の文脈では、自動的にこのようになります。
+それ以外では、これを行う制御構造の構文を使う必要があります。
+@code{progn}がその制御構造で、Lispのもっとも単純な制御構造です。
+
+@c   A @code{progn} special form looks like this:
+スペシャルフォーム@code{progn}はつぎのような形です。
+
+@example
+@group
+(progn @var{a} @var{b} @var{c} @dots{})
+@end group
+@end example
+
+@noindent
+@c and it says to execute the forms @var{a}, @var{b}, @var{c} and so on, in
+@c that order.  These forms are called the body of the @code{progn} form.
+@c The value of the last form in the body becomes the value of the entire
+@c @code{progn}.
+これは、フォーム、@var{a}、@var{b}、@var{c}、…をこの順に評価します。
+これらのフォームを@code{progn}フォームの本体と呼びます。
+本体の最後のフォームの値が、@code{progn}全体の値になります。
+
+@c @cindex implicit @code{progn}
+@cindex 暗黙の@code{progn}
+@c   In the early days of Lisp, @code{progn} was the only way to execute
+@c two or more forms in succession and use the value of the last of them.
+@c But programmers found they often needed to use a @code{progn} in the
+@c body of a function, where (at that time) only one form was allowed.  So
+@c the body of a function was made into an ``implicit @code{progn}'':
+@c several forms are allowed just as in the body of an actual @code{progn}.
+@c Many other control structures likewise contain an implicit @code{progn}.
+@c As a result, @code{progn} is not used as often as it used to be.  It is
+@c needed now most often inside an @code{unwind-protect}, @code{and},
+@c @code{or}, or in the @var{then}-part of an @code{if}.
+初期のころのLispでは、@code{progn}は、
+2つ以上のフォームを逐次実行しそれらの最後の値を使う唯一の方法でした。
+しかし、プログラマは、（当時は）1つのフォームしか許されていない
+関数の本体では、
+@code{progn}を使う必要がしばしばあることに気づきました。
+そのため、関数本体を『暗黙の@code{progn}』にしたのです。
+つまり、実際の@code{progn}の本体のように、
+複数のフォームを許すようにしたのです。
+多くの他の制御構造も、同様に、暗黙の@code{progn}です。
+その結果、@code{progn}は、かつてほどは多用されません。
+現在では、@code{unwind-protect}、@code{and}、@code{or}の内側や、
+@code{if}の@var{then}部分で必要とされるのがほとんどです。
+
+@defspec progn forms@dots{}
+@c This special form evaluates all of the @var{forms}, in textual
+@c order, returning the result of the final form.
+このスペシャルフォームは、@var{forms}のフォームすべてを
+テキスト上の順に評価し、最後のフォームの結果を返す。
+
+@example
+@group
+(progn (print "The first form")
+       (print "The second form")
+       (print "The third form"))
+     @print{} "The first form"
+     @print{} "The second form"
+     @print{} "The third form"
+@result{} "The third form"
+@end group
+@end example
+@end defspec
+
+@c   Two other control constructs likewise evaluate a series of forms but return
+@c a different value:
+他の2つの制御構造も同様にフォームを逐次評価しますが、
+返す値が異なります。
+
+@defspec prog1 form1 forms@dots{}
+@c This special form evaluates @var{form1} and all of the @var{forms}, in
+@c textual order, returning the result of @var{form1}.
+このスペシャルフォームは、@var{form1}、@var{forms}のフォームすべてを
+テキスト上の順に評価し、@var{form1}の結果を返す。
+
+@example
+@group
+(prog1 (print "The first form")
+       (print "The second form")
+       (print "The third form"))
+     @print{} "The first form"
+     @print{} "The second form"
+     @print{} "The third form"
+@result{} "The first form"
+@end group
+@end example
+
+@c Here is a way to remove the first element from a list in the variable
+@c @code{x}, then return the value of that former element:
+変数のリストから先頭要素を取り除き、取り除いた要素を返すにはつぎのように書く。
+
+@example
+(prog1 (car x) (setq x (cdr x)))
+@end example
+@end defspec
+
+@defspec prog2 form1 form2 forms@dots{}
+@c This special form evaluates @var{form1}, @var{form2}, and all of the
+@c following @var{forms}, in textual order, returning the result of
+@c @var{form2}.
+このスペシャルフォームは、@var{form1}、@var{form2}、@var{forms}の
+フォームすべてをテキスト上の順に評価し、@var{form2}の結果を返す。
+
+@example
+@group
+(prog2 (print "The first form")
+       (print "The second form")
+       (print "The third form"))
+     @print{} "The first form"
+     @print{} "The second form"
+     @print{} "The third form"
+@result{} "The second form"
+@end group
+@end example
+@end defspec
+
+@node Conditionals
+@c @section Conditionals
+@section 条件付き実行
+@c @cindex conditional evaluation
+@cindex 条件付き評価
+@cindex 評価、条件付き
+
+@c   Conditional control structures choose among alternatives.  Emacs Lisp
+@c has four conditional forms: @code{if}, which is much the same as in
+@c other languages; @code{when} and @code{unless}, which are variants of
+@c @code{if}; and @code{cond}, which is a generalized case statement.
+条件付き制御構造は、選択肢を選びます。
+Emacs Lispには、4つの条件付きフォームがあります。
+他の言語のものとほとんど同じ@code{if}、
+@code{if}の変形である@code{when}や@code{unless}、
+一般化したcase文である@code{cond}です。
+
+@defspec if condition then-form else-forms@dots{}
+@c @code{if} chooses between the @var{then-form} and the @var{else-forms}
+@c based on the value of @var{condition}.  If the evaluated @var{condition} is
+@c non-@code{nil}, @var{then-form} is evaluated and the result returned.
+@c Otherwise, the @var{else-forms} are evaluated in textual order, and the
+@c value of the last one is returned.  (The @var{else} part of @code{if} is
+@c an example of an implicit @code{progn}.  @xref{Sequencing}.) 
+@code{if}は、@var{condition}をもとにして、
+@var{then-form}か@var{else-forms}を選ぶ。
+@var{condition}が@code{nil}以外に評価されると、
+@var{then-form}を評価し、その結果を返す。
+さもなければ、@var{else-forms}をテキスト上の順に評価し、
+その最後のものの値を返す。
+（@code{if}の@var{else}部分は、暗黙の@code{progn}の例である。
+@pxref{Sequencing}。）
+
+@c If @var{condition} has the value @code{nil}, and no @var{else-forms} are
+@c given, @code{if} returns @code{nil}.
+@var{condition}が値@code{nil}であり、かつ、@var{else-forms}がないと、
+@code{if}は@code{nil}を返す。
+
+@c @code{if} is a special form because the branch that is not selected is
+@c never evaluated---it is ignored.  Thus, in the example below,
+@c @code{true} is not printed because @code{print} is never called.
+@code{if}がスペシャルフォームであるのは、
+選択しなかった分岐をけっして評価しないからである。
+したがって、つぎの例では、
+@code{print}はけっして呼ばれないため@code{true}は表示されない。
+
+@example
+@group
+(if nil 
+    (print 'true) 
+  'very-false)
+@result{} very-false
+@end group
+@end example
+@end defspec
+
+@defmac when condition then-forms@dots{}
+@tindex when
+@c This is a variant of @code{if} where there are no @var{else-forms},
+@c and possibly several @var{then-forms}.  In particular,
+これは@code{if}の変形であり、@var{else-forms}がなく、
+@var{then-forms}は複数のフォームでもよい。
+特に、
+
+@example
+(when @var{condition} @var{a} @var{b} @var{c})
+@end example
+
+@noindent
+@c is entirely equivalent to
+は、つぎとまったく等価である。
+
+@example
+(if @var{condition} (progn @var{a} @var{b} @var{c}) nil)
+@end example
+@end defmac
+
+@defmac unless condition forms@dots{}
+@tindex condition
+@c This is a variant of @code{if} where there is no @var{then-form}:
+これは@var{then-form}がない@code{if}の変形である。
+
+@example
+(unless @var{condition} @var{a} @var{b} @var{c})
+@end example
+
+@noindent
+@c is entirely equivalent to
+は、つぎとまったく等価である。
+
+@example
+(if @var{condition} nil
+   @var{a} @var{b} @var{c})
+@end example
+@end defmac
+
+@defspec cond clause@dots{}
+@c @code{cond} chooses among an arbitrary number of alternatives.  Each
+@c @var{clause} in the @code{cond} must be a list.  The @sc{car} of this
+@c list is the @var{condition}; the remaining elements, if any, the
+@c @var{body-forms}.  Thus, a clause looks like this:
+@code{cond}は任意個数の選択肢から1つを選ぶ。
+@code{cond}の各節@var{clause}はリストである必要がある。
+このリストの@sc{car}が@var{condition}（条件）である。
+残りの要素は、あれば、@var{body-forms}（本体フォーム）である。
+つまり、各節はつぎのようになる。
+
+@example
+(@var{condition} @var{body-forms}@dots{})
+@end example
+
+@c @code{cond} tries the clauses in textual order, by evaluating the
+@c @var{condition} of each clause.  If the value of @var{condition} is
+@c non-@code{nil}, the clause ``succeeds''; then @code{cond} evaluates its
+@c @var{body-forms}, and the value of the last of @var{body-forms} becomes
+@c the value of the @code{cond}.  The remaining clauses are ignored.
+@code{cond}は、各節の@var{condition}を評価して、
+各節をテキスト上の順に試す。
+@var{condition}の値が@code{nil}以外であれば、
+その節は『成功』する。
+そうすると、@code{cond}はその節の@var{body-forms}を評価し、
+@var{body-forms}の最後の値が@code{cond}の値となる。
+残りの節は無視する。
+
+@c If the value of @var{condition} is @code{nil}, the clause ``fails'', so
+@c the @code{cond} moves on to the following clause, trying its
+@c @var{condition}.
+@var{condition}の値が@code{nil}であると、
+その節は『失敗』し、
+@code{cond}はつぎの節へ移りその@var{condition}を試す。
+
+@c If every @var{condition} evaluates to @code{nil}, so that every clause
+@c fails, @code{cond} returns @code{nil}.
+各@var{condition}が@code{nil}に評価されると、
+すべての節が失敗し、@code{cond}は@code{nil}を返す。
+
+@c A clause may also look like this:
+節@var{clause}は、つぎの形式でもよい。
+
+@example
+(@var{condition})
+@end example
+
+@noindent
+@c Then, if @var{condition} is non-@code{nil} when tested, the value of
+@c @var{condition} becomes the value of the @code{cond} form.
+この場合、@var{condition}が@code{nil}以外であると、
+@var{condition}が@code{cond}フォームの値になる。
+
+@c The following example has four clauses, which test for the cases where
+@c the value of @code{x} is a number, string, buffer and symbol,
+@c respectively:
+以下の例には4つの節があり、
+@code{x}の値が、数、文字列、バッファ、シンボルかどうか調べる。
+
+@example
+@group
+(cond ((numberp x) x)
+      ((stringp x) x)
+      ((bufferp x)
+@c        (setq temporary-hack x) ; @r{multiple body-forms}
+@c        (buffer-name x))        ; @r{in one clause}
+       (setq temporary-hack x) ; @r{1つの節に}
+       (buffer-name x))        ; @r{複数個の本体フォーム}
+      ((symbolp x) (symbol-value x)))
+@end group
+@end example
+
+@c Often we want to execute the last clause whenever none of the previous
+@c clauses was successful.  To do this, we use @code{t} as the
+@c @var{condition} of the last clause, like this: @code{(t
+@c @var{body-forms})}.  The form @code{t} evaluates to @code{t}, which is
+@c never @code{nil}, so this clause never fails, provided the @code{cond}
+@c gets to it at all.
+最後の節を除くそれよりまえの節がどれも成功しないときには、
+最後の節を実行したいことがしばしばある。
+これを行うには、@code{(t @var{body-forms})}のように
+最後の節の@var{condition}に@code{t}を使う。
+フォーム@code{t}は@code{t}と評価され、けっして@code{nil}ではない。
+そのため、@code{cond}がこの節に達したときには、
+この節が失敗することはない。
+
+@c For example, 
+たとえば、つぎのとおり。
+
+@example
+@group
+(cond ((eq a 'hack) 'foo)
+      (t "default"))
+@result{} "default"
+@end group
+@end example
+
+@noindent
+@c This expression is a @code{cond} which returns @code{foo} if the value
+@c of @code{a} is @code{hack}, and returns the string @code{"default"} otherwise.
+この式は、@code{a}の値が@code{hack}のときには@code{foo}を返し、
+さもなければ文字列@code{"default"}を返す@code{cond}である。
+@end defspec
+
+@c Any conditional construct can be expressed with @code{cond} or with
+@c @code{if}.  Therefore, the choice between them is a matter of style.
+@c For example:
+任意の条件付き構造は、@code{cond}や@code{if}で表現できます。
+したがって、どちらを使うかは好みの問題です。
+たとえば、つぎのとおりです。
+
+@example
+@group
+(if @var{a} @var{b} @var{c})
+@equiv{}
+(cond (@var{a} @var{b}) (t @var{c}))
+@end group
+@end example
+
+@node Combining Conditions
+@c @section Constructs for Combining Conditions
+@section 条件の組み合わせ
+
+@c   This section describes three constructs that are often used together
+@c with @code{if} and @code{cond} to express complicated conditions.  The
+@c constructs @code{and} and @code{or} can also be used individually as
+@c kinds of multiple conditional constructs.
+本節では、@code{if}や@code{cond}とともに用いて複雑な条件を表現するために
+しばしば使われる3つの構造を説明します。
+@code{and}や@code{or}の構造は、
+複数の条件付き構造の一種として単独で使うこともできます。
+
+@defun not condition
+@c This function tests for the falsehood of @var{condition}.  It returns
+@c @code{t} if @var{condition} is @code{nil}, and @code{nil} otherwise.
+@c The function @code{not} is identical to @code{null}, and we recommend
+@c using the name @code{null} if you are testing for an empty list.
+この関数は、@var{condition}が偽であるかどうか調べる。
+@var{condition}が@code{nil}であれば@code{t}を返し、
+さもなければ@code{nil}を返す。
+関数@code{not}は@code{null}と同一であるが、
+空リストかどうか調べる場合には、@code{null}を使うことを勧める。
+@end defun
+
+@defspec and conditions@dots{}
+@c The @code{and} special form tests whether all the @var{conditions} are
+@c true.  It works by evaluating the @var{conditions} one by one in the
+@c order written.
+スペシャルフォーム@code{and}は、
+すべての@var{conditions}が真であるかどうか調べる。
+@var{conditions}を1つ1つ書かれた順に評価して調べる。
+
+@c If any of the @var{conditions} evaluates to @code{nil}, then the result
+@c of the @code{and} must be @code{nil} regardless of the remaining
+@c @var{conditions}; so @code{and} returns right away, ignoring the
+@c remaining @var{conditions}.
+@var{conditions}のどれかが@code{nil}に評価されると、
+@code{and}の結果は、残りの@var{conditions}に関係なく、@code{nil}になる。
+つまり、@code{and}はただちに完了し、
+@var{conditions}の残りを無視する。
+
+@c If all the @var{conditions} turn out non-@code{nil}, then the value of
+@c the last of them becomes the value of the @code{and} form.
+@var{conditions}すべてが@code{nil}以外であることがわかると、
+それらの最後の値がフォーム@code{and}の値となる。
+
+@c Here is an example.  The first condition returns the integer 1, which is
+@c not @code{nil}.  Similarly, the second condition returns the integer 2,
+@c which is not @code{nil}.  The third condition is @code{nil}, so the
+@c remaining condition is never evaluated.
+例を示そう。
+最初の条件は整数1を返し、これは@code{nil}ではない。
+同様に、2番目の条件は整数2を返し、@code{nil}ではない。
+3番目の条件は@code{nil}なので、残りの条件を評価しない。
+
+@example
+@group
+(and (print 1) (print 2) nil (print 3))
+     @print{} 1
+     @print{} 2
+@result{} nil
+@end group
+@end example
+
+@c Here is a more realistic example of using @code{and}:
+@code{and}を使ったより現実的な例はつぎのとおり。
+
+@example
+@group
+(if (and (consp foo) (eq (car foo) 'x))
+    (message "foo is a list starting with x"))
+@end group
+@end example
+
+@noindent
+@c Note that @code{(car foo)} is not executed if @code{(consp foo)} returns
+@c @code{nil}, thus avoiding an error.
+@code{(consp foo)}が@code{nil}を返すと@code{(car foo)}は実行されず、
+そのためエラーを回避することに注意。
+
+@c @code{and} can be expressed in terms of either @code{if} or @code{cond}.
+@c For example:
+@code{and}は、@code{if}や@code{cond}で表現できる。
+たとえば、つぎのとおり。
+
+@example
+@group
+(and @var{arg1} @var{arg2} @var{arg3})
+@equiv{}
+(if @var{arg1} (if @var{arg2} @var{arg3}))
+@equiv{}
+(cond (@var{arg1} (cond (@var{arg2} @var{arg3}))))
+@end group
+@end example
+@end defspec
+
+@defspec or conditions@dots{}
+@c The @code{or} special form tests whether at least one of the
+@c @var{conditions} is true.  It works by evaluating all the
+@c @var{conditions} one by one in the order written.
+スペシャルフォーム@code{or}は、
+@var{conditions}の少なくとも1つが真であるかどうか調べる。
+@var{conditions}を1つ1つ書かれた順に評価して調べる。
+
+@c If any of the @var{conditions} evaluates to a non-@code{nil} value, then
+@c the result of the @code{or} must be non-@code{nil}; so @code{or} returns
+@c right away, ignoring the remaining @var{conditions}.  The value it
+@c returns is the non-@code{nil} value of the condition just evaluated.
+@var{conditions}のどれかが@code{nil}以外に評価されると、
+@code{or}の結果は@code{nil}以外になる。
+そして、@code{or}はただちに完了し、
+@var{conditions}の残りを無視する。
+戻り値は、@code{nil}以外に評価された値である。
+
+@c If all the @var{conditions} turn out @code{nil}, then the @code{or}
+@c expression returns @code{nil}.
+@var{conditions}すべてが@code{nil}であることがわかると、
+@code{or}は@code{nil}を返す。
+
+@c For example, this expression tests whether @code{x} is either 0 or
+@c @code{nil}:
+たとえば、つぎの式は、@code{x}が0か@code{nil}であることを調べる。
+
+@example
+(or (eq x nil) (eq x 0))
+@end example
+
+@c Like the @code{and} construct, @code{or} can be written in terms of
+@c @code{cond}.  For example:
+@code{and}構造と同様に、@code{or}は@code{cond}で書き表せる。
+たとえば、つぎのとおり。
+
+@example
+@group
+(or @var{arg1} @var{arg2} @var{arg3})
+@equiv{}
+(cond (@var{arg1})
+      (@var{arg2})
+      (@var{arg3}))
+@end group
+@end example
+
+@c You could almost write @code{or} in terms of @code{if}, but not quite:
+@code{or}を@code{if}で書くこともだいたいできるが、
+途中で抜け出せない。
+
+@example
+@group
+(if @var{arg1} @var{arg1}
+  (if @var{arg2} @var{arg2} 
+    @var{arg3}))
+@end group
+@end example
+
+@noindent
+@c This is not completely equivalent because it can evaluate @var{arg1} or
+@c @var{arg2} twice.  By contrast, @code{(or @var{arg1} @var{arg2}
+@c @var{arg3})} never evaluates any argument more than once.
+これは完全には同一ではない。
+というのは、@var{arg1}や@var{arg2}を2度評価するからである。
+一方、@code{(or @var{arg1} @var{arg2} @var{arg3})}は、
+どの引数も一度だけ評価する。
+@end defspec
+
+@node Iteration
+@c @section Iteration
+@section 繰り返し
+@c @cindex iteration
+@c @cindex recursion
+@cindex 繰り返し
+@cindex 再帰
+
+@c   Iteration means executing part of a program repetitively.  For
+@c example, you might want to repeat some computation once for each element
+@c of a list, or once for each integer from 0 to @var{n}.  You can do this
+@c in Emacs Lisp with the special form @code{while}:
+繰り返しとは、プログラムのある部分を何度も実行することです。
+たとえば、リストの各要素や0から@var{n}の各整数について
+1回ずつある計算を行いたい場合です。
+Emacs Lispでこれを行うには、スペシャルフォーム@code{while}を使います。
+
+@defspec while condition forms@dots{}
+@c @code{while} first evaluates @var{condition}.  If the result is
+@c non-@code{nil}, it evaluates @var{forms} in textual order.  Then it
+@c reevaluates @var{condition}, and if the result is non-@code{nil}, it
+@c evaluates @var{forms} again.  This process repeats until @var{condition}
+@c evaluates to @code{nil}.
+@code{while}は、まず@var{condition}を評価する。
+結果が@code{nil}以外であれば、@var{forms}をテキスト上の順で評価する。
+そして、@var{condition}を評価し直し、その結果が@code{nil}以外であれば、
+再度@var{forms}を評価する。
+この処理を@var{condition}が@code{nil}に評価されるまで繰り返す。
+
+@c There is no limit on the number of iterations that may occur.  The loop
+@c will continue until either @var{condition} evaluates to @code{nil} or
+@c until an error or @code{throw} jumps out of it (@pxref{Nonlocal Exits}).
+繰り返し回数に制限はない。
+ループは、@var{condition}が@code{nil}に評価される、
+エラーが発生する、@code{throw}によりループから抜け出す
+（@pxref{Nonlocal Exits}）のいずれかが起こるまで繰り返される。
+
+@c The value of a @code{while} form is always @code{nil}.
+フォーム@code{while}の値はつねに@code{nil}である。
+
+@example
+@group
+(setq num 0)
+     @result{} 0
+@end group
+@group
+(while (< num 4)
+  (princ (format "Iteration %d." num))
+  (setq num (1+ num)))
+     @print{} Iteration 0.
+     @print{} Iteration 1.
+     @print{} Iteration 2.
+     @print{} Iteration 3.
+     @result{} nil
+@end group
+@end example
+
+@c If you would like to execute something on each iteration before the
+@c end-test, put it together with the end-test in a @code{progn} as the
+@c first argument of @code{while}, as shown here:
+終了検査のまえに各繰り返しごとに実行したいことがあれば、
+以下のように、それらと終了検査を@code{progn}でまとめたものを
+@code{while}の第1引数にする。
+
+@example
+@group
+(while (progn
+         (forward-line 1)
+         (not (looking-at "^$"))))
+@end group
+@end example
+
+@noindent
+@c This moves forward one line and continues moving by lines until it
+@c reaches an empty line.  It is peculiar in that the @code{while} has no
+@c body, just the end test (which also does the real work of moving point).
+これは、1行先へ移動し、空行に達するまで、移動を繰り返す。
+この@code{while}には本体がなく、
+終了検査（かつポイントを実際に動かす）だけであるという点で、
+風変わりである。
+@end defspec
+
+@node Nonlocal Exits
+@c @section Nonlocal Exits
+@section 非ローカル脱出
+@c @cindex nonlocal exits
+@cindex 非ローカル脱出
+
+@c   A @dfn{nonlocal exit} is a transfer of control from one point in a
+@c program to another remote point.  Nonlocal exits can occur in Emacs Lisp
+@c as a result of errors; you can also use them under explicit control.
+@c Nonlocal exits unbind all variable bindings made by the constructs being
+@c exited.
+@dfn{非ローカル脱出}（nonlocal exit）とは、
+プログラムのある場所から別の離れた場所へ制御を移すことです。
+Emacs Lispでは、エラーの結果として非ローカル脱出が発生します。
+非ローカル脱出は、明示的な制御にも使えます。
+非ローカル脱出は、脱出対象の構造で作成したすべての変数束縛を解きます。
+
+@menu
+* Catch and Throw::     Nonlocal exits for the program's own purposes.
+* Examples of Catch::   Showing how such nonlocal exits can be written.
+* Errors::              How errors are signaled and handled.
+* Cleanups::            Arranging to run a cleanup form if an error happens.
+@end menu
+
+@node Catch and Throw
+@c @subsection Explicit Nonlocal Exits: @code{catch} and @code{throw}
+@subsection 明示的な非ローカル脱出：@code{ }@code{catch}と@code{throw}
+
+@c   Most control constructs affect only the flow of control within the
+@c construct itself.  The function @code{throw} is the exception to this
+@c rule of normal program execution: it performs a nonlocal exit on
+@c request.  (There are other exceptions, but they are for error handling
+@c only.)  @code{throw} is used inside a @code{catch}, and jumps back to
+@c that @code{catch}.  For example:
+ほとんどの制御構造は、その構造内での制御の流れだけに影響します。
+関数@code{throw}は、通常のプログラム実行のこのような規則の例外です。
+つまり、要求に従って非ローカルな脱出を行います。
+（ほかにも例外はあるが、それらはエラー処理のためだけである。）
+@code{throw}は@code{catch}の内側で使い、
+その@code{catch}へ戻ります。
+
+@example
+@group
+(defun foo-outer ()
+  (catch 'foo
+    (foo-inner)))
+
+(defun foo-inner ()
+  @dots{}
+  (if x
+      (throw 'foo t))
+  @dots{})
+@end group
+@end example
+
+@noindent
+@c The @code{throw} form, if executed, transfers control straight back to
+@c the corresponding @code{catch}, which returns immediately.  The code
+@c following the @code{throw} is not executed.  The second argument of
+@c @code{throw} is used as the return value of the @code{catch}.
+フォーム@code{throw}を実行すると、対応する@code{catch}へ制御が戻り、
+その@code{catch}はただちに終了します。
+@code{throw}に続くコードは実行されません。
+@code{throw}の第2引数は、@code{catch}の戻り値として使われます。
+
+@c   The function @code{throw} finds the matching @code{catch} based on the
+@c first argument: it searches for a @code{catch} whose first argument is
+@c @code{eq} to the one specified in the @code{throw}.  If there is more
+@c than one applicable @code{catch}, the innermost one takes precedence.
+@c Thus, in the above example, the @code{throw} specifies @code{foo}, and
+@c the @code{catch} in @code{foo-outer} specifies the same symbol, so that
+@c @code{catch} is the applicable one (assuming there is no other matching
+@c @code{catch} in between).
+関数@code{throw}は、その第1引数に基づいて対応する@code{catch}を探します。
+つまり、@code{catch}の第1引数が
+@code{throw}に指定されたものに@code{eq}である@code{catch}を探します。
+そのような@code{catch}が複数個ある場合には、
+もっとも内側のものを優先します。
+したがって、上の例では、@code{throw}は@code{foo}を指定し、
+@code{foo-outer}の@code{catch}は同じシンボルを指定しているので、
+その@code{catch}を使います
+（ただし、これらのあいだには他の一致する@code{catch}がないとして）。
+
+@c   Executing @code{throw} exits all Lisp constructs up to the matching
+@c @code{catch}, including function calls.  When binding constructs such as
+@c @code{let} or function calls are exited in this way, the bindings are
+@c unbound, just as they are when these constructs exit normally
+@c (@pxref{Local Variables}).  Likewise, @code{throw} restores the buffer
+@c and position saved by @code{save-excursion} (@pxref{Excursions}), and
+@c the narrowing status saved by @code{save-restriction} and the window
+@c selection saved by @code{save-window-excursion} (@pxref{Window
+@c Configurations}).  It also runs any cleanups established with the
+@c @code{unwind-protect} special form when it exits that form
+@c (@pxref{Cleanups}).
+@code{throw}の実行により、
+対応する@code{catch}までのすべてのLispの構造を抜け出します。
+これには関数呼び出しも含みます。
+@code{let}や関数呼び出しなどの束縛を作る構造からもこのように抜け出すので、
+通常どおり抜け出す場合と同様に束縛を解きます
+（@pxref{Local Variables}）。
+同様に、@code{throw}は、@code{save-excursion}（@pxref{Excursions}）で
+保存したバッファや位置情報、
+@code{save-restriction}で保存したナロイング状態、
+@code{save-window-excursion}（@pxref{Window Configurations}）で保存した
+ウィンドウの選択状態も復元します。
+さらに、スペシャルフォーム@code{unwind-protect}で設定した後始末を
+このフォームから抜け出すときに実行します（@pxref{Cleanups}）。
+
+@c   The @code{throw} need not appear lexically within the @code{catch}
+@c that it jumps to.  It can equally well be called from another function
+@c called within the @code{catch}.  As long as the @code{throw} takes place
+@c chronologically after entry to the @code{catch}, and chronologically
+@c before exit from it, it has access to that @code{catch}.  This is why
+@c @code{throw} can be used in commands such as @code{exit-recursive-edit}
+@c that throw back to the editor command loop (@pxref{Recursive Editing}).
+@code{throw}は、テキスト上で、
+ジャンプ先である@code{catch}の内側に現れる必要はありません。
+@code{throw}は、@code{catch}内から呼ばれた別の関数からも戻ることもできます。
+@code{throw}の実行が、
+時間的に@code{catch}に入ったあとで、かつ、それから抜けるまえである限り、
+@code{throw}は対応する@code{catch}を参照できます。
+エディタコマンドループ（@pxref{Recursive Editing}）から抜ける
+@code{exit-recursive-edit}などのコマンドで
+@code{throw}を使えるのは、このような理由からです。
+
+@c @cindex CL note---only @code{throw} in Emacs
+@cindex CLに関した注意−−Emacsでは@code{throw}のみ
+@quotation
+@c @b{Common Lisp note:} Most other versions of Lisp, including Common Lisp,
+@c have several ways of transferring control nonsequentially: @code{return},
+@c @code{return-from}, and @code{go}, for example.  Emacs Lisp has only
+@c @code{throw}.
+@b{Common Lispに関した注意：}@code{ }
+Common Lispを含むほとんどの他のLispには、
+非逐次的に制御を移す方法がいくつかある。
+たとえば、@code{return}、@code{return-from}、@code{go}。
+Emacs Lispには@code{throw}しかない。
+@end quotation
+
+@defspec catch tag body@dots{}
+@c @cindex tag on run time stack
+@cindex 実行時スタック上のタグ
+@c @code{catch} establishes a return point for the @code{throw} function.
+@c The return point is distinguished from other such return points by
+@c @var{tag}, which may be any Lisp object except @code{nil}.  The argument
+@c @var{tag} is evaluated normally before the return point is established.
+@code{catch}は、関数@code{throw}向けに戻り位置を確立する。
+その戻り位置は、@var{tag}によって他の戻り位置と区別される。
+@var{tag}は、@code{nil}以外ならば任意のLispオブジェクトでよい。
+引数@var{tag}は、戻り位置を確立するまえに、通常どおり評価される。
+
+@c With the return point in effect, @code{catch} evaluates the forms of the
+@c @var{body} in textual order.  If the forms execute normally, without
+@c error or nonlocal exit, the value of the last body form is returned from
+@c the @code{catch}.
+戻り位置を確立してから、@code{catch}は、@var{body}のフォームを
+テキスト上の順に評価する。
+エラーや非ローカル脱出なしにフォームの実行が普通に終了した場合、
+@code{catch}は、最後の本体フォームの値を返す。
+
+@c If a @code{throw} is done within @var{body} specifying the same value
+@c @var{tag}, the @code{catch} exits immediately; the value it returns is
+@c whatever was specified as the second argument of @code{throw}.
+@var{body}の内側で、@var{tag}と同じ値を指定した@code{throw}が実行されると、
+@code{catch}はただちに終了する。
+このとき返す値は、@code{throw}の第2引数に指定されたものである。
+@end defspec
+
+@defun throw tag value
+@c The purpose of @code{throw} is to return from a return point previously
+@c established with @code{catch}.  The argument @var{tag} is used to choose
+@c among the various existing return points; it must be @code{eq} to the value
+@c specified in the @code{catch}.  If multiple return points match @var{tag},
+@c the innermost one is used.
+@code{throw}の目的は、
+@code{catch}でまえもって確立しておいた戻り位置へ復帰することである。
+引数@var{tag}は、さまざまな既存の戻り位置から選ぶために使う。
+@var{tag}は、@code{catch}で指定した値と@code{eq}である必要がある。
+@var{tag}に複数の戻り位置が一致する場合には、もっとも内側のものを使う。
+
+@c The argument @var{value} is used as the value to return from that
+@c @code{catch}.
+引数@var{value}は、対応する@code{catch}の戻り値として使う。
+
+@kindex no-catch
+@c If no return point is in effect with tag @var{tag}, then a @code{no-catch}
+@c error is signaled with data @code{(@var{tag} @var{value})}.
+タグ@var{tag}である有効な戻り位置がなければ、
+@code{(@var{tag} @var{value})}を伴ったエラー@code{no-catch}を通知する。
+@end defun
+
+@node Examples of Catch
+@c @subsection Examples of @code{catch} and @code{throw}
+@subsection @code{catch}と@code{throw}の例
+
+@c   One way to use @code{catch} and @code{throw} is to exit from a doubly
+@c nested loop.  (In most languages, this would be done with a ``go to''.)
+@c Here we compute @code{(foo @var{i} @var{j})} for @var{i} and @var{j}
+@c varying from 0 to 9:
+@code{catch}と@code{throw}の使い方の1つは、
+2重のループからの脱出です。
+（ほとんどの言語では、これを『go to』で行うであろう。）
+ここでは、@var{i}と@var{j}を0から9に変えながら、
+@code{(foo @var{i} @var{j})}を計算します。
+
+@example
+@group
+(defun search-foo ()
+  (catch 'loop
+    (let ((i 0))
+      (while (< i 10)
+        (let ((j 0))
+          (while (< j 10)
+            (if (foo i j)
+                (throw 'loop (list i j)))
+            (setq j (1+ j))))
+        (setq i (1+ i))))))
+@end group
+@end example
+
+@noindent
+@c If @code{foo} ever returns non-@code{nil}, we stop immediately and return a
+@c list of @var{i} and @var{j}.  If @code{foo} always returns @code{nil}, the
+@c @code{catch} returns normally, and the value is @code{nil}, since that
+@c is the result of the @code{while}.
+@code{foo}がある時点で@code{nil}以外を返すと、
+ただちに止まって@var{i}と@var{j}のリストを返します。
+@code{foo}がつねに@code{nil}を返すと、
+@code{catch}は通常どおりに戻って、その値は@code{nil}です。
+というのは、@code{while}の結果は@code{nil}だからです。
+
+@c   Here are two tricky examples, slightly different, showing two
+@c return points at once.  First, two return points with the same tag,
+@c @code{hack}:
+2つの巧妙な例をあげましょう。
+多少異なる2つの戻り位置が同時に存在します。
+まず、同じタグ@code{hack}で2つの戻り位置があります。
+
+@example
+@group
+(defun catch2 (tag)
+  (catch tag
+    (throw 'hack 'yes)))
+@result{} catch2
+@end group
+
+@group
+(catch 'hack 
+  (print (catch2 'hack))
+  'no)
+@print{} yes
+@result{} no
+@end group
+@end example
+
+@noindent
+@c Since both return points have tags that match the @code{throw}, it goes to
+@c the inner one, the one established in @code{catch2}.  Therefore,
+@c @code{catch2} returns normally with value @code{yes}, and this value is
+@c printed.  Finally the second body form in the outer @code{catch}, which is
+@c @code{'no}, is evaluated and returned from the outer @code{catch}.
+どちらの戻り位置も@code{throw}に一致するタグなので、
+内側のもの、つまり、@code{catch2}で確立したものに戻ります。
+したがって、@code{catch2}は値@code{yes}で通常どおり戻り、
+この値が表示されます。
+最後に、外側の@code{catch}の2番目の本体フォーム、
+つまり、@code{'no}が評価され、外側の@code{catch}から戻ります。
+
+@c   Now let's change the argument given to @code{catch2}:
+今度は、@code{catch2}に指定する引数を変更してみます。
+
+@example
+@group
+(defun catch2 (tag)
+  (catch tag
+    (throw 'hack 'yes)))
+@result{} catch2
+@end group
+
+@group
+(catch 'hack
+  (print (catch2 'quux))
+  'no)
+@result{} yes
+@end group
+@end example
+
+@noindent
+@c We still have two return points, but this time only the outer one has
+@c the tag @code{hack}; the inner one has the tag @code{quux} instead.
+@c Therefore, @code{throw} makes the outer @code{catch} return the value
+@c @code{yes}.  The function @code{print} is never called, and the
+@c body-form @code{'no} is never evaluated.
+ここでも2つの戻り位置がありますが、
+今度は外側のものだけがタグ@code{hack}です。
+内側のものはタグ@code{quux}です。
+したがって、@code{throw}により、外側の@code{catch}が値@code{yes}を返します。
+関数@code{print}はけっして呼ばれず、
+本体フォーム@code{'no}もけっして評価されません。
+
+@node Errors
+@c @subsection Errors
+@subsection エラー
+@c @cindex errors
+@cindex エラー
+
+@c   When Emacs Lisp attempts to evaluate a form that, for some reason,
+@c cannot be evaluated, it @dfn{signals} an @dfn{error}.
+Emacs Lispが、なんらかの理由で評価できないフォームを評価しようとしたときには、
+Emacs Lispは@dfn{エラー}（error）を@dfn{通知}（signals）します。
+
+@c   When an error is signaled, Emacs's default reaction is to print an
+@c error message and terminate execution of the current command.  This is
+@c the right thing to do in most cases, such as if you type @kbd{C-f} at
+@c the end of the buffer.
+エラーが通知されると、Emacsのデフォルトの動作は、
+エラーメッセージを表示し、現在のコマンドの実行を終了します。
+バッファの末尾で@kbd{C-f}を打ったときなどのように、
+これはほとんどの場合、適切なことです。
+
+@c   In complicated programs, simple termination may not be what you want.
+@c For example, the program may have made temporary changes in data
+@c structures, or created temporary buffers that should be deleted before
+@c the program is finished.  In such cases, you would use
+@c @code{unwind-protect} to establish @dfn{cleanup expressions} to be
+@c evaluated in case of error.  (@xref{Cleanups}.)  Occasionally, you may
+@c wish the program to continue execution despite an error in a subroutine.
+@c In these cases, you would use @code{condition-case} to establish
+@c @dfn{error handlers} to recover control in case of error.
+複雑なプログラムでは、単に終了するだけでは満足できないこともあります。
+たとえば、プログラムではデータ構造に一時的な変更を加えていたり、
+プログラム終了時には削除する必要がある一時的なバッファを作成するでしょう。
+そのような場合には、@code{unwind-protect}を使って、
+エラー発生時に評価される@dfn{後始末式}（cleanup expressions）を
+確立しておきます。
+（@pxref{Cleanups}。）
+場合によっては、サブルーティンでエラーが発生しても、
+プログラムの実行を継続したいこともあるでしょう。
+このような場合には、@code{condition-case}を使って、
+エラー状態から制御を回復するための
+@dfn{エラーハンドラ}（error handlers）を確立しておきます。
+
+@c   Resist the temptation to use error handling to transfer control from
+@c one part of the program to another; use @code{catch} and @code{throw}
+@c instead.  @xref{Catch and Throw}.
+エラー処理を用いてプログラムのある場所から別の場所へ制御を移す、
+という誘惑には耐えてください。
+そのかわりに@code{catch}と@code{throw}を使いましょう。
+@xref{Catch and Throw}。
+
+@menu
+* Signaling Errors::      How to report an error.
+* Processing of Errors::  What Emacs does when you report an error.
+* Handling Errors::       How you can trap errors and continue execution.
+* Error Symbols::         How errors are classified for trapping them.
+@end menu
+
+@node Signaling Errors
+@c @subsubsection How to Signal an Error
+@subsubsection エラーの通知方法
+@c @cindex signaling errors
+@cindex エラー通知
+
+@c   Most errors are signaled ``automatically'' within Lisp primitives
+@c which you call for other purposes, such as if you try to take the
+@c @sc{car} of an integer or move forward a character at the end of the
+@c buffer; you can also signal errors explicitly with the functions
+@c @code{error} and @code{signal}.
+ほとんどのエラーは、他の目的で呼び出したLisp関数の内部で『自動的』に
+通知されます。
+整数の@sc{car}を計算しようとしたり、
+バッファの末尾で1文字進めようとしたりしたときなどです。
+関数@code{error}や関数@code{signal}で、
+明示的にエラーを通知することもできます。
+
+@c   Quitting, which happens when the user types @kbd{C-g}, is not 
+@c considered an error, but it is handled almost like an error.
+@c @xref{Quitting}.
+ユーザーが@kbd{C-g}を打ったときに発生する中断は、
+エラーとは考えませんが、エラーのように扱います。
+
+@defun error format-string &rest args
+@c This function signals an error with an error message constructed by
+@c applying @code{format} (@pxref{String Conversion}) to
+@c @var{format-string} and @var{args}.
+この関数は、@var{format-string}と@var{args}に
+@code{format}（@pxref{String Conversion}）を適用して作った
+エラーメッセージを伴ったエラーを通知する。
+
+@c These examples show typical uses of @code{error}:
+@code{error}の典型的な使い方を以下に示す。
+
+@example
+@group
+(error "That is an error -- try something else")
+     @error{} That is an error -- try something else
+@end group
+
+@group
+(error "You have committed %d errors" 10)
+     @error{} You have committed 10 errors
+@end group
+@end example
+
+@c @code{error} works by calling @code{signal} with two arguments: the
+@c error symbol @code{error}, and a list containing the string returned by
+@c @code{format}.
+@code{error}は、2つの引数、
+エラーシンボル@code{error}と@code{format}が返す文字列を含むリスト
+で@code{signal}を呼び出すことで動作する。
+
+@c @strong{Warning:} If you want to use your own string as an error message
+@c verbatim, don't just write @code{(error @var{string})}.  If @var{string}
+@c contains @samp{%}, it will be interpreted as a format specifier, with
+@c undesirable results.  Instead, use @code{(error "%s" @var{string})}.
+@strong{警告：}@code{ }
+独自のエラーメッセージをそのまま使いたい場合に、
+単に@code{(error @var{string})}とは書かないこと。
+@var{string}に@samp{%}が含まれていると、
+それは書式付け指定と解釈され、予測不能な結果を招く。
+そのかわりに、@code{(error "%s" @var{string})}を使う。
+@end defun
+
+@defun signal error-symbol data
+@c This function signals an error named by @var{error-symbol}.  The
+@c argument @var{data} is a list of additional Lisp objects relevant to the
+@c circumstances of the error.
+この関数は、@var{error-symbol}という名前のエラーを通知する。
+引数@var{data}は、エラーの状況に関連したLispオブジェクトのリストである。
+
+@c The argument @var{error-symbol} must be an @dfn{error symbol}---a symbol
+@c bearing a property @code{error-conditions} whose value is a list of
+@c condition names.  This is how Emacs Lisp classifies different sorts of
+@c errors.
+引数@var{error-symbol}は、@dfn{エラーシンボル}（error symbol）である
+必要がある。
+つまり、属性@code{error-conditions}を持つシンボルであり、
+その属性値は条件名のリストである。
+これにより、Emacsはエラーの異なる種類を分類する。
+
+@c The number and significance of the objects in @var{data} depends on
+@c @var{error-symbol}.  For example, with a @code{wrong-type-arg} error,
+@c there should be two objects in the list: a predicate that describes the type
+@c that was expected, and the object that failed to fit that type.
+@c @xref{Error Symbols}, for a description of error symbols.
+@var{data}のオブジェクトの個数と重要性は@var{error-symbol}に依存する。
+たとえば、エラー@code{wrong-type-arg}では、
+リストには2つのオブジェクトがあるはずで、
+予期した型を表す述語とその型に一致しなかったオブジェクトである。
+エラーシンボルの説明は、@pxref{Error Symbols}。
+
+@c Both @var{error-symbol} and @var{data} are available to any error
+@c handlers that handle the error: @code{condition-case} binds a local
+@c variable to a list of the form @code{(@var{error-symbol} .@:
+@c @var{data})} (@pxref{Handling Errors}).  If the error is not handled,
+@c these two values are used in printing the error message.
+@var{error-symbol}と@var{data}の両者は、
+任意のエラーハンドラで利用できる。
+@code{condition-case}は、ローカル変数に
+フォーム@code{(@var{error-symbol} .@: @var{data})}のリストを束縛する
+（@pxref{Handling Errors}）。
+エラーが処理されないと、これらの2つの値はエラーメッセージの表示に使われる。
+
+@c The function @code{signal} never returns (though in older Emacs versions
+@c it could sometimes return).
+関数@code{signal}はけっして戻らない
+（しかし、Emacsの古い版では戻る場合もある）。
+
+@smallexample
+@group
+(signal 'wrong-number-of-arguments '(x y))
+     @error{} Wrong number of arguments: x, y
+@end group
+
+@group
+(signal 'no-such-error '("My unknown error condition"))
+     @error{} peculiar error: "My unknown error condition"
+@end group
+@end smallexample
+@end defun
+
+@c @cindex CL note---no continuable errors
+@cindex CLに関した注意−−継続可能なエラーはない
+@quotation
+@c @b{Common Lisp note:} Emacs Lisp has nothing like the Common Lisp
+@c concept of continuable errors.
+@b{Common Lispに関した注意：}@code{ }
+Emacsには、Common lispの継続可能なエラーの概念に相当するものはない。
+@end quotation
+
+@node Processing of Errors
+@c @subsubsection How Emacs Processes Errors
+@subsubsection Emacsのエラー処理方法
+
+@c When an error is signaled, @code{signal} searches for an active
+@c @dfn{handler} for the error.  A handler is a sequence of Lisp
+@c expressions designated to be executed if an error happens in part of the
+@c Lisp program.  If the error has an applicable handler, the handler is
+@c executed, and control resumes following the handler.  The handler
+@c executes in the environment of the @code{condition-case} that
+@c established it; all functions called within that @code{condition-case}
+@c have already been exited, and the handler cannot return to them.
+エラーが通知されると、@code{signal}は、
+エラーに対する有効な@dfn{ハンドラ}（handler）を探します。
+ハンドラは、Lispプログラムの一部でエラーが発生した場合に
+実行されるように指定されたLisp式の列です。
+エラーに対して適用可能なハンドラがあると、
+そのハンドラが実行され、ハンドラに続いて制御は復旧します。
+ハンドラは、そのハンドラを設定した@code{condition-case}の環境で実行されます。
+@code{condition-case}の内側で呼び出された関数はすべて終了しているので、
+ハンドラからそれらへ戻ることはできません。
+
+@c If there is no applicable handler for the error, the current command is
+@c terminated and control returns to the editor command loop, because the
+@c command loop has an implicit handler for all kinds of errors.  The
+@c command loop's handler uses the error symbol and associated data to
+@c print an error message.
+エラーに適用可能なハンドラがなければ、
+現在のコマンドは終了し、制御はエディタコマンドループへ戻ります。
+というのは、コマンドループには、
+すべての種類のエラーに対する暗黙のハンドラがあるからです。
+コマンドループのハンドラは、エラーシンボルと関連するデータを使って
+エラーメッセージを表示します。
+
+@c @cindex @code{debug-on-error} use
+@cindex @code{debug-on-error}の利用
+@c An error that has no explicit handler may call the Lisp debugger.  The
+@c debugger is enabled if the variable @code{debug-on-error} (@pxref{Error
+@c Debugging}) is non-@code{nil}.  Unlike error handlers, the debugger runs
+@c in the environment of the error, so that you can examine values of
+@c variables precisely as they were at the time of the error.
+明示的なハンドラがないエラーは、Lispデバッガを呼び出すこともあります。
+変数@code{debug-on-error}（@pxref{Error Debugging}）が
+@code{nil}以外であると、デバッガが有効になります。
+エラーハンドラと違って、デバッガはエラーの環境で実行されるので、
+エラー時の変数の正確な値を調べることができます。
+
+@node Handling Errors
+@c @subsubsection Writing Code to Handle Errors
+@subsubsection エラーハンドラの書き方
+@c @cindex error handler
+@c @cindex handling errors
+@cindex エラーハンドラ
+@cindex エラーを処理する
+
+@c   The usual effect of signaling an error is to terminate the command
+@c that is running and return immediately to the Emacs editor command loop.
+@c You can arrange to trap errors occurring in a part of your program by
+@c establishing an error handler, with the special form
+@c @code{condition-case}.  A simple example looks like this:
+エラーを通知することの普通の効果は、
+実行中のコマンドを終了し、Emacsのエディタコマンドループにただちに戻ります。
+読者のプログラムの一部で発生したエラーを捕捉するようにするには、
+スペシャルフォーム@code{condition-case}を使ってエラーハンドラを設定します。
+単純な例はつぎのようになります。
+
+@example
+@group
+(condition-case nil
+    (delete-file filename)
+  (error nil))
+@end group
+@end example
+
+@noindent
+@c This deletes the file named @var{filename}, catching any error and
+@c returning @code{nil} if an error occurs.
+これは@var{filename}という名前のファイルを削除しますが、
+エラーが発生するとどんなエラーでも捕捉して@code{nil}を返します。
+
+@c   The second argument of @code{condition-case} is called the
+@c @dfn{protected form}.  (In the example above, the protected form is a
+@c call to @code{delete-file}.)  The error handlers go into effect when
+@c this form begins execution and are deactivated when this form returns.
+@c They remain in effect for all the intervening time.  In particular, they
+@c are in effect during the execution of functions called by this form, in
+@c their subroutines, and so on.  This is a good thing, since, strictly
+@c speaking, errors can be signaled only by Lisp primitives (including
+@c @code{signal} and @code{error}) called by the protected form, not by the
+@c protected form itself.
+@code{condition-case}の第2引数を
+@dfn{保護されたフォーム}（protected form）と呼びます。
+（上の例では、保護されたフォームは@code{delete-file}の呼び出し。）
+このフォームの実行を開始するとエラーハンドラが有効になり、
+このフォームから戻るとエラーハンドラは取り除かれます。
+そのあいだは、つねにエラーハンドラは有効です。
+特に、このフォームから呼び出される関数の実行中、
+それらのサブルーティンの実行中などには、エラーハンドラは有効です。
+これは大切なことで、厳密にいえば、
+エラーが通知されるのは、保護されたフォームから呼び出された
+（@code{signal}や@code{error}を含む）Lisp基本関数の実行中であって、
+保護されたフォームそのものからではないからです。
+
+@c   The arguments after the protected form are handlers.  Each handler
+@c lists one or more @dfn{condition names} (which are symbols) to specify
+@c which errors it will handle.  The error symbol specified when an error
+@c is signaled also defines a list of condition names.  A handler applies
+@c to an error if they have any condition names in common.  In the example
+@c above, there is one handler, and it specifies one condition name,
+@c @code{error}, which covers all errors.
+保護されたフォームのうしろにある引数は、ハンドラです。
+各ハンドラは1つ以上の（シンボルである）@dfn{条件名}
+（condition names）を列挙し、処理するエラーを指定します。
+エラーが通知されたときのエラーシンボルも条件名のリストを定義します。
+それらに共通の条件名があるとき、
+エラーハンドラがエラーに適用されます。
+上の例では、1つのハンドラがあり、条件名は1つ、@code{error}を指定しています。
+この条件名はすべてのエラーを意味します。
+
+@c   The search for an applicable handler checks all the established handlers
+@c starting with the most recently established one.  Thus, if two nested
+@c @code{condition-case} forms offer to handle the same error, the inner of
+@c the two will actually handle it.
+適用可能なハンドラの探索では、
+もっとも最近に確立されたハンドラから始めて、
+確立されたすべてのハンドラを調べます。
+したがって、フォーム@code{condition-case}が2つ入れ子になっていて
+同じ名前のハンドラを確立していると、内側のものが実際に処理を受け持ちます。
+
+@c   If an error is handled by some @code{condition-case} form, this
+@c ordinarily prevents the debugger from being run, even if
+@c @code{debug-on-error} says this error should invoke the debugger.
+@c @xref{Error Debugging}.  If you want to be able to debug errors that are
+@c caught by a @code{condition-case}, set the variable
+@c @code{debug-on-signal} to a non-@code{nil} value.
+フォーム@code{condition-case}でエラーが処理されるときには、
+@code{debug-on-error}でエラーによりデバッガを起動するように指定してあっても
+デバッガは実行されません。
+@xref{Error Debugging}。
+@code{condition-case}で捕捉されるエラーをデバッグしたいときには、
+変数@code{debug-on-signal}に@code{nil}以外の値を設定します。
+
+@c   When an error is handled, control returns to the handler.  Before this
+@c happens, Emacs unbinds all variable bindings made by binding constructs
+@c that are being exited and executes the cleanups of all
+@c @code{unwind-protect} forms that are exited.  Once control arrives at
+@c the handler, the body of the handler is executed.
+エラーを処理できる場合には、制御はハンドラに移ります。
+こうするまえに、Emacsは、抜け出し対象となる束縛作成構造が設定した
+すべての変数束縛を解き、抜け出し対象となるフォーム@code{unwind-protect}
+すべての後始末を実行します。
+ハンドラに制御が移ると、ハンドラの本体を実行します。
+
+@c   After execution of the handler body, execution returns from the
+@c @code{condition-case} form.  Because the protected form is exited
+@c completely before execution of the handler, the handler cannot resume
+@c execution at the point of the error, nor can it examine variable
+@c bindings that were made within the protected form.  All it can do is
+@c clean up and proceed.
+ハンドラ本体の実行を完了すると、
+フォーム@code{condition-case}から戻ります。
+ハンドラを実行するまえに保護されたフォームから完全に抜けているので、
+ハンドラでは、エラー発生時点から再開したり、
+保護されたフォームの内側で作られた変数束縛を調べたりすることはできません。
+ハンドラでできることは、後始末をして先へ進むことだけです。
+
+@c   The @code{condition-case} construct is often used to trap errors that
+@c are predictable, such as failure to open a file in a call to
+@c @code{insert-file-contents}.  It is also used to trap errors that are
+@c totally unpredictable, such as when the program evaluates an expression
+@c read from the user.
+@code{condition-case}構造は、@code{insert-file-contents}の呼び出しで
+ファイルのオープンに失敗するなどの予測可能なエラーを捕捉するために
+しばしば使われます。
+プログラムがユーザーから読み取った式を評価する場合のように、
+まったく予測不可能なエラーを捕捉するためにも使われます。
+
+@c   Error signaling and handling have some resemblance to @code{throw} and
+@c @code{catch}, but they are entirely separate facilities.  An error
+@c cannot be caught by a @code{catch}, and a @code{throw} cannot be handled
+@c by an error handler (though using @code{throw} when there is no suitable
+@c @code{catch} signals an error that can be handled).
+エラー通知とエラー処理は、@code{throw}と@code{catch}に多少似ていますが、
+それらはまったく別の機能です。
+@code{catch}ではエラーを捕捉できませんし、
+エラーハンドラでは@code{throw}を処理できません
+（しかしながら、適切な@code{catch}がない@code{throw}を使うと、
+処理できるエラーを通知する）。
+
+@defspec condition-case var protected-form handlers@dots{}
+@c This special form establishes the error handlers @var{handlers} around
+@c the execution of @var{protected-form}.  If @var{protected-form} executes
+@c without error, the value it returns becomes the value of the
+@c @code{condition-case} form; in this case, the @code{condition-case} has
+@c no effect.  The @code{condition-case} form makes a difference when an
+@c error occurs during @var{protected-form}.
+このスペシャルフォームは、@var{protected-form}の実行中は
+エラーハンドラ@var{handlers}を確立する。
+@var{protected-form}がエラーなしに完了すると、
+その戻り値がフォーム@code{condition-case}の値になる。
+この場合、@code{condition-case}はなんの効果もない。
+フォーム@code{condition-case}で違いがでるのは、
+@var{protected-form}の実行中にエラーが起こった場合である。
+
+@c Each of the @var{handlers} is a list of the form @code{(@var{conditions}
+@c @var{body}@dots{})}.  Here @var{conditions} is an error condition name
+@c to be handled, or a list of condition names; @var{body} is one or more
+@c Lisp expressions to be executed when this handler handles an error.
+@c Here are examples of handlers:
+各@var{handlers}は、@code{(@var{conditions} @var{body}@dots{})}の形式の
+リストである。
+ここで@var{conditions}は、処理すべきエラーの条件名か条件名のリストである。
+@var{body}は1つ以上のLisp式であり、
+このハンドラがエラーを処理するときに実行される。
+ハンドラの例を示す。
+
+@smallexample
+@group
+(error nil)
+
+(arith-error (message "Division by zero"))
+
+((arith-error file-error)
+ (message
+  "Either division by zero or failure to open a file"))
+@end group
+@end smallexample
+
+@c Each error that occurs has an @dfn{error symbol} that describes what
+@c kind of error it is.  The @code{error-conditions} property of this
+@c symbol is a list of condition names (@pxref{Error Symbols}).  Emacs
+@c searches all the active @code{condition-case} forms for a handler that
+@c specifies one or more of these condition names; the innermost matching
+@c @code{condition-case} handles the error.  Within this
+@c @code{condition-case}, the first applicable handler handles the error.
+生起する各エラーには、
+そのエラーの種類を表す@dfn{エラーシンボル}（error symbol）がある。
+そのシンボルの属性@code{error-conditions}は、
+条件名のリストである（@pxref{Error Symbols}）。
+Emacsは、有効なフォーム@code{condition-case}すべてを探索し、
+これらの条件名を1つ以上指定したハンドラを探す。
+もっとも内側の一致する@code{condition-case}がエラーを処理する。
+この@code{condition-case}の内側では、
+適用可能な最初のハンドラがエラーを処理する。
+
+@c After executing the body of the handler, the @code{condition-case}
+@c returns normally, using the value of the last form in the handler body
+@c as the overall value.
+ハンドラの本体の実行を完了すると、
+@code{condition-case}は通常のように戻り、
+ハンドラの本体の最後のフォームの値を全体としての値に使う。
+
+@c @cindex error description
+@cindex エラー記述
+@c The argument @var{var} is a variable.  @code{condition-case} does not
+@c bind this variable when executing the @var{protected-form}, only when it
+@c handles an error.  At that time, it binds @var{var} locally to an
+@c @dfn{error description}, which is a list giving the particulars of the
+@c error.  The error description has the form @code{(@var{error-symbol}
+@c . @var{data})}.  The handler can refer to this list to decide what to
+@c do.  For example, if the error is for failure opening a file, the file
+@c name is the second element of @var{data}---the third element of the
+@c error description.
+引数@var{var}は変数である。
+@code{condition-case}は、@var{protected-form}を実行するときには
+この変数を束縛せず、エラーを処理するときだけ束縛する。
+そのとき、@var{var}はローカルに@dfn{エラー記述}
+（error description）に束縛される。
+これは、エラーの詳細を与えるリストである。
+エラー記述は、@code{(@var{error-symbol} . @var{data})}の形式である。
+ハンドラは、動作を決定するためにこのリストを参照できる。
+たとえば、ファイルのオープンに失敗したエラーであれば、
+@var{data}の第2要素、エラー記述の第3要素がファイル名である。
+
+@c If @var{var} is @code{nil}, that means no variable is bound.  Then the
+@c error symbol and associated data are not available to the handler.
+@var{var}が@code{nil}であると、変数を束縛しなことを意味する。
+そうすると、ハンドラではエラーシンボルと関連するデータを使えない。
+@end defspec
+
+@defun error-message-string error-description
+@c This function returns the error message string for a given error
+@c descriptor.  It is useful if you want to handle an error by printing the
+@c usual error message for that error.
+この関数は、指定したエラー記述に対するエラーメッセージ文字列を返す。
+エラーに対する普通のエラーメッセージを表示して、
+エラーを処理したい場合に便利である。
+@end defun
+
+@c @cindex @code{arith-error} example
+@cindex @code{arith-error}の例
+@c Here is an example of using @code{condition-case} to handle the error
+@c that results from dividing by zero.  The handler displays the error
+@c message (but without a beep), then returns a very large number.
+ゼロ除算の結果であるエラーを処理する@code{condition-case}の使用例を示します。
+ハンドラはエラーメッセージを（ベルを鳴らさずに）表示して、
+大きな数を返します。
+
+@smallexample
+@group
+(defun safe-divide (dividend divisor)
+  (condition-case err                
+@c       ;; @r{Protected form.}
+      ;; @r{保護されたフォーム}
+      (/ dividend divisor)              
+@end group
+@group
+@c     ;; @r{The handler.}
+    ;; @r{ハンドラ}
+@c     (arith-error                        ; @r{Condition.}
+    (arith-error                        ; @r{条件}
+@c      ;; @r{Display the usual message for this error.}
+     ;; @r{このエラーに対する普通のメッセージを表示する}
+     (message "%s" (error-message-string err))
+     1000000)))
+@result{} safe-divide
+@end group
+
+@group
+(safe-divide 5 0)
+     @print{} Arithmetic error: (arith-error)
+@result{} 1000000
+@end group
+@end smallexample
+
+@noindent
+@c The handler specifies condition name @code{arith-error} so that it will handle only division-by-zero errors.  Other kinds of errors will not be handled, at least not by this @code{condition-case}.  Thus,
+ハンドラは条件名@code{arith-error}を指定しているので、
+ゼロ除算エラーだけを処理します。
+少なくともこの@code{condition-case}では他の種類のエラーは処理しません。
+したがって、つぎのようになります
+
+@smallexample
+@group
+(safe-divide nil 3)
+     @error{} Wrong type argument: number-or-marker-p, nil
+@end group
+@end smallexample
+
+@c   Here is a @code{condition-case} that catches all kinds of errors,
+@c including those signaled with @code{error}:
+以下は、@code{error}で通知されるエラーも含めて、
+すべての種類のエラーを捕捉する@code{condition-case}です。
+
+@smallexample
+@group
+(setq baz 34)
+     @result{} 34
+@end group
+
+@group
+(condition-case err
+    (if (eq baz 35)
+        t
+@c       ;; @r{This is a call to the function @code{error}.}
+      ;; @r{これは関数@code{error}の呼び出し}
+      (error "Rats!  The variable %s was %s, not 35" 'baz baz))
+@c   ;; @r{This is the handler; it is not a form.}
+  ;; @r{これはハンドラ。フォームではない}
+  (error (princ (format "The error was: %s" err)) 
+         2))
+@print{} The error was: (error "Rats!  The variable baz was 34, not 35")
+@result{} 2
+@end group
+@end smallexample
+
+@node Error Symbols
+@c @subsubsection Error Symbols and Condition Names
+@subsubsection エラーシンボルと条件名
+@c @cindex error symbol
+@c @cindex error name
+@c @cindex condition name
+@c @cindex user-defined error
+@cindex エラーシンボル
+@cindex エラー名
+@cindex 条件名
+@cindex ユーザー定義エラー
+@kindex error-conditions
+
+@c   When you signal an error, you specify an @dfn{error symbol} to specify
+@c the kind of error you have in mind.  Each error has one and only one
+@c error symbol to categorize it.  This is the finest classification of
+@c errors defined by the Emacs Lisp language.
+エラーを通知するときには、読者が意図するエラーの種類を指定する
+@dfn{エラーシンボル}（error symbol）を指定します。
+各エラーには、それを分類する一意な名前があります。
+これは、Emacs Lisp言語で定義されたエラーを細分類したものです。
+
+@c   These narrow classifications are grouped into a hierarchy of wider
+@c classes called @dfn{error conditions}, identified by @dfn{condition
+@c names}.  The narrowest such classes belong to the error symbols
+@c themselves: each error symbol is also a condition name.  There are also
+@c condition names for more extensive classes, up to the condition name
+@c @code{error} which takes in all kinds of errors.  Thus, each error has
+@c one or more condition names: @code{error}, the error symbol if that
+@c is distinct from @code{error}, and perhaps some intermediate
+@c classifications.
+これらの細分類は、@dfn{エラー条件}（error conditions）と呼ばれる
+より大きなクラスの階層にまとめられています。
+エラー条件は、@dfn{条件名}（condition names）で識別します。
+もっとも細かい分類は、エラーシンボルそのものです。
+各エラーシンボルは条件名でもあります。
+より大きなクラスを表す条件名@code{error}もあります。
+これはすべての種類のエラーを表します。
+したがって、各エラーには、1つ以上の条件名があります。
+つまり、@code{error}、@code{error}とは別のエラーシンボル、あるいは、
+その中間の分類に属するものです。
+
+@c   In order for a symbol to be an error symbol, it must have an
+@c @code{error-conditions} property which gives a list of condition names.
+@c This list defines the conditions that this kind of error belongs to.
+@c (The error symbol itself, and the symbol @code{error}, should always be
+@c members of this list.)  Thus, the hierarchy of condition names is
+@c defined by the @code{error-conditions} properties of the error symbols.
+あるシンボルがエラーシンボルであるためには、そのシンボルには、
+条件名のリストを与える属性@code{error-conditions}があることが必要です。
+このリストは、そのエラーが属するエラー条件を定義します。
+（エラーシンボルそのものと、シンボル@code{error}は、
+つねにこのリストの要素であること。）
+したがって、条件名の階層は、
+エラーシンボルの属性@code{error-conditions}で定義されます。
+
+@c   In addition to the @code{error-conditions} list, the error symbol
+@c should have an @code{error-message} property whose value is a string to
+@c be printed when that error is signaled but not handled.  If the
+@c @code{error-message} property exists, but is not a string, the error
+@c message @samp{peculiar error} is used.
+@c @cindex peculiar error
+@code{error-conditions}リストに加えて、
+エラーシンボルには、属性@code{error-message}も必要です。
+この属性の値は、そのエラーが処理されないときに表示される文字列です。
+属性@code{error-message}があるのに、それが文字列でなければ、
+エラーメッセージ@samp{peculiar error}を使います。
+@cindex peculiarエラー
+@cindex エラーpeculiar
+
+@c   Here is how we define a new error symbol, @code{new-error}:
+以下に、新たなエラーシンボル@code{new-error}の定義方法を示します。
+
+@example
+@group
+(put 'new-error
+     'error-conditions
+     '(error my-own-errors new-error))       
+@result{} (error my-own-errors new-error)
+@end group
+@group
+(put 'new-error 'error-message "A new error")
+@result{} "A new error"
+@end group
+@end example
+
+@noindent
+@c This error has three condition names: @code{new-error}, the narrowest
+@c classification; @code{my-own-errors}, which we imagine is a wider
+@c classification; and @code{error}, which is the widest of all.
+このエラーには、3つの条件名があります。
+もっとも細かい分類である@code{new-error}、
+それより大きな分類とであると考えている@code{my-own-error}、
+もっとも大きな分類である@code{error}です。
+
+@c   The error string should start with a capital letter but it should
+@c not end with a period.  This is for consistency with the rest of Emacs.
+エラー文字列は大文字で始めるべきですが、ピリオドで終えません。
+これは、Emacsの他の慣習と整合をとるためです。
+ 
+@c   Naturally, Emacs will never signal @code{new-error} on its own; only
+@c an explicit call to @code{signal} (@pxref{Signaling Errors}) in your
+@c code can do this:
+普通、Emacs自身が@code{new-error}を通知することはありえません。
+つぎのように、読者のコードで明示的に
+@code{signal}（@pxref{Signaling Errors}）を呼んだときだけです。
+
+@example
+@group
+(signal 'new-error '(x y))
+     @error{} A new error: x, y
+@end group
+@end example
+
+@c   This error can be handled through any of the three condition names.
+@c This example handles @code{new-error} and any other errors in the class
+@c @code{my-own-errors}:
+このエラーは、3つの条件名のどれでも処理できます。
+つぎの例は、@code{new-error}と
+クラス@code{my-own-errors}の任意の他のエラーを処理します。
+
+@example
+@group
+(condition-case foo
+    (bar nil t)
+  (my-own-errors nil))
+@end group
+@end example
+
+@c   The significant way that errors are classified is by their condition
+@c names---the names used to match errors with handlers.  An error symbol
+@c serves only as a convenient way to specify the intended error message
+@c and list of condition names.  It would be cumbersome to give
+@c @code{signal} a list of condition names rather than one error symbol.
+エラーを分類する重要な方法は、それらの条件名によることです。
+つまり、エラーに一致するハンドラを探すために条件名を使います。
+エラーシンボルは、意図したエラーメッセージと条件名のリストを指定する
+簡便な方法を提供するだけです。
+@code{signal}に、1つのエラーシンボルではなく、
+条件名のリストを指定するのではわずらわしいでしょう。
+
+@c   By contrast, using only error symbols without condition names would
+@c seriously decrease the power of @code{condition-case}.  Condition names
+@c make it possible to categorize errors at various levels of generality
+@c when you write an error handler.  Using error symbols alone would
+@c eliminate all but the narrowest level of classification.
+一方、条件名なしにエラーシンボルだけを使うのでは、
+@code{condition-case}の能力をいちじるしく損ないます。
+条件名があることで、エラーハンドラを書くときにさまざまなレベルに
+一般化してエラーを分類できるのです。
+エラーシンボルだけを使ったのでは、
+最細分類以外のレベルを削除してしまうことになります。
+
+@c   @xref{Standard Errors}, for a list of all the standard error symbols
+@c and their conditions.
+すべての標準エラー名とそれらの条件名については、
+@xref{Standard Errors}。
+
+@node Cleanups
+@c @subsection Cleaning Up from Nonlocal Exits
+@subsection 非ローカル脱出時の後始末
+
+@c   The @code{unwind-protect} construct is essential whenever you
+@c temporarily put a data structure in an inconsistent state; it permits
+@c you to make the data consistent again in the event of an error or throw.
+@code{unwind-protect}構造は、データ構造を一時的に整合性のない状態に
+するときには本質的です。
+この構造により、エラーや非ローカル脱出が起こったときに、
+データの整合性を回復できます。
+
+@defspec unwind-protect body cleanup-forms@dots{}
+@c @cindex cleanup forms
+@c @cindex protected forms
+@c @cindex error cleanup
+@c @cindex unwinding
+@cindex 後始末フォーム
+@cindex 保護されたフォーム
+@cindex エラーの後始末
+@c @code{unwind-protect} executes the @var{body} with a guarantee that the
+@c @var{cleanup-forms} will be evaluated if control leaves @var{body}, no
+@c matter how that happens.  The @var{body} may complete normally, or
+@c execute a @code{throw} out of the @code{unwind-protect}, or cause an
+@c error; in all cases, the @var{cleanup-forms} will be evaluated.
+@code{unwind-protect}は、@var{body}からどのように制御が離れた場合にも
+@var{cleanup-forms}の実行を保証して、@var{body}を実行する。
+@var{body}は通常どおり完了するか、
+@code{throw}を実行して@code{unwind-protect}から脱出するか、
+エラーを引き起こす。
+いずれの場合でも、@var{cleanup-forms}は評価される。
+
+@c If the @var{body} forms finish normally, @code{unwind-protect} returns
+@c the value of the last @var{body} form, after it evaluates the
+@c @var{cleanup-forms}.  If the @var{body} forms do not finish,
+@c @code{unwind-protect} does not return any value in the normal sense.
+フォーム@var{body}が正常に終了すると、
+@code{unwind-protect}は、@var{cleanup-forms}を評価したあとに、
+フォーム@var{body}の最後の値を返す。
+フォーム@var{body}が完了しなかった場合、
+@code{unwind-protect}は普通の意味での値は返さない。
+
+@c Only the @var{body} is actually protected by the @code{unwind-protect}.
+@c If any of the @var{cleanup-forms} themselves exits nonlocally (e.g., via
+@c a @code{throw} or an error), @code{unwind-protect} is @emph{not}
+@c guaranteed to evaluate the rest of them.  If the failure of one of the
+@c @var{cleanup-forms} has the potential to cause trouble, then protect it
+@c with another @code{unwind-protect} around that form.
+@code{unwind-protect}が保護するのは@var{body}だけである。
+@var{cleanup-forms}そのもののどれかが（@code{throw}やエラーで）
+非ローカル脱出を行うと、@code{unwind-protect}は、
+@var{cleanup-forms}の残りを評価することを保証@emph{しない}。
+@var{cleanup-forms}のどれかが失敗するとトラブルになる危険性がある場合には、
+@var{cleanup-forms}を別の@code{unwind-protect}で保護する。
+
+@c The number of currently active @code{unwind-protect} forms counts,
+@c together with the number of local variable bindings, against the limit
+@c @code{max-specpdl-size} (@pxref{Local Variables}).
+フォーム@code{unwind-protect}の現在の入れ子の個数は、
+ローカル変数束縛の個数とともに数えられ、
+@code{max-specpdl-size}に制限されている（@pxref{Local Variables}）。
+@end defspec
+
+@c   For example, here we make an invisible buffer for temporary use, and
+@c make sure to kill it before finishing:
+たとえば、表示しないバッファを一時的に作成し、
+終了前に確実にそれを消去したいとしましょう。
+
+@smallexample
+@group
+(save-excursion
+  (let ((buffer (get-buffer-create " *temp*")))
+    (set-buffer buffer)
+    (unwind-protect
+        @var{body}
+      (kill-buffer buffer))))
+@end group
+@end smallexample
+
+@noindent
+@c You might think that we could just as well write @code{(kill-buffer
+@c (current-buffer))} and dispense with the variable @code{buffer}.
+@c However, the way shown above is safer, if @var{body} happens to get an
+@c error after switching to a different buffer!  (Alternatively, you could
+@c write another @code{save-excursion} around the body, to ensure that the
+@c temporary buffer becomes current again in time to kill it.)
+変数@code{buffer}を使わずに@code{(kill-buffer (current-buffer))}と
+書くだけで十分だと考えるかもしれません。
+しかし、別のバッファに切り替えたあとで@var{body}でエラーが発生した場合には、
+上の方法はより安全です。
+（あるいは、@var{body}の周りに別の@code{save-excursion}を書いて、
+一時バッファを消去するときに、それがカレントバッファになることを
+保証する。）
+
+@c   Emacs includes a standard macro called @code{with-temp-buffer} which
+@c expands into more or less the code shown above (@pxref{Current Buffer}).
+@c Several of the macros defined in this manual use @code{unwind-protect}
+@c in this way.
+Emacsには、上のようなコードに展開される@code{with-temp-buffer}という
+標準マクロがあります（@pxref{Current Buffer}）。
+本書で定義しているマクロのいくつかでは、
+このように@code{unwind-protect}を使っています。
+
+@findex ftp-login
+@c   Here is an actual example taken from the file @file{ftp.el}.  It
+@c creates a process (@pxref{Processes}) to try to establish a connection
+@c to a remote machine.  As the function @code{ftp-login} is highly
+@c susceptible to numerous problems that the writer of the function cannot
+@c anticipate, it is protected with a form that guarantees deletion of the
+@c process in the event of failure.  Otherwise, Emacs might fill up with
+@c useless subprocesses.
+ファイル@file{ftp.el}から持ってきた実際の例を示しましょう。
+リモートの計算機への接続を確立するプロセス（@pxref{Processes}）を作ります。
+関数@code{ftp-login}は、その関数の作成者が予想できないほどの
+数多くの問題に対してとても敏感ですから、
+失敗したときにプロセスを消去することを保証するフォームで保護します。
+さもないと、Emacsは、無用なサブプロセスで満たされてしまいます。
+
+@smallexample
+@group
+(let ((win nil))
+  (unwind-protect
+      (progn
+        (setq process (ftp-setup-buffer host file))
+        (if (setq win (ftp-login process host user password))
+            (message "Logged in")
+          (error "Ftp login failed")))
+    (or win (and process (delete-process process)))))
+@end group
+@end smallexample
+
+@c   This example actually has a small bug: if the user types @kbd{C-g} to
+@c quit, and the quit happens immediately after the function
+@c @code{ftp-setup-buffer} returns but before the variable @code{process} is
+@c set, the process will not be killed.  There is no easy way to fix this bug,
+@c but at least it is very unlikely.
+この例には、小さなバグが1つあります。
+ユーザーが@kbd{C-g}を打って中断しようとして、かつ、
+関数@code{ftp-setup-buffer}の終了後に
+変数@code{process}を設定するまえに実際に中断が行われると、
+プロセスは消去されません。
+このバグを直す簡単な方法はありませんが、
+少なくとも、ほとんど起こりえません。

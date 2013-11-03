@@ -1,0 +1,1647 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/intro
+
+@c =============================================================
+@c = <using 引地さんが管理するGPLの日本語訳>
+@c =============================================================
+@node Copying, Introduction, Top, Top
+@comment  node-name,  next,  previous,  up
+@c @unnumbered GNU GENERAL PUBLIC LICENSE
+@c @center Version 2, June 1991
+@unnumbered GNU一般公有使用許諾書
+@center 1991年6月 バージョン2.0 
+
+@display
+Copyright @copyright{} 1989, 1991 Free Software Foundation, Inc.
+@c 59 Temple Place, Suite 330, Boston, MA 02111, USA
+675 Mass Ave, Cambridge, MA 02139, USA @footnote{【注意】
+現在、このバージョン2の発行者(FSF)住所は、正式に新しい住所の @*
+　59 Temple Place, Suite 330, Boston, MA 02111-1307, USA @*
+に変わっている。}
+@ifinfo
+【注意】 現在、このバージョン2の発行者(FSF)住所は、正式に新しい住所の
+59 Temple Place - Suite 330, Boston, MA 02111-1307, USA に変わっている。
+@end ifinfo
+
+@c Everyone is permitted to copy and distribute verbatim copies
+@c of this license document, but changing it is not allowed.
+何人も、以下の内容を変更しないでそのまま複写する場合に限り、
+本使用許諾書を複製したり頒布することができます。
+@end display
+
+@c @unnumberedsec Preamble
+@unnumberedsec はじめに
+
+@c   The licenses for most software are designed to take away your
+@c freedom to share and change it.  By contrast, the GNU General Public
+@c License is intended to guarantee your freedom to share and change free
+@c software---to make sure the software is free for all its users.  This
+@c General Public License applies to most of the Free Software
+@c Foundation's software and to any other program whose authors commit to
+@c using it.  (Some other Free Software Foundation software is covered by
+@c the GNU Library General Public License instead.)  You can apply it to
+@c your programs, too.
+ ほとんどのソフトウェアの使用許諾は、ソフトウェアを共有し、
+変更するユーザの自由を奪うことを意図しています。
+それに対して、我々のGNU一般公有使用許諾は、
+フリー・ソフトウェアを共有したり変更する自由をユーザに保証するためのもの、
+即ちフリー・ソフトウェアがそのユーザ全てにとって
+フリーであることを保証するためのものです。
+本使用許諾は、Free Software Foundationのほとんど全てのソフトウェアに
+適用されるだけでなく、
+プログラムの作成者が本使用許諾に依るとした場合のそのプログラムにも
+適用することができます。
+（その他の Free Software Foundation のソフトウェアのいくつかは、
+本許諾書ではなく、GNUライブラリ一般公有使用許諾で保護されます。）
+あなたは自分のプログラムにもこれを適用できます。
+
+@c   When we speak of free software, we are referring to freedom, not
+@c price.  Our General Public Licenses are designed to make sure that you
+@c have the freedom to distribute copies of free software (and charge for
+@c this service if you wish), that you receive source code or can get it
+@c if you want it, that you can change the software or use pieces of it
+@c in new free programs; and that you know you can do these things.
+ 我々がフリー・ソフトウェアについて言う場合は
+自由のことに言及しているのであって、価格のことではありません。
+我々の一般公有使用許諾の各条項は、次の事柄を確実に実現することを
+目的として立案されています。
+@itemize @bullet
+@item
+フリー・ソフトウェアの複製物を自由に頒布できること
+（そして、望むならあなたのこのサービスに対して対価を請求できること）。
+@item
+ソース・コードを実際に受け取るか、あるいは、
+希望しさえすればそれを入手することが可能であること。
+@item
+入手したソフトウェアを変更したり、
+新しいフリー・プログラムの一部として使用できること。
+@item
+以上の各内容を行なうことができるということをユーザ自身が知っていること。
+@end itemize
+
+@c   To protect your rights, we need to make restrictions that forbid
+@c anyone to deny you these rights or to ask you to surrender the rights.
+@c These restrictions translate to certain responsibilities for you if you
+@c distribute copies of the software, or if you modify it.
+ このようなユーザの権利を守るために、我々は、
+何人もこれらの権利を否定したり、あるいは放棄するように
+ユーザに求めることはできないという制限条項を設ける必要があります。
+これらの制限条項は、ユーザが、フリー・ソフトウェアの複製物を
+頒布したり変更しようとする場合には、そのユーザ自身が守るべき義務ともなります。
+
+@c   For example, if you distribute copies of such a program, whether
+@c gratis or for a fee, you must give the recipients all the rights that
+@c you have.  You must make sure that they, too, receive or can get the
+@c source code.  And you must show them these terms so they know their
+@c rights.
+ 例えば、あなたがフリー・ソフトウェアの複製物を頒布する場合、
+有償か無償かにかかわらず、
+あなたは自分の持っている権利を全て相手に与えなければなりません。
+あなたは、相手もまたソース・コードを受け取ったり入手できるということを
+認めなければなりません。
+さらにあなたは、彼らが自分たちの権利を知るように、
+これらの条項を知らしめなければなりません。
+
+@c   We protect your rights with two steps: (1) copyright the software, and
+@c (2) offer you this license which gives you legal permission to copy,
+@c distribute and/or modify the software.
+　我々は次の２つの方法でユーザの権利を守ります。
+（１）ソフトウェアに著作権を主張し、
+（２）本使用許諾の条項の下で
+ソフトウェアを複製・頒布・変更する権利をユーザに与えます。
+
+@c   Also, for each author's protection and ours, we want to make certain
+@c that everyone understands that there is no warranty for this free
+@c software.  If the software is modified by someone else and passed on, we
+@c want its recipients to know that what they have is not the original, so
+@c that any problems introduced by others will not reflect on the original
+@c authors' reputations.
+ また、各作成者や我々自身を守るために、
+本フリー・ソフトウェアが無保証であることを
+全ての人々が了解している必要があります。
+さらに、他の誰かによって変更されたソフトウェアが頒布された場合、
+受領者はそのソフトウェアがオリジナル・バージョンではないということを
+知らされる必要があります。
+それは、他人の関与によって原開発者に対する評価が
+影響されないようにするためです。
+
+@c   Finally, any free program is threatened constantly by software
+@c patents.  We wish to avoid the danger that redistributors of a free
+@c program will individually obtain patent licenses, in effect making the
+@c program proprietary.  To prevent this, we have made it clear that any
+@c patent must be licensed for everyone's free use or not licensed at all.
+ 最後に、どのフリー・プログラムもソフトウェア特許に絶えず脅かされています。
+我々は、フリー・プログラムの再頒布者が個人的に特許権を取得し、
+事実上そのプログラムを自分の財産にしてしまうという危険を
+避けたいと願っています。
+これを防ぐために我々は、いずれの特許も、
+誰でも自由に使用できるように使用許諾されるべきか、
+あるいは何人に対しても全く使用させないかの、
+いずれかにすべきであることを明らかにしてきました。
+
+@c   The precise terms and conditions for copying, distribution and
+@c modification follow.
+ 複写・頒布・変更に対する正確な条項と条件を次に示します。
+
+@iftex
+@c @unnumberedsec TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+@unnumberedsec GNU一般公有使用許諾の下での複製、頒布、変更に関する条項と条件
+@end iftex
+@ifinfo
+@c @center TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+@center GNU一般公有使用許諾の下での複製、頒布、変更に関する条項と条件
+@end ifinfo
+
+@enumerate 1
+@item
+@c This License applies to any program or other work which contains
+@c a notice placed by the copyright holder saying it may be distributed
+@c under the terms of this General Public License.  The ``Program'', below,
+@c refers to any such program or work, and a ``work based on the Program''
+@c means either the Program or any derivative work under copyright law:
+@c that is to say, a work containing the Program or a portion of it,
+@c either verbatim or with modifications and/or translated into another
+@c language.  (Hereinafter, translation is included without limitation in
+@c the term ``modification''.)  Each licensee is addressed as ``you''.
+本使用許諾は、本一般公有使用許諾の各条項に従って頒布されるという
+著作権者からの告知文が表示されているプログラムやその他の作成物に適用されます。
+以下において「プログラム」とは、そのようなプログラムや作成物を指すものとし、
+また、「プログラム生成物」とは、上述した「プログラム」自身、または、
+著作権法下における全ての派生物；すなわち、その「プログラム」の全部又は一部を、
+そのまま又は変更して、且つ／又は他の言語に変換して、
+内部に組み込んだ作成物を意味します。
+（以下、言語変換は「変更」という用語の中に無条件に含まれるものとします。）
+本使用許諾によって許諾を受ける者を「あなた」と呼びます。　
+
+@c Activities other than copying, distribution and modification are not
+@c covered by this License; they are outside its scope.  The act of
+@c running the Program is not restricted, and the output from the Program
+@c is covered only if its contents constitute a work based on the
+@c Program (independent of having been made by running the Program).
+@c Whether that is true depends on what the Program does.
+複製、頒布、変更以外の行為は本使用許諾の対象としません。
+それらは本使用許諾の範囲外です。
+「プログラム」を実行させる行為に関して制約はありません。
+「プログラム」の出力は、
+（「プログラム」を実行させて作成させたかどうかとは無関係に）
+その内容が「プログラム生成物」である場合に限り本使用許諾の対象となります。
+これが当てはまるかどうかは、「プログラム」が何をするものかに依ります。
+
+@item
+@c You may copy and distribute verbatim copies of the Program's
+@c source code as you receive it, in any medium, provided that you
+@c conspicuously and appropriately publish on each copy an appropriate
+@c copyright notice and disclaimer of warranty; keep intact all the
+@c notices that refer to this License and to the absence of any warranty;
+@c and give any other recipients of the Program a copy of this License
+@c along with the Program.
+あなたは、どのような媒体上へ複製しようとする場合であっても、
+入手した「プログラム」のソース・コードを
+そのままの内容で複写した上で適正な著作権表示と保証の放棄を明確、
+且つ適正に付記する場合に限り、複製又は頒布することができます。
+その場合、本使用許諾及び無保証に関する記載部分は、
+全て元のままの形で表示してください。
+また、「プログラム」の頒布先に対しては、
+「プログラム」と共に本使用許諾書の写しを渡してください。
+
+@c You may charge a fee for the physical act of transferring a copy, and
+@c you may at your option offer warranty protection in exchange for a fee.
+複製物の引き渡しに要する実費は請求することができます。
+また、あなた独自の保証を行なう場合はそれを有償とすることができます。
+
+@item
+@c You may modify your copy or copies of the Program or any portion
+@c of it, thus forming a work based on the Program, and copy and
+@c distribute such modifications or work under the terms of Section 1
+@c above, provided that you also meet all of these conditions:
+次の各条件を全て満たしている限り、あなたは、
+「プログラム」又はその一部分を変更して「プログラム生成物」とすることができ、
+さらに、変更版や右作成物を上記第２項に従って複製又は頒布することもできます。
+
+@enumerate a
+@item
+@c You must cause the modified files to carry prominent notices
+@c stating that you changed the files and the date of any change.
+ファイルを変更した旨とその変更日とを、変更したファイル上に明確に表示すること。
+
+@item
+@c You must cause any work that you distribute or publish, that in
+@c whole or in part contains or is derived from the Program or any
+@c part thereof, to be licensed as a whole at no charge to all third
+@c parties under the terms of this License.
+変更したか否かを問わず、凡そ「プログラム」
+又はその一部分を内部に組み込んでいるか
+又はそれから派生した生成物を頒布する場合には、
+その全体を本使用許諾の条項に従って第三者へ無償で使用許諾すること。
+
+@item
+@c If the modified program normally reads commands interactively
+@c when run, you must cause it, when started running for such
+@c interactive use in the most ordinary way, to print or display an
+@c announcement including an appropriate copyright notice and a
+@c notice that there is no warranty (or else, saying that you provide
+@c a warranty) and that users may redistribute the program under
+@c these conditions, and telling the user how to view a copy of this
+@c License.  (Exception: if the Program itself is interactive but
+@c does not normally print such an announcement, your work based on
+@c the Program is not required to print an announcement.)
+変更したプログラムが実行時に通常の対話的な方法で
+コマンドを読むようになっているとすれば、
+最も普通の方法で対話的にそのプログラムを実行する時に、
+次の内容を示す文言がプリンタへ印字されるか、或いは画面に表示されること。
+@itemize @bullet
+@item
+適切な著作権表示。
+@item
+無保証であること（あなたが独自に保証する場合は、その旨）。
+@item
+頒布を受ける者も、
+本使用許諾と同一の条項に従って「プログラム」を再頒布できること。
+@item
+頒布を受ける者が本使用許諾書の写しを参照する方法。
+（例外として、「プログラム」自体は対話的であっても起動時の文言を
+通常は印字しないのならば、
+あなたの「プログラム生成物」はこのような文言を印字する必要はありません。）
+@end itemize
+@end enumerate
+
+@c These requirements apply to the modified work as a whole.  If
+@c identifiable sections of that work are not derived from the Program,
+@c and can be reasonably considered independent and separate works in
+@c themselves, then this License, and its terms, do not apply to those
+@c sections when you distribute them as separate works.  But when you
+@c distribute the same sections as part of a whole which is a work based
+@c on the Program, the distribution of the whole must be on the terms of
+@c this License, whose permissions for other licensees extend to the
+@c entire whole, and thus to each and every part regardless of who wrote it.
+これらの要件は変更された作成物にも全て適用されます。
+その変更版の或る部分が「プログラム」の派生物ではなく、
+しかもそれ自体独立で異なる作成物だと合理的に考えられる場合、
+あなたがそれらを別の作成物として頒布した時は、
+本使用許諾とその条項はそれらの部分には適用されません。
+しかし、それらを「プログラム生成物」の一部として頒布する場合は、
+全体が本使用許諾の条項に従って頒布されなければならず、
+使用許諾を受ける他の全ての者に対する許諾も
+プログラム全体にわたって与えられなければならず、
+結果として、誰が書いたかにかかわらず、
+全ての部分に本使用許諾が適用されなければなりません。
+
+@c Thus, it is not the intent of this section to claim rights or contest
+@c your rights to work written entirely by you; rather, the intent is to
+@c exercise the right to control the distribution of derivative or
+@c collective works based on the Program.
+このように、本条項の意図するところは、
+完全にあなたによって書かれた作成物について、権利を要求したり、
+あなたと権利関係を争うことではありません。
+むしろその目的は、作成物が「プログラム生成物」
+である場合にその派生物や集合物の頒布を規制することにあります。
+
+@c In addition, mere aggregation of another work not based on the Program
+@c with the Program (or with a work based on the Program) on a volume of
+@c a storage or distribution medium does not bring the other work under
+@c the scope of this License.
+さらに、「プログラム」（又は「プログラム生成物」）と
+「プログラム生成物」とはならない他のプログラムとを、
+単に保管や頒布のために同一の媒体上にまとめて記録したとしても、
+本使用許諾は他のプログラムには適用されません。
+
+@item
+@c You may copy and distribute the Program (or a work based on it,
+@c under Section 2) in object code or executable form under the terms of
+@c Sections 1 and 2 above provided that you also do one of the following:
+あなたは、以下のうちいずれか１つを満たす限り、
+上記第２項及び第３項に従って「プログラム」
+（又は、上記第３項で言及している「プログラム生成物」）を
+オブジェクト・コード又は実行可能な形式で複製及び頒布することができます。
+
+@enumerate a
+@item
+@c Accompany it with the complete corresponding machine-readable
+@c source code, which must be distributed under the terms of Sections
+@c 1 and 2 above on a medium customarily used for software interchange; or,
+対応する機械読み取り可能なソース・コード一式を一緒に引き渡すこと。
+その場合、そのソース・コードの引き渡しは上記第２項及び第３項に従って、
+通常ソフトウェアの交換に用いられる媒体で行なわれること。
+
+@item
+@c Accompany it with a written offer, valid for at least three
+@c years, to give any third party, for a charge no more than your
+@c cost of physically performing source distribution, a complete
+@c machine-readable copy of the corresponding source code, to be
+@c distributed under the terms of Sections 1 and 2 above on a medium
+@c customarily used for software interchange; or,
+少なくとも３年間の有効期間を定め、
+且つその期間内であれば対応する機械読み取り可能なソース・コード一式の複製を、
+ソース頒布に関わる実費以上の対価を要求せずに提供する旨、
+及びその場合には上記第２項及び第３項に従って、
+通常ソフトウェアの交換に用いられる媒体で提供される旨を記載した書面を、
+第三者に一緒に引き渡すこと。
+
+@item
+@c Accompany it with the information you received as to the offer
+@c to distribute corresponding source code.  (This alternative is
+@c allowed only for noncommercial distribution and only if you
+@c received the program in object code or executable form with such
+@c an offer, in accord with Subsection b above.)
+対応するソース・コード頒布の申し出に際して、
+あなたが得た情報を一緒に引き渡すこと。
+（この選択肢は、営利を目的としない頒布であって、
+且つあなたが上記の（ｂ）項に基づいて、
+オブジェクト・コード或いは実行可能形式の
+プログラムしか入手していない場合に限り適用される選択項目です。）
+@end enumerate
+
+@c The source code for a work means the preferred form of the work for
+@c making modifications to it.  For an executable work, complete source
+@c code means all the source code for all modules it contains, plus any
+@c associated interface definition files, plus the scripts used to
+@c control compilation and installation of the executable.  However, as a
+@c special exception, the source code distributed need not include
+@c anything that is normally distributed (in either source or binary
+@c form) with the major components (compiler, kernel, and so on) of the
+@c operating system on which the executable runs, unless that component
+@c itself accompanies the executable.
+なお、ソース・コードとは、変更作業に適した記述形式を指します。
+また、実行可能形式のファイルに対応するソース・コード一式とは、
+それに含まれる全モジュールに対応する全てのソース・コード、
+及びあらゆる関連のインタフェース定義ファイル、
+及び実行を可能にするコンパイルとインストールの制御に関する記述を指します。
+特別な例外として、実行可能なファイルが動作するオペレーティング・システムの
+主要な構成要素（コンパイラ、カーネルなど）と共に
+（ソース・コード又はバイナリのどちらかで）頒布されているものについては、
+その構成要素自体が実行形式に付随していない場合に限り、
+頒布されるソース・コードに含める必要はありません。
+
+@c If distribution of executable or object code is made by offering
+@c access to copy from a designated place, then offering equivalent
+@c access to copy the source code from the same place counts as
+@c distribution of the source code, even though third parties are not
+@c compelled to copy the source along with the object code.
+実行可能形式またはオブジェクト・コードの頒布が、
+指示された場所からの複製のためのアクセス権の賦与である場合、
+同じ場所からのソース・コードの複製のための同等なアクセス権を賦与すれば、
+たとえ第三者にオブジェクト・コードと共にソースの複製を強いなくとも、
+ソース・コードを頒布したものとみなします。
+
+@item
+@c You may not copy, modify, sublicense, or distribute the Program
+@c except as expressly provided under this License.  Any attempt
+@c otherwise to copy, modify, sublicense or distribute the Program is
+@c void, and will automatically terminate your rights under this License.
+@c However, parties who have received copies, or rights, from you under
+@c this License will not have their licenses terminated so long as such
+@c parties remain in full compliance.
+本使用許諾が明示的に許諾している場合を除き、あなたは、
+「プログラム」を複製、変更、サブライセンス、頒布することができません。
+本使用許諾に従わずに「プログラム」を複製、変更、サブライセンス、
+頒布しようとする行為は、それ自体が無効であり、且つ、
+本使用許諾があなたに許諾している「プログラム」の権利を自動的に消滅させます。
+その場合、本使用許諾に従ってあなたから複製物やその権利を得ている第三者は、
+本使用許諾に完全に従っている場合に限り、
+引続き有効な使用権限を持つものとします。
+
+@item
+@c You are not required to accept this License, since you have not
+@c signed it.  However, nothing else grants you permission to modify or
+@c distribute the Program or its derivative works.  These actions are
+@c prohibited by law if you do not accept this License.  Therefore, by
+@c modifying or distributing the Program (or any work based on the
+@c Program), you indicate your acceptance of this License to do so, and
+@c all its terms and conditions for copying, distributing or modifying
+@c the Program or works based on it.
+あなたはまだ同意の印として署名していないので、
+本使用許諾を受け入れる必要はありません。
+しかし、あなたに「プログラム」又はその派生物を変更又は再頒布する許可を
+与えるものは本使用許諾以外にはありません。
+これらの行為は、あなたがもし本使用許諾を受け入れないのであれば、
+法律によって禁じられます。
+従って、あなたが「プログラム」（又は「プログラム生成物」）の変更又は頒布を
+行えば、それ自体であなたは本使用許諾を受け入れ、且つ、
+「プログラム」又はその「プログラム生成物」の複製、頒布、変更に
+関するこれらの条項と条件の全てを受け入れたことを示します。
+
+@item
+@c Each time you redistribute the Program (or any work based on the
+@c Program), the recipient automatically receives a license from the
+@c original licensor to copy, distribute or modify the Program subject to
+@c these terms and conditions.  You may not impose any further
+@c restrictions on the recipients' exercise of the rights granted herein.
+@c You are not responsible for enforcing compliance by third parties to
+@c this License.
+あなたが「プログラム」（又はその「プログラム生成物」）を再頒布すると自動的に、
+その受領者は、元の使用許諾者から、本使用許諾の条項に従って「プログラム」を
+複製、頒布、変更することを内容とする使用許諾を受けたものとします。
+あなたは、受領者に許諾された権利の行使について、
+さらに制約を加えることはできません。
+あなたには、第三者に本使用許諾の受け入れを強いる責任はありません。
+
+@item
+@c If, as a consequence of a court judgment or allegation of patent
+@c infringement or for any other reason (not limited to patent issues),
+@c conditions are imposed on you (whether by court order, agreement or
+@c otherwise) that contradict the conditions of this License, they do not
+@c excuse you from the conditions of this License.  If you cannot
+@c distribute so as to satisfy simultaneously your obligations under this
+@c License and any other pertinent obligations, then as a consequence you
+@c may not distribute the Program at all.  For example, if a patent
+@c license would not permit royalty-free redistribution of the Program by
+@c all those who receive copies directly or indirectly through you, then
+@c the only way you could satisfy both it and this License would be to
+@c refrain entirely from distribution of the Program.
+裁判所の判決、又は特許侵害の申し立て、又は（特許問題に限らない）
+何らかの理由の結果として、あなたに課せられた条件が本使用許諾と
+相入れないものであったとしても（裁判所の命令、契約、その他によるものであれ）、
+本使用許諾の条件が免除されるものではありません。
+本使用許諾による責務と、その他の何らかの関連責務を同時に満たす態様で
+頒布することができないならば、
+あなたは「プログラム」を全く頒布してはいけません。
+例えば、特許権の内容が、あなたから直接又は間接に複製を受け取った全ての人に
+使用料のないプログラムの再頒布を許さないものであれば、
+あなたがかかる特許上の要請と本使用許諾の両方を満足させる方法は、
+「プログラム」の頒布を完全に断念することだけです。
+
+@c If any portion of this section is held invalid or unenforceable under
+@c any particular circumstance, the balance of the section is intended to
+@c apply and the section as a whole is intended to apply in other
+@c circumstances.
+本条項の或る部分が何らかの特別な状況下で無効または適用不可能になった場合、
+本条項のその他の残りの部分が適用されるように意図されており、また、
+本条項は全体としてその他の状況に当てはまるように意図されています。
+
+@c It is not the purpose of this section to induce you to infringe any
+@c patents or other property right claims or to contest validity of any
+@c such claims; this section has the sole purpose of protecting the
+@c integrity of the free software distribution system, which is
+@c implemented by public license practices.  Many people have made
+@c generous contributions to the wide range of software distributed
+@c through that system in reliance on consistent application of that
+@c system; it is up to the author/donor to decide if he or she is willing
+@c to distribute software through any other system and a licensee cannot
+@c impose that choice.
+本条項の目的は、特許やその他の財産権を侵害したり、
+そのような権利に基づく主張の妥当性を争うようにあなたに
+勧めることではありません。
+本条項の唯一の目的は、フリー・ソフトウェアの頒布システムの完全性を守ることで、
+それは公有使用許諾の実践によって履行されます。
+多くの人々が、このシステムの一貫した適用を信頼して、
+このシステムを通じて頒布されている幅広い範囲のソフトウェアに惜しみない貢献を
+してくれました。
+作成者や寄贈者が他の何らかのシステムを通じてソフトウェアを
+頒布したいと決めることは彼らの自由意志であり、
+使用許諾を受ける者はその選択を強いることはできません。
+
+@c This section is intended to make thoroughly clear what is believed to
+@c be a consequence of the rest of this License.
+本条項は、本使用許諾の他の条項の意味内容が何であるかを
+完全に明らかにすることを意図しています。
+
+@item
+@c If the distribution and/or use of the Program is restricted in
+@c certain countries either by patents or by copyrighted interfaces, the
+@c original copyright holder who places the Program under this License
+@c may add an explicit geographical distribution limitation excluding
+@c those countries, so that distribution is permitted only in or among
+@c countries not thus excluded.  In such case, this License incorporates
+@c the limitation as if written in the body of this License.
+「プログラム」の頒布・使用が、ある国において特許又は著作権で
+保護されたインタフェースのどちらかで制限される場合、
+「プログラム」を本使用許諾下においた原著作権保持者は、
+その国を除外する旨の明示的な頒布地域制限を加え、
+それ以外の（除外されない）国に限定して頒布が
+許されるようにすることができます。
+そのような場合、その制限を本使用許諾の本文に
+あたかも書かれているかのように本使用許諾の中に組み入れられるものとします。
+
+@item
+@c The Free Software Foundation may publish revised and/or new versions
+@c of the General Public License from time to time.  Such new versions will
+@c be similar in spirit to the present version, but may differ in detail to
+@c address new problems or concerns.
+Free Software Foundation は随時、本一般公有使用許諾の改訂版、
+又は新版を公表することがあります。
+そのような新しいバージョンは、
+現行のバージョンと基本的に変わるところはありませんが、
+新しい問題や懸案事項に対応するために細部では異なるかもしれません。
+
+@c Each version is given a distinguishing version number.  If the Program
+@c specifies a version number of this License which applies to it and ``any
+@c later version'', you have the option of following the terms and conditions
+@c either of that version or of any later version published by the Free
+@c Software Foundation.  If the Program does not specify a version number of
+@c this License, you may choose any version ever published by the Free Software
+@c Foundation.
+各バージョンは、バージョン番号によって区別します。
+「プログラム」中に本使用許諾のバージョン番号の指定がある場合は、
+その指定されたバージョンか、又はその後にFree Software Foundationから
+公表されているいずれかのバージョンから１つを選択して、
+その条項と条件に従ってください。
+「プログラム」中に本使用許諾のバージョン番号の指定がない場合は、
+Free Software Foundation が公表したどのバージョンでも選択することができます。
+
+@item
+@c If you wish to incorporate parts of the Program into other free
+@c programs whose distribution conditions are different, write to the author
+@c to ask for permission.  For software which is copyrighted by the Free
+@c Software Foundation, write to the Free Software Foundation; we sometimes
+@c make exceptions for this.  Our decision will be guided by the two goals
+@c of preserving the free status of all derivatives of our free software and
+@c of promoting the sharing and reuse of software generally.
+「プログラム」の一部を頒布条件の異なる他のフリー・プログラムに
+組み込みたい場合は、その開発者に書面で許可を求めてください。 
+Free Software Foundation が著作権を持っているソフトウェアについては、
+Free Software Foundation へ書面を提出してください。
+このような場合に対応するために我々は例外的処理をすることもありますが、
+その判断基準となるのは、次の２つの目標の実現に合致するか否かという点です。
+即ち、１つは我々のフリー・ソフトウェアの全ての派生物を
+フリーな状態に保つことであり、もう１つはソフトウェアの共有と再利用とを
+広く促進させることです。
+
+@iftex
+@c @heading NO WARRANTY
+@heading 無保証
+@end iftex
+@ifinfo
+@c @center NO WARRANTY
+@center 無保証
+@end ifinfo
+
+@item
+@c BECAUSE THE PROGRAM IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
+@c FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW@.  EXCEPT WHEN
+@c OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES
+@c PROVIDE THE PROGRAM ``AS IS'' WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED
+@c OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+@c MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE@.  THE ENTIRE RISK AS
+@c TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU@.  SHOULD THE
+@c PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING,
+@c REPAIR OR CORRECTION.
+「プログラム」は無償で使用許諾されますので、適用法令の範囲内で、
+「プログラム」の保証は一切ありません。
+著作権者やその他の第三者は全く無保証で「そのまま」の状態で、且つ、
+明示か暗黙であるかを問わず一切の保証をつけないで提供するものとします。
+ここでいう保証とは、市場性や特定目的適合性についての暗黙の保証も含まれますが、
+それに限定されるものではありません。
+「プログラム」の品質や性能に関する全てのリスクはあなたが負うものとします。
+「プログラム」に欠陥があるとわかった場合、
+それに伴う一切の派生費用や修理・訂正に要する費用は全てあなたの負担とします。
+
+@item
+@c IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+@c WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR
+@c REDISTRIBUTE THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES,
+@c INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING
+@c OUT OF THE USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED
+@c TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY
+@c YOU OR THIRD PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER
+@c PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE
+@c POSSIBILITY OF SUCH DAMAGES.
+適用法令の定め、又は書面による合意がある場合を除き、
+著作権者や上記許諾を受けて「プログラム」の変更・再頒布を為し得る第三者は、
+「プログラム」を使用したこと、
+または使用できないことに起因する一切の損害について何らの責任も負いません。
+著作権者や前記の第三者が、そのような損害の発生する可能性について
+知らされていた場合でも同様です。
+なお、ここでいう損害には通常損害、特別損害、偶発損害、間接損害が含まれます
+（データの消失、又はその正確さの喪失、あなたや第三者が被った損失、
+他のプログラムとのインタフェースの不適合化、等も含まれますが、
+これに限定されるものではありません）。
+@end enumerate
+
+@iftex
+@c @heading END OF TERMS AND CONDITIONS
+@heading 以上
+@end iftex
+@ifinfo
+@c @center END OF TERMS AND CONDITIONS
+@center 以上
+@end ifinfo
+
+@c = 以下は日本語訳に関した部分
+@heading 注意
+ 英文文書（GNU General Public License）を正式文書とする。
+この和文文書は弁護士の意見を採り入れて、
+できるだけ正確に英文文書を翻訳したものであるが、
+法律的に有効な契約書ではない。
+
+@unnumberedsec 和文文書自体の再配布に関して
+ いかなる媒体でも次の条件がすべて満たされている場合に限り、
+本和文文書をそのまま複写し配布することを許可する。
+また、あなたは第三者に対して本許可告知と同一の許可を与える場合に限り、
+再配布することが許可されています。
+@itemize @bullet
+@item
+受領、配布されたコピーに著作権表示および本許諾告知が
+前もって載せられていること。　
+@item
+コピーの受領者がさらに再配布する場合、
+その配布者が本告知と同じ許可を与えていること。
+@item
+和文文書の本文を改変しないこと。
+@end itemize
+
+@page
+@c @unnumberedsec How to Apply These Terms to Your New Programs
+@unnumberedsec あなたの新しいプログラムにこれらの条項を適用する方法
+
+@c   If you develop a new program, and you want it to be of the greatest
+@c possible use to the public, the best way to achieve this is to make it
+@c free software which everyone can redistribute and change under these terms.
+ あなたが新しくプログラムを作成し、それを公用に供したい場合は、
+プログラムをフリー・ソフトウェアにして、
+全ての人々が以上の各条項に従ってこれを再頒布や変更をすることが
+できるようにするのが最良の方法です。
+
+@c   To do so, attach the following notices to the program.  It is safest
+@c to attach them to the start of each source file to most effectively
+@c convey the exclusion of warranty; and each file should have at least
+@c the ``copyright'' line and a pointer to where the full notice is found.
+ そうするためには、プログラムに以下の表示をしてください。
+その場合、無保証であるということを最も効果的に伝えるために、
+ソース・ファイルの冒頭にその全文を表示すれば最も安全ですが、
+その他の方法で表示する場合でも、「著作権表示」と全文を読み出す為の
+アドレスへのポインタだけはファイル上に表示しておいてください。
+
+@smallexample
+@c @var{one line to give the program's name and an idea of what it does.}
+@c Copyright (C) 19@var{yy}  @var{name of author}
+@var{プログラム名とどんな動作をするものかについての簡単な説明の行}
+Ｃｏｐｙｒｉｇｈｔ（Ｃ）　１９○○年、@var{著作権者名}
+
+@c This program is free software; you can redistribute it and/or
+@c modify it under the terms of the GNU General Public License
+@c as published by the Free Software Foundation; either version 2
+@c of the License, or (at your option) any later version.
+本プログラムはフリー・ソフトウェアです。
+あなたは、Free Software Foundationが公表したGNU 一般公有使用許諾の
+「バージョン２」或いはそれ以降の各バージョンの中からいずれかを選択し、
+そのバージョンが定める条項に従って本プログラムを
+再頒布または変更することができます。
+
+@c This program is distributed in the hope that it will be useful,
+@c but WITHOUT ANY WARRANTY; without even the implied warranty of
+@c MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE@.  See the
+@c GNU General Public License for more details.
+本プログラムは有用とは思いますが、頒布にあたっては、
+市場性及び特定目的適合性についての暗黙の保証を含めて、
+いかなる保証も行ないません。
+詳細についてはGNU 一般公有使用許諾書をお読みください。
+
+@c You should have received a copy of the GNU General Public License
+@c along with this program; if not, write to the Free Software
+@c Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111, USA.
+あなたは、本プログラムと一緒にGNU一般公有使用許諾の写しを
+受け取っているはずです。
+そうでない場合は、@*
+　Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA
+@footnote{【注意】現在、このバージョン2の発行者(FSF)住所は、
+正式に新しい住所の
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA に変わっている。}
+@ifinfo
+【注意】 現在、このバージョン2の発行者(FSF)住所は、正式に新しい住所の
+ 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA に変わっている。
+@end ifinfo
+へ手紙を書いてください。
+@end smallexample
+
+@c Also add information on how to contact you by electronic and paper mail.
+また、ユーザが電子メイルや書信であなたと連絡をとる方法についての情報も
+書き添えてください。
+
+@c If the program is interactive, make it output a short notice like this
+@c when it starts in an interactive mode:
+プログラムが対話的に動作する場合は、
+対話モードで起動した時に次のような短い告知文が表示されるようにしてください。
+
+@smallexample
+@c Gnomovision version 69, Copyright (C) 19@var{yy} @var{name of author}
+@c Gnomovision comes with ABSOLUTELY NO WARRANTY; for details
+@c type `show w'.  This is free software, and you are welcome
+@c to redistribute it under certain conditions; type `show c' 
+@c for details.
+Ｇｎｏｍｏｖｉｓｉｏｎ　バージョン６９、Ｃｏｐｙｒｉｇｈｔ（Ｃ）１９○○年 @var{著作権者名}
+Gnomovision は完全に無保証です。詳細は show w とタイプしてください。
+これはフリー・ソフトウェアなので、特定の条件の下でこれを再頒布する
+ことができます。詳細は show c とタイプしてください。
+@end smallexample
+
+@c The hypothetical commands @samp{show w} and @samp{show c} should show
+@c the appropriate parts of the General Public License.  Of course, the
+@c commands you use may be called something other than @samp{show w} and
+@c @samp{show c}; they could even be mouse-clicks or menu items---whatever
+@c suits your program.
+上記の@samp{show w}や@samp{show c}は各々、
+本一般公有使用許諾の関連する部分を表示するコマンドを指します。
+もちろん、あなたが使うこれらのコマンドは@samp{show w}や@samp{show c}といった
+呼び名でなくても構いません。
+さらに、それらのコマンドはあなたのプログラムに合わせる為に、
+マウスでクリックしたりメニュー形式にすることもできます。
+
+@c You should also get your employer (if you work as a programmer) or your
+@c school, if any, to sign a ``copyright disclaimer'' for the program, if
+@c necessary.  Here is a sample; alter the names:
+また、必要と認めた場合には、あなたの雇い主
+（あなたがプログラマとして働いている場合）や在籍する学校から、
+そのプログラムに対する「著作権放棄」を認めた署名入りの書面を入手してください。
+ここにその文例を載せます。名前は変えてください。
+
+@smallexample
+@group
+@c Yoyodyne, Inc., hereby disclaims all copyright
+@c interest in the program `Gnomovision'
+@c (which makes passes at compilers) written 
+@c by James Hacker.
+Yoyodyne, Inc. は、James Hacker が開発したプログラム`Gnomovision' 
+（コンパイラにつなげるプログラム）についての著作権法上の全ての権利を放棄する。
+
+@c @var{signature of Ty Coon}, 1 April 1989
+@c Ty Coon, President of Vice
+@var{Ｔｙ　Ｃｏｏｎ　の署名}，　１　Ａｐｒｉｌ　１９８９
+Ｔｙ　Ｃｏｏｎ，　副社長
+@end group
+@end smallexample
+
+@c This General Public License does not permit incorporating your program into
+@c proprietary programs.  If your program is a subroutine library, you may
+@c consider it more useful to permit linking proprietary applications with the
+@c library.  If this is what you want to do, use the GNU Library General
+@c Public License instead of this License.
+本一般公有使用許諾は、あなたのプログラムを財産権の対象となっている
+他のプログラムに組み込むことは認めていません。
+あなたのプログラムがサブルーチン・ライブラリであって、
+あなたがそのライブラリを財産権の対象となっている他のアプリケーションと
+リンクさせることによって、さらに有用なものにしようとする場合には、
+本使用許諾書の代わりに、GNUライブラリ一般公有使用許諾書に従ってください。
+@c =============================================================
+@c = 以上のGPLの日本語訳に関しての問い合わせは、以下のアドレスに
+@c = お願いいたします。
+@c = mieko@gnu.org もしくは hikichi@gnu.org
+@c =============================================================
+
+@node Introduction, Lisp Data Types, Copying, Top
+@c @chapter Introduction
+@chapter はじめに
+
+@c   Most of the GNU Emacs text editor is written in the programming
+@c language called Emacs Lisp.  You can write new code in Emacs Lisp and
+@c install it as an extension to the editor.  However, Emacs Lisp is more
+@c than a mere ``extension language''; it is a full computer programming
+@c language in its own right.  You can use it as you would any other
+@c programming language.
+GNU Emacsテキストエディタの大部分は、
+Emacs Lispと呼ばれるプログラム言語で記述してあります。
+Emacs Lispで新たなコードを書いて、
+それをエディタの拡張としてインストールできます。
+しかし、Emacs Lispは、単なる『拡張言語』ではありません。
+それ自身、れっきとしたプログラム言語です。
+他のプログラム言語でできることは、Emacs Lispでできます。
+
+@c   Because Emacs Lisp is designed for use in an editor, it has special
+@c features for scanning and parsing text as well as features for handling
+@c files, buffers, displays, subprocesses, and so on.  Emacs Lisp is
+@c closely integrated with the editing facilities; thus, editing commands
+@c are functions that can also conveniently be called from Lisp programs,
+@c and parameters for customization are ordinary Lisp variables.
+Emacs Lispは、エディタで使うために設計してあるため、
+ファイル、バッファ、ディスプレイ、サブプロセスなどを扱う機能に加えて、
+テキストを走査し解析する特別な機能もあります。
+Emacs Lispは編集機構に密に組み込まれています。
+このため、編集コマンドはLispプログラムからも呼び出せる関数ですし、
+カスタマイズのためのパラメータは普通のLisp変数です。
+
+@c   This manual attempts to be a full description of Emacs Lisp.  For a
+@c beginner's introduction to Emacs Lisp, see @cite{An Introduction to
+@c Emacs Lisp Programming}, by Bob Chassell, also published by the Free
+@c Software Foundation.  This manual presumes considerable familiarity with
+@c the use of Emacs for editing; see @cite{The GNU Emacs Manual} for this
+@c basic information.
+本書は、Emacs Lispを完全に記述することを目指しています。
+初心者向けの入門には、Free Software Foundation刊、
+Bob Chassellの@cite{An Introduction to  Emacs Lisp Programming}
+@footnote{【訳注】日本語訳：
+『Emacs Lispプログラミング入門』、アスキー出版局、ISBN 4-7561-1805-4}
+をご覧ください。
+本書では、Emacsの操作を熟知しているものと仮定します。
+操作に関する基本的な情報は、@cite{The GNU Emacs Manual}
+@footnote{【訳注】日本語訳：
+『GNU Emacsマニュアル』、アスキー出版局、ISBN 4-7561-3002-X}
+を参照してください。
+
+@c   Generally speaking, the earlier chapters describe features of Emacs
+@c Lisp that have counterparts in many programming languages, and later
+@c chapters describe features that are peculiar to Emacs Lisp or relate
+@c specifically to editing.
+おおまかにいえば、始めのほうの章では、
+多くのプログラム言語に見られる機能に相当するEmacs Lispの機能を説明し、
+あとのほうの章では、
+Emacs Lispに特有の機能や編集に特化した機能を説明します。
+
+@c   This is edition 2.5.
+本書は、2.5版です。
+
+@menu
+* Caveats::             Flaws and a request for help.
+* Lisp History::        Emacs Lisp is descended from Maclisp.
+* Conventions::         How the manual is formatted.
+* Version Info::        Which Emacs version is running?
+* Acknowledgements::    The authors, editors, and sponsors of this manual.
+@end menu
+
+@node Caveats
+@c @section Caveats
+@section 警告
+
+@c   This manual has gone through numerous drafts.  It is nearly complete
+@c but not flawless.  There are a few topics that are not covered, either
+@c because we consider them secondary (such as most of the individual
+@c modes) or because they are yet to be written.  Because we are not able
+@c to deal with them completely, we have left out several parts
+@c intentionally.  This includes most information about usage on VMS.
+本書は、数多くの草稿を重ねてきました。
+ほぼ完璧に近いはずですが、誤りは皆無ではありません。
+ふれていない話題も少なからずあります。
+（大部分の個別のモードのような）副次的と捉えている話題や、
+まだ執筆していない話題もあります。
+完全にはこれらに対処しきれませんので、
+意図的に省いたことがらもあります。
+たとえば、VMSにおける利用方法に関する情報です。
+
+@c   The manual should be fully correct in what it does cover, and it is
+@c therefore open to criticism on anything it says---from specific examples
+@c and descriptive text, to the ordering of chapters and sections.  If
+@c something is confusing, or you find that you have to look at the sources
+@c or experiment to learn something not covered in the manual, then perhaps
+@c the manual should be fixed.  Please let us know.
+本書で取り上げたことがらに関しては、本書は完璧であるべきですから、
+例題や記述内容から章や節の構成順序といったことまで、
+広く意見を求めています。
+混乱を招くような記述や、本書でふれていないことがらを
+学ぶためにソースや実験で調べる必要があるときには、
+本書を改訂すべきなのでしょう。
+そのときは、ぜひ、教えてください。
+
+@iftex
+@c   As you use the manual, we ask that you mark pages with corrections so
+@c you can later look them up and send them in.  If you think of a simple,
+@c real-life example for a function or group of functions, please make an
+@c effort to write it up and send it in.  Please reference any comments to
+@c the chapter name, section name, and function name, as appropriate, since
+@c page numbers and chapter and section numbers will change and we may have
+@c trouble finding the text you are talking about.  Also state the number
+@c of the edition you are criticizing.
+本書を読むときには、ページに訂正を書き込み、
+あとでわれわれに報告できるようにお願いします。
+1つの関数や一連の関数向けに、簡素で実用に即した例を思い付いたならば、
+それを書き上げて送ってください。
+章／節／関数の名前を適宜入れてください。
+というのは、ページ番号や章節番号は変更される可能性が高く、
+どの部分に関してなのか判断できない場合があるからです。
+それから、どの版に対する意見かも書いてください。
+@end iftex
+@ifinfo
+
+@c As you use this manual, we ask that you send corrections as soon as you
+@c find them.  If you think of a simple, real life example for a function
+@c or group of functions, please make an effort to write it up and send it
+@c in.  Please reference any comments to the node name and function or
+@c variable name, as appropriate.  Also state the number of the edition
+@c which you are criticizing.
+本書を読むときには、訂正箇所をみつけたらすぐ送ってくださるようにお願いします。
+1つの関数や一連の関数向けに、簡素で実用に即した例を思い付いたならば、
+それを書き上げて、送ってください。
+章／節／関数の名前を適宜入れてください。
+それから、どの版に対する意見かも書いてください。
+@end ifinfo
+
+@c Please mail comments and corrections to
+意見や訂正は、下記へメイルしてください。
+
+@example
+bug-lisp-manual@@gnu.org
+@end example
+
+@noindent
+@c We let mail to this list accumulate unread until someone decides to
+@c apply the corrections.  Months, and sometimes years, go by between
+@c updates.  So please attach no significance to the lack of a reply---your
+@c mail @emph{will} be acted on in due time.  If you want to contact the
+@c Emacs maintainers more quickly, send mail to
+@c @code{bug-gnu-emacs@@gnu.org}.
+ここに蓄積されたメイルは、誰かが改訂作業を始めるまでは、読み出しません。
+改訂までに、数か月、ときには、数年経過することもあります。
+ですから、返事がないと憤慨しないでください。
+あなたのメイルは、そのうち処理@emph{されます}。
+Emacs保守グループに迅速に連絡したい場合には、
+@code{bug-gnu-emacs@@gnu.org}にメイルしてください。
+
+@node Lisp History
+@c @section Lisp History
+@section Lispの歴史
+@c @cindex Lisp history
+@cindex Lispの歴史
+
+@c   Lisp (LISt Processing language) was first developed in the late 1950s
+@c at the Massachusetts Institute of Technology for research in artificial
+@c intelligence.  The great power of the Lisp language makes it ideal
+@c for other purposes as well, such as writing editing commands.
+Lisp（LISt Processing language、リスト処理言語）は、
+人工知能の研究向けに1950年代末にMITで初めて開発されました。
+Lisp言語はとても強力なので、
+エディタコマンドを記述するなどの他の目的にも理想的なのです。
+
+@cindex Maclisp
+@cindex Common Lisp
+@c   Dozens of Lisp implementations have been built over the years, each
+@c with its own idiosyncrasies.  Many of them were inspired by Maclisp,
+@c which was written in the 1960s at MIT's Project MAC.  Eventually the
+@c implementors of the descendants of Maclisp came together and developed a
+@c standard for Lisp systems, called Common Lisp.  In the meantime, Gerry
+@c Sussman and Guy Steele at MIT developed a simplified but very powerful
+@c dialect of Lisp, called Scheme.
+長年にわたって何ダースものLispが実装されており、
+それぞれが独自の特徴を有しています。
+その多くは、1960年代のMITのMACプロジェクトで開発されたMaclispの
+影響を受けています。
+最終的には、Maclispの系統の実装者達は共同して、
+Common Lispと呼ばれるLispシステムの規格を開発しました。
+そうこうするうちに、MITのGerry SussmanとGuy Steeleは、
+単純化してあるが非常に強力なSchemeと呼ばれるLispの方言を開発しました。
+
+@c   GNU Emacs Lisp is largely inspired by Maclisp, and a little by Common
+@c Lisp.  If you know Common Lisp, you will notice many similarities.
+@c However, many features of Common Lisp have been omitted or
+@c simplified in order to reduce the memory requirements of GNU Emacs.
+@c Sometimes the simplifications are so drastic that a Common Lisp user
+@c might be very confused.  We will occasionally point out how GNU Emacs
+@c Lisp differs from Common Lisp.  If you don't know Common Lisp, don't
+@c worry about it; this manual is self-contained.
+GNU EmacsはMaclispの影響を強く受けていますが、
+Common Lispからの影響は少ないです。
+Common Lispを知っている読者は、
+Common Lispとの多くの類似点に気づかれるでしょう。
+しかしながら、Common Lispの多くの機能は、
+省いてあるか、単純化してあります。
+これは、GNU Emacsが必要とするメモリ量を削減するためです。
+ときには、劇的に単純化してあるために、
+Common Lispユーザーは混乱するかもしれません。
+GNU Emacs LispとCommon Lispとの相違点は、
+ことあるごとに指摘するつもりです。
+Common Lispを知らない読者は、何も心配することはありません。
+本書は自己完結しています。
+
+@pindex cl
+@c   A certain amount of Common Lisp emulation is available via the
+@c @file{cl} library @xref{Top,, Common Lisp Extension, cl, Common Lisp
+@c Extensions}.
+@file{cl}ライブラリにより、Common Lispをかなりエミュレートできます。
+@xref{Top,, Common Lisp Extension, cl, Common Lisp Extensions}。
+
+@c   Emacs Lisp is not at all influenced by Scheme; but the GNU project has
+@c an implementation of Scheme, called Guile.  We use Guile in all new GNU
+@c software that calls for extensibility.
+Emacs LispはSchemeの影響をまったく受けていません。
+しかし、GNUプロジェクトには、Guileと呼ばれるSchemeの実装があります。
+拡張が必要なすべての新たなGNUソフトウェアではGuileを使います。
+
+@node Conventions
+@c @section Conventions
+@section 表記法
+
+@c This section explains the notational conventions that are used in this
+@c manual.  You may want to skip this section and refer back to it later.
+本節では、本書で用いる表記法を説明します。
+本節を読み飛ばして、あとで参照してもかまいません。
+
+@menu
+* Some Terms::               Explanation of terms we use in this manual.
+* nil and t::                How the symbols @code{nil} and @code{t} are used.
+* Evaluation Notation::      The format we use for examples of evaluation.
+* Printing Notation::        The format we use when examples print text.
+* Error Messages::           The format we use for examples of errors.
+* Buffer Text Notation::     The format we use for buffer contents in examples.
+* Format of Descriptions::   Notation for describing functions, variables, etc.
+@end menu
+
+@node Some Terms
+@c @subsection Some Terms
+@subsection 用語
+
+@c   Throughout this manual, the phrases ``the Lisp reader'' and ``the Lisp
+@c printer'' refer to those routines in Lisp that convert textual
+@c representations of Lisp objects into actual Lisp objects, and vice
+@c versa.  @xref{Printed Representation}, for more details.  You, the
+@c person reading this manual, are thought of as ``the programmer'' and are
+@c addressed as ``you''.  ``The user'' is the person who uses Lisp
+@c programs, including those you write.
+本書では、『Lispリーダ』および『Lispプリンタ』という言葉で、
+Lispオブジェクトのテキスト表現を実際のLispオブジェクトに変換する
+Lisp内部のルーティン群、および、逆の変換を行うルーティン群を指します。
+詳しくは、@xref{Printed Representation}。
+本書の読者を『プログラマ』と考えて『読者』と呼びます。
+『ユーザー』とは作者自身を含めたLispプログラムを使う人のことです。
+
+@c @cindex fonts
+@cindex フォント
+@c   Examples of Lisp code appear in this font or form: @code{(list 1 2
+@c 3)}.  Names that represent metasyntactic variables, or arguments to a
+@c function being described, appear in this font or form:
+@c @var{first-number}.
+Lispコードの例は、@code{(list 1 2 3)}という形式で、
+このフォントで記します。
+メタな変数の名前や説明対象の関数に対する引数の名前は、
+@var{first-number}という形式で、このフォントで書きます。
+
+@node nil and t
+@c @subsection @code{nil} and @code{t}
+@subsection @code{nil}と@code{t}
+@c @cindex @code{nil}, uses of
+@c @cindex truth value
+@c @cindex boolean
+@c @cindex false
+@cindex @code{nil}の使い方
+@cindex 真理値
+@cindex ブール値
+@cindex 偽（false）
+@cindex false（偽）
+
+@c   In Lisp, the symbol @code{nil} has three separate meanings: it
+@c is a symbol with the name @samp{nil}; it is the logical truth value
+@c @var{false}; and it is the empty list---the list of zero elements.
+@c When used as a variable, @code{nil} always has the value @code{nil}.
+Lispでは、シンボル@code{nil}には3つの異なる意味があります。
+まず、@code{nil}という名前のシンボルです。
+2つめは、真理値の@var{偽}（false）です。
+3つめは、空リスト、つまり、要素数が0個のリストです。
+変数として使った場合、@code{nil}の値はつねに@code{nil}です。
+
+@c   As far as the Lisp reader is concerned, @samp{()} and @samp{nil} are
+@c identical: they stand for the same object, the symbol @code{nil}.  The
+@c different ways of writing the symbol are intended entirely for human
+@c readers.  After the Lisp reader has read either @samp{()} or @samp{nil},
+@c there is no way to determine which representation was actually written
+@c by the programmer.
+Lispリーダにとっては、@samp{()}と@samp{nil}は同一です。
+どちらも、同じオブジェクト、シンボル@code{nil}を表します。
+シンボルを異なった書き方にするのは、完全に人間向けです。
+@samp{()}や@samp{nil}をLispリーダが読み取ったあとでは、
+プログラマが実際にどちらの表記を用いたかわかりません。
+
+@c   In this manual, we use @code{()} when we wish to emphasize that it
+@c means the empty list, and we use @code{nil} when we wish to emphasize
+@c that it means the truth value @var{false}.  That is a good convention to use
+@c in Lisp programs also.
+本書では、空リストを強調するときには@code{()}を使い、
+真理値の@var{偽}を強調するときには@code{nil}を使います。
+これは、Lispプログラムでも使うとよい慣習です。
+
+@example
+@c (cons 'foo ())                ; @r{Emphasize the empty list}
+@c (not nil)                     ; @r{Emphasize the truth value @var{false}}
+(cons 'foo ())                ; @r{空リストであることを強調する}
+(not nil)                     ; @r{真理値の@var{偽}であることを強調する}
+@end example
+
+@c @cindex @code{t} and truth
+@c @cindex true
+@cindex @code{t}と真
+@cindex 真（true）
+@cindex true（真）
+@c   In contexts where a truth value is expected, any non-@code{nil} value
+@c is considered to be @var{true}.  However, @code{t} is the preferred way
+@c to represent the truth value @var{true}.  When you need to choose a
+@c value which represents @var{true}, and there is no other basis for
+@c choosing, use @code{t}.  The symbol @code{t} always has the value
+@c @code{t}.
+真理値の真を必要とする場面では、
+@code{nil}以外の値は、@var{真}（true）であるとみなします。
+しかし、@var{真}を表す望ましい書き方は@code{t}です。
+@var{真}を表す値が必要なとき、
+適当な判断基準がない場合には@code{t}を使います。
+シンボル@code{t}の値はつねに@code{t}です。
+
+@c   In Emacs Lisp, @code{nil} and @code{t} are special symbols that always
+@c evaluate to themselves.  This is so that you do not need to quote them
+@c to use them as constants in a program.  An attempt to change their
+@c values results in a @code{setting-constant} error.  The same is true of
+@c any symbol whose name starts with a colon (@samp{:}).  @xref{Constant
+@c Variables}.
+Emacs Lispでは、@code{nil}と@code{t}は特別なシンボルであり、
+評価するとそれ自身になります。
+そのため、これらをプログラム内で定数として使うとき、
+これらをクォートする必要はありません。
+これらの値を変更しようとすると、エラー@code{setting-constant}になります。
+コロン（@samp{:}）で始まる名前のシンボルも同様です。
+@xref{Constant Variables}。
+
+@node Evaluation Notation
+@c @subsection Evaluation Notation
+@subsection 評価の表記法
+@c @cindex evaluation notation
+@c @cindex documentation notation
+@cindex 評価の表記法
+@cindex 表記法、評価
+@cindex 記述の表記法
+@cindex 表記法、記述
+
+@c   A Lisp expression that you can evaluate is called a @dfn{form}.
+@c Evaluating a form always produces a result, which is a Lisp object.  In
+@c the examples in this manual, this is indicated with @samp{@result{}}:
+評価可能なLisp式を@dfn{フォーム}（form、形式）と呼びます。
+フォームを評価すると、Lispオブジェクトである結果を生じます。
+本書の例題では、これを@samp{@result{}}で表します。
+
+@example
+(car '(1 2))
+     @result{} 1
+@end example
+
+@noindent
+@c You can read this as ``@code{(car '(1 2))} evaluates to 1''.
+これは、『@code{(car '(1 2))}を評価すると1になる』と読みます。
+
+@c   When a form is a macro call, it expands into a new form for Lisp to
+@c evaluate.  We show the result of the expansion with
+@c @samp{@expansion{}}.  We may or may not show the result of the
+@c evaluation of the expanded form.
+フォームがマクロ呼び出しの場合には、
+Lispが評価すべき新たなフォームに展開します。
+展開結果を@samp{@expansion{}}で表します。
+展開したフォームの評価結果を示す場合もあれば、
+示さない場合もあります。
+
+@example
+(third '(a b c))
+     @expansion{} (car (cdr (cdr '(a b c))))
+     @result{} c
+@end example
+
+@c   Sometimes to help describe one form we show another form that
+@c produces identical results.  The exact equivalence of two forms is
+@c indicated with @samp{@equiv{}}.
+あるフォームを説明するときに、
+同一の結果を生じる別のフォームを示すことがあります。
+2つのまったく等価なフォームを@samp{@equiv{}}で表します。
+
+@example
+(make-sparse-keymap) @equiv{} (list 'keymap)
+@end example
+
+@node Printing Notation
+@c @subsection Printing Notation
+@subsection 結果表示の表記法
+@c @cindex printing notation
+@cindex 結果表示の表記法
+@cindex 表記法、結果表示
+
+@c   Many of the examples in this manual print text when they are
+@c evaluated.  If you execute example code in a Lisp Interaction buffer
+@c (such as the buffer @samp{*scratch*}), the printed text is inserted into
+@c the buffer.  If you execute the example by other means (such as by
+@c evaluating the function @code{eval-region}), the printed text is
+@c displayed in the echo area.  You should be aware that text displayed in
+@c the echo area is truncated to a single line.
+本書の数多くの例題は、評価するとテキストを表示します。
+（@samp{*scratch*}バッファのような）Lisp対話バッファで例題のコードを
+実行すると、表示テキストはバッファに挿入されます。
+（関数@code{eval-region}で評価するなどの）
+別の手段で例題を実行すると、表示テキストはエコー領域に表示されます。
+エコー領域に表示されるテキストは、1行に切り詰められていることに
+注意してください。
+
+@c   Examples in this manual indicate printed text with @samp{@print{}},
+@c irrespective of where that text goes.  The value returned by evaluating
+@c the form (here @code{bar}) follows on a separate line.
+本書の例題では、表示場所には無関係に、
+表示テキストを@samp{@print{}}で表します。
+フォームを評価した結果返される値（ここでは@code{bar}）は、
+後続の行に分けて書きます。
+
+@example
+@group
+(progn (print 'foo) (print 'bar))
+     @print{} foo
+     @print{} bar
+     @result{} bar
+@end group
+@end example
+
+@node Error Messages
+@c @subsection Error Messages
+@subsection エラーメッセージ
+@c @cindex error message notation
+@cindex エラーメッセージの表記法
+@cindex 表記法、エラーメッセージ
+
+@c   Some examples signal errors.  This normally displays an error message
+@c in the echo area.  We show the error message on a line starting with
+@c @samp{@error{}}.  Note that @samp{@error{}} itself does not appear in
+@c the echo area.
+エラーを通知する例題もあります。
+これは、通常、エコー領域にエラーメッセージを表示します。
+エラーメッセージは、@samp{@error{}}で始まる行に示します。
+エコー領域には、@samp{@error{}}は表示されないことに注意してください。
+
+@example
+(+ 23 'x)
+@error{} Wrong type argument: number-or-marker-p, x
+@end example
+
+@node Buffer Text Notation
+@c @subsection Buffer Text Notation
+@subsection バッファ内のテキストの表記法
+@c @cindex buffer text notation
+@cindex バッファ内のテキストの表記法
+@cindex 表記法、バッファ内のテキスト
+
+@c   Some examples show modifications to text in a buffer, with ``before''
+@c and ``after'' versions of the text.  These examples show the contents of
+@c the buffer in question between two lines of dashes containing the buffer
+@c name.  In addition, @samp{@point{}} indicates the location of point.
+@c (The symbol for point, of course, is not part of the text in the buffer;
+@c it indicates the place @emph{between} two characters where point is
+@c currently located.)
+バッファ内のテキストを修正する例題もあります。
+このような場合、『実行前』と『実行後』のテキストを示します。
+それらの例題では、バッファ名を含めたダッシュから成る2行で挟んで、
+当該バッファの内容を示します。
+さらに、ポイント位置を@samp{@point{}}で表します。
+（もちろん、ポイントを表す記号は、バッファ内のテキストの一部ではない。
+現在ポイントが位置する2つの文字の@emph{あいだ}を表す。）
+
+@example
+---------- Buffer: foo ----------
+This is the @point{}contents of foo.
+---------- Buffer: foo ----------
+
+(insert "changed ")
+     @result{} nil
+---------- Buffer: foo ----------
+This is the changed @point{}contents of foo.
+---------- Buffer: foo ----------
+@end example
+
+@node Format of Descriptions
+@c @subsection Format of Descriptions
+@subsection 記述形式
+@c @cindex description format
+@cindex 記述形式
+
+@c   Functions, variables, macros, commands, user options, and special
+@c forms are described in this manual in a uniform format.  The first
+@c line of a description contains the name of the item followed by its
+@c arguments, if any.
+関数、変数、マクロ、コマンド、ユーザーオプション、
+スペシャルフォームは、本書では統一した形式で記述します。
+第1行目は、それぞれの名前と、引数があれば引数群です。
+@ifinfo
+@c The category---function, variable, or whatever---appears at the
+@c beginning of the line.
+関数、変数、マクロ、コマンド、ユーザーオプションの分類を行頭に書きます。
+@end ifinfo
+@iftex
+@c The category---function, variable, or whatever---is printed next to the
+@c right margin.
+右端には、関数、変数などの分類を示します。
+@end iftex
+@c The description follows on succeeding lines, sometimes with examples.
+これに説明文が続き、場合によっては例題も示します。
+
+@menu
+* A Sample Function Description::       A description of an imaginary
+                                          function, @code{foo}.
+* A Sample Variable Description::       A description of an imaginary
+                                          variable,
+                                          @code{electric-future-map}.  
+@end menu
+
+@node A Sample Function Description
+@c @subsubsection A Sample Function Description
+@subsubsection 関数の記述例
+@c @cindex function descriptions
+@c @cindex command descriptions
+@c @cindex macro descriptions
+@c @cindex special form descriptions
+@cindex 関数の記述
+@cindex 記述、関数
+@cindex コマンドの記述
+@cindex 記述、コマンド
+@cindex マクロの記述
+@cindex 記述、マクロ
+@cindex スペシャルフォームの記述
+@cindex 記述、スペシャルフォーム
+
+@c   In a function description, the name of the function being described
+@c appears first.  It is followed on the same line by a list of argument
+@c names.  These names are also used in the body of the description, to
+@c stand for the values of the arguments.
+関数の記述では、まず始めに説明対象の関数名があります。
+同じ行には、引数名の並びも続きます。
+これらの名前は、説明文の中で引数の値を参照するために使います。
+
+@c   The appearance of the keyword @code{&optional} in the argument list
+@c indicates that the subsequent arguments may be omitted (omitted
+@c arguments default to @code{nil}).  Do not write @code{&optional} when
+@c you call the function.
+引数ならびにキーワード@code{&optional}が現れていれば、
+それ以降の引数を省略できることを示します（省略した引数の値は@code{nil}）。
+関数を呼び出すときに@code{&optional}を書いてはいけません。
+
+@c   The keyword @code{&rest} (which must be followed by a single argument
+@c name) indicates that any number of arguments can follow.  The single
+@c following argument name will have a value, as a variable, which is a
+@c list of all these remaining arguments.  Do not write @code{&rest} when
+@c you call the function.
+キーワード@code{&rest} （このあとには1つの引数名だけが続く）は、
+残りの引数が何個でもよいことを示します。
+直後にある1つの引数名は、変数としての値を持ち、
+その値は残りのすべての引数のリストです。
+関数を呼び出すときに@code{&rest}を書いてはいけません。
+
+@c   Here is a description of an imaginary function @code{foo}:
+では、仮想的な関数@code{foo}の記述を以下に示します。
+
+@defun foo integer1 &optional integer2 &rest integers
+@c The function @code{foo} subtracts @var{integer1} from @var{integer2},
+@c then adds all the rest of the arguments to the result.  If @var{integer2}
+@c is not supplied, then the number 19 is used by default.
+関数@code{foo}は、@var{integer2}から@var{integer1}を引き算し、
+残りのすべての引数を減算結果に加える。
+@var{integer2}を指定しないと、デフォルトでは、数19から引き算する。
+
+@example
+(foo 1 5 3 9)
+     @result{} 16
+(foo 5)
+     @result{} 14
+@end example
+
+@need 1500
+@c More generally,
+より一般的には、つぎのとおり。
+
+@example
+(foo @var{w} @var{x} @var{y}@dots{})
+@equiv{}
+(+ (- @var{x} @var{w}) @var{y}@dots{})
+@end example
+@end defun
+
+@c   Any argument whose name contains the name of a type (e.g.,
+@c @var{integer}, @var{integer1} or @var{buffer}) is expected to be of that
+@c type.  A plural of a type (such as @var{buffers}) often means a list of
+@c objects of that type.  Arguments named @var{object} may be of any type.
+@c (@xref{Lisp Data Types}, for a list of Emacs object types.)  Arguments
+@c with other sorts of names (e.g., @var{new-file}) are discussed
+@c specifically in the description of the function.  In some sections,
+@c features common to the arguments of several functions are described at
+@c the beginning.
+（@var{integer}、@var{integer1}、@var{buffer}などの）型名を名前とする引数は、
+その型の値であると仮定します。
+（@var{buffers}のように）型を複数形にした場合には、
+しばしば、その型のオブジェクトのリストを意味します。
+@var{object}という名前の引数は、任意の型でかまいません。
+（Emacsオブジェクトの型の一覧については、@pxref{Lisp Data Types}）。
+（@var{new-file}などの）その他の名前の引数は、関数の説明文の中で言及します。
+複数の関数の引数に共通する特徴について、
+節の始めで説明する場合もあります。
+
+@c   @xref{Lambda Expressions}, for a more complete description of optional
+@c and rest arguments.
+@code{&optional}と@code{&rest}についての詳しい説明は、
+@xref{Lambda Expressions}。
+
+@c   Command, macro, and special form descriptions have the same format,
+@c but the word `Function' is replaced by `Command', `Macro', or `Special
+@c Form', respectively.  Commands are simply functions that may be called
+@c interactively; macros process their arguments differently from functions
+@c (the arguments are not evaluated), but are presented the same way.
+コマンド、マクロ、スペシャルフォームの記述も同じ形式ですが、
+「関数」のかわりに
+「コマンド」、「マクロ」、「スペシャルフォーム」のいずれかです。
+コマンドは、対話的に呼び出せる単なる関数です。
+マクロは関数とは違った方法で引数を処理します（引数を評価しない）が、
+同じ方法で引数を記します。
+
+@c   Special form descriptions use a more complex notation to specify
+@c optional and repeated arguments because they can break the argument
+@c list down into separate arguments in more complicated ways.
+@c @samp{@r{[}@var{optional-arg}@r{]}} means that @var{optional-arg} is
+@c optional and @samp{@var{repeated-args}@dots{}} stands for zero or more
+@c arguments.  Parentheses are used when several arguments are grouped into
+@c additional levels of list structure.  Here is an example:
+スペシャルフォームの記述では、省略可能な引数や繰り返される引数を
+示すために、より複雑な記法を使います。
+というのは、引数並びを個々の引数に分離する方法が複雑だからです。
+@samp{@r{[}@var{optional-arg}@r{]}}は、
+@var{optional-arg}が省略可能であることを示します。
+また、@samp{@var{repeated-args}@dots{}}は、0個以上の引数を示します。
+いくつかの引数をリスト構造の内側にまとめるときには、
+括弧を使います。
+
+@defspec count-loop (@var{var} [@var{from} @var{to} [@var{inc}]]) @var{body}@dots{}
+@c This imaginary special form implements a loop that executes the
+@c @var{body} forms and then increments the variable @var{var} on each
+@c iteration.  On the first iteration, the variable has the value
+@c @var{from}; on subsequent iterations, it is incremented by one (or by
+@c @var{inc} if that is given).  The loop exits before executing @var{body}
+@c if @var{var} equals @var{to}.  Here is an example:
+この仮想的なスペシャルフォームは、
+フォーム群@var{body}を実行してから変数@var{var}を増やすことを
+反復するループを実現する。
+最初は、変数の値は@var{from}である。
+以降の反復では、変数を1（あるいは、指定があれば@var{inc}だけ）増やす。
+@var{var}が@var{to}に等しくなると、
+@var{body}を実行せずにループから抜ける。
+例を示す。
+
+@example
+(count-loop (i 0 10)
+  (prin1 i) (princ " ")
+  (prin1 (aref vector i))
+  (terpri))
+@end example
+
+@c If @var{from} and @var{to} are omitted, @var{var} is bound to
+@c @code{nil} before the loop begins, and the loop exits if @var{var} is
+@c non-@code{nil} at the beginning of an iteration.  Here is an example:
+@var{from}と@var{to}を省略すると、
+ループ開始前に@var{var}に@code{nil}を束縛し、
+各反復の開始時に@var{var}が@code{nil}以外であるとループから抜け出る。
+
+@example
+(count-loop (done)
+  (if (pending)
+      (fixit)
+    (setq done t)))
+@end example
+
+@c In this special form, the arguments @var{from} and @var{to} are
+@c optional, but must both be present or both absent.  If they are present,
+@c @var{inc} may optionally be specified as well.  These arguments are
+@c grouped with the argument @var{var} into a list, to distinguish them
+@c from @var{body}, which includes all remaining elements of the form.
+このスペシャルフォームでは、引数@var{from}と@var{to}は省略できるが、
+両者を同時に指定するか、同時に省略すること。
+これらを指定した場合、@var{inc}を指定してもよい。
+これらの引数は、引数@var{var}とともにリストにまとめる。
+これは@var{body}と区別するためであり、
+@var{body}は残りのフォームの要素すべてを含む。
+@end defspec
+
+@node A Sample Variable Description
+@c @subsubsection A Sample Variable Description
+@subsubsection 変数の記述例
+@c @cindex variable descriptions
+@c @cindex option descriptions
+@cindex 変数の記述例
+@cindex 記述例、変数
+@cindex オプションの記述例
+@cindex 記述例、オプション
+
+@c   A @dfn{variable} is a name that can hold a value.  Although any
+@c variable can be set by the user, certain variables that exist
+@c specifically so that users can change them are called @dfn{user
+@c options}.  Ordinary variables and user options are described using a
+@c format like that for functions except that there are no arguments.
+@dfn{変数}（variable）は、値を保持するための名前です。
+ユーザーはどんな変数でも設定できますが、
+ユーザーが変更可能な特定の変数群があり、
+それらを@dfn{ユーザーオプション}（user options）と呼びます。
+普通の変数もユーザーオプションも関数の記述と同じ形式で示しますが、
+それらに引数はありません。
+
+@c   Here is a description of the imaginary @code{electric-future-map}
+@c variable.@refill
+仮想的な変数@code{electric-future-map}の記述例を示します。
+
+@defvar electric-future-map
+@c The value of this variable is a full keymap used by Electric Command
+@c Future mode.  The functions in this map allow you to edit commands you
+@c have not yet thought about executing.
+この変数の値は、Electric Command Futureモードで使用する
+完全なキーマップである。
+このマップに含まれる関数は、まだ実行していないコマンドの編集を可能にする。
+@end defvar
+
+@c   User option descriptions have the same format, but `Variable' is
+@c replaced by `User Option'.
+ユーザーオプションの記述も同じ形式ですが、
+「変数」のかわりに「ユーザーオプション」です。
+
+@node Version Info
+@c @section Version Information
+@section 版情報
+
+@c   These facilities provide information about which version of Emacs is
+@c in use.
+これらの機構は、使用中のEmacsの版に関する情報を提供します。
+
+@c @deffn Command emacs-version
+@deffn コマンド emacs-version
+@c This function returns a string describing the version of Emacs that is
+@c running.  It is useful to include this string in bug reports.
+この関数は、実行中のEmacsの版を記述した文字列を返す。
+この文字列はバグの報告に含めると有益である。
+
+@smallexample
+@group
+(emacs-version)
+  @result{} "GNU Emacs 20.3.5 (i486-pc-linux-gnulibc1, X toolkit)
+ of Sat Feb 14 1998 on psilocin.gnu.org"
+@end group
+@end smallexample
+
+@c Called interactively, the function prints the same information in the
+@c echo area.
+対話的に呼び出すと、この関数は同じ情報をエコー領域に表示する。
+@end deffn
+
+@defvar emacs-build-time
+@c The value of this variable indicates the time at which Emacs was built
+@c at the local site.  It is a list of three integers, like the value
+@c of @code{current-time} (@pxref{Time of Day}).
+この変数の値は、ローカルのサイトでEmacsを構築した日時を示す。
+3つの整数から成るリストであり、
+@code{current-time}と同様のもの（@pxref{Time of Day}）。
+
+@example
+@group
+emacs-build-time
+     @result{} (13623 62065 344633)
+@end group
+@end example
+@end defvar
+
+@defvar emacs-version
+@c The value of this variable is the version of Emacs being run.  It is a
+@c string such as @code{"20.3.1"}.  The last number in this string is not
+@c really part of the Emacs release version number; it is incremented each
+@c time you build Emacs in any given directory.
+この変数の値は、実行中のEmacsの版番号。
+@code{"20.3.1"}のような文字列である。
+この文字列の最後の数字は、Emacsのリリース版番号の一部ではなく、
+特定のディレクトリでEmacsを構築するたびに増える。
+@end defvar
+
+@c   The following two variables have existed since Emacs version 19.23:
+つぎの2つの変数は、Emacs 19.23以降に存在します。
+
+@defvar emacs-major-version
+@c The major version number of Emacs, as an integer.  For Emacs version
+@c 20.3, the value is 20.
+Emacsのメジャー版番号を表す整数。
+Emacs 20.3では、値は20。
+@end defvar
+
+@defvar emacs-minor-version
+@c The minor version number of Emacs, as an integer.  For Emacs version
+@c 20.3, the value is 3.
+Emacsのマイナ版番号を表す整数。
+Emacs 20.3では、値は3。
+@end defvar
+
+@node Acknowledgements
+@c @section Acknowledgements
+@section 謝辞
+
+@c   This manual was written by Robert Krawitz, Bil Lewis, Dan LaLiberte,
+@c Richard M. Stallman and Chris Welty, the volunteers of the GNU manual
+@c group, in an effort extending over several years.  Robert J. Chassell
+@c helped to review and edit the manual, with the support of the Defense
+@c Advanced Research Projects Agency, ARPA Order 6082, arranged by Warren
+@c A. Hunt, Jr. of Computational Logic, Inc.
+本書は、Robert Krawitz、Bil Lewis、Dan LaLiberte、
+Richard M. Stallman、Chris Welty、GNUマニュアルプロジェクトのボランティア
+による何年にもわたる努力で執筆されました。
+Computational Logic社のWarren A. Hunt, Jr.が手配した
+国防省Advanced Research Projects Agency、ARPA Order 6082の援助のもと、
+Robert J. Chassellは本書のレビューと編集に協力してくれました。
+
+@c   Corrections were supplied by Karl Berry, Jim Blandy, Bard Bloom,
+@c Stephane Boucher, David Boyes, Alan Carroll, Richard Davis, Lawrence
+@c R. Dodd, Peter Doornbosch, David A. Duff, Chris Eich, Beverly
+@c Erlebacher, David Eckelkamp, Ralf Fassel, Eirik Fuller, Stephen Gildea,
+@c Bob Glickstein, Eric Hanchrow, George Hartzell, Nathan Hess, Masayuki
+@c Ida, Dan Jacobson, Jak Kirman, Bob Knighten, Frederick M. Korz, Joe
+@c Lammens, Glenn M. Lewis, K. Richard Magill, Brian Marick, Roland
+@c McGrath, Skip Montanaro, John Gardiner Myers, Thomas A. Peterson,
+@c Francesco Potorti, Friedrich Pukelsheim, Arnold D. Robbins, Raul
+@c Rockwell, Per Starback, Shinichirou Sugou, Kimmo Suominen, Edward Tharp,
+@c Bill Trost, Rickard Westman, Jean White, Matthew Wilding, Carl Witty,
+@c Dale Worley, Rusty Wright, and David D. Zuhn.
+以下の方々が訂正を送ってくれました。
+Karl Berry、Jim Blandy、Bard Bloom、
+Stephane Boucher、David Boyes、Alan Carroll、Richard Davis、Lawrence
+R. Dodd、Peter Doornbosch、David A. Duff、Chris Eich、Beverly
+Erlebacher、David Eckelkamp、Ralf Fassel、Eirik Fuller、Stephen Gildea、
+Bob Glickstein、Eric Hanchrow、George Hartzell、Nathan Hess、
+Masayuki Ida、
+Dan Jacobson、Jak Kirman、Bob Knighten、Frederick M. Korz、Joe
+Lammens、Glenn M. Lewis、K. Richard Magill、Brian Marick、Roland
+McGrath、Skip Montanaro、John Gardiner Myers、Thomas A. Peterson、
+Francesco Potorti、Friedrich Pukelsheim、Arnold D. Robbins、Raul
+Rockwell、Per Starback、Shinichirou Sugou、Kimmo Suominen、Edward Tharp、
+Bill Trost、Rickard Westman、Jean White、Matthew Wilding、Carl Witty、
+Dale Worley、Rusty Wright、David D. Zuhn。

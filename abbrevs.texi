@@ -1,0 +1,566 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1999 
+@c   Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/abbrevs
+@node Abbrevs, Processes, Syntax Tables, Top
+@c @chapter Abbrevs and Abbrev Expansion
+@chapter 略語と略語の展開 @emph{(2003/10/30)}
+@c @cindex abbrev
+@c @cindex abbrev table
+@cindex 略語
+@cindex 略語表
+
+@c   An abbreviation or @dfn{abbrev} is a string of characters that may be
+@c expanded to a longer string.  The user can insert the abbrev string and
+@c find it replaced automatically with the expansion of the abbrev.  This
+@c saves typing.
+@dfn{略語}(abbrev) とは、より長い文字列へ展開される文字の列のことです。
+ユーザーが略語の文字列を挿入すると、その展開形に自動的に置換されます。
+これにより打鍵量を省けます。
+
+@c   The set of abbrevs currently in effect is recorded in an @dfn{abbrev
+@c table}.  Each buffer has a local abbrev table, but normally all buffers
+@c in the same major mode share one abbrev table.  There is also a global
+@c abbrev table.  Normally both are used.
+現在有効な略語の集まりは、@dfn{略語表}(abbrev table) に記録されています。
+各バッファにはローカルな略語表がありますが、
+通常、同じメジャーモードのすべてのバッファは 1 つの略語表を共有します。
+グローバルな略語表もあります。
+通常、両方を使います。
+
+@c   An abbrev table is represented as an obarray containing a symbol for
+@c each abbreviation.  The symbol's name is the abbreviation; its value is
+@c the expansion; its function definition is the hook function to do the
+@c expansion (@pxref{Defining Abbrevs}); its property list cell contains
+@c the use count, the number of times the abbreviation has been expanded.
+@c Because these symbols are not interned in the usual obarray, they will
+@c never appear as the result of reading a Lisp expression; in fact,
+@c normally they are never used except by the code that handles abbrevs.
+@c Therefore, it is safe to use them in an extremely nonstandard way.
+@c @xref{Creating Symbols}.
+略語表は、各略語に対するシンボルを収めたオブジェクト配列として表現されます。
+シンボルの名前が略語です。
+その値は展開形であり、その関数定義は展開を行うフック関数です。
+その属性リストのセルには略語を展開した回数である利用回数が入ります。
+それらのシンボルは、通常のオブジェクト配列にはインターンされませんから、
+Lisp 式を読み取った結果には、それらはけっして現れません。
+実際、略語を扱うコード以外では、それらはけっして使われません。
+したがって、それらをかなり非標準的に使っても安全です。
+@xref{Creating Symbols}。
+
+@c   For the user-level commands for abbrevs, see @ref{Abbrevs,, Abbrev
+@c Mode, emacs, The GNU Emacs Manual}.
+ユーザーレベルの略語コマンドについては、
+@ref{Abbrevs,, 略語の利用法, emacs, GNU Emacs マニュアル}を参照してください。
+
+@menu
+* Abbrev Mode::                 Setting up Emacs for abbreviation.
+* Tables: Abbrev Tables.        Creating and working with abbrev tables.
+* Defining Abbrevs::            Specifying abbreviations and their expansions.
+* Files: Abbrev Files.          Saving abbrevs in files.
+* Expansion: Abbrev Expansion.  Controlling expansion; expansion subroutines.
+* Standard Abbrev Tables::      Abbrev tables used by various major modes.
+@end menu
+
+@node Abbrev Mode, Abbrev Tables, Abbrevs, Abbrevs
+@comment  node-name,  next,  previous,  up
+@c @section Setting Up Abbrev Mode    
+@section 略語 (abbrev) モードの設定 @emph{(2003/10/30)}
+
+@c   Abbrev mode is a minor mode controlled by the value of the variable
+@c @code{abbrev-mode}.
+略語 (abbrev) モードは、変数@code{abbrev-mode}の値で制御される
+マイナモードです。
+
+@defvar abbrev-mode
+@c A non-@code{nil} value of this variable turns on the automatic expansion
+@c of abbrevs when their abbreviations are inserted into a buffer.
+@c If the value is @code{nil}, abbrevs may be defined, but they are not
+@c expanded automatically.
+この変数の値が@code{nil}以外であると、
+バッファに略語が挿入されると自動的に展開するようになる。
+値が@code{nil}であると、略語を定義することはできるが、
+自動的には展開されない。
+
+@c This variable automatically becomes buffer-local when set in any fashion.
+この変数は設定されると自動的にバッファローカルになる。
+@end defvar
+
+@defvar default-abbrev-mode
+@c This is the value of @code{abbrev-mode} for buffers that do not override it.
+@c This is the same as @code{(default-value 'abbrev-mode)}.
+これは、@code{abbrev-mode}を上書きしていないバッファ向けの
+@code{abbrev-mode}の値である。
+これは@code{(default-value 'abbrev-mode)}と同じである。
+@end defvar
+
+@node Abbrev Tables, Defining Abbrevs, Abbrev Mode, Abbrevs
+@c @section Abbrev Tables
+@section 略語表 @emph{(2003/10/30)}
+
+@c   This section describes how to create and manipulate abbrev tables.
+本節では、略語表の作成方法と扱い方について述べます。
+
+@defun make-abbrev-table
+@c This function creates and returns a new, empty abbrev table---an obarray
+@c containing no symbols.  It is a vector filled with zeros.
+この関数は、新たな空の略語表、つまり、
+シンボルを含まないオブジェクト配列を作成して返す。
+この値はゼロで埋められたベクトルである。
+@end defun
+
+@defun clear-abbrev-table table
+@c This function undefines all the abbrevs in abbrev table @var{table},
+@c leaving it empty.  It always returns @code{nil}.
+この関数は、略語表@var{table}内のすべての略語を未定義にして略語表を空にする。
+関数はいつも@code{nil}を返す。
+@end defun
+
+@defun define-abbrev-table tabname definitions
+@c This function defines @var{tabname} (a symbol) as an abbrev table name,
+@c i.e., as a variable whose value is an abbrev table.  It defines abbrevs
+@c in the table according to @var{definitions}, a list of elements of the
+@c form @code{(@var{abbrevname} @var{expansion} @var{hook}
+@c @var{usecount})}.  The return value is always @code{nil}.
+この関数は、@var{tabname}(シンボル) を略語表の名前として定義する。
+つまり、この変数としての値は略語表になる。
+@var{definitions}に従って略語表に略語を定義する。
+ここで、@var{definitions}は
+@code{(@var{abbrevname} @var{expansion} @var{hook} @var{usecount})}の形の
+要素から成るリストである。
+戻り値はつねに@code{nil}である。
+@end defun
+
+@defvar abbrev-table-name-list
+@c This is a list of symbols whose values are abbrev tables.
+@c @code{define-abbrev-table} adds the new abbrev table name to this list.
+その値が略語表であるシンボルのリストである。
+@code{define-abbrev-table}は、新たな略語表の名前をこのリストに追加する。
+@end defvar
+
+@defun insert-abbrev-table-description name &optional human
+@c This function inserts before point a description of the abbrev table
+@c named @var{name}.  The argument @var{name} is a symbol whose value is an
+@c abbrev table.  The return value is always @code{nil}.
+この関数は、@var{name}で指名される略語表の記述をポイントのまえに挿入する。
+引数@var{name}は、その値が略語表であるシンボルである。
+戻り値はつねに@code{nil}である。
+
+@c If @var{human} is non-@code{nil}, the description is human-oriented.
+@c Otherwise the description is a Lisp expression---a call to
+@c @code{define-abbrev-table} that would define @var{name} exactly as it
+@c is currently defined.
+@var{human}が@code{nil}以外であると、この記述は人間向けである。
+さもなければ、この記述は Lisp 式、つまり、
+@var{name}の現在の定義どおりに@var{name}を定義するような
+@code{define-abbrev-table}の呼び出しである。
+@end defun
+
+@node Defining Abbrevs, Abbrev Files, Abbrev Tables, Abbrevs
+@comment  node-name,  next,  previous,  up
+@c @section Defining Abbrevs
+@section 略語を定義する @emph{(2003/10/30)}
+
+@c   These functions define an abbrev in a specified abbrev table.
+@c @code{define-abbrev} is the low-level basic function, while
+@c @code{add-abbrev} is used by commands that ask for information from the
+@c user.
+これらの関数は、指定した略語表に略語を定義します。
+@code{define-abbrev}は下位レベルの基本的な関数ですが、
+@code{add-abbrev}はユーザーに情報を問い合わせるコマンドが使います。
+
+@defun add-abbrev table type arg
+@c This function adds an abbreviation to abbrev table @var{table} based on
+@c information from the user.  The argument @var{type} is a string
+@c describing in English the kind of abbrev this will be (typically,
+@c @code{"global"} or @code{"mode-specific"}); this is used in prompting
+@c the user.  The argument @var{arg} is the number of words in the
+@c expansion.
+この関数は、ユーザーからの情報に基づいて
+略語表@var{table}に略語を追加する。
+引数@var{type}は、この略語の種類を英語で表した文字列である
+(典型的には、@code{"global"}や@code{"mode-specific"}。)
+この文字列はユーザーへのプロンプトに使われる。
+引数@var{arg}は、展開形の単語数である。
+
+@c The return value is the symbol that internally represents the new
+@c abbrev, or @code{nil} if the user declines to confirm redefining an
+@c existing abbrev.
+戻り値は、新たな略語を内部的に表現するシンボルであるか、
+既存の略語を再定義することをユーザーが拒否したときには@code{nil}である。
+@end defun
+
+@defun define-abbrev table name expansion &optional hook count
+@c This function defines an abbrev named @var{name}, in @var{table}, to
+@c expand to @var{expansion} and call @var{hook}.  The value of
+@c @var{count}, if specified, initializes the abbrev's usage-count.  If
+@c @var{count} is not specified or @code{nil}, the use count is initialized
+@c to zero.  The return value is a symbol that represents the abbrev inside
+@c Emacs; its name is @var{name}.
+@c この関数は、略語が定義されている表 (引数@var{table}) において、
+略語 (@var{name}) を@var{expansion}に展開し，@var{hook}を呼び出すように定義する。
+また，オプションである@var{count}の値は abbrev での展開回数の初期値となる．指定
+されなければ 0 となる．
+
+戻り値は、 Emacs 内部で略語を表現するシンボルを返すが、
+その名前は@var{name}である。
+
+@c The argument @var{name} should be a string.  The argument
+@c @var{expansion} is normally the desired expansion (a string), or
+@c @code{nil} to undefine the abbrev.  If it is anything but a string or
+@c @code{nil}, then the abbreviation ``expands'' solely by running
+@c @var{hook}.
+引数@var{name}は文字列であること。
+引数@var{expansion}は、普通は、目的の展開形 (文字列) であるが、
+略語を未定義にするには@code{nil}である。
+これが文字列でも@code{nil}でもなければ、
+略語を『展開する』ときには@var{hook}だけを実行する。
+
+@c The argument @var{hook} is a function or @code{nil}.  If @var{hook} is
+@c non-@code{nil}, then it is called with no arguments after the abbrev is
+@c replaced with @var{expansion}; point is located at the end of
+@c @var{expansion} when @var{hook} is called.
+引数@var{hook}は、関数か@code{nil}である。
+@var{hook}が@code{nil}以外であると、
+略語を@var{expansion}に置換し終えてから引数なしで呼ばれる。
+@var{hook}が呼ばれるときには、
+ポイントは@var{expansion}の直後に置かれる。
+
+@c The use count of the abbrev is initialized to zero.
+略語の利用回数は 0 に初期化される。
+@end defun
+
+@defopt only-global-abbrevs
+@c If this variable is non-@code{nil}, it means that the user plans to use
+@c global abbrevs only.  This tells the commands that define mode-specific
+@c abbrevs to define global ones instead.  This variable does not alter the
+@c behavior of the functions in this section; it is examined by their
+@c callers.
+この変数が@code{nil}以外であると、
+ユーザーはグローバルな略語だけを使う意図があることを表す。
+モード固有の略語を定義するコマンドに対して、
+グローバルな略語を定義するように指示する。
+この変数は本節の関数のふるまいを変えることはないが、
+それらを呼び出す側でこの変数を検査している。
+@end defopt
+
+@node Abbrev Files, Abbrev Expansion, Defining Abbrevs, Abbrevs
+@c @section Saving Abbrevs in Files
+@section 略語をファイルに保存する @emph{(2003/10/30)}
+
+@c   A file of saved abbrev definitions is actually a file of Lisp code.
+@c The abbrevs are saved in the form of a Lisp program to define the same
+@c abbrev tables with the same contents.  Therefore, you can load the file
+@c with @code{load} (@pxref{How Programs Do Loading}).  However, the
+@c function @code{quietly-read-abbrev-file} is provided as a more
+@c convenient interface.
+略語定義を保存したファイルは、実際には、 Lisp コードのファイルです。
+略語は、同じ内容の同じ略語表を定義する Lisp プログラムの形で保存されます。
+したがって、ファイルは@code{load}(@pxref{How Programs Do Loading}) で
+ロードできます。
+しかし、関数@code{quietly-read-abbrev-file}がより便利なインターフェイスを
+提供します。
+
+@c   User-level facilities such as @code{save-some-buffers} can save
+@c abbrevs in a file automatically, under the control of variables
+@c described here.
+@code{save-some-buffers}などのユーザーレベルの機能では、
+ここに述べた変数の制御のもとで、略語をファイルに自動的に保存できます。
+
+@defopt abbrev-file-name
+@c This is the default file name for reading and saving abbrevs.
+これは、略語を読み込んだり保存するデフォルトのファイル名である。
+@end defopt
+
+@defun quietly-read-abbrev-file &optional filename
+@c This function reads abbrev definitions from a file named @var{filename},
+@c previously written with @code{write-abbrev-file}.  If @var{filename} is
+@c omitted or @code{nil}, the file specified in @code{abbrev-file-name} is
+@c used.  @code{save-abbrevs} is set to @code{t} so that changes will be
+@c saved.
+この関数は、@code{write-abbrev-file}で書いておいた
+ファイル@var{filename}から、略語定義を読み取る。
+@var{filename}が省略されるか，@code{nil}であると、
+@code{abbrev-file-name}で指定されるファイルを使う。
+@code{save-abbrevs}に@code{t}を設定して、変更は保存されるようにする。
+
+@c This function does not display any messages.  It returns @code{nil}.
+この関数はいっさいメッセージを表示しない。
+@code{nil}を返す。
+@end defun
+
+@defopt save-abbrevs
+@c A non-@code{nil} value for @code{save-abbrev} means that Emacs should
+@c save abbrevs when files are saved.  @code{abbrev-file-name} specifies
+@c the file to save the abbrevs in.
+@code{save-abbrev}が@code{nil}以外の値であると、
+Emacs はファイルを保存するときに略語も保存する。
+@code{abbrev-file-name}が略語を保存するファイルを指定する。
+@end defopt
+
+@defvar abbrevs-changed
+@c This variable is set non-@code{nil} by defining or altering any 
+@c abbrevs.  This serves as a flag for various Emacs commands to offer to
+@c save your abbrevs.
+略語を定義したり変更すると、この変数は@code{nil}以外に設定される。
+これは、読者の略語を保存する機会を与えるために、
+Emacs のさまざまなコマンドに対するフラグとして働く。
+@end defvar
+
+@c @deffn Command write-abbrev-file &optional filename
+@deffn コマンド write-abbrev-file &optional filename
+@c Save all abbrev definitions, in all abbrev tables, in the file
+@c @var{filename}, in the form of a Lisp program that when loaded will
+@c define the same abbrevs.  If @var{filename} is @code{nil} or omitted,
+@c @code{abbrev-file-name} is used.  This function returns @code{nil}.
+ロードすると同じ略語を定義するような Lisp プログラムの形で、
+ファイル@var{filename}にすべての略語表のすべての略語定義を保存する。
+もしファイル名 (@var{filename}) が省略されるか nil であると，
+@code{abbrev-file-name}で設定したファイルに保存される．
+また，この関数は@code{nil}を返す。
+@end deffn
+
+@node Abbrev Expansion, Standard Abbrev Tables, Abbrev Files, Abbrevs
+@comment  node-name,  next,  previous,  up
+@c @section Looking Up and Expanding Abbreviations
+@section 略語の探索と展開 @emph{(2003/10/30)}
+
+@c   Abbrevs are usually expanded by certain interactive commands,
+@c including @code{self-insert-command}.  This section describes the
+@c subroutines used in writing such commands, as well as the variables they
+@c use for communication.
+通常、略語は、@code{self-insert-command}を含む特定の対話的なコマンドに
+よって展開されます。
+本節では、データのやりとりに使う変数に加えて、そのようなコマンドを書くために
+使用するサブルーティンについて述べます。
+
+@defun abbrev-symbol abbrev &optional table
+@c This function returns the symbol representing the abbrev named
+@c @var{abbrev}.  The value returned is @code{nil} if that abbrev is not
+@c defined.  The optional second argument @var{table} is the abbrev table
+@c to look it up in.  If @var{table} is @code{nil}, this function tries
+@c first the current buffer's local abbrev table, and second the global
+@c abbrev table.
+この関数は、名前@var{abbrev}の略語を表すシンボルを返す。
+そのような略語が定義されていなければ、戻り値は@code{nil}である。
+省略可能な第 2 引数@var{table}は、探索対象の略語表である。
+@var{table}が@code{nil}であると、
+この関数は、まずカレントバッファのローカルな略語表を試し、
+つぎにグローバルな略語表を試す。
+@end defun
+
+@defun abbrev-expansion abbrev &optional table
+@c This function returns the string that @var{abbrev} would expand into (as
+@c defined by the abbrev tables used for the current buffer).  The optional
+@c argument @var{table} specifies the abbrev table to use, as in
+@c @code{abbrev-symbol}.
+この関数は、@var{abbrev}が
+(カレントバッファで使用される略語表での定義どおりに)
+展開されるであろう文字列を返す。
+省略可能な引数@var{table}は、@code{abbrev-symbol}と同様に、
+使用する略語表を指定する。
+@end defun
+
+@c @deffn Command expand-abbrev
+@deffn コマンド expand-abbrev
+@c This command expands the abbrev before point, if any.  If point does not
+@c follow an abbrev, this command does nothing.  The command returns the
+@c abbrev symbol if it did expansion, @code{nil} otherwise.
+このコマンドは、ポイントのまえの略語をあれば展開する。
+略語の直後にポイントがない場合、このコマンドはなにもしない。
+このコマンドは、展開を行えば展開前の文字を返し、
+さもなければ@code{nil}を返す。
+
+@c If the abbrev symbol has a hook function which is a symbol whose
+@c @code{no-self-insert} property is non-@code{nil}, and if the hook
+@c function returns @code{nil} as its value, then @code{expand-abbrev}
+@c returns @code{nil} even though expansion did occur.
+@end deffn
+
+@c @deffn Command abbrev-prefix-mark &optional arg
+@deffn コマンド abbrev-prefix-mark &optional arg
+@c Mark current point as the beginning of an abbrev.  The next call to
+@c @code{expand-abbrev} will use the text from here to point (where it is
+@c then) as the abbrev to expand, rather than using the previous word as
+@c usual.
+現在のポイント位置を略語の開始位置としてマークする。
+つぎに@code{expand-abbrev}を呼び出すと、
+通常どおりにポイントのまえの単語を使うかわりに、
+ここから (その時点での) ポイントまでのテキストを略語として展開する。
+@end deffn
+
+@defopt abbrev-all-caps
+@c When this is set non-@code{nil}, an abbrev entered entirely in upper
+@c case is expanded using all upper case.  Otherwise, an abbrev entered
+@c entirely in upper case is expanded by capitalizing each word of the
+@c expansion.
+これが@code{nil}以外であると、
+大文字だけで入力された略語を大文字だけで展開する。
+さもなければ、大文字だけで入力された略語は、
+展開形の各単語を大文字で始めるように展開される。
+@end defopt
+
+@defvar abbrev-start-location
+@c This is the buffer position for @code{expand-abbrev} to use as the start
+@c of the next abbrev to be expanded.  (@code{nil} means use the word
+@c before point instead.)  @code{abbrev-start-location} is set to
+@c @code{nil} each time @code{expand-abbrev} is called.  This variable is
+@c also set by @code{abbrev-prefix-mark}.
+これは、@code{expand-abbrev}がつぎに展開する略語の開始位置として使う
+バッファ内位置である。
+(@code{nil}であると、そのかわりにポイントのまえの単語を使う意味である。)
+@code{expand-abbrev}が呼び出されるたびに、
+@code{abbrev-start-location}は@code{nil}に設定される。
+この変数は、@code{abbrev-prefix-mark}でも設定される。
+@end defvar
+
+@defvar abbrev-start-location-buffer
+@c The value of this variable is the buffer for which
+@c @code{abbrev-start-location} has been set.  Trying to expand an abbrev
+@c in any other buffer clears @code{abbrev-start-location}.  This variable
+@c is set by @code{abbrev-prefix-mark}.
+この変数の値は、@code{abbrev-start-location}が設定されたバッファである。
+別のバッファで略語を展開しようとすると@code{abbrev-start-location}は
+クリアされる。
+この変数は@code{abbrev-prefix-mark}が設定する。
+@end defvar
+
+@defvar last-abbrev
+@c This is the @code{abbrev-symbol} of the most recent abbrev expanded.  This
+@c information is left by @code{expand-abbrev} for the sake of the
+@c @code{unexpand-abbrev} command (@pxref{Expanding Abbrevs,, Expanding
+@c Abbrevs, emacs, The GNU Emacs Manual}).
+これは、もっとも最近に略語展開された@code{abbrev-symbol}
+(略語を表すシンボル) である。
+この情報は、コマンド@code{unexpand-abbrev}向けに
+@code{expand-abbrev}が残す
+(@pxref{Expanding Abbrevs,, 略語展開の制御, emacs, GNU Emacs マニュアル})
+。
+@end defvar
+
+@defvar last-abbrev-location
+@c This is the location of the most recent abbrev expanded.  This contains
+@c information left by @code{expand-abbrev} for the sake of the
+@c @code{unexpand-abbrev} command.
+これは、もっとも最近に略語展開した箇所である。
+これは、コマンド@code{unexpand-abbrev}向けに
+@code{expand-abbrev}が残した情報を保持する。
+@end defvar
+
+@defvar last-abbrev-text
+@c This is the exact expansion text of the most recent abbrev expanded,
+@c after case conversion (if any).  Its value is @code{nil} if the abbrev
+@c has already been unexpanded.  This contains information left by
+@c @code{expand-abbrev} for the sake of the @code{unexpand-abbrev} command.
+これは、もっとも最近に略語展開したときの (あれば) 大文字小文字変換後の
+展開形のテキストである。
+略語展開を取り消すと、この値は@code{nil}である。
+これは、コマンド@code{unexpand-abbrev}向けに
+@code{expand-abbrev}が残した情報を保持する。
+@end defvar
+
+@c Emacs 19 feature
+@defvar pre-abbrev-expand-hook
+@c This is a normal hook whose functions are executed, in sequence, just
+@c before any expansion of an abbrev.  @xref{Hooks}.  Since it is a normal
+@c hook, the hook functions receive no arguments.  However, they can find
+@c the abbrev to be expanded by looking in the buffer before point.
+これは、任意の略語を展開する直前に順に実行される関数を
+収めたノーマルフックである。
+@pxref{Hooks}。
+ノーマルフックなので、フック関数は引数を受け取らない。
+しかし、バッファでポイントのまえを調べることで
+展開すべき略語をみつけることができる。
+@c Running the hook is the first thing that @code{expand-abbrev} does, and
+@c so a hook function can be used to change the current abbrev table before
+@c abbrev lookup happens.
+また，このフックは@code{expand-abbrev}が実行する最初の処理であるため，展開される
+語を探す前に現在の展開表を変更することもできる．
+@end defvar
+
+@c   The following sample code shows a simple use of
+@c @code{pre-abbrev-expand-hook}.  If the user terminates an abbrev with a
+@c punctuation character, the hook function asks for confirmation.  Thus,
+@c this hook allows the user to decide whether to expand the abbrev, and
+@c aborts expansion if it is not confirmed.
+以下のコード例は、@code{pre-abbrev-expand-hook}の使い方を示します。
+ユーザーが略語を句読点文字で終えると、フック関数が確認を求めます。
+したがって、このフックにより、ユーザーは展開の可否を決定でき、
+了承しなかったときには展開を止められます。
+
+@smallexample
+(add-hook 'pre-abbrev-expand-hook 'query-if-not-space)
+
+@c ;; @r{This is the function invoked by @code{pre-abbrev-expand-hook}.}
+;; @r{この関数は、@code{pre-abbrev-expand-hook}が起動する}
+
+@c ;; @r{If the user terminated the abbrev with a space, the function does}
+@c ;; @r{nothing (that is, it returns so that the abbrev can expand).  If the}
+@c ;; @r{user entered some other character, this function asks whether}
+@c ;; @r{expansion should continue.}
+;; @r{ユーザーが略語を空白で終えると、この関数はなにもしない}
+;; @r{(つまり、略語を展開できるように戻る)}
+;; @r{ユーザーがその他の文字を入力したら、}
+;; @r{この関数は展開するかどうかを問い合わせる}
+
+@c ;; @r{If the user answers the prompt with @kbd{y}, the function returns}
+@c ;; @r{@code{nil} (because of the @code{not} function), but that is}
+@c ;; @r{acceptable; the return value has no effect on expansion.}
+;; @r{ユーザーがプロンプトに@kbd{y}で答えたら、}
+;; @r{(関数@code{not}を使っているので) この関数は@code{nil}を返すが}
+;; @r{問題ない。戻り値は展開には影響しない}
+
+(defun query-if-not-space ()
+  (if (/= ?\  (preceding-char))
+      (if (not (y-or-n-p "Do you want to expand this abbrev? "))
+          (error "Not expanding this abbrev"))))
+@end smallexample
+
+@node Standard Abbrev Tables,  , Abbrev Expansion, Abbrevs
+@comment  node-name,  next,  previous,  up
+@c @section Standard Abbrev Tables
+@section 標準の略語表 @emph{(2003/10/30)}
+
+@c   Here we list the variables that hold the abbrev tables for the
+@c preloaded major modes of Emacs.
+Emacs にあらかじめロードされるメジャーモード向けの
+略語表を保持する変数一覧を示します。
+
+@defvar global-abbrev-table
+@c This is the abbrev table for mode-independent abbrevs.  The abbrevs
+@c defined in it apply to all buffers.  Each buffer may also have a local
+@c abbrev table, whose abbrev definitions take precedence over those in the
+@c global table.
+これは、モードに依存しない略語向けの略語表である。
+これに定義された略語は、すべてのバッファに適用される。
+各バッファにはローカルな略語表もあり、
+それらの略語定義はグローバルな略語表の略語定義に優先する。
+@end defvar
+
+@defvar local-abbrev-table
+@c The value of this buffer-local variable is the (mode-specific)
+@c abbreviation table of the current buffer.
+このバッファローカルな変数の値は
+カレントバッファの (モード固有の) 略語表である。
+@end defvar
+
+@defvar fundamental-mode-abbrev-table
+@c This is the local abbrev table used in Fundamental mode; in other words,
+@c it is the local abbrev table in all buffers in Fundamental mode.
+これは、基本 (fundamental) モードで使われるローカルな略語表である。
+いいかえれば、基本 (fundamental) モードであるすべてのバッファの
+ローカルな略語表である。
+@end defvar
+
+@defvar text-mode-abbrev-table
+@c This is the local abbrev table used in Text mode.
+これは、テキスト (text) モードで使われるローカルな略語表である。
+@end defvar
+
+@defvar lisp-mode-abbrev-table
+@c This is the local abbrev table used in Lisp mode and Emacs Lisp mode.
+これは、 lisp モードと emacs-lisp モードで使われるローカルな略語表である。
+@end defvar
+

@@ -1,0 +1,2446 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/variables
+@node Variables, Functions, Control Structures, Top
+@c @chapter Variables
+@chapter 変数
+@c @cindex variable
+@cindex 変数
+
+@c   A @dfn{variable} is a name used in a program to stand for a value.
+@c Nearly all programming languages have variables of some sort.  In the
+@c text of a Lisp program, variables are written using the syntax for
+@c symbols.
+@dfn{変数}（variable）は、プログラムにおいて値を表すために使う名前です。
+ほとんどすべてのプログラム言語には、ある種の変数があります。
+Lispプログラムのテキストでは、シンボルの構文を使って変数を書きます。
+
+@c   In Lisp, unlike most programming languages, programs are represented
+@c primarily as Lisp objects and only secondarily as text.  The Lisp
+@c objects used for variables are symbols: the symbol name is the variable
+@c name, and the variable's value is stored in the value cell of the
+@c symbol.  The use of a symbol as a variable is independent of its use as
+@c a function name.  @xref{Symbol Components}.
+ほとんどのプログラム言語と違って、Lispでは、
+プログラムはLispオブジェクトで表現し、テキスト表現は副次的なものです。
+変数として使うLispオブジェクトはシンボルです。
+シンボル名が変数名であり、変数の値はシンボルの値セルに格納されています。
+変数としてのシンボルの使い方は、関数名としての使い方とは独立しています。
+@xref{Symbol Components}。
+
+@c   The Lisp objects that constitute a Lisp program determine the textual
+@c form of the program---it is simply the read syntax for those Lisp
+@c objects.  This is why, for example, a variable in a textual Lisp program
+@c is written using the read syntax for the symbol that represents the
+@c variable.
+Lispプログラムを構成するLispオブジェクト群は、
+プログラムのテキスト表現を決定します。
+つまり、Lispオブジェクト群に対する単なる入力構文です。
+これは、たとえば、Lispプログラムのテキスト表現では、
+変数を表現するシンボルの入力構文で変数を書く理由です。
+
+@menu
+* Global Variables::      Variable values that exist permanently, everywhere.
+* Constant Variables::    Certain "variables" have values that never change.
+* Local Variables::       Variable values that exist only temporarily.
+* Void Variables::        Symbols that lack values.
+* Defining Variables::    A definition says a symbol is used as a variable.
+* Tips for Defining::     How to avoid bad results from quitting
+                            within the code to initialize a variable.
+* Accessing Variables::   Examining values of variables whose names
+                            are known only at run time.
+* Setting Variables::     Storing new values in variables.
+* Variable Scoping::      How Lisp chooses among local and global values.
+* Buffer-Local Variables::  Variable values in effect only in one buffer.
+* Frame-Local Variables::   Variable values in effect only in one frame.
+* Future Local Variables::  New kinds of local values we might add some day.
+@end menu
+
+@node Global Variables
+@c @section Global Variables
+@section グローバル変数
+@c @cindex global variable
+@cindex グローバル変数
+@cindex 変数、グローバル
+
+@c   The simplest way to use a variable is @dfn{globally}.  This means that
+@c the variable has just one value at a time, and this value is in effect
+@c (at least for the moment) throughout the Lisp system.  The value remains
+@c in effect until you specify a new one.  When a new value replaces the
+@c old one, no trace of the old value remains in the variable.
+変数を使うもっとも簡単な方法は、
+@dfn{グローバルに}（globally、大局的に）使うことです。
+つまり、どんなときにも変数にはたった1つの値だけがあり、
+（少なくともここでは）Lispシステム全体にその値が有効になります。
+新たな値を設定するまで、その値が有効であり続けます。
+新たな値で古い値を置き換えると、変数には古い値の痕跡はなにも残りません。
+
+@c   You specify a value for a symbol with @code{setq}.  For example,
+シンボルの値は@code{setq}で指定します。
+たとえば、
+
+@example
+(setq x '(a b))
+@end example
+
+@noindent
+@c gives the variable @code{x} the value @code{(a b)}.  Note that
+@c @code{setq} does not evaluate its first argument, the name of the
+@c variable, but it does evaluate the second argument, the new value.
+は、変数@code{x}に値@code{(a b)}を与えます。
+@code{setq}は、最初の引数、つまり、変数の名前を評価せず、
+新しい値である第2引数を評価することに注意してください。
+
+@c   Once the variable has a value, you can refer to it by using the symbol
+@c by itself as an expression.  Thus,
+変数にいったん値を与えれば、
+式としてシンボルそのものを使うことによりその値を参照できます。
+つまり、つぎのとおりです。
+
+@example
+@group
+x @result{} (a b)
+@end group
+@end example
+
+@noindent
+@c assuming the @code{setq} form shown above has already been executed.
+ただし、上に示したフォーム@code{setq}を実行してあると仮定します。
+
+@c   If you do set the same variable again, the new value replaces the old
+@c one:
+同じ変数に値を設定し直すと、
+新しい値で古い値を置き換えます。
+
+@example
+@group
+x
+     @result{} (a b)
+@end group
+@group
+(setq x 4)
+     @result{} 4
+@end group
+@group
+x
+     @result{} 4
+@end group
+@end example
+
+@node Constant Variables
+@c @section Variables That Never Change
+@section 変更不可能な変数
+@vindex nil
+@vindex t
+@kindex setting-constant
+
+@c   In Emacs Lisp, certain symbols normally evaluate to themselves.  These
+@c include @code{nil} and @code{t}, as well as any symbol whose name starts
+@c with @samp{:}.  These symbols cannot be rebound, nor can their values be
+@c changed.  Any attempt to set or bind @code{nil} or @code{t} signals a
+@c @code{setting-constant} error.  The same is true for a symbol whose name
+@c starts with @samp{:}, except that you are allowed to set such a symbol to
+@c itself.
+Emacs Lispには、通常それ自身に評価されるある種のシンボルがあります。
+@samp{:}で始まる名前の任意の変数、および、@code{nil}と@code{t}です。
+これらのシンボルを再束縛することはできず、
+それらの値を変更することもできません。
+@code{nil}や@code{t}を設定しようとしたり束縛しようとすると、
+エラー@code{setting-constant}を通知します。
+@samp{:}で始まる名前のシンボルに関してもそうですが、
+そのようなシンボルにそれ自身を設定することはできます。
+
+@example
+@group
+nil @equiv{} 'nil
+     @result{} nil
+@end group
+@group
+(setq nil 500)
+@error{} Attempt to set constant symbol: nil
+@end group
+@end example
+
+@defvar keyword-symbols-constant-flag
+@tindex keyword-symbols-constant-flag
+@c If this variable is @code{nil}, you are allowed to set and bind symbols
+@c whose names start with @samp{:} as you wish.  This is to make it
+@c possible to run old Lisp programs which do that.
+この変数が@code{nil}であると、
+@samp{:}で始まる名前の変数を望みの値に設定したり束縛したりできる。
+これは、そのようなことを行う古いLispプログラムの実行を可能にするためである。
+@end defvar
+
+@node Local Variables
+@c @section Local Variables
+@section ローカル変数
+@c @cindex binding local variables
+@c @cindex local variables
+@c @cindex local binding
+@c @cindex global binding
+@cindex ローカル変数束縛
+@cindex ローカル変数
+@cindex 変数、ローカル
+@cindex ローカル束縛
+@cindex グローバル束縛
+
+@c   Global variables have values that last until explicitly superseded
+@c with new values.  Sometimes it is useful to create variable values that
+@c exist temporarily---only until a certain part of the program finishes.
+@c These values are called @dfn{local}, and the variables so used are
+@c called @dfn{local variables}.
+グローバル変数は、
+明示的に新しい値で置き換えない限り存続する値を持ちます。
+一時的にしか存在しない変数値、
+つまり、プログラムのある部分を完了するまでのみ存在する変数値を
+作れると便利なことがあります。
+このような値を@dfn{ローカル}（local、局所的）と呼び、
+そのように使われる変数を@dfn{ローカル変数}（local variables）と呼びます。
+
+@c   For example, when a function is called, its argument variables receive
+@c new local values that last until the function exits.  The @code{let}
+@c special form explicitly establishes new local values for specified
+@c variables; these last until exit from the @code{let} form.
+たとえば、関数を呼び出したとき、その引数変数は、
+関数を抜けるまで存続する新たなローカルな値を受け取ります。
+スペシャルフォーム@code{let}は、指定した変数の新たなローカル値を
+明示的に確立します。
+これらはフォーム@code{let}を抜けるまで存続します。
+
+@c @cindex shadowing of variables
+@cindex 変数を隠す
+@c   Establishing a local value saves away the previous value (or lack of
+@c one) of the variable.  When the life span of the local value is over,
+@c the previous value is restored.  In the mean time, we say that the
+@c previous value is @dfn{shadowed} and @dfn{not visible}.  Both global and
+@c local values may be shadowed (@pxref{Scope}).
+ローカル値を確立すると、
+変数の以前の値（あるいは値がないこと）を保存します。
+ローカル値の存続期間が終了すると、以前の値を復元します。
+この期間は、以前の値を@dfn{隠して}（shadowed）いて
+以前の値は@dfn{見えません}。
+グローバル値でもローカル値でも隠せます（@pxref{Scope}）。
+
+@c   If you set a variable (such as with @code{setq}) while it is local,
+@c this replaces the local value; it does not alter the global value, or
+@c previous local values, that are shadowed.  To model this behavior, we
+@c speak of a @dfn{local binding} of the variable as well as a local value.
+変数がローカルなときに（@code{setq}などで）その変数を設定すると、
+ローカル値を置き換えます。
+隠されているグローバル値や以前のローカル値を変更しません。
+このふるまいをモデル化するために、
+変数のローカル値に加えて変数の@dfn{ローカル束縛}（local binding）を
+考えます。
+
+@c   The local binding is a conceptual place that holds a local value.
+@c Entry to a function, or a special form such as @code{let}, creates the
+@c local binding; exit from the function or from the @code{let} removes the
+@c local binding.  As long as the local binding lasts, the variable's value
+@c is stored within it.  Use of @code{setq} or @code{set} while there is a
+@c local binding stores a different value into the local binding; it does
+@c not create a new binding.
+ローカル束縛とは、ローカル値を保持する概念的な場所です。
+関数や@code{let}などのスペシャルフォームに入るたびに
+ローカル束縛を作成します。
+関数やフォーム@code{let}から抜けるとローカル束縛を削除します。
+ローカル束縛が存続する限り、変数の値はそこに保持されています。
+ローカル束縛が存在するときに@code{setq}や@code{set}を使うと、
+ローカル束縛の中に別の値を格納します。
+新たな束縛を作るのではありません。
+
+@c   We also speak of the @dfn{global binding}, which is where
+@c (conceptually) the global value is kept.
+グローバル値を保持する概念的な場所を
+@dfn{グローバル束縛}（global binding）ともいいます。
+
+@c @cindex current binding
+@cindex 現在の束縛
+@c   A variable can have more than one local binding at a time (for
+@c example, if there are nested @code{let} forms that bind it).  In such a
+@c case, the most recently created local binding that still exists is the
+@c @dfn{current binding} of the variable.  (This rule is called
+@c @dfn{dynamic scoping}; see @ref{Variable Scoping}.)  If there are no
+@c local bindings, the variable's global binding is its current binding.
+@c We sometimes call the current binding the @dfn{most-local existing
+@c binding}, for emphasis.  Ordinary evaluation of a symbol always returns
+@c the value of its current binding.
+変数には一度に複数のローカル束縛がありえます
+（たとえば、同じ変数を束縛する入れ子になったフォーム@code{let}があるとき）。
+そのような場合、既存のもっとも最近に作成されたローカル束縛が、
+変数の@dfn{現在の束縛}（current binding）です。
+（この規則を@dfn{動的スコープ}（dynamic scoping）と呼びます。
+@pxref{Variable Scoping}）
+ローカル束縛がまったくなければ、変数のグローバル束縛が現在の束縛です。
+現在の束縛のことを強調して@dfn{既存の最ローカル束縛}と呼ぶこともあります。
+シンボルの通常の評価では、その現在の束縛の値を返します。
+
+@c   The special forms @code{let} and @code{let*} exist to create
+@c local bindings.
+スペシャルフォーム@code{let}や@code{let*}は、
+ローカル束縛を作るためにあります。
+
+@defspec let (bindings@dots{}) forms@dots{}
+@c This special form binds variables according to @var{bindings} and then
+@c evaluates all of the @var{forms} in textual order.  The @code{let}-form
+@c returns the value of the last form in @var{forms}.
+このスペシャルフォームは、@var{bindings}に従って変数を束縛し、
+@var{forms}のすべてをテキスト上の順に評価する。
+@code{let}フォームは、@var{forms}の最後のフォームの値を返す。
+
+@c Each of the @var{bindings} is either @w{(i) a} symbol, in which case
+@c that symbol is bound to @code{nil}; or @w{(ii) a} list of the form
+@c @code{(@var{symbol} @var{value-form})}, in which case @var{symbol} is
+@c bound to the result of evaluating @var{value-form}.  If @var{value-form}
+@c is omitted, @code{nil} is used.
+@var{bindings}のおのおのは、@w{(i)}シンボルであるか、
+@w{(ii)}フォーム@code{(@var{symbol} @var{value-form})}のリストである。
+前者は、シンボルに@code{nil}を束縛する。
+後者は、@var{symbol}に@var{value-form}の評価結果を束縛する。
+@var{value-form}を省略すると@code{nil}を使う。
+
+@c All of the @var{value-form}s in @var{bindings} are evaluated in the
+@c order they appear and @emph{before} binding any of the symbols to them.
+@c Here is an example of this: @code{Z} is bound to the old value of
+@c @code{Y}, which is 2, not the new value of @code{Y}, which is 1.
+@var{bindings}の@var{value-form}群すべてを現れる順に評価して@emph{から}、
+シンボルにそれらの値を束縛する。
+例をつぎに示す。
+@code{Z}は、@code{Y}の古い値2に束縛され、@code{Y}の新しい値1ではない。
+
+@example
+@group
+(setq Y 2)
+     @result{} 2
+@end group
+@group
+(let ((Y 1) 
+      (Z Y))
+  (list Y Z))
+     @result{} (1 2)
+@end group
+@end example
+@end defspec
+
+@defspec let* (bindings@dots{}) forms@dots{}
+@c This special form is like @code{let}, but it binds each variable right
+@c after computing its local value, before computing the local value for
+@c the next variable.  Therefore, an expression in @var{bindings} can
+@c reasonably refer to the preceding symbols bound in this @code{let*}
+@c form.  Compare the following example with the example above for
+@c @code{let}.
+このスペシャルフォームは@code{let}に似ているが、
+変数のローカル値を計算し終えた直後にその変数を束縛し、
+つぎの変数のローカル値の計算に進む。
+したがって、@var{bindings}内の式では、この@code{let*}フォーム内で
+まえにあるシンボルを参照できる。
+つぎの例を上の@code{let}の例と比較してほしい。
+
+@example
+@group
+(setq Y 2)
+     @result{} 2
+@end group
+@group
+(let* ((Y 1)
+@c        (Z Y))    ; @r{Use the just-established value of @code{Y}.}
+       (Z Y))    ; @r{設定し終えたばかりの@code{Y}の値を使う}
+  (list Y Z))
+     @result{} (1 1)
+@end group
+@end example
+@end defspec
+
+@c   Here is a complete list of the other facilities that create local
+@c bindings:
+以下にローカル束縛を作成するその他の機能の完全な一覧をあげておきます。
+
+@itemize @bullet
+@item
+@c Function calls (@pxref{Functions}).
+関数呼び出し（@pxref{Functions}）。
+
+@item
+@c Macro calls (@pxref{Macros}).
+マクロ呼び出し（@pxref{Macros}）。
+
+@item
+@c @code{condition-case} (@pxref{Errors}).
+@code{condition-case}（@pxref{Errors}）。
+@end itemize
+
+@c   Variables can also have buffer-local bindings (@pxref{Buffer-Local
+@c Variables}) and frame-local bindings (@pxref{Frame-Local Variables}); a
+@c few variables have terminal-local bindings (@pxref{Multiple Displays}).
+@c These kinds of bindings work somewhat like ordinary local bindings, but
+@c they are localized depending on ``where'' you are in Emacs, rather than
+@c localized in time.
+変数は、バッファローカルな束縛（@pxref{Buffer-Local Variables}や
+フレームローカルな束縛（@pxref{Frame-Local Variables}）を持つことができます。
+少数の変数は、端末にローカルな束縛（@pxref{Multiple Displays}）
+を持つこともできます。
+この種の束縛は普通のローカル束縛と同じように働きますが、
+これらはEmacsの『どの部分』にいるかに依存したローカル化であり、
+時間的なローカル化ではありません。
+
+@defvar max-specpdl-size
+@c @cindex variable limit error
+@c @cindex evaluation error
+@c @cindex infinite recursion
+@cindex 変数制限エラー
+@cindex 評価エラー
+@cindex 無限再帰
+@c This variable defines the limit on the total number of local variable
+@c bindings and @code{unwind-protect} cleanups (@pxref{Nonlocal Exits})
+@c that are allowed before signaling an error (with data @code{"Variable
+@c binding depth exceeds max-specpdl-size"}).
+この変数は、（@code{"Variable binding depth exceeds max-specpdl-size"}を
+伴った）エラーを通知するまでに許される、
+ローカル変数束縛と
+@code{unwind-protect}による後始末（@pxref{Nonlocal Exits}）の
+全体の個数の制限を定義する。
+
+@c This limit, with the associated error when it is exceeded, is one way
+@c that Lisp avoids infinite recursion on an ill-defined function.
+@c @code{max-lisp-eval-depth} provides another limit on depth of nesting.
+@c @xref{Eval}.
+この制限、および、これを超えたときのエラーは、
+不正に定義された関数によってLispが無限に再帰することを防止する
+1つの方法である。
+
+@c The default value is 600.  Entry to the Lisp debugger increases the
+@c value, if there is little room left, to make sure the debugger itself
+@c has room to execute.
+デフォルト値は600である。
+Lispデバッガに入ったとき、
+制限に近い場合にはデバッガ自身が実行できることを保証するために値を増やす。
+@end defvar
+
+@node Void Variables
+@c @section When a Variable is ``Void''
+@section 変数が『空』であるとき
+@kindex void-variable
+@c @cindex void variable
+@cindex 空の変数
+
+@c   If you have never given a symbol any value as a global variable, we
+@c say that that symbol's global value is @dfn{void}.  In other words, the
+@c symbol's value cell does not have any Lisp object in it.  If you try to
+@c evaluate the symbol, you get a @code{void-variable} error rather than
+@c a value.
+シンボルにグローバル変数としての値を一度も与えていないとき、
+そのシンボルのグローバル値は@dfn{空}（void）であるといいます。
+いいかえれば、シンボルの値セルにはどんなLispオブジェクトも入っていません。
+シンボルを評価しようとすると、値ではなくエラー@code{void-variable}を得ます。
+
+@c   Note that a value of @code{nil} is not the same as void.  The symbol
+@c @code{nil} is a Lisp object and can be the value of a variable just as any
+@c other object can be; but it is @emph{a value}.  A void variable does not
+@c have any value.
+@code{nil}という値は空とは異なることに注意してください。
+シンボル@code{nil}はLispオブジェクトであり、他のオブジェクトと同様に
+変数の値になりえます。
+それは@emph{値}なのです。
+空な変数はいかなる値も持たないのです。
+
+@c   After you have given a variable a value, you can make it void once more
+@c using @code{makunbound}.
+変数に値を与えたあとでは、@code{makunbound}を使って
+再度その変数を空にできます。
+
+@defun makunbound symbol
+@c This function makes the current variable binding of @var{symbol} void.
+@c Subsequent attempts to use this symbol's value as a variable will signal
+@c the error @code{void-variable}, unless and until you set it again.
+この関数は、@var{symbol}の現在の変数束縛を空にする。
+これ以降に変数としてこのシンボルの値を使おうとすると、
+再度設定していない限り、エラー@code{void-variable}を通知する。
+
+@c @code{makunbound} returns @var{symbol}.
+@code{makunbound}は@var{symbol}を返す。
+
+@example
+@group
+@c (makunbound 'x)      ; @r{Make the global value of @code{x} void.}
+(makunbound 'x)      ; @r{変数@code{x}のグローバル値を空にする}
+     @result{} x
+@end group
+@group
+x
+@error{} Symbol's value as variable is void: x
+@end group
+@end example
+
+@c If @var{symbol} is locally bound, @code{makunbound} affects the most
+@c local existing binding.  This is the only way a symbol can have a void
+@c local binding, since all the constructs that create local bindings
+@c create them with values.  In this case, the voidness lasts at most as
+@c long as the binding does; when the binding is removed due to exit from
+@c the construct that made it, the previous local or global binding is
+@c reexposed as usual, and the variable is no longer void unless the newly
+@c reexposed binding was void all along.
+@var{symbol}がローカルに束縛されていると、
+@code{makunbound}は既存の最ローカル束縛に作用する。
+ローカル束縛を作成するすべての構文は変数に値を与えるため、
+これはシンボルのローカル束縛を空にする唯一の方法である。
+この場面では、空の状態は、束縛が存在する限り存続する。
+束縛を作成した構造から抜け出して束縛が削除されると、
+通常どおりそれ以前のローカル束縛かグローバル束縛が有効になり、
+その束縛が空でなければ変数は空ではない。
+
+@smallexample
+@group
+@c (setq x 1)               ; @r{Put a value in the global binding.}
+(setq x 1)               ; @r{グローバル束縛に値を入れる}
+     @result{} 1
+@c (let ((x 2))             ; @r{Locally bind it.}
+@c   (makunbound 'x)        ; @r{Void the local binding.}
+(let ((x 2))             ; @r{ローカルに束縛する}
+  (makunbound 'x)        ; @r{ローカル束縛を空にする}
+  x)
+@error{} Symbol's value as variable is void: x
+@end group
+@group
+@c x                        ; @r{The global binding is unchanged.}
+x                        ; @r{グローバル束縛は変更されていない}
+     @result{} 1
+
+@c (let ((x 2))             ; @r{Locally bind it.}
+@c   (let ((x 3))           ; @r{And again.}
+@c     (makunbound 'x)      ; @r{Void the innermost-local binding.}
+@c     x))                  ; @r{And refer: it's void.}
+(let ((x 2))             ; @r{ローカルに束縛する}
+  (let ((x 3))           ; @r{もう一度}
+    (makunbound 'x)      ; @r{もっとも内側のローカル束縛を空にする}
+    x))                  ; @r{参照するが、それは空}
+@error{} Symbol's value as variable is void: x
+@end group
+
+@group
+(let ((x 2))
+  (let ((x 3))
+@c     (makunbound 'x))     ; @r{Void inner binding, then remove it.}
+@c   x)                     ; @r{Now outer @code{let} binding is visible.}
+    (makunbound 'x))     ; @r{内側の束縛を空にし、それを削除する}
+  x)                     ; @r{外側の@code{let}の束縛が見える}
+     @result{} 2
+@end group
+@end smallexample
+@end defun
+
+@c   A variable that has been made void with @code{makunbound} is
+@c indistinguishable from one that has never received a value and has
+@c always been void.
+@code{makunbound}で空にした変数は、
+一度も値を受け取ったことがなく、そのために空である変数と区別できません。
+
+@c   You can use the function @code{boundp} to test whether a variable is
+@c currently void.
+変数が現在、空であるかどうかは関数@code{boundp}を使って調べられます。
+
+@defun boundp variable
+@c @code{boundp} returns @code{t} if @var{variable} (a symbol) is not void;
+@c more precisely, if its current binding is not void.  It returns
+@c @code{nil} otherwise.
+@code{boundp}は、（シンボル）@var{variable}が空でなければ、
+より正確にいえば、現在の束縛が空でなければ@code{t}を返す。
+さもなければ@code{nil}を返す。
+
+@smallexample
+@group
+@c (boundp 'abracadabra)          ; @r{Starts out void.}
+(boundp 'abracadabra)          ; @r{空で始める}
+     @result{} nil
+@end group
+@group
+@c (let ((abracadabra 5))         ; @r{Locally bind it.}
+(let ((abracadabra 5))         ; @r{ローカルに束縛する}
+  (boundp 'abracadabra))
+     @result{} t
+@end group
+@group
+@c (boundp 'abracadabra)          ; @r{Still globally void.}
+(boundp 'abracadabra)          ; @r{グローバルにはまだ空である}
+     @result{} nil
+@end group
+@group
+@c (setq abracadabra 5)           ; @r{Make it globally nonvoid.}
+(setq abracadabra 5)           ; @r{グローバルに空でなくする}
+     @result{} 5
+@end group
+@group
+(boundp 'abracadabra)
+     @result{} t
+@end group
+@end smallexample
+@end defun
+
+@node Defining Variables
+@c @section Defining Global Variables
+@section グローバル変数を定義する
+@c @cindex variable definition
+@cindex 変数定義
+
+@c   You may announce your intention to use a symbol as a global variable
+@c with a @dfn{variable definition}: a special form, either @code{defconst}
+@c or @code{defvar}.
+スペシャルフォーム@code{defconst}や@code{defvar}の@dfn{変数定義}を使って、
+シンボルをグローバル変数として使う意図を表明できます。
+
+@c   In Emacs Lisp, definitions serve three purposes.  First, they inform
+@c people who read the code that certain symbols are @emph{intended} to be
+@c used a certain way (as variables).  Second, they inform the Lisp system
+@c of these things, supplying a value and documentation.  Third, they
+@c provide information to utilities such as @code{etags} and
+@c @code{make-docfile}, which create data bases of the functions and
+@c variables in a program.
+Emacs Lispでは、定義には3つの目的があります。
+まず、コードを読む人向けに、特定のシンボルを（変数として）特定目的に
+使う@emph{意図}があることを知らせます。
+第2に、Lispシステムに対しては、値と説明文字列を提供して
+これらのことを伝えます。
+第3に、プログラム内の関数や変数のデータベースを作成する
+@code{etags}や@code{make-docfile}などのユーティリティに情報を提供します。
+
+@c   The difference between @code{defconst} and @code{defvar} is primarily
+@c a matter of intent, serving to inform human readers of whether the value
+@c should ever change.  Emacs Lisp does not restrict the ways in which a
+@c variable can be used based on @code{defconst} or @code{defvar}
+@c declarations.  However, it does make a difference for initialization:
+@c @code{defconst} unconditionally initializes the variable, while
+@c @code{defvar} initializes it only if it is void.
+@code{defconst}と@code{defvar}の違いは、主に好みの問題であり、
+値が変更されるかどうかを人に伝えます。
+Emacs Lispは、@code{defconst}や@code{defvar}の宣言に基づいて
+変数の使い方を制限することはしません。
+しかしながら、初期化に関しては違いがあります。
+@code{defconst}は無条件に変数を初期化しますが、
+@code{defvar}は変数が空である場合にのみ初期化します。
+
+@ignore
+  One would expect user option variables to be defined with
+@code{defconst}, since programs do not change them.  Unfortunately, this
+has bad results if the definition is in a library that is not preloaded:
+@code{defconst} would override any prior value when the library is
+loaded.  Users would like to be able to set user options in their init
+files, and override the default values given in the definitions.  For
+this reason, user options must be defined with @code{defvar}.
+@end ignore
+
+@defspec defvar symbol [value [doc-string]]
+@c This special form defines @var{symbol} as a variable and can also
+@c initialize and document it.  The definition informs a person reading
+@c your code that @var{symbol} is used as a variable that might be set or
+@c changed.  Note that @var{symbol} is not evaluated; the symbol to be
+@c defined must appear explicitly in the @code{defvar}.
+このスペシャルフォームは、@var{symbol}を変数として定義し、
+初期値や説明文字列を設定する。
+この定義は、コードを読む人向けに、
+値を設定したり変更する変数として@var{symbol}を使うことを伝える。
+@var{symbol}は評価されないことに注意。
+定義するシンボルは、@code{defvar}に明示的に現れる必要がある。
+
+@c If @var{symbol} is void and @var{value} is specified, @code{defvar}
+@c evaluates it and sets @var{symbol} to the result.  But if @var{symbol}
+@c already has a value (i.e., it is not void), @var{value} is not even
+@c evaluated, and @var{symbol}'s value remains unchanged.  If @var{value}
+@c is omitted, the value of @var{symbol} is not changed in any case.
+@var{symbol}の値が空であり@var{value}を指定してあると、
+@code{defvar}は@var{value}を評価し、その結果を@var{symbol}に設定する。
+しかし、@var{symbol}にすでに値があれば（つまり、空でなければ）、
+@var{value}をまったく評価せず、@var{symbol}の値も変更しない。
+@var{value}を省略した場合、@var{symbol}の値をいっさい変更しない。
+
+@c If @var{symbol} has a buffer-local binding in the current buffer,
+@c @code{defvar} operates on the default value, which is buffer-independent,
+@c not the current (buffer-local) binding.  It sets the default value if
+@c the default value is void.  @xref{Buffer-Local Variables}.
+@var{symbol}にカレントバッファでバッファローカルな束縛がある場合には、
+@code{defvar}はデフォルト値に作用する。
+それは、バッファには独立であり、現在の（バッファローカルな）束縛ではない。
+@code{defvar}は、デフォルト値が空の場合にデフォルト値を設定する。
+@pxref{Buffer-Local Variables}。
+
+@c When you evaluate a top-level @code{defvar} form with @kbd{C-M-x} in
+@c Emacs Lisp mode (@code{eval-defun}), a special feature of
+@c @code{eval-defun} arranges to set the variable unconditionally, without
+@c testing whether its value is void.
+emacs-lispモードにおいて@kbd{C-M-x}（@code{eval-defun}）でトップレベルの
+フォーム@code{defvar}を評価すると、
+@code{eval-defun}の特別な機能により、
+変数の値が空かどうかを調べずに無条件に変数に設定する。
+
+@c If the @var{doc-string} argument appears, it specifies the documentation
+@c for the variable.  (This opportunity to specify documentation is one of
+@c the main benefits of defining the variable.)  The documentation is
+@c stored in the symbol's @code{variable-documentation} property.  The
+@c Emacs help functions (@pxref{Documentation}) look for this property.
+@var{doc-string}があれば、それは変数の説明文を指定する。
+（説明文を指定できるのは、変数定義の主な利点の1つである。）
+説明文はシンボルの属性@code{variable-documentation}に格納する。
+Emacsのヘルプ関数（@pxref{Documentation}）は、この属性を調べる。
+
+@c If the first character of @var{doc-string} is @samp{*}, it means that
+@c this variable is considered a user option.  This lets users set the
+@c variable conveniently using the commands @code{set-variable} and
+@c @code{edit-options}.  However, it is better to use @code{defcustom}
+@c instead of @code{defvar} for user option variables, so you can specify
+@c customization information.  @xref{Customization}.
+@var{doc-string}の最初の文字が@samp{*}であると、
+この変数をユーザーオプションと考えることを意味する。
+これにより、ユーザーはコマンド@code{set-variable}や@code{edit-options}を
+使って簡単に変数を設定できる。
+しかしながら、ユーザーオプションの変数には、
+@code{defvar}ではなく@code{defcustom}を使ったほうがよく、
+そうすればカスタマイズ情報を指定できる。
+@pxref{Customization}。
+
+@c Here are some examples.  This form defines @code{foo} but does not
+@c initialize it:
+いくつか例をあげる。
+つぎのフォームは@code{foo}を定義するが初期化はしない。
+
+@example
+@group
+(defvar foo)
+     @result{} foo
+@end group
+@end example
+
+@c This example initializes the value of @code{bar} to @code{23}, and gives
+@c it a documentation string:
+つぎの例は、@code{bar}の値を@code{23}に初期化し、説明文字列を与える。
+
+@example
+@group
+(defvar bar 23
+  "The normal weight of a bar.")
+     @result{} bar
+@end group
+@end example
+
+@c The following form changes the documentation string for @code{bar},
+@c making it a user option, but does not change the value, since @code{bar}
+@c already has a value.  (The addition @code{(1+ nil)} would get an error
+@c if it were evaluated, but since it is not evaluated, there is no error.)
+つぎの例は、@code{bar}の説明文字列を変更し、
+この変数をユーザーオプションにする。
+しかし、@code{bar}にはすでに値が設定してあるので、
+その値は変更しない。
+（さらに@code{(1+ nil)}は評価するとエラーになるが、
+評価されないのでエラーはない。）
+
+@example
+@group
+(defvar bar (1+ nil)
+  "*The normal weight of a bar.")
+     @result{} bar
+@end group
+@group
+bar
+     @result{} 23
+@end group
+@end example
+
+@c Here is an equivalent expression for the @code{defvar} special form:
+つぎの例は、スペシャルフォーム@code{defvar}に等価な式である。
+
+@example
+@group
+(defvar @var{symbol} @var{value} @var{doc-string})
+@equiv{}
+(progn
+  (if (not (boundp '@var{symbol}))
+      (setq @var{symbol} @var{value}))
+  (if '@var{doc-string}
+    (put '@var{symbol} 'variable-documentation '@var{doc-string}))
+  '@var{symbol})
+@end group
+@end example
+
+@c The @code{defvar} form returns @var{symbol}, but it is normally used
+@c at top level in a file where its value does not matter.
+フォーム@code{defvar}は@var{symbol}を返すが、
+通常このフォームはファイルのトップレベルで使われ、そこでは値は関係ない。
+@end defspec
+
+@defspec defconst symbol [value [doc-string]]
+@c This special form defines @var{symbol} as a value and initializes it.
+@c It informs a person reading your code that @var{symbol} has a standard
+@c global value, established here, that should not be changed by the user
+@c or by other programs.  Note that @var{symbol} is not evaluated; the
+@c symbol to be defined must appear explicitly in the @code{defconst}.
+このスペシャルフォームは、@var{symbol}を変数として定義し初期化する。
+この定義は、コードを読む人向けに、
+@var{symbol}はこれ以降標準のグローバル値を持ち、
+ユーザーや他のプログラムが変更すべきでないことを伝える。
+@var{symbol}は評価されないことに注意。
+定義するシンボルは、@code{defconst}に明示的に現れる必要がある。
+
+@c @code{defconst} always evaluates @var{value}, and sets the value of
+@c @var{symbol} to the result if @var{value} is given.  If @var{symbol}
+@c does have a buffer-local binding in the current buffer, @code{defconst}
+@c sets the default value, not the buffer-local value.  (But you should not
+@c be making buffer-local bindings for a symbol that is defined with
+@c @code{defconst}.)
+@code{defconst}は、@var{value}があればつねに@var{value}を評価し、
+その結果を@var{symbol}に設定する。
+@var{symbol}にカレントバッファのバッファローカルな束縛がある場合には、
+@code{defconst}はデフォルト値を設定し、
+バッファローカルな値にではない。
+（しかし、@code{defconst}で定義するシンボルには、
+バッファローカルな束縛を作るべきではない。）
+
+@c Here, @code{pi} is a constant that presumably ought not to be changed
+@c by anyone (attempts by the Indiana State Legislature notwithstanding).
+@c As the second form illustrates, however, this is only advisory.
+つぎの例では、@code{pi}は、（インディアナ州立法府はいうにおよばず）
+だれも変更すべきではないと考えられる定数である。
+しかし、2番目のフォームからわかるように、これは単に助言でしかない。
+
+@example
+@group
+(defconst pi 3.1415 "Pi to five places.")
+     @result{} pi
+@end group
+@group
+(setq pi 3)
+     @result{} pi
+@end group
+@group
+pi
+     @result{} 3
+@end group
+@end example
+@end defspec
+
+@defun user-variable-p variable
+@c @cindex user option
+@cindex ユーザーオプション
+@c This function returns @code{t} if @var{variable} is a user option---a
+@c variable intended to be set by the user for customization---and
+@c @code{nil} otherwise.  (Variables other than user options exist for the
+@c internal purposes of Lisp programs, and users need not know about them.)
+この関数は、@var{variable}がユーザーオプション、つまり、
+カスタマイズのためにユーザーが設定することを意図した変数であると、
+@code{t}を返し、さもなければ@code{nil}を返す。
+（ユーザーオプション向け以外の変数は、Lispプログラムの内部目的用にあり、
+それらについてユーザーが知る必要はない。）
+
+@c User option variables are distinguished from other variables by the
+@c first character of the @code{variable-documentation} property.  If the
+@c property exists and is a string, and its first character is @samp{*},
+@c then the variable is a user option.
+ユーザーオプション変数は、
+属性@code{variable-documentation}の最初の文字で他の変数と区別される。
+その属性が存在して文字列であり、最初の文字が@samp{*}であれば、
+その変数はユーザーオプションである。
+@end defun
+
+@kindex variable-interactive
+@c   If a user option variable has a @code{variable-interactive} property,
+@c the @code{set-variable} command uses that value to control reading the
+@c new value for the variable.  The property's value is used as if it were
+@c to @code{interactive} (@pxref{Using Interactive}).  However, this feature
+@c is largely obsoleted by @code{defcustom} (@pxref{Customization}).
+ユーザーオプション変数に属性@code{variable-interactive}があると、
+コマンド@code{set-variable}はその属性値を使って、
+変数の新しい値の読み取りを制御します。
+この属性値は、@code{interactive}の引数（@pxref{Using Interactive}）
+のように使われます。
+しかしながら、この機能は@code{defcustom}（@pxref{Customization}）により
+ほとんど廃れています。
+
+@c   @strong{Warning:} If the @code{defconst} and @code{defvar} special
+@c forms are used while the variable has a local binding, they set the
+@c local binding's value; the global binding is not changed.  This is not
+@c what we really want.  To prevent it, use these special forms at top
+@c level in a file, where normally no local binding is in effect, and make
+@c sure to load the file before making a local binding for the variable.
+@strong{警告：}@code{ }
+変数にローカル束縛があるときに
+スペシャルフォーム@code{defconst}や@code{defvar}を使うと、
+ローカル束縛の値を変更し、グローバル束縛は変更しない。
+これは望む効果ではない。
+これを防ぐには、これらのスペシャルフォームはファイルのトップレベルで使う。
+そうすれば、普通は有効なローカル束縛はない。
+さらに、変数のローカル束縛を作るまえに、
+確実にファイルをロードしておく。
+
+@node Tips for Defining
+@c @section Tips for Defining Variables Robustly
+@section 変数を堅牢に定義するためのヒント
+
+@c   When defining and initializing a variable that holds a complicated
+@c value (such as a keymap with bindings in it), it's best to put the
+@c entire computation of the value into the @code{defvar}, like this:
+（内部に束縛を含むようなキーマップなどの）複雑な値を保持する変数を
+定義し初期化するときには、つぎのように、
+値の計算全体を@code{defvar}の内部に入れておくのが最良です。
+
+@example
+(defvar my-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "\C-c\C-a" 'my-command)
+    @dots{}
+    map)
+  @var{docstring})
+@end example
+
+@noindent
+@c This method has several benefits.  First, if the user quits while
+@c loading the file, the variable is either still uninitialized or
+@c initialized properly, never in-between.  If it is still uninitialized,
+@c reloading the file will initialize it properly.  Second, reloading the
+@c file once the variable is initialized will not alter it; that is
+@c important if the user has run hooks to alter part of the contents (such
+@c as, to rebind keys).  Third, evaluating the @code{defvar} form with
+@c @kbd{C-M-x} @emph{will} reinitialize the map completely.
+この方法には、いくつかの利点があります。
+まず、ファイルのロード中にユーザーが中断した場合、
+変数は初期化されないか正しく初期化されるかのいずれかであり、
+その中間状態ということはありません。
+第2に、変数をすでに初期化したあとにファイルをロードし直しても、
+変数を変更しません。
+（キーをバインドし直すなどの）内容の一部を変更するために
+ユーザーがフックを実行した場合などには、これは重要です。
+第3に、@kbd{C-M-x}でフォーム@code{defvar}を評価すると、
+マップを完全に初期化し@emph{直せます}。
+
+@c   Putting so much code in the @code{defvar} form has one disadvantage:
+@c it puts the documentation string far away from the line which names the
+@c variable.  Here's a safe way to avoid that:
+フォーム@code{defvar}の内側に多くのコードを置くことには、欠点が1つあります。
+変数の名前を指定した行から説明文字列が離れすぎてしまうことです。
+つぎのようにしてこれを安全に防げます。
+
+@example
+(defvar my-mode-map nil
+  @var{docstring})
+(if my-mode-map
+    nil
+  (let ((map (make-sparse-keymap)))
+    (define-key my-mode-map "\C-c\C-a" 'my-command)
+    @dots{}
+    (setq my-mode-map map)))
+@end example
+
+@noindent
+@c This has all the same advantages as putting the initialization inside
+@c the @code{defvar}, except that you must type @kbd{C-M-x} twice, once on
+@c each form, if you do want to reinitialize the variable.
+これには、@code{defvar}の内側に初期化を入れたときと同じ利点がありますが、
+変数を再初期化するには、各フォームそれぞれについて
+@kbd{C-M-x}を打つ必要があります。
+
+@c   But be careful not to write the code like this:
+しかし、つぎのようなコードは書かないでください。
+
+@example
+(defvar my-mode-map nil
+  @var{docstring})
+(if my-mode-map
+    nil
+  (setq my-mode-map (make-sparse-keymap))
+  (define-key my-mode-map "\C-c\C-a" 'my-command)
+  @dots{})
+@end example
+
+@noindent
+@c This code sets the variable, then alters it, but it does so in more than
+@c one step.  If the user quits just after the @code{setq}, that leaves the
+@c variable neither correctly initialized nor void nor @code{nil}.  Once
+@c that happens, reloading the file will not initialize the variable; it
+@c will remain incomplete.
+このコードでは、変数を設定してから変更しますが、
+それを複数の手順で行います。
+@code{setq}の直後にユーザーが中断すると、
+変数は正しく初期化されておらず、空でも@code{nil}でもありません。
+こうなったときにファイルを再ロードしても変数を初期化できません。
+変数は不完全な状態のままです。
+
+@node Accessing Variables
+@c @section Accessing Variable Values
+@section 変数値の参照
+
+@c   The usual way to reference a variable is to write the symbol which
+@c names it (@pxref{Symbol Forms}).  This requires you to specify the
+@c variable name when you write the program.  Usually that is exactly what
+@c you want to do.  Occasionally you need to choose at run time which
+@c variable to reference; then you can use @code{symbol-value}.
+変数を参照する普通の方法は、
+変数を指名するシンボルを書くことです（@pxref{Symbol Forms}）。
+これには、プログラムを書くときに変数名を指定する必要があります。
+読者は、普通このようにするでしょう。
+場合によっては、実行時にどの変数を参照するか選ぶ必要があり、
+そのときには@code{symbol-value}を使います。
+
+@defun symbol-value symbol
+@c This function returns the value of @var{symbol}.  This is the value in
+@c the innermost local binding of the symbol, or its global value if it
+@c has no local bindings.
+この関数は@var{symbol}の値を返す。
+これは、シンボルのもっとも内側のローカル束縛の値、あるいは、
+ローカル束縛がなければグローバル値である。
+
+@example
+@group
+(setq abracadabra 5)
+     @result{} 5
+@end group
+@group
+(setq foo 9)
+     @result{} 9
+@end group
+
+@group
+@c ;; @r{Here the symbol @code{abracadabra}}
+@c ;;   @r{is the symbol whose value is examined.}
+;; @r{ここで、@code{abracadabra}は、}
+;;   @r{その値を調べるシンボル}
+(let ((abracadabra 'foo))
+  (symbol-value 'abracadabra))
+     @result{} foo
+@end group
+
+@group
+@c ;; @r{Here the value of @code{abracadabra},}
+@c ;;   @r{which is @code{foo},}
+@c ;;   @r{is the symbol whose value is examined.}
+;; @r{ここで、@code{abracadabra}の値、}
+;;   @r{つまり@code{foo}が、}
+;;   @r{その値を調べるシンボル}
+(let ((abracadabra 'foo))
+  (symbol-value abracadabra))
+     @result{} 9
+@end group
+
+@group
+(symbol-value 'abracadabra)
+     @result{} 5
+@end group
+@end example
+
+@c A @code{void-variable} error is signaled if the current binding of
+@c @var{symbol} is void.
+@var{symbol}の現在の束縛が空であると、
+エラー@code{void-variable}を通知する。
+@end defun
+
+@node Setting Variables
+@c @section How to Alter a Variable Value
+@section 変数値の変更
+
+@c   The usual way to change the value of a variable is with the special
+@c form @code{setq}.  When you need to compute the choice of variable at
+@c run time, use the function @code{set}.
+変数の値を変更する普通の方法は、スペシャルフォーム@code{setq}を使うことです。
+実行時に選択する変数を計算する必要があるときには、
+関数@code{set}を使います。
+
+@defspec setq [symbol form]@dots{}
+@c This special form is the most common method of changing a variable's
+@c value.  Each @var{symbol} is given a new value, which is the result of
+@c evaluating the corresponding @var{form}.  The most-local existing
+@c binding of the symbol is changed.
+このスペシャルフォームは、変数の値を変更するもっとも一般的な方法である。
+各@var{symbol}に、対応する@var{form}の評価結果である新たな値を与える。
+シンボルの既存の際、ローカルの束縛を変更する。
+
+@c @code{setq} does not evaluate @var{symbol}; it sets the symbol that you
+@c write.  We say that this argument is @dfn{automatically quoted}.  The
+@c @samp{q} in @code{setq} stands for ``quoted.''
+@code{setq}は@var{symbol}を評価しない。
+読者が書いたシンボルに設定する。
+この変数は@dfn{自動的にクォートされる}のである。
+@code{setq}の@samp{q}は、『quoted（クォートする）』を表す。
+
+@c The value of the @code{setq} form is the value of the last @var{form}.
+フォーム@code{setq}の値は、最後の@var{form}の値である。
+
+@example
+@group
+(setq x (1+ 2))
+     @result{} 3
+@end group
+@c x                   ; @r{@code{x} now has a global value.}
+x                   ; @r{@code{x}はグローバル値を持つ}
+     @result{} 3
+@group
+(let ((x 5)) 
+@c   (setq x 6)        ; @r{The local binding of @code{x} is set.}
+  (setq x 6)        ; @r{@code{x}のローカル束縛を設定する}
+  x)
+     @result{} 6
+@end group
+@c x                   ; @r{The global value is unchanged.}
+x                   ; @r{グローバル値は変更されない}
+     @result{} 3
+@end example
+
+@c Note that the first @var{form} is evaluated, then the first
+@c @var{symbol} is set, then the second @var{form} is evaluated, then the
+@c second @var{symbol} is set, and so on:
+最初の@var{form}を評価して最初の@var{symbol}に設定し、
+つぎに、2番目の@var{form}を評価して2番目の@var{symbol}に設定し、
+といった具合になることに注意。
+
+@example
+@group
+@c (setq x 10          ; @r{Notice that @code{x} is set before}
+@c       y (1+ x))     ;   @r{the value of @code{y} is computed.}
+(setq x 10          ; @r{@code{x}は、@code{y}の値を計算するまえに}
+      y (1+ x))     ;   @r{設定されることに注意}
+     @result{} 11             
+@end group
+@end example
+@end defspec
+
+@defun set symbol value
+@c This function sets @var{symbol}'s value to @var{value}, then returns
+@c @var{value}.  Since @code{set} is a function, the expression written for
+@c @var{symbol} is evaluated to obtain the symbol to set.
+この関数は、@var{symbol}の値として@var{value}を設定し、@var{value}を返す。
+@code{set}は関数なので、@var{symbol}として書いた式は、
+設定するシンボルを得るために評価される。
+
+@c The most-local existing binding of the variable is the binding that is
+@c set; shadowed bindings are not affected.
+変数の既存の最ローカルの束縛に設定する。
+隠されている束縛には影響しない。
+
+@example
+@group
+(set one 1)
+@error{} Symbol's value as variable is void: one
+@end group
+@group
+(set 'one 1)
+     @result{} 1
+@end group
+@group
+(set 'two 'one)
+     @result{} one
+@end group
+@group
+@c (set two 2)         ; @r{@code{two} evaluates to symbol @code{one}.}
+(set two 2)         ; @r{@code{two}はシンボル@code{one}に評価される}
+     @result{} 2
+@end group
+@group
+@c one                 ; @r{So it is @code{one} that was set.}
+one                 ; @r{そのため、@code{one}に設定される}
+     @result{} 2
+@c (let ((one 1))      ; @r{This binding of @code{one} is set,}
+@c   (set 'one 3)      ;   @r{not the global value.}
+(let ((one 1))      ; @r{@code{one}のこの束縛が設定され、}
+  (set 'one 3)      ;   @r{グローバル値は設定されない}
+  one)
+     @result{} 3
+@end group
+@group
+one
+     @result{} 2
+@end group
+@end example
+
+@c If @var{symbol} is not actually a symbol, a @code{wrong-type-argument}
+@c error is signaled.
+@var{symbol}（の評価結果）が実際にはシンボルでないと、
+エラー@code{wrong-type-argument}を通知する。
+
+@example
+(set '(x y) 'z)
+@error{} Wrong type argument: symbolp, (x y)
+@end example
+
+@c Logically speaking, @code{set} is a more fundamental primitive than
+@c @code{setq}.  Any use of @code{setq} can be trivially rewritten to use
+@c @code{set}; @code{setq} could even be defined as a macro, given the
+@c availability of @code{set}.  However, @code{set} itself is rarely used;
+@c beginners hardly need to know about it.  It is useful only for choosing
+@c at run time which variable to set.  For example, the command
+@c @code{set-variable}, which reads a variable name from the user and then
+@c sets the variable, needs to use @code{set}.
+論理的には、@code{set}は@code{setq}よりもさらに基本的な操作である。
+どんな@code{setq}の使い方でも、@code{set}で素直に書き直せる。
+@code{setq}は、@code{set}を使ってマクロとして定義することも可能である。
+しかし、@code{set}そのものを使うことは稀であり、
+初心者は@code{set}を知る必要がほとんどない。
+設定する変数を実行時に選ぶときにのみ有用である。
+たとえば、コマンド@code{set-variable}は、
+ユーザーから変数名を読み取りその変数に設定するので、
+@code{set}を使う必要がある。
+
+@c @cindex CL note---@code{set} local
+@cindex CLに関した注意−−@code{set}はローカル
+@quotation
+@c @b{Common Lisp note:} In Common Lisp, @code{set} always changes the
+@c symbol's ``special'' or dynamic value, ignoring any lexical bindings.
+@c In Emacs Lisp, all variables and all bindings are dynamic, so @code{set}
+@c always affects the most local existing binding.
+@b{Common Lispに関した注意：}@code{ }
+Common Lispでは、@code{set}はつねにシンボルの『スペシャル』な、つまり、
+動的な値を変更し、文脈上の束縛を無視する。
+Emacs Lispでは、すべての変数とすべての束縛は動的であり、
+@code{set}はつねに既存の最ローカルの束縛に作用する。
+@end quotation
+@end defun
+
+@c   One other function for setting a variable is designed to add
+@c an element to a list if it is not already present in the list.
+変数に設定する別の関数は、リストに既存でない要素を追加するように
+設計されたものです。
+
+@defun add-to-list symbol element
+@c This function sets the variable @var{symbol} by consing @var{element}
+@c onto the old value, if @var{element} is not already a member of that
+@c value.  It returns the resulting list, whether updated or not.  The
+@c value of @var{symbol} had better be a list already before the call.
+この関数は、@var{element}が変数@var{symbol}の値のリストのメンバでなければ、
+@var{element}と変数@var{symbol}の値をコンスした値を
+変数@var{symbol}に設定する。
+リストを変更してもしなくても結果のリストを返す。
+呼び出すまえに、@var{symbol}の値はリストであるほうがよい。
+
+@c The argument @var{symbol} is not implicitly quoted; @code{add-to-list}
+@c is an ordinary function, like @code{set} and unlike @code{setq}.  Quote
+@c the argument yourself if that is what you want.
+引数@var{symbol}は暗黙にクォートされない。
+@code{add-to-list}は、@code{set}のように普通の関数であり、
+@code{setq}とは違う。
+必要ならば、読者自身でクォートする。
+@end defun
+
+@c Here's a scenario showing how to use @code{add-to-list}:
+@code{add-to-list}の使い方を以下に示します。
+
+@example
+(setq foo '(a b))
+     @result{} (a b)
+
+@c (add-to-list 'foo 'c)     ;; @r{Add @code{c}.}
+(add-to-list 'foo 'c)     ;; @r{@code{c}を追加する}
+     @result{} (c a b)
+
+@c (add-to-list 'foo 'b)     ;; @r{No effect.}
+(add-to-list 'foo 'b)     ;; @r{なんの効果もない}
+     @result{} (c a b)
+
+@c foo                       ;; @r{@code{foo} was changed.}
+foo                       ;; @r{@code{foo}は変更されている}
+     @result{} (c a b)
+@end example
+
+@c   An equivalent expression for @code{(add-to-list '@var{var}
+@c @var{value})} is this:
+@code{(add-to-list '@var{var} @var{value})}に等価な式はつぎのとおりです。
+
+@example
+(or (member @var{value} @var{var})
+    (setq @var{var} (cons @var{value} @var{var})))
+@end example
+
+@node Variable Scoping
+@c @section Scoping Rules for Variable Bindings
+@section 変数束縛のスコープルール
+
+@c   A given symbol @code{foo} can have several local variable bindings,
+@c established at different places in the Lisp program, as well as a global
+@c binding.  The most recently established binding takes precedence over
+@c the others.
+あるシンボル@code{foo}は、さまざまなローカルな変数束縛を持つことができます。
+Lispプログラムの異なる場所で確立されたものや
+グローバル束縛です。
+もっとも最近に確立した束縛が他のものに優先します。
+
+@c @cindex scope
+@c @cindex extent
+@c @cindex dynamic scoping
+@cindex スコープ
+@cindex 存続期間
+@cindex 動的スコープ
+@c   Local bindings in Emacs Lisp have @dfn{indefinite scope} and
+@c @dfn{dynamic extent}.  @dfn{Scope} refers to @emph{where} textually in
+@c the source code the binding can be accessed.  Indefinite scope means
+@c that any part of the program can potentially access the variable
+@c binding.  @dfn{Extent} refers to @emph{when}, as the program is
+@c executing, the binding exists.  Dynamic extent means that the binding
+@c lasts as long as the activation of the construct that established it.
+Emacs Lispのローカル束縛は、@dfn{無限のスコープ}（indefinite scope）と
+@dfn{動的存続期間}（dynamic extent）を持ちます。
+@dfn{スコープ}（scope）とは、ソースコードのテキスト上の
+@emph{どこ}から束縛を参照できるかを表します。
+無限のスコープとは、プログラムのどこからでも変数束縛を参照できることを
+意味します。
+@dfn{存続期間}（extent）とは、プログラムの実行にしたがって、
+@emph{いつ}束縛が存在するかを表します。
+動的存続期間とは、束縛を作成した構造が有効である限り、
+束縛が存続することを意味します。
+
+@c   The combination of dynamic extent and indefinite scope is called
+@c @dfn{dynamic scoping}.  By contrast, most programming languages use
+@c @dfn{lexical scoping}, in which references to a local variable must be
+@c located textually within the function or block that binds the variable.
+動的存続期間と無限のスコープの組み合せを
+@dfn{動的スコープ}（dynamic scoping）と呼びます。
+対照的に、ほとんどのプログラム言語は、
+@dfn{レキシカルスコープ}（lexical scoping）を用います。
+つまり、ローカル変数の参照は、
+その変数を束縛する関数やブロックのテキスト上で内側にある必要があります。
+
+@c @cindex CL note---special variables
+@cindex CLに関した注意−−スペシャル変数
+@quotation
+@c @b{Common Lisp note:} Variables declared ``special'' in Common Lisp are
+@c dynamically scoped, like all variables in Emacs Lisp.
+@b{Common Lispに関した注意：}@code{ }
+Common Lispでは、『スペシャル』と宣言した変数は、
+Emacs Lispのすべての変数と同様に、動的スコープである。
+@end quotation
+
+@menu
+* Scope::          Scope means where in the program a value is visible.
+                     Comparison with other languages.
+* Extent::         Extent means how long in time a value exists.
+* Impl of Scope::  Two ways to implement dynamic scoping.
+* Using Scoping::  How to use dynamic scoping carefully and avoid problems.
+@end menu
+
+@node Scope
+@c @subsection Scope
+@subsection スコープ
+
+@c   Emacs Lisp uses @dfn{indefinite scope} for local variable bindings.
+@c This means that any function anywhere in the program text might access a
+@c given binding of a variable.  Consider the following function
+@c definitions:
+Emacs Lispでは、
+ローカル変数束縛は@dfn{無限のスコープ}（indefinite scope）です。
+つまり、プログラムテキスト上のどの関数からでも、
+ある変数束縛を参照できるのです。
+つぎの関数定義を考えてみましょう。
+
+@example
+@group
+@c (defun binder (x)   ; @r{@code{x} is bound in @code{binder}.}
+@c    (foo 5))         ; @r{@code{foo} is some other function.}
+(defun binder (x)   ; @r{@code{x}は、@code{binder}で束縛}
+   (foo 5))         ; @r{@code{foo}は別の関数}
+@end group
+
+@group
+@c (defun user ()      ; @r{@code{x} is used ``free'' in @code{user}.}
+(defun user ()      ; @r{@code{x}は、@code{user}において『自由』}
+  (list x))
+@end group
+@end example
+
+@c   In a lexically scoped language, the binding of @code{x} in
+@c @code{binder} would never be accessible in @code{user}, because
+@c @code{user} is not textually contained within the function
+@c @code{binder}.  However, in dynamically scoped Emacs Lisp, @code{user}
+@c may or may not refer to the binding of @code{x} established in
+@c @code{binder}, depending on circumstances:
+テキスト上のスコープを用いる言語では、
+@code{binder}内の@code{x}の束縛を、@code{user}で参照することはできません。
+なぜなら、@code{user}は、テキスト上で関数@code{binder}の内側にはないからです。
+しかしながら、動的スコープのEmacs Lispでは、
+状況に応じて、@code{binder}内で確立した@code{x}の束縛を
+@code{user}から参照してもしなくてもよいのです。
+
+@itemize @bullet
+@item
+@c If we call @code{user} directly without calling @code{binder} at all,
+@c then whatever binding of @code{x} is found, it cannot come from
+@c @code{binder}.
+@code{binder}をまったく呼び出さずに、直接@code{user}を呼び出したときには、
+とにかくみつかった@code{x}の束縛を使うが、
+それは@code{binder}のものではありえない。
+
+@item
+@c If we define @code{foo} as follows and then call @code{binder}, then the
+@c binding made in @code{binder} will be seen in @code{user}:
+@code{foo}をつぎのように定義して@code{binder}を呼び出したときには、
+@code{binder}が作った束縛を@code{user}で見える。
+
+@example
+@group
+(defun foo (lose)
+  (user))
+@end group
+@end example
+
+@item
+@c However, if we define @code{foo} as follows and then call @code{binder},
+@c then the binding made in @code{binder} @emph{will not} be seen in
+@c @code{user}:
+しかし、@code{foo}をつぎのように定義して@code{binder}を呼び出したときには、
+@code{binder}が作った束縛は@code{user}では@emph{見えない}。
+
+@example
+(defun foo (x)
+  (user))
+@end example
+
+@noindent
+@c Here, when @code{foo} is called by @code{binder}, it binds @code{x}.
+@c (The binding in @code{foo} is said to @dfn{shadow} the one made in
+@c @code{binder}.)  Therefore, @code{user} will access the @code{x} bound
+@c by @code{foo} instead of the one bound by @code{binder}.
+ここで、@code{binder}が@code{foo}を呼び出すと、
+@code{foo}は@code{x}を束縛する。
+（@code{foo}の束縛は@code{binder}の束縛を@dfn{隠す}（shadow）という。）
+したがって、@code{user}は、@code{binder}の束縛ではなく、
+@code{foo}の束縛を参照することになる。
+@end itemize
+
+@c Emacs Lisp uses dynamic scoping because simple implementations of
+@c lexical scoping are slow.  In addition, every Lisp system needs to offer
+@c dynamic scoping at least as an option; if lexical scoping is the norm,
+@c there must be a way to specify dynamic scoping instead for a particular
+@c variable.  It might not be a bad thing for Emacs to offer both, but
+@c implementing it with dynamic scoping only was much easier.
+Emacs Lispで動的スコープを使うのは、
+テキスト上のスコープの単純な実装は遅いからです。
+さらに、すべてのLispシステムは、少なくともオプションとして、
+動的スコープを使えるようにする必要があります。
+テキスト上のスコープが標準であると、
+特定の変数に対して動的スコープを指定する方法が必要になります。
+Emacsで両方のスコープを使えるようにしてもよいのですが、
+動的スコープだけだと実装がより簡単になります。
+
+@node Extent
+@c @subsection Extent
+@subsection 存続期間
+
+@c   @dfn{Extent} refers to the time during program execution that a
+@c variable name is valid.  In Emacs Lisp, a variable is valid only while
+@c the form that bound it is executing.  This is called @dfn{dynamic
+@c extent}.  ``Local'' or ``automatic'' variables in most languages,
+@c including C and Pascal, have dynamic extent.
+@dfn{存続期間}（Extent）とは、プログラムの実行中において、
+変数名が有効である期間を指します。
+Emacs Lispでは、束縛を作ったフォームを実行している期間中だけ、
+変数は有効です。
+これを@dfn{動的存続期間}（dynamic extent）と呼びます。
+CやPascalなどのほとんどの言語の『ローカル』変数や『自動』変数も
+動的存続期間です。
+
+@c   One alternative to dynamic extent is @dfn{indefinite extent}.  This
+@c means that a variable binding can live on past the exit from the form
+@c that made the binding.  Common Lisp and Scheme, for example, support
+@c this, but Emacs Lisp does not.
+動的存続期間とは別のものに@dfn{無限の存続期間}（indefinite extent）があります。
+つまり、変数束縛は、その束縛を作ったフォームから抜けても存続するのです。
+たとえば、Common LispやSchemeにはこれがありますが、Emacs Lispにはありません。
+
+@c   To illustrate this, the function below, @code{make-add}, returns a
+@c function that purports to add @var{n} to its own argument @var{m}.  This
+@c would work in Common Lisp, but it does not do the job in Emacs Lisp,
+@c because after the call to @code{make-add} exits, the variable @code{n}
+@c is no longer bound to the actual argument 2.
+これを説明するために、つぎの関数@code{make-add}を考えます。
+この関数は、@var{n}に自身の引数@var{m}を加算する関数を返します。
+この関数はCommon Lispでは動作しますが、Emacs Lispではだめです。
+というのは、@code{make-add}の呼び出しを抜けると、
+変数@var{n}は実引数2に束縛されなくなるからです。
+
+@example
+(defun make-add (n)
+@c     (function (lambda (m) (+ n m))))  ; @r{Return a function.}
+    (function (lambda (m) (+ n m))))  ; @r{関数を返す}
+     @result{} make-add
+@c (fset 'add2 (make-add 2))  ; @r{Define function @code{add2}}
+@c                            ;   @r{with @code{(make-add 2)}.}
+(fset 'add2 (make-add 2))  ; @r{関数@code{add2}を}
+                           ;   @r{@code{(make-add 2)}を使って定義する}
+     @result{} (lambda (m) (+ n m))
+@c (add2 4)                   ; @r{Try to add 2 to 4.}
+(add2 4)                   ; @r{4に2を加算してみる}
+@error{} Symbol's value as variable is void: n
+@end example
+
+@c @cindex closures not available
+@cindex クロージャは使えない
+@c   Some Lisp dialects have ``closures'', objects that are like functions
+@c but record additional variable bindings.  Emacs Lisp does not have
+@c closures.
+Lispの方言のいくつかには『クロージャ』（closure）があります。
+それは関数のようなオブジェクトですが、追加の変数束縛を記録します。
+Emacs Lispにはクロージャはありません。
+
+@node Impl of Scope
+@c @subsection Implementation of Dynamic Scoping
+@subsection 動的スコープの実装
+@c @cindex deep binding
+@cindex 深い束縛（ディープバインディング、deep binding）
+
+@c   A simple sample implementation (which is not how Emacs Lisp actually
+@c works) may help you understand dynamic binding.  This technique is
+@c called @dfn{deep binding} and was used in early Lisp systems.
+（Emacs Lispの実際の動作とは異なるが）単純な実装例が、
+動的束縛を理解する助けになるでしょう。
+この技法を@dfn{深い束縛}（ディープバインディング、deep binding）と呼び、
+初期のLispシステムで使われていました。
+
+@c   Suppose there is a stack of bindings, which are variable-value pairs.
+@c At entry to a function or to a @code{let} form, we can push bindings
+@c onto the stack for the arguments or local variables created there.  We
+@c can pop those bindings from the stack at exit from the binding
+@c construct.
+変数・値の対である束縛のスタックがあるとしましょう。
+関数やフォーム@code{let}に入ると、
+引数やローカル変数の束縛をスタックに積みます。
+束縛を作った構造から抜けるとそれらの束縛を取りさります。
+
+@c   We can find the value of a variable by searching the stack from top to
+@c bottom for a binding for that variable; the value from that binding is
+@c the value of the variable.  To set the variable, we search for the
+@c current binding, then store the new value into that binding.
+変数の値は、スタックの先頭から底へ向けてその変数の束縛を探索します。
+その束縛から得る値が変数の値になります。
+変数に設定するには、現在の束縛を探して、その束縛に新たな値を格納します。
+
+@c   As you can see, a function's bindings remain in effect as long as it
+@c continues execution, even during its calls to other functions.  That is
+@c why we say the extent of the binding is dynamic.  And any other function
+@c can refer to the bindings, if it uses the same variables while the
+@c bindings are in effect.  That is why we say the scope is indefinite.
+これからわかるように、関数の束縛は、その関数の実行中には、
+たとえ別の関数を呼び出していても、存続しています。
+これが束縛の存続が動的であるという理由です。
+また、その束縛が有効である期間中ならば、同じ変数を使えば他の関数からも
+束縛を参照できるのです。
+これがスコープが無限であるという理由です。
+
+@c @cindex shallow binding
+@cindex 浅い束縛（シャローバインディング、shallow binding）
+@c   The actual implementation of variable scoping in GNU Emacs Lisp uses a
+@c technique called @dfn{shallow binding}.  Each variable has a standard
+@c place in which its current value is always found---the value cell of the
+@c symbol.
+GNU Emacs Lispにおいて、変数のスコープの実際の実装には、
+@dfn{浅い束縛}（シャローバインディング、shallow binding）と呼ばれる
+技法を用いています。
+各変数には現在値を保存しておく標準の場所、シンボルの値セルがあります。
+
+@c   In shallow binding, setting the variable works by storing a value in
+@c the value cell.  Creating a new binding works by pushing the old value
+@c (belonging to a previous binding) onto a stack, and storing the new
+@c local value in the value cell.  Eliminating a binding works by popping
+@c the old value off the stack, into the value cell.
+浅い束縛では、変数の設定は値セルに値を格納することで動作します。
+新たな束縛を作成すると（以前の束縛に属する）古い値をスタックに積み、
+新たなローカル値を値セルに格納します。
+束縛を解くときには、古い値をスタックから取り出して値セルに格納します。
+
+@c   We use shallow binding because it has the same results as deep
+@c binding, but runs faster, since there is never a need to search for a
+@c binding.
+浅い束縛を用いる理由は、束縛を探索する必要がないため、
+深い束縛と同じ結果を持ちながら高速に動作するからです。
+
+@node Using Scoping
+@c @subsection Proper Use of Dynamic Scoping
+@subsection 動的スコープの正しい使い方
+
+@c   Binding a variable in one function and using it in another is a
+@c powerful technique, but if used without restraint, it can make programs
+@c hard to understand.  There are two clean ways to use this technique:
+ある関数で変数を束縛し別の関数でそれを使うことは、強力な技法ですが、
+なんの制限もせずに使うとプログラムを理解し難いものにしてしまいます。
+この技法を見通しよく使うための2つの方法があります。
+
+@itemize @bullet
+@item
+@c Use or bind the variable only in a few related functions, written close
+@c together in one file.  Such a variable is used for communication within
+@c one program.
+1つのファイル内で近くに書いた関連する少数の関数でだけ、
+変数を使ったり束縛したりする。
+そのような変数は、1つのプログラム内での通信に使う。
+
+@c You should write comments to inform other programmers that they can see
+@c all uses of the variable before them, and to advise them not to add uses
+@c elsewhere.
+他のプログラマに対して、彼らがそのような変数を目にするまえに、
+そのような変数の使い方がわかるようなコメントを書き、
+他の場所では使わないように助言しておく。
+
+@item
+@c Give the variable a well-defined, documented meaning, and make all
+@c appropriate functions refer to it (but not bind it or set it) wherever
+@c that meaning is relevant.  For example, the variable
+@c @code{case-fold-search} is defined as ``non-@code{nil} means ignore case
+@c when searching''; various search and replace functions refer to it
+@c directly or through their subroutines, but do not bind or set it.
+変数にはよくわかる意味を与え、
+それに関連する適切なすべての関数が（束縛も設定もしないで）参照するようにする。
+たとえば、変数@code{case-fold-search}は、
+『@code{nil}以外であれば探索時に大文字小文字を区別しない』と定義されている。
+さまざまな探索関数や置換関数が、この変数を直接に、あるいは、
+サブルーティンを介して参照するが、
+この変数を束縛したり設定したりしない。
+
+@c Then you can bind the variable in other programs, knowing reliably what
+@c the effect will be.
+こうしておいて別のプログラムで変数を束縛するが、
+それにどのような効果があるか確実に知ってから行える。
+@end itemize
+
+@c   In either case, you should define the variable with @code{defvar}.
+@c This helps other people understand your program by telling them to look
+@c for inter-function usage.  It also avoids a warning from the byte
+@c compiler.  Choose the variable's name to avoid name conflicts---don't
+@c use short names like @code{x}.
+いずれの場合でも、変数は@code{defvar}で定義するべきです。
+これは、関数間での変数の使い方を見るように伝えることで、
+他人が読者のプログラムを理解するのを助けます。
+また、バイトコンパイラからの警告も防ぎます。
+変数名が衝突しないようにも注意しましょう。
+@code{x}のような短い名前を使わないでください。
+
+@node Buffer-Local Variables
+@c @section Buffer-Local Variables
+@section バッファローカルな変数
+@c @cindex variables, buffer-local
+@c @cindex buffer-local variables
+@cindex 変数、バッファローカル
+@cindex バッファローカルな変数
+
+@c   Global and local variable bindings are found in most programming
+@c languages in one form or another.  Emacs also supports additional,
+@c unusual kinds of variable binding: @dfn{buffer-local} bindings, which
+@c apply only in one buffer, and frame-local bindings, which apply only in
+@c one frame.  Having different values for a variable in different buffers
+@c and/or frames is an important customization method.
+グローバルとローカルの変数束縛は、
+ほとんどのプログラム言語にいろいろな形であります。
+Emacsには、あまり普通でない追加の種類の変数束縛があります。
+1つのバッファだけに適用される@dfn{バッファローカル}な束縛、
+1つのフレームだけに適用されるフレームローカルな束縛です。
+異なるバッファやフレームごとに変数に異なる値があるということは、
+重要なカスタマイズ技法です。
+
+@c   This section describes buffer-local bindings; for frame-local
+@c bindings, see the following section, @ref{Frame-Local Variables}.  (A few
+@c variables have bindings that are local to each terminal; see
+@c @ref{Multiple Displays}.)
+本節では、バッファローカルな束縛を説明します。
+フレームローカルな束縛については、つぎの節と
+@xref{Frame-Local Variables}。
+（各端末にローカルな束縛を持つ変数も少数ある。
+@pxref{Multiple Displays}。）
+
+@menu
+* Intro to Buffer-Local::      Introduction and concepts.
+* Creating Buffer-Local::      Creating and destroying buffer-local bindings.
+* Default Value::              The default value is seen in buffers
+                                 that don't have their own buffer-local values.
+@end menu
+
+@node Intro to Buffer-Local
+@c @subsection Introduction to Buffer-Local Variables
+@subsection バッファローカルな変数の紹介
+
+@c   A buffer-local variable has a buffer-local binding associated with a
+@c particular buffer.  The binding is in effect when that buffer is
+@c current; otherwise, it is not in effect.  If you set the variable while
+@c a buffer-local binding is in effect, the new value goes in that binding,
+@c so its other bindings are unchanged.  This means that the change is
+@c visible only in the buffer where you made it.
+バッファローカルな変数には、特定のバッファに関連したバッファローカルな
+束縛があります。
+この束縛は、そのバッファがカレントバッファであるときに有効になります。
+さもなければなんの効果もありません。
+バッファローカルな束縛が有効なときに変数に設定すると、
+新しい値はその束縛に入り、他の束縛は変更されません。
+つまり、その変更は、変更を行ったバッファだけで見ることができるのです。
+
+@c   The variable's ordinary binding, which is not associated with any
+@c specific buffer, is called the @dfn{default binding}.  In most cases,
+@c this is the global binding.
+変数の通常の束縛、つまり、特定のバッファに関連していない束縛を
+@dfn{デフォルトの束縛}（default binding）と呼びます。
+多くの場合、これはグローバル束縛です。
+
+@c   A variable can have buffer-local bindings in some buffers but not in
+@c other buffers.  The default binding is shared by all the buffers that
+@c don't have their own bindings for the variable.  (This includes all
+@c newly created buffers.)  If you set the variable in a buffer that does
+@c not have a buffer-local binding for it, this sets the default binding
+@c (assuming there are no frame-local bindings to complicate the matter),
+@c so the new value is visible in all the buffers that see the default
+@c binding.
+変数は、あるバッファ群ではバッファローカルな束縛を持ち、
+他のバッファではそのような束縛を持たないようにできます。
+変数に対する独自の束縛を持たないバッファすべてでは、
+デフォルトの束縛を共有します。
+（これには、新たに作成されるバッファも含む。）
+バッファローカルな束縛を持たないバッファで変数に設定すると、
+（状況を複雑にするフレームローカルな束縛はないと仮定して）
+デフォルトの束縛を使います。
+したがって、新たな値はデフォルトの束縛を見るバッファすべてで見えます。
+
+@c   The most common use of buffer-local bindings is for major modes to change
+@c variables that control the behavior of commands.  For example, C mode and
+@c Lisp mode both set the variable @code{paragraph-start} to specify that only
+@c blank lines separate paragraphs.  They do this by making the variable
+@c buffer-local in the buffer that is being put into C mode or Lisp mode, and
+@c then setting it to the new value for that mode.  @xref{Major Modes}.
+バッファローカルな束縛のもっとも一般的な使い方は、
+メジャーモードでコマンドのふるまいを制御する変数に変更することです。
+たとえば、CモードやLispモードでは、変数@code{paragraph-start}を設定して、
+空行だけが段落を区切るように指定します。
+これには、CモードやLispモードになったバッファでは、
+変数をバッファローカルにしてから、
+そのモード用の新たな値を変数に設定するのです。
+@xref{Major Modes}。
+
+@c   The usual way to make a buffer-local binding is with
+@c @code{make-local-variable}, which is what major mode commands typically
+@c use.  This affects just the current buffer; all other buffers (including
+@c those yet to be created) will continue to share the default value unless
+@c they are explicitly given their own buffer-local bindings.
+バッファローカルな束縛を作る普通の方法は、
+@code{make-local-variable}です。
+メジャーモードのコマンドは典型的にこれを使います。
+これはカレントバッファだけに影響します。
+（これから作成するものも含めて）他のすべてのバッファは、
+それ専用のバッファローカルな束縛を明示的に与えない限り、
+デフォルト値を共有し続けます。
+
+@c @cindex automatically buffer-local
+@cindex 自動的にバッファローカルにする
+@c   A more powerful operation is to mark the variable as
+@c @dfn{automatically buffer-local} by calling
+@c @code{make-variable-buffer-local}.  You can think of this as making the
+@c variable local in all buffers, even those yet to be created.  More
+@c precisely, the effect is that setting the variable automatically makes
+@c the variable local to the current buffer if it is not already so.  All
+@c buffers start out by sharing the default value of the variable as usual,
+@c but setting the variable creates a buffer-local binding for the current
+@c buffer.  The new value is stored in the buffer-local binding, leaving
+@c the default binding untouched.  This means that the default value cannot
+@c be changed with @code{setq} in any buffer; the only way to change it is
+@c with @code{setq-default}.
+より強力な操作は、@code{make-variable-buffer-local}を呼び出して
+変数を@dfn{自動的にバッファローカルに}するように印を付けることです。
+これは、これから作成するものも含めたバッファすべてで、
+変数をバッファローカルにすると考えることができます。
+より正確には、変数がカレントバッファにローカルでなければ、
+自動的に変数をカレントバッファにローカルにするように設定する効果があります。
+すべてのバッファは通常どおり変数のデフォルト値を共有して始まりますが、
+変数に設定するとカレントバッファにバッファローカルな束縛を作ります。
+新たな値はバッファローカルな束縛に格納され、デフォルトの束縛は変更しません。
+つまり、どのバッファでもデフォルト値を@code{setq}では変更できません。
+デフォルト値を変更する唯一の方法は、@code{setq-default}を使うことです。
+
+@c   @strong{Warning:} When a variable has buffer-local values in one or
+@c more buffers, you can get Emacs very confused by binding the variable
+@c with @code{let}, changing to a different current buffer in which a
+@c different binding is in effect, and then exiting the @code{let}.  This
+@c can scramble the values of the buffer-local and default bindings.
+@strong{警告：}@code{ }
+複数のバッファにおいて変数にバッファローカルな値があるときに、
+変数を@code{let}で束縛してから、
+別の束縛が有効である別のバッファに切り替えて@code{let}を抜けると、
+Emacsをとても混乱させることになる。
+こうすると、バッファローカルな束縛とデフォルトの束縛を混ぜ合わせてしまう。
+
+@c   To preserve your sanity, avoid using a variable in that way.  If you
+@c use @code{save-excursion} around each piece of code that changes to a
+@c different current buffer, you will not have this problem
+@c (@pxref{Excursions}).  Here is an example of what to avoid:
+混乱を避けるために、このような変数の使い方は避けてください。
+別のバッファに切り替える各コード部分を@code{save-excursion}で囲めば、
+このような問題はありません。
+
+@example
+@group
+(setq foo 'b)
+(set-buffer "a")
+(make-local-variable 'foo)
+@end group
+(setq foo 'a)
+(let ((foo 'temp))
+  (set-buffer "b")
+  @var{body}@dots{})
+@group
+@c foo @result{} 'a      ; @r{The old buffer-local value from buffer @samp{a}}
+@c                ;   @r{is now the default value.}
+foo @result{} 'a      ; @r{バッファ@samp{a}の古いバッファローカルな値が}
+               ;   @r{現在のデフォルト値}
+@end group
+@group
+(set-buffer "a")
+@c foo @result{} 'temp   ; @r{The local @code{let} value that should be gone}
+@c                ;   @r{is now the buffer-local value in buffer @samp{a}.}
+foo @result{} 'temp   ; @r{消えているべきローカルな@code{let}の値が}
+               ;   @r{バッファ@samp{a}の現在のバッファローカルな値}
+@end group
+@end example
+
+@noindent
+@c But @code{save-excursion} as shown here avoids the problem:
+しかし、つぎに示すように@code{save-excursion}を使えば、この問題を回避できます。
+
+@example
+@group
+(let ((foo 'temp))
+  (save-excursion
+    (set-buffer "b")
+    @var{body}@dots{}))
+@end group
+@end example
+
+@c   Note that references to @code{foo} in @var{body} access the
+@c buffer-local binding of buffer @samp{b}.
+@var{body}内での@code{foo}への参照は、
+バッファ@samp{b}のバッファローカルな束縛を使います。
+
+@c   When a file specifies local variable values, these become buffer-local
+@c values when you visit the file.  @xref{File Variables,,, emacs, The
+@c GNU Emacs Manual}.
+ファイルでローカル変数の値を指定していると、
+そのファイルを訪問したときに、それらはバッファローカルな値になります。
+@xref{File Variables,, ファイルにローカルな変数, emacs, GNU Emacs マニュアル}。
+
+@node Creating Buffer-Local
+@c @subsection Creating and Deleting Buffer-Local Bindings
+@subsection バッファローカルな束縛の作成と削除
+
+@c @deffn Command make-local-variable variable
+@deffn コマンド make-local-variable variable
+@c This function creates a buffer-local binding in the current buffer for
+@c @var{variable} (a symbol).  Other buffers are not affected.  The value
+@c returned is @var{variable}.
+この関数は、カレントバッファにおいて、
+@var{variable}（シンボル）のバッファローカルな束縛を作る。
+他のバッファは影響されない。
+返す値は@var{variable}。
+
+@c @c Emacs 19 feature
+@c The buffer-local value of @var{variable} starts out as the same value
+@c @var{variable} previously had.  If @var{variable} was void, it remains
+@c void.
+@var{variable}のバッファローカルな値は、
+@var{variable}の以前と同じ値で始まる。
+@var{variable}が空であれば、空のままである。
+
+@example
+@group
+@c ;; @r{In buffer @samp{b1}:}
+@c (setq foo 5)                ; @r{Affects all buffers.}
+;; @r{バッファ@samp{b1}では、}
+(setq foo 5)                ; @r{すべてのバッファに影響する}
+     @result{} 5
+@end group
+@group
+@c (make-local-variable 'foo)  ; @r{Now it is local in @samp{b1}.}
+(make-local-variable 'foo)  ; @r{@samp{b1}にローカル}
+     @result{} foo
+@end group
+@group
+@c foo                         ; @r{That did not change}
+@c      @result{} 5                   ;   @r{the value.}
+foo                         ; @r{これは値を}
+     @result{} 5                   ;   @r{変えない}
+@end group
+@group
+@c (setq foo 6)                ; @r{Change the value}
+@c      @result{} 6                   ;   @r{in @samp{b1}.}
+(setq foo 6)                ; @r{@samp{b1}での値を}
+     @result{} 6                   ;   @r{変更する}
+@end group
+@group
+foo
+     @result{} 6
+@end group
+
+@group
+@c ;; @r{In buffer @samp{b2}, the value hasn't changed.}
+;; @r{バッファ@samp{b2}では、値は変わっていない}
+(save-excursion
+  (set-buffer "b2")
+  foo)
+     @result{} 5
+@end group
+@end example
+
+@c Making a variable buffer-local within a @code{let}-binding for that
+@c variable does not work reliably, unless the buffer in which you do this
+@c is not current either on entry to or exit from the @code{let}.  This is
+@c because @code{let} does not distinguish between different kinds of
+@c bindings; it knows only which variable the binding was made for.
+変数の@code{let}束縛の内側でその変数をバッファローカルにしても、
+そのバッファが@code{let}に入るときや抜けるときに
+カレントバッファになっていないと、正しく動作しない。
+これは、@code{let}が、異なる種類の束縛を区別しないからであり、
+どの変数の束縛を作るかだけを知っているからである。
+
+@c If the variable is terminal-local, this function signals an error.  Such
+@c variables cannot have buffer-local bindings as well.  @xref{Multiple
+@c Displays}.
+変数が端末にローカルなときには、この関数はエラーを通知する。
+そのような変数は、同時にバッファローカルな束縛を持てない。
+@xref{Multiple Displays}。
+
+@c @strong{Note:} do not use @code{make-local-variable} for a hook
+@c variable.  Instead, use @code{make-local-hook}.  @xref{Hooks}.
+@strong{注意：}@code{ }
+フック変数に対して@code{make-local-variable}を使わないこと。
+そのかわりに@code{make-local-hook}を使う。
+@pxref{Hooks}。
+@end deffn
+
+@c @deffn Command make-variable-buffer-local variable
+@deffn コマンド make-variable-buffer-local variable
+@c This function marks @var{variable} (a symbol) automatically
+@c buffer-local, so that any subsequent attempt to set it will make it
+@c local to the current buffer at the time.
+この関数は、@var{variable}（シンボル）を
+自動的にバッファローカルにするように印を付け、
+これ以降にその変数に設定しようとすると、
+その時点のカレントバッファにローカルにする。
+
+@c A peculiar wrinkle of this feature is that binding the variable (with
+@c @code{let} or other binding constructs) does not create a buffer-local
+@c binding for it.  Only setting the variable (with @code{set} or
+@c @code{setq}) does so.
+この機能の重要な点は、
+（@code{let}や他の束縛を作る構文で）変数を束縛しても、
+その変数のバッファローカルな束縛を作らないことである。
+（@code{set}や@code{setq}で）変数を設定して初めてそのようにする。
+
+@c The value returned is @var{variable}.
+返す値は@var{variable}である。
+
+@c @strong{Warning:} Don't assume that you should use
+@c @code{make-variable-buffer-local} for user-option variables, simply
+@c because users @emph{might} want to customize them differently in
+@c different buffers.  Users can make any variable local, when they wish
+@c to.  It is better to leave the choice to them.
+@strong{警告：}@code{ }
+ユーザーが異なるバッファでは異なったカスタマイズをするかも@emph{しれない}と
+いうだけで、ユーザーオプション変数に@code{make-variable-buffer-local}を
+使うべきだと仮定しないこと。
+ユーザーは、必要ならば、どんな変数でもローカルにできる。
+選択はユーザーに任せるのがよい。
+
+@c The time to use @code{make-variable-buffer-local} is when it is crucial
+@c that no two buffers ever share the same binding.  For example, when a
+@c variable is used for internal purposes in a Lisp program which depends
+@c on having separate values in separate buffers, then using
+@c @code{make-variable-buffer-local} can be the best solution.
+2つのバッファが同じ束縛を共有しないことが重要な場面では、
+@code{make-variable-buffer-local}を使う。
+たとえば、異なるバッファでは異なる値を持つことに依存するような
+Lispプログラムで内部目的に変数を使うときには、
+@code{make-variable-buffer-local}を使うのが最良である。
+@end deffn
+
+@defun local-variable-p variable &optional buffer
+@c This returns @code{t} if @var{variable} is buffer-local in buffer
+@c @var{buffer} (which defaults to the current buffer); otherwise,
+@c @code{nil}.
+これは、@var{variable}がバッファ@var{buffer}
+（デフォルトはカレントバッファ）において
+バッファローカルであれば@code{t}を返し、
+さもなければ@code{nil}を返す。
+@end defun
+
+@defun buffer-local-variables &optional buffer
+@c This function returns a list describing the buffer-local variables in
+@c buffer @var{buffer}.  (If @var{buffer} is omitted, the current buffer is
+@c used.)  It returns an association list (@pxref{Association Lists}) in
+@c which each element contains one buffer-local variable and its value.
+@c However, when a variable's buffer-local binding in @var{buffer} is void,
+@c then the variable appears directly in the resulting list.
+この関数は、バッファ@var{buffer}のバッファローカルな変数を
+記述したリストを返す。
+（@var{buffer}を省略するとカレントバッファを使う。）
+バッファローカルな変数とその値を入れた要素から成る連想リスト
+（@pxref{Association Lists}）を返す。
+しかし、@var{buffer}における変数のバッファローカルな束縛が空であると、
+変数は結果のリストに直接現れる。
+
+@example
+@group
+(make-local-variable 'foobar)
+(makunbound 'foobar)
+(make-local-variable 'bind-me)
+(setq bind-me 69)
+@end group
+(setq lcl (buffer-local-variables))
+@c     ;; @r{First, built-in variables local in all buffers:}
+    ;; @r{まず、すべてのバッファでローカルな組み込み変数}
+@result{} ((mark-active . nil)
+    (buffer-undo-list . nil)
+    (mode-name . "Fundamental")
+    @dots{}
+@group
+@c     ;; @r{Next, non-built-in buffer-local variables.} 
+@c     ;; @r{This one is buffer-local and void:}
+    ;; @r{続いて、組み込みでないバッファローカルな変数} 
+    ;; @r{これはバッファローカルで、かつ、空}
+    foobar
+@c     ;; @r{This one is buffer-local and nonvoid:}
+    ;; @r{これはバッファローカルで、かつ、空ではない}
+    (bind-me . 69))
+@end group
+@end example
+
+@c Note that storing new values into the @sc{cdr}s of cons cells in this
+@c list does @emph{not} change the buffer-local values of the variables.
+このリストのコンスセルの@sc{cdr}に新たな値を格納しても、
+変数のバッファローカルな値を変更@emph{しない}ことに注意してほしい。
+@end defun
+
+@c @deffn Command kill-local-variable variable
+@deffn コマンド kill-local-variable variable
+@c This function deletes the buffer-local binding (if any) for
+@c @var{variable} (a symbol) in the current buffer.  As a result, the
+@c default binding of @var{variable} becomes visible in this buffer.  This
+@c typically results in a change in the value of @var{variable}, since the
+@c default value is usually different from the buffer-local value just
+@c eliminated.
+この関数は、カレントバッファにおける@var{variable}（シンボル）の
+バッファローカルな束縛を（あれば）削除する。
+その結果、このバッファでは、@var{variable}のデフォルトの束縛が
+見えるようになる。
+典型的には、@var{variable}の値が変わる。
+なぜなら、デフォルト値は、削除したバッファローカルな値とは
+普通は異なるからである。
+
+@c If you kill the buffer-local binding of a variable that automatically
+@c becomes buffer-local when set, this makes the default value visible in
+@c the current buffer.  However, if you set the variable again, that will
+@c once again create a buffer-local binding for it.
+自動的にバッファローカルにする印が付いた変数のバッファローカルな束縛を
+削除すると、カレントバッファではデフォルト値が見えるようになる。
+しかし、変数に再度設定すると、それに対するバッファローカルな束縛が
+再度作成される。
+
+@c @code{kill-local-variable} returns @var{variable}.
+@code{kill-local-variable}は@var{variable}を返す。
+
+@c This function is a command because it is sometimes useful to kill one
+@c buffer-local variable interactively, just as it is useful to create
+@c buffer-local variables interactively.
+この関数がコマンドであるのは、
+対話的にバッファローカルな変数を作るのが有用なように、
+対話的にバッファローカルな変数を削除するのが有用な場合があるからである。
+@end deffn
+
+@defun kill-all-local-variables
+@c This function eliminates all the buffer-local variable bindings of the
+@c current buffer except for variables marked as ``permanent''.  As a
+@c result, the buffer will see the default values of most variables.
+この関数は、カレントバッファにおいて、
+『恒久的』と印付けしてある変数を除いて、
+すべてのバッファローカルな変数束縛を削除する。
+その結果、バッファでは、ほとんどの変数のデフォルト値が見えるようになる。
+
+@c This function also resets certain other information pertaining to the
+@c buffer: it sets the local keymap to @code{nil}, the syntax table to the
+@c value of @code{(standard-syntax-table)}, the case table to
+@c @code{(standard-case-table)}, and the abbrev table to the value of
+@c @code{fundamental-mode-abbrev-table}.
+この関数は、バッファに属する他のある種の情報もリセットする。
+つまり、ローカルキーマップに@code{nil}、
+構文テーブルに@code{(standard-syntax-table)}の値、
+大文字小文字テーブルに@code{(standard-case-table)}、
+略語テーブルに@code{fundamental-mode-abbrev-table}の値を設定する。
+
+@c The very first thing this function does is run the normal hook
+@c @code{change-major-mode-hook} (see below).
+この関数が最初に行うことは、
+ノーマルフック@code{change-major-mode-hook}（下記参照）を
+実行することである。
+
+@c Every major mode command begins by calling this function, which has the
+@c effect of switching to Fundamental mode and erasing most of the effects
+@c of the previous major mode.  To ensure that this does its job, the
+@c variables that major modes set should not be marked permanent.
+各メジャーモードコマンドはこの関数を呼び出すことから始める。
+つまり、基本（fundamental）モードに切り替え、
+それ以前のメジャーモードのほとんどの効果を消しさる。
+この処理を保証するために、メジャーモードで設定する変数には、
+恒久的の印を付けないこと。
+
+@c @code{kill-all-local-variables} returns @code{nil}.
+@code{kill-all-local-variables}は@code{nil}を返す。
+@end defun
+
+@defvar change-major-mode-hook
+@c The function @code{kill-all-local-variables} runs this normal hook
+@c before it does anything else.  This gives major modes a way to arrange
+@c for something special to be done if the user switches to a different
+@c major mode.  For best results, make this variable buffer-local, so that
+@c it will disappear after doing its job and will not interfere with the
+@c subsequent major mode.  @xref{Hooks}.
+関数@code{kill-all-local-variables}は、最初にこのノーマルフックを実行する。
+このフックはメジャーモードに対して、
+ユーザーが別のメジャーモードに切り替えていた場合には、
+なにか特別なことを行う情報を提供する。
+最良の結果を得るためには、この変数をバッファローカルにしておくと
+その役目を終えると変数は消えてしまい、それ以降のメジャーモードに干渉しない。
+@pxref{Hooks}。
+@end defvar
+
+@c @c Emacs 19 feature
+@c @cindex permanent local variable
+@cindex 恒久的なローカル変数
+@c A buffer-local variable is @dfn{permanent} if the variable name (a
+@c symbol) has a @code{permanent-local} property that is non-@code{nil}.
+@c Permanent locals are appropriate for data pertaining to where the file
+@c came from or how to save it, rather than with how to edit the contents.
+バッファローカル変数は、
+変数名（シンボル）の属性@code{permanent-local}が@code{nil}以外であると、
+@dfn{恒久的}（permanent）です。
+恒久的なローカル変数は、編集作業の文脈ではなく、
+どのファイルを訪問中であるとかどのように保存するとかに関連する情報に
+適しています。
+
+@node Default Value
+@c @subsection The Default Value of a Buffer-Local Variable
+@subsection バッファローカル変数のデフォルト値
+@c @cindex default value
+@cindex デフォルト値
+
+@c   The global value of a variable with buffer-local bindings is also
+@c called the @dfn{default} value, because it is the value that is in
+@c effect whenever neither the current buffer nor the selected frame has
+@c its own binding for the variable.
+バッファローカルな束縛がある変数のグローバル値を、
+@dfn{デフォルト}値とも呼びます。
+カレントバッファや選択したフレームに変数の独自の束縛がない場合に、
+グローバル値を使うからです。
+
+@c   The functions @code{default-value} and @code{setq-default} access and
+@c change a variable's default value regardless of whether the current
+@c buffer has a buffer-local binding.  For example, you could use
+@c @code{setq-default} to change the default setting of
+@c @code{paragraph-start} for most buffers; and this would work even when
+@c you are in a C or Lisp mode buffer that has a buffer-local value for
+@c this variable.
+関数@code{default-value}と関数@code{setq-default}は、
+カレントバッファにバッファローカルな束縛があるかどうかに関わらず、
+変数のデフォルト値を参照したり変更したりします。
+たとえば、@code{setq-default}を使って、
+ほとんどのバッファの@code{paragraph-start}のデフォルト値を変更できます。
+この変数のバッファローカルな値があるCモードやLispモードのバッファで
+行ってもこれは動作します。
+
+@c @c Emacs 19 feature
+@c   The special forms @code{defvar} and @code{defconst} also set the
+@c default value (if they set the variable at all), rather than any
+@c buffer-local or frame-local value.
+スペシャルフォーム@code{defvar}や@code{defconst}も、
+バッファローカルやフレームローカルな値ではなく、
+（変数に設定する場合には）デフォルト値を設定します。
+
+@defun default-value symbol
+@c This function returns @var{symbol}'s default value.  This is the value
+@c that is seen in buffers and frames that do not have their own values for
+@c this variable.  If @var{symbol} is not buffer-local, this is equivalent
+@c to @code{symbol-value} (@pxref{Accessing Variables}).
+この関数は、@var{symbol}のデフォルト値を返す。
+この値は、この変数に対して独自の値を持たないバッファやフレームで見える
+値である。
+@var{symbol}がバッファローカルでなければ、
+これは、@code{symbol-value}（@pxref{Accessing Variables}）と等価。
+@end defun
+
+@c Emacs 19 feature
+@defun default-boundp symbol
+@c The function @code{default-boundp} tells you whether @var{symbol}'s
+@c default value is nonvoid.  If @code{(default-boundp 'foo)} returns
+@c @code{nil}, then @code{(default-value 'foo)} would get an error.
+関数@code{default-boundp}は、
+@var{symbol}のデフォルト値が空でないことを調べる。
+@code{(default-boundp 'foo)}が@code{nil}を返せば、
+@code{(default-value 'foo)}はエラーになる。
+
+@c @code{default-boundp} is to @code{default-value} as @code{boundp} is to
+@c @code{symbol-value}.
+@code{default-boundp}は、@code{boundp}が@code{symbol-value}に対応するように、
+@code{default-value}に対応する。
+@end defun
+
+@defspec setq-default [symbol form]@dots{}
+@c This special form gives each @var{symbol} a new default value, which is
+@c the result of evaluating the corresponding @var{form}.  It does not
+@c evaluate @var{symbol}, but does evaluate @var{form}.  The value of the
+@c @code{setq-default} form is the value of the last @var{form}.
+このスペシャルフォームは、各@var{symbol}に、
+対応する@var{form}の評価結果である新たなデフォルト値を与える。
+@var{symbol}は評価しないが、@var{form}は評価する。
+フォーム@code{setq-default}の値は、最後の@var{form}の値である。
+
+@c If a @var{symbol} is not buffer-local for the current buffer, and is not
+@c marked automatically buffer-local, @code{setq-default} has the same
+@c effect as @code{setq}.  If @var{symbol} is buffer-local for the current
+@c buffer, then this changes the value that other buffers will see (as long
+@c as they don't have a buffer-local value), but not the value that the
+@c current buffer sees.
+@var{symbol}がカレントバッファでバッファローカルではなく、かつ、
+自動的にバッファローカルにする印が付いていなければ、
+@code{setq-default}は@code{setq}と同じ効果がある。
+@var{symbol}がカレントバッファでバッファローカルならば、
+（バッファローカルな値を持たない）別のバッファが見る値を変更し、
+カレントバッファが見る値は変更しない。
+
+@example
+@group
+@c ;; @r{In buffer @samp{foo}:}
+;; @r{バッファ@samp{foo}において、}
+(make-local-variable 'buffer-local)
+     @result{} buffer-local
+@end group
+@group
+(setq buffer-local 'value-in-foo)
+     @result{} value-in-foo
+@end group
+@group
+(setq-default buffer-local 'new-default)
+     @result{} new-default
+@end group
+@group
+buffer-local
+     @result{} value-in-foo
+@end group
+@group
+(default-value 'buffer-local)
+     @result{} new-default
+@end group
+
+@group
+@c ;; @r{In (the new) buffer @samp{bar}:}
+;; @r{（新たな）バッファ@samp{bar}では、}
+buffer-local
+     @result{} new-default
+@end group
+@group
+(default-value 'buffer-local)
+     @result{} new-default
+@end group
+@group
+(setq buffer-local 'another-default)
+     @result{} another-default
+@end group
+@group
+(default-value 'buffer-local)
+     @result{} another-default
+@end group
+
+@group
+@c ;; @r{Back in buffer @samp{foo}:}
+;; @r{バッファ@samp{foo}に戻ってみると}
+buffer-local
+     @result{} value-in-foo
+(default-value 'buffer-local)
+     @result{} another-default
+@end group
+@end example
+@end defspec
+
+@defun set-default symbol value
+@c This function is like @code{setq-default}, except that @var{symbol} is
+@c an ordinary evaluated argument.
+この関数は@code{setq-default}に似ているが、
+@var{symbol}は普通どおりに評価される引数である。
+
+@example
+@group
+(set-default (car '(a b c)) 23)
+     @result{} 23
+@end group
+@group
+(default-value 'a)
+     @result{} 23
+@end group
+@end example
+@end defun
+
+@node Frame-Local Variables
+@c @section Frame-Local Variables
+@section フレームローカルな変数
+
+@c   Just as variables can have buffer-local bindings, they can also have
+@c frame-local bindings.  These bindings belong to one frame, and are in
+@c effect when that frame is selected.  Frame-local bindings are actually
+@c frame parameters: you create a frame-local binding in a specific frame
+@c by calling @code{modify-frame-parameters} and specifying the variable
+@c name as the parameter name.
+変数にバッファローカルな束縛があるように、
+変数にはフレームローカルな束縛もあります。
+これらの束縛は1つのフレームに属し、
+そのフレームを選択しているときに有効になります。
+フレームローカルな束縛は、実際にはフレームパラメータです。
+特定のフレームでフレームローカルな束縛を作るには
+@code{modify-frame-parameters}を呼び出し、
+パラメータ名として変数名を指定します。
+
+@c   To enable frame-local bindings for a certain variable, call the function
+@c @code{make-variable-frame-local}.
+特定の変数に対するフレームローカルな束縛を有効にするには、
+関数@code{make-variable-frame-local}を呼び出します。
+
+@c @deffn Command make-variable-frame-local variable
+@deffn コマンド make-variable-frame-local variable
+@c Enable the use of frame-local bindings for @var{variable}.  This does
+@c not in itself create any frame-local bindings for the variable; however,
+@c if some frame already has a value for @var{variable} as a frame
+@c parameter, that value automatically becomes a frame-local binding.
+@var{variable}に対してフレームローカルな束縛を使うようにする。
+この関数そのものは@var{variable}に対してフレームローカルな束縛を作成しない。
+しかし、フレームパラメータとして@var{variable}の値を持つフレームが
+すでに存在すれば、その値は自動的にフレームローカルな束縛になる。
+
+@c If the variable is terminal-local, this function signals an error,
+@c because such variables cannot have frame-local bindings as well.
+@c @xref{Multiple Displays}.  A few variables that are implemented
+@c specially in Emacs can be (and usually are) buffer-local, but can never
+@c be frame-local.
+変数が端末にローカルであると、この関数はエラーを通知する。
+そのような変数はフレームローカルな束縛を同時には持てないからである。
+@pxref{Multiple Displays}。
+Emacsで特別に実装されている少数の変数は（普通）
+バッファローカルになることができるが、フレームローカルにはならない。
+@end deffn
+
+@c   Buffer-local bindings take precedence over frame-local bindings.  Thus,
+@c consider a variable @code{foo}: if the current buffer has a buffer-local
+@c binding for @code{foo}, that binding is active; otherwise, if the
+@c selected frame has a frame-local binding for @code{foo}, that binding is
+@c active; otherwise, the default binding of @code{foo} is active.
+バッファローカルな束縛はフレームローカルな束縛に優先します。
+変数@code{foo}を考えてみましょう。
+カレントバッファに@code{foo}のバッファローカルな束縛があると、
+その束縛が有効になります。
+選択したフレームに@code{foo}のフレームローカルな束縛があると、
+その束縛が有効になります。
+さもなければ、@code{foo}のデフォルトの束縛が有効になります。
+
+@c   Here is an example.  First we prepare a few bindings for @code{foo}:
+つぎに例を示します。
+まず、@code{foo}の束縛を準備しておきます。
+
+@example
+(setq f1 (selected-frame))
+(make-variable-frame-local 'foo)
+
+@c ;; @r{Make a buffer-local binding for @code{foo} in @samp{b1}.}
+;; @r{@samp{b1}において、@code{foo}のバッファローカルな束縛を作る}
+(set-buffer (get-buffer-create "b1"))
+(make-local-variable 'foo)
+(setq foo '(b 1))
+
+@c ;; @r{Make a frame-local binding for @code{foo} in a new frame.}
+@c ;; @r{Store that frame in @code{f2}.}
+;; @r{新しいフレームで@code{foo}のフレームローカルな束縛を作る}
+;; @r{そのフレームを@code{f2}に格納する}
+(setq f2 (make-frame))
+(modify-frame-parameters f2 '((foo . (f 2))))
+@end example
+
+@c   Now we examine @code{foo} in various contexts.  Whenever the
+@c buffer @samp{b1} is current, its buffer-local binding is in effect,
+@c regardless of the selected frame:
+では、さまざまな文脈で@code{foo}を調べてみましょう。
+バッファ@samp{b1}がカレントバッファであれば、
+選択したフレームに関係なく、
+@samp{b1}のバッファローカルな束縛が有効になっています。
+
+@example
+(select-frame f1)
+(set-buffer (get-buffer-create "b1"))
+foo
+     @result{} (b 1)
+
+(select-frame f2)
+(set-buffer (get-buffer-create "b1"))
+foo
+     @result{} (b 1)
+@end example
+
+@noindent
+@c Otherwise, the frame gets a chance to provide the binding; when frame
+@c @code{f2} is selected, its frame-local binding is in effect:
+さもなければ、フレームの束縛を使う可能性があります。
+フレーム@code{f2}を選択していると、
+そのフレームローカルな束縛が有効になります。
+
+@example
+(select-frame f2)
+(set-buffer (get-buffer "*scratch*"))
+foo
+     @result{} (f 2)
+@end example
+
+@noindent
+@c When neither the current buffer nor the selected frame provides
+@c a binding, the default binding is used:
+カレントバッファにもフレームにも束縛がなければ、
+デフォルトの束縛を使います。
+
+@example
+(select-frame f1)
+(set-buffer (get-buffer "*scratch*"))
+foo
+     @result{} nil
+@end example
+
+@noindent
+@c When the active binding of a variable is a frame-local binding, setting
+@c the variable changes that binding.  You can observe the result with
+@c @code{frame-parameters}:
+変数の有効な束縛がフレームローカルな束縛であるとき、
+変数に設定するとその束縛を変更します。
+@code{frame-parameters}でその結果を見ることができます。
+
+@example
+(select-frame f2)
+(set-buffer (get-buffer "*scratch*"))
+(setq foo 'nobody)
+(assq 'foo (frame-parameters f2))
+     @result{} (foo . nobody)
+@end example
+
+@node Future Local Variables
+@c @section Possible Future Local Variables
+@section 将来のローカル変数
+
+@c   We have considered the idea of bindings that are local to a category
+@c of frames---for example, all color frames, or all frames with dark
+@c backgrounds.  We have not implemented them because it is not clear that
+@c this feature is really useful.  You can get more or less the same
+@c results by adding a function to @code{after-make-frame-hook}, set up to
+@c define a particular frame parameter according to the appropriate
+@c conditions for each frame.
+フレームに分類されるものでローカルな束縛というアイデアを考察しています。
+たとえば、すべてのカラーフレーム、暗い背景色のすべてのフレームなどです。
+この機能が本当に有用なのか明らかでないので、それらをまだ実装してはいません。
+@code{after-make-frame-hook}に関数を追加して、
+各フレームの適切な状態に応じたフレームパラメータを設定すれば、
+同じような結果を得られます。
+
+@c   It would also be possible to implement window-local bindings.  We
+@c don't know of many situations where they would be useful, and it seems
+@c that indirect buffers (@pxref{Indirect Buffers}) with buffer-local
+@c bindings offer a way to handle these situations more robustly.
+ウィンドウローカルな束縛を実装することも可能です。
+これが有用である多くの状況を知りませんが、
+バッファローカルな束縛を持つ間接バッファ（@pxref{Indirect Buffers}）で、
+そのような状況をより堅牢に扱えると思います。
+
+@c   If sufficient application is found for either of these two kinds of
+@c local bindings, we will provide it in a subsequent Emacs version.
+これら2種類のローカル束縛のいずれかを必要とする十分な数のアプリケーションが
+みつかれば、Emacsの将来の版でそのような束縛を提供するでしょう。
+
+

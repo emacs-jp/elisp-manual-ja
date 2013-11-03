@@ -1,0 +1,2039 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/lists
+@node Lists, Sequences Arrays Vectors, Strings and Characters, Top
+@c @chapter Lists
+@chapter リスト
+@c @cindex list
+@c @cindex element (of list)
+@cindex リスト
+@cindex 要素（リスト）
+
+@c   A @dfn{list} represents a sequence of zero or more elements (which may
+@c be any Lisp objects).  The important difference between lists and
+@c vectors is that two or more lists can share part of their structure; in
+@c addition, you can insert or delete elements in a list without copying
+@c the whole list.
+@dfn{リスト}（list）は、0個以上の（任意のLispオブジェクトの）要素の列を
+表現します。
+リストとベクトルの重要な相違点は、
+複数のリストがそれらの構造の一部を共有できることです。
+さらに、リスト全体をコピーすることなく、
+リストに要素を追加したり削除できることです。
+
+@menu
+* Cons Cells::          How lists are made out of cons cells.
+* Lists as Boxes::                 Graphical notation to explain lists.
+* List-related Predicates::        Is this object a list?  Comparing two lists.
+* List Elements::       Extracting the pieces of a list.
+* Building Lists::      Creating list structure.
+* Modifying Lists::     Storing new pieces into an existing list.
+* Sets And Lists::      A list can represent a finite mathematical set.
+* Association Lists::   A list can represent a finite relation or mapping.
+@end menu
+
+@node Cons Cells
+@c @section Lists and Cons Cells
+@section リストとコンスセル
+@c @cindex lists and cons cells
+@c @cindex @code{nil} and lists
+@cindex リストとコンスセル
+@cindex @code{nil}とリスト
+
+@c   Lists in Lisp are not a primitive data type; they are built up from
+@c @dfn{cons cells}.  A cons cell is a data object that represents an
+@c ordered pair.  It holds, or ``points to,'' two Lisp objects, one labeled
+@c as the @sc{car}, and the other labeled as the @sc{cdr}.  These names are
+@c traditional; see @ref{Cons Cell Type}.  @sc{cdr} is pronounced
+@c ``could-er.''
+Lispのリストは基本データ型ではありません。
+リストは@dfn{コンスセル}（cons cells）で構成されます。
+コンスセルはドット対を表現するデータオブジェクトです。
+ドット対は2つのLispオブジェクトを保持、つまり、『指し』ます。
+その2つのLispオブジェクトの一方を@sc{car}、他方を@sc{cdr}といいます。
+これらの名前は歴史的なものです。
+@xref{Cons Cell Type}。
+@sc{cdr}は『クダー』と読みます。
+
+@c   A list is a series of cons cells chained together, one cons cell per
+@c element of the list.  By convention, the @sc{car}s of the cons cells are
+@c the elements of the list, and the @sc{cdr}s are used to chain the list:
+@c the @sc{cdr} of each cons cell is the following cons cell.  The @sc{cdr}
+@c of the last cons cell is @code{nil}.  This asymmetry between the
+@c @sc{car} and the @sc{cdr} is entirely a matter of convention; at the
+@c level of cons cells, the @sc{car} and @sc{cdr} slots have the same
+@c characteristics.
+リストはコンスセルを連ねたものであり、
+リストの各要素ごとにコンスセルが1つあります。
+慣習として、コンスセルの@sc{car}はリストの要素であり、
+@sc{cdr}はリストを繋ぐために使います。
+つまり、各コンスセルの@sc{cdr}は後続のコンスセルです。
+最後のコンスセルの@sc{cdr}は@code{nil}です。
+@sc{car}と@sc{cdr}の非対称性は単なる慣習によるものです。
+コンスセルのレベルでは、@sc{car}と@sc{cdr}には同じ性質があります。
+
+@c @cindex list structure
+@cindex リスト構造
+@c   Because most cons cells are used as part of lists, the phrase
+@c @dfn{list structure} has come to mean any structure made out of cons
+@c cells.
+ほとんどのコンスセルはリストの一部として使われるので、
+@dfn{リスト構造}（list structure）という用語は、
+コンスセルで構成した任意の構造を意味するようになりました。
+
+@c   The symbol @code{nil} is considered a list as well as a symbol; it is
+@c the list with no elements.  For convenience, the symbol @code{nil} is
+@c considered to have @code{nil} as its @sc{cdr} (and also as its
+@c @sc{car}).
+シンボル@code{nil}は、シンボルであるとともにリストでもあるとみなします。
+これは要素を持たないリストです。
+慣習として、シンボル@code{nil}の@sc{cdr}（および@sc{car}）は
+@code{nil}であるとみなします。
+
+@c   The @sc{cdr} of any nonempty list @var{l} is a list containing all the
+@c elements of @var{l} except the first.
+空でない任意のリスト@var{l}の@sc{cdr}は、
+@var{l}の先頭要素を除くすべての要素を含んだリストです。
+
+@node Lists as Boxes
+@comment  node-name,  next,  previous,  up
+@c @section Lists as Linked Pairs of Boxes
+@section 箱の対を連ねたリスト
+@c @cindex box representation for lists
+@c @cindex lists represented as boxes
+@c @cindex cons cell as box
+@cindex 箱表示、リスト
+@cindex 箱表示によるリスト
+@cindex コンスセルの箱表示
+
+@c   A cons cell can be illustrated as a pair of boxes.  The first box
+@c represents the @sc{car} and the second box represents the @sc{cdr}.
+@c Here is an illustration of the two-element list, @code{(tulip lily)},
+@c made from two cons cells:
+コンスセルは1対の箱で図示できます。
+最初の箱は@sc{car}を表し、2番目の箱は@sc{cdr}を表します。
+つぎは、2つのコンスセルから成る
+2要素のリスト@code{(tulip lily)}を図示したものです。
+
+@example
+@group
+ ---------------         ---------------
+| car   | cdr   |       | car   | cdr   |
+| tulip |   o---------->| lily  |  nil  |
+|       |       |       |       |       |
+ ---------------         ---------------
+@end group
+@end example
+
+@c   Each pair of boxes represents a cons cell.  Each box ``refers to'',
+@c ``points to'' or ``contains'' a Lisp object.  (These terms are
+@c synonymous.)  The first box, which describes the @sc{car} of the first
+@c cons cell, contains the symbol @code{tulip}.  The arrow from the
+@c @sc{cdr} box of the first cons cell to the second cons cell indicates
+@c that the @sc{cdr} of the first cons cell is the second cons cell.
+各1対の箱がコンスセルを表します。
+各箱は、Lispオブジェクトを『参照する』、『指す』、『含む』のです。
+（これらの用語は同義語。）
+最初のコンスセルの@sc{car}を表す最初の箱は、
+シンボル@code{tulip}を含みます。
+最初のコンスセルの@sc{cdr}箱から2番目のコンスセルへ向かう矢印は、
+最初のコンスセルの@sc{cdr}が2番目のコンスセルであることを表します。
+
+@c   The same list can be illustrated in a different sort of box notation
+@c like this:
+同じリストは、つぎのような別の箱記法でも図示できます。
+
+@example
+@group
+    --- ---      --- ---
+   |   |   |--> |   |   |--> nil
+    --- ---      --- ---
+     |            |
+     |            |
+      --> tulip    --> lily
+@end group
+@end example
+
+@c   Here is a more complex illustration, showing the three-element list,
+@c @code{((pine needles) oak maple)}, the first element of which is a
+@c two-element list:
+つぎは、より複雑で、最初の要素が2要素リストであるような
+3要素リストを図示したものです。
+
+@example
+@group
+    --- ---      --- ---      --- ---
+   |   |   |--> |   |   |--> |   |   |--> nil
+    --- ---      --- ---      --- ---
+     |            |            |
+     |            |            |
+     |             --> oak      --> maple
+     |
+     |     --- ---      --- ---
+      --> |   |   |--> |   |   |--> nil
+           --- ---      --- ---
+            |            |
+            |            |
+             --> pine     --> needles
+@end group
+@end example
+
+@c   The same list represented in the first box notation looks like this:
+同じリストを最初の箱記法で表現するとつぎのようになります。
+
+@example
+@group
+ --------------       --------------       --------------
+| car   | cdr  |     | car   | cdr  |     | car   | cdr  |
+|   o   |   o------->| oak   |   o------->| maple |  nil |
+|   |   |      |     |       |      |     |       |      |
+ -- | ---------       --------------       --------------
+    |
+    |
+    |        --------------       ----------------
+    |       | car   | cdr  |     | car     | cdr  |
+     ------>| pine  |   o------->| needles |  nil |
+            |       |      |     |         |      |
+             --------------       ----------------
+@end group
+@end example
+
+@c   @xref{Cons Cell Type}, for the read and print syntax of cons cells and
+@c lists, and for more ``box and arrow'' illustrations of lists.
+コンスセルとリストの入力構文と表示表現、および、
+『箱と矢印』によるリストの図示については、@xref{Cons Cell Type}
+
+@node List-related Predicates
+@c @section Predicates on Lists
+@section リスト向け述語
+
+@c   The following predicates test whether a Lisp object is an atom, is a
+@c cons cell or is a list, or whether it is the distinguished object
+@c @code{nil}.  (Many of these predicates can be defined in terms of the
+@c others, but they are used so often that it is worth having all of them.)
+以下の述語は、Lispオブジェクトが、アトムであるか、
+コンスセル、つまり、リストであるか、
+特別なオブジェクト@code{nil}であるか調べます。
+（これらの多く述語は、それぞれ残りの述語で定義可能である。
+しかし、多用するため、これらすべてを用意しておく価値がある。）
+
+@defun consp object
+@c This function returns @code{t} if @var{object} is a cons cell, @code{nil}
+@c otherwise.  @code{nil} is not a cons cell, although it @emph{is} a list.
+この関数は、@var{object}がコンスセルならば@code{t}を返し、
+さもなければ@code{nil}を返す。
+@code{nil}はコンスセルではないが、空リスト@emph{である}。
+@end defun
+
+@defun atom object
+@c @cindex atoms
+@cindex アトム
+@c This function returns @code{t} if @var{object} is an atom, @code{nil}
+@c otherwise.  All objects except cons cells are atoms.  The symbol
+@c @code{nil} is an atom and is also a list; it is the only Lisp object
+@c that is both.
+この関数は、@var{object}がアトムならば@code{t}を返し、
+さもなければ@code{nil}を返す。
+コンスセルを除くすべてのオブジェクトはアトムである。
+シンボル@code{nil}はアトムでもありリストでもある。
+このようなLispオブジェクトは@code{nil}だけである。
+
+@example
+(atom @var{object}) @equiv{} (not (consp @var{object}))
+@end example
+@end defun
+
+@defun listp object
+@c This function returns @code{t} if @var{object} is a cons cell or
+@c @code{nil}.  Otherwise, it returns @code{nil}.
+この関数は、@var{object}がコンスセルか@code{nil}ならば@code{t}を返す。
+さもなければ@code{nil}を返す。
+
+@example
+@group
+(listp '(1))
+     @result{} t
+@end group
+@group
+(listp '())
+     @result{} t
+@end group
+@end example
+@end defun
+
+@defun nlistp object
+@c This function is the opposite of @code{listp}: it returns @code{t} if
+@c @var{object} is not a list.  Otherwise, it returns @code{nil}.
+この関数は、@code{listp}の反対である。
+@var{object}がリストでなければ@code{t}を返す。
+さもなければ@code{nil}を返す。
+
+@example
+(listp @var{object}) @equiv{} (not (nlistp @var{object}))
+@end example
+@end defun
+
+@defun null object
+@c This function returns @code{t} if @var{object} is @code{nil}, and
+@c returns @code{nil} otherwise.  This function is identical to @code{not},
+@c but as a matter of clarity we use @code{null} when @var{object} is
+@c considered a list and @code{not} when it is considered a truth value
+@c (see @code{not} in @ref{Combining Conditions}).
+この関数は、@var{object}が@code{nil}ならば@code{t}を返し、
+さもなければ@code{nil}を返す。
+この関数は、@code{not}と同一であるが、意図を明確にするために、
+@var{object}をリストと考えるときには@code{null}を使い、
+@var{object}を真理値と考えるときには@code{not}を使う
+（@ref{Combining Conditions}の@code{not}を参照）
+
+@example
+@group
+(null '(1))
+     @result{} nil
+@end group
+@group
+(null '())
+     @result{} t
+@end group
+@end example
+@end defun
+
+@need 2000
+
+@node List Elements
+@c @section Accessing Elements of Lists
+@section リストの要素の参照
+@c @cindex list elements
+@cindex リストの要素
+
+@defun car cons-cell
+@c This function returns the value pointed to by the first pointer of the
+@c cons cell @var{cons-cell}.  Expressed another way, this function
+@c returns the @sc{car} of @var{cons-cell}.
+この関数は、コンスセル@var{cons-cell}の最初のポインタが指す値を返す。
+別のいい方をすれば、@var{cons-cell}の@sc{car}を返す。
+
+@c As a special case, if @var{cons-cell} is @code{nil}, then @code{car}
+@c is defined to return @code{nil}; therefore, any list is a valid argument
+@c for @code{car}.  An error is signaled if the argument is not a cons cell
+@c or @code{nil}.
+特別な場合として、@var{cons-cell}が@code{nil}のときには、
+@code{car}は@code{nil}を返すと定義する。
+したがって、任意のリストは@code{car}の正しい引数である。
+引数がコンスセルでも@code{nil}でもなければエラーを通知する。
+
+@example
+@group
+(car '(a b c))
+     @result{} a
+@end group
+@group
+(car '())
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@defun cdr cons-cell
+@c This function returns the value pointed to by the second pointer of
+@c the cons cell @var{cons-cell}.  Expressed another way, this function
+@c returns the @sc{cdr} of @var{cons-cell}.
+この関数は、コンスセル@var{cons-cell}の2番目のポインタが指す値を返す。
+別のいい方をすれば、@var{cons-cell}の@sc{cdr}を返す。
+
+@c As a special case, if @var{cons-cell} is @code{nil}, then @code{cdr}
+@c is defined to return @code{nil}; therefore, any list is a valid argument
+@c for @code{cdr}.  An error is signaled if the argument is not a cons cell
+@c or @code{nil}.
+特別な場合として、@var{cons-cell}が@code{nil}のときには、
+@code{cdr}は@code{nil}を返すと定義する。
+したがって、任意のリストは@code{cdr}の正しい引数である。
+引数がコンスセルでも@code{nil}でもなければエラーを通知する。
+
+@example
+@group
+(cdr '(a b c))
+     @result{} (b c)
+@end group
+@group
+(cdr '())
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@defun car-safe object
+@c This function lets you take the @sc{car} of a cons cell while avoiding
+@c errors for other data types.  It returns the @sc{car} of @var{object} if
+@c @var{object} is a cons cell, @code{nil} otherwise.  This is in contrast
+@c to @code{car}, which signals an error if @var{object} is not a list.
+この関数は、コンスセルの@sc{car}を取り出すが、
+他のデータ型に対するエラーを回避する。
+@var{object}がコンスセルならば@var{object}の@sc{car}を返すが、
+さもなければ@code{nil}を返す。
+これは@code{car}と対照的であり、
+@code{car}は@var{object}がリストでないとエラーを通知する。
+
+@example
+@group
+(car-safe @var{object})
+@equiv{}
+(let ((x @var{object}))
+  (if (consp x)
+      (car x)
+    nil))
+@end group
+@end example
+@end defun
+
+@defun cdr-safe object
+@c This function lets you take the @sc{cdr} of a cons cell while
+@c avoiding errors for other data types.  It returns the @sc{cdr} of
+@c @var{object} if @var{object} is a cons cell, @code{nil} otherwise.
+@c This is in contrast to @code{cdr}, which signals an error if
+@c @var{object} is not a list.
+この関数は、コンスセルの@sc{cdr}を取り出すが、
+他のデータ型に対するエラーを回避する。
+@var{object}がコンスセルならば@var{object}の@sc{cdr}を返すが、
+さもなければ@code{nil}を返す。
+これは@code{cdr}と対照的であり、
+@code{cdr}は@var{object}がリストでないとエラーを通知する。
+
+@example
+@group
+(cdr-safe @var{object})
+@equiv{}
+(let ((x @var{object}))
+  (if (consp x)
+      (cdr x)
+    nil))
+@end group
+@end example
+@end defun
+
+@defun nth n list
+@c This function returns the @var{n}th element of @var{list}.  Elements
+@c are numbered starting with zero, so the @sc{car} of @var{list} is
+@c element number zero.  If the length of @var{list} is @var{n} or less,
+@c the value is @code{nil}.
+この関数は、@var{list}の@var{n}番目の要素を返す。
+要素は0から数えるので、@var{list}の@sc{car}は要素番号0。
+@var{list}の長さが@var{n}かそれ未満であると、値は@code{nil}になる。
+
+@c If @var{n} is negative, @code{nth} returns the first element of
+@c @var{list}.
+@var{n}が負であると、@code{nth}は@var{list}の最初の要素を返す。
+
+@example
+@group
+(nth 2 '(1 2 3 4))
+     @result{} 3
+@end group
+@group
+(nth 10 '(1 2 3 4))
+     @result{} nil
+@end group
+@group
+(nth -3 '(1 2 3 4))
+     @result{} 1
+
+(nth n x) @equiv{} (car (nthcdr n x))
+@end group
+@end example
+
+@c The function @code{elt} is similar, but applies to any kind of sequence.
+@c For historical reasons, it takes its arguments in the opposite order.
+@c @xref{Sequence Functions}.
+関数@code{elt}も同様であるが、任意のシーケンスに適用できる。
+歴史的な理由で引数の順序は逆である。
+@pxref{Sequence Functions}。
+@end defun
+
+@defun nthcdr n list
+@c This function returns the @var{n}th @sc{cdr} of @var{list}.  In other
+@c words, it skips past the first @var{n} links of @var{list} and returns
+@c what follows.
+この関数は、@var{list}の@var{n}番目の@sc{cdr}を返す。
+いいかえれば、@var{list}の始めの@var{n}個のリンクを飛び越えて、
+そのあとにあるものを返す。
+
+@c If @var{n} is zero or negative, @code{nthcdr} returns all of
+@c @var{list}.  If the length of @var{list} is @var{n} or less,
+@c @code{nthcdr} returns @code{nil}.
+@var{n}が0か負であると、@code{nthcdr}は@var{list}全体を返す。
+@var{list}の長さが@var{n}かそれ未満であると、
+@code{nthcdr}は@code{nil}を返す。
+
+@example
+@group
+(nthcdr 1 '(1 2 3 4))
+     @result{} (2 3 4)
+@end group
+@group
+(nthcdr 10 '(1 2 3 4))
+     @result{} nil
+@end group
+@group
+(nthcdr -3 '(1 2 3 4))
+     @result{} (1 2 3 4)
+@end group
+@end example
+@end defun
+
+@defun safe-length list
+@tindex safe-length
+@c This function returns the length of @var{list}, with no risk
+@c of either an error or an infinite loop.
+この関数は、エラーや無限ループを回避して、@var{list}の長さを返す。
+
+@c If @var{list} is not really a list, @code{safe-length} returns 0.  If
+@c @var{list} is circular, it returns a finite value which is at least the
+@c number of distinct elements.
+@var{list}が実際にはリストでない場合には、@code{safe-length}は0を返す。
+@var{list}に循環があると、少なくとも異なる要素の個数を表す有限値を返す。
+@end defun
+
+@c   The most common way to compute the length of a list, when you are not
+@c worried that it may be circular, is with @code{length}.  @xref{Sequence
+@c Functions}.
+循環はないと思われるリストの長さを計算するもっとも一般的な方法は、
+@code{length}です。
+@xref{Sequence Functions}。
+
+@defun caar cons-cell
+@tindex caar
+@c This is the same as @code{(car (car @var{cons-cell}))}.
+これは@code{(car (car @var{cons-cell}))}と同じ。
+@end defun
+
+@defun cadr cons-cell
+@tindex cadr
+@c This is the same as @code{(car (cdr @var{cons-cell}))}
+@c or @code{(nth 1 @var{cons-cell})}.
+これは@code{(car (cdr @var{cons-cell}))}や
+@code{(nth 1 @var{cons-cell})}と同じ。
+@end defun
+
+@defun cdar cons-cell
+@tindex cdar
+@c This is the same as @code{(cdr (car @var{cons-cell}))}.
+これは@code{(cdr (car @var{cons-cell}))}と同じ。
+@end defun
+
+@defun cddr cons-cell
+@tindex cddr
+@c This is the same as @code{(cdr (cdr @var{cons-cell}))}
+@c or @code{(nthcdr 2 @var{cons-cell})}.
+これは@code{(cdr (cdr @var{cons-cell}))}や
+@code{(nthcdr 2 @var{cons-cell})}と同じ。
+@end defun
+
+@node Building Lists
+@comment  node-name,  next,  previous,  up
+@c @section Building Cons Cells and Lists
+@section コンスセルとリストの構築
+@c @cindex cons cells
+@c @cindex building lists
+@cindex コンスセル
+@cindex リストの構築
+
+@c   Many functions build lists, as lists reside at the very heart of Lisp.
+@c @code{cons} is the fundamental list-building function; however, it is
+@c interesting to note that @code{list} is used more times in the source
+@c code for Emacs than @code{cons}.
+リストはLispの中核なので、多くの関数はリストを構築します。
+@code{cons}は基本的なリスト構築関数です。
+しかし、Emacsのソースコードでは、@code{cons}より@code{list}を
+多用していることは興味深いことです。
+
+@defun cons object1 object2
+@c This function is the fundamental function used to build new list
+@c structure.  It creates a new cons cell, making @var{object1} the
+@c @sc{car}, and @var{object2} the @sc{cdr}.  It then returns the new cons
+@c cell.  The arguments @var{object1} and @var{object2} may be any Lisp
+@c objects, but most often @var{object2} is a list.
+この関数は、新たなリスト構造を構築するために使う基本関数。
+@var{object1}を@sc{car}、@var{object2}を@sc{cdr}とする
+新たなコンスセルを作成し、このコンスセルを返す。
+引数@var{object1}と@var{object2}はどんなLispオブジェクトでもよいが、
+ほとんどの場合、@var{object2}はリストである。
+
+@example
+@group
+(cons 1 '(2))
+     @result{} (1 2)
+@end group
+@group
+(cons 1 '())
+     @result{} (1)
+@end group
+@group
+(cons 1 2)
+     @result{} (1 . 2)
+@end group
+@end example
+
+@c @cindex consing
+@cindex コンスする
+@c @code{cons} is often used to add a single element to the front of a
+@c list.  This is called @dfn{consing the element onto the list}.  For
+@c example:
+@code{cons}は、リストの先頭に要素を1つ追加するために
+しばしば使われる。
+これを@dfn{要素をリストにコンスする}という。
+たとえば、つぎのとおり。
+
+@example
+(setq list (cons newelt list))
+@end example
+
+@c Note that there is no conflict between the variable named @code{list}
+@c used in this example and the function named @code{list} described below;
+@c any symbol can serve both purposes.
+この例における@code{list}という名前の変数と
+以下に述べる@code{list}という名前の関数とは衝突しない。
+任意のシンボルはどちらの目的にも使える。
+@end defun
+
+@defun list &rest objects
+@c This function creates a list with @var{objects} as its elements.  The
+@c resulting list is always @code{nil}-terminated.  If no @var{objects}
+@c are given, the empty list is returned.
+この関数は、@var{objects}を要素とするリストを作成する。
+結果のリストはつねに@code{nil}終端になる。
+@var{objects}を指定しないと空リストを返す。
+
+@example
+@group
+(list 1 2 3 4 5)
+     @result{} (1 2 3 4 5)
+@end group
+@group
+(list 1 2 '(3 4 5) 'foo)
+     @result{} (1 2 (3 4 5) foo)
+@end group
+@group
+(list)
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@defun make-list length object
+@c This function creates a list of length @var{length}, in which all the
+@c elements have the identical value @var{object}.  Compare
+@c @code{make-list} with @code{make-string} (@pxref{Creating Strings}).
+この関数は、すべての要素が同一の値@var{object}であり
+長さが@var{length}のリストを作成する。
+@code{make-string}と比較してほしい（@pxref{Creating Strings}）。
+
+@example
+@group
+(make-list 3 'pigs)
+     @result{} (pigs pigs pigs)
+@end group
+@group
+(make-list 0 'pigs)
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@defun append &rest sequences
+@c @cindex copying lists
+@cindex リストのコピー
+@c This function returns a list containing all the elements of
+@c @var{sequences}.  The @var{sequences} may be lists, vectors,
+@c bool-vectors, or strings, but the last one should usually be a list.
+@c All arguments except the last one are copied, so none of the arguments
+@c is altered.  (See @code{nconc} in @ref{Rearrangement}, for a way to join
+@c lists with no copying.)
+この関数は@var{sequences}のすべての要素から成るリストを返す。
+@var{sequences}は、リスト、ベクトル、ブールベクトル、文字列のいずれかであるが、
+普通、最後の要素はリストである。
+最後の引数を除いてすべての引数をコピーするので、どの引数も変更しない
+（コピーせずにリストを繋ぐ方法については、
+@ref{Rearrangement}の@code{nconc}を参照。）
+
+@c More generally, the final argument to @code{append} may be any Lisp
+@c object.  The final argument is not copied or converted; it becomes the
+@c @sc{cdr} of the last cons cell in the new list.  If the final argument
+@c is itself a list, then its elements become in effect elements of the
+@c result list.  If the final element is not a list, the result is a
+@c ``dotted list'' since its final @sc{cdr} is not @code{nil} as required
+@c in a true list.
+一般には、@code{append}の最後の引数はどんなLispオブジェクトでもよい。
+最後の引数をコピーしたり変換したりしない。
+それは、新たなリストの最後のコンスセルの@sc{cdr}になる。
+最後の引数がそれ自体リストであれば、それらの要素は、実質的には、
+結果のリストの要素になる。
+最後の要素がリストでなければ、結果は『ドット対』になる。
+なぜなら、結果の最後の@sc{cdr}は、
+真のリストに必要とされる@code{nil}ではないからである。
+
+@c The @code{append} function also allows integers as arguments.  It
+@c converts them to strings of digits, making up the decimal print
+@c representation of the integer, and then uses the strings instead of the
+@c original integers.  @strong{Don't use this feature; we plan to eliminate
+@c it.  If you already use this feature, change your programs now!}  The
+@c proper way to convert an integer to a decimal number in this way is with
+@c @code{format} (@pxref{Formatting Strings}) or @code{number-to-string}
+@c (@pxref{String Conversion}).
+関数@code{append}は、引数として整数も受け付ける。
+整数を10進の表示表現の文字列に変換してから、
+その文字列を整数のかわりに使う。
+@strong{この機能を使わないでほしい。
+削除する予定である。
+読者がこの機能を使っていたら、今すぐプログラムを直すこと！}@code{ }
+整数をこのような10進数に変換する正しい方法は、
+@code{format}（@pxref{Formatting Strings}）や
+@code{number-to-string}（@pxref{String Conversion}）を使うことである。
+@end defun
+
+@c   Here is an example of using @code{append}:
+@code{append}の使用例をつぎに示します。
+
+@example
+@group
+(setq trees '(pine oak))
+     @result{} (pine oak)
+(setq more-trees (append '(maple birch) trees))
+     @result{} (maple birch pine oak)
+@end group
+
+@group
+trees
+     @result{} (pine oak)
+more-trees
+     @result{} (maple birch pine oak)
+@end group
+@group
+(eq trees (cdr (cdr more-trees)))
+     @result{} t
+@end group
+@end example
+
+@c   You can see how @code{append} works by looking at a box diagram.  The
+@c variable @code{trees} is set to the list @code{(pine oak)} and then the
+@c variable @code{more-trees} is set to the list @code{(maple birch pine
+@c oak)}.  However, the variable @code{trees} continues to refer to the
+@c original list:
+箱表示を見れば@code{append}の動作を理解できるでしょう。
+変数@code{trees}にリスト@code{(pine oak)}を設定し、ついで、
+変数@code{more-trees}にはリスト@code{(maple birch pine oak)}を設定します。
+しかし、変数@code{trees}はもとのリストを指し続けます。
+
+@smallexample
+@group
+more-trees                trees
+|                           |
+|     --- ---      --- ---   -> --- ---      --- ---
+ --> |   |   |--> |   |   |--> |   |   |--> |   |   |--> nil
+      --- ---      --- ---      --- ---      --- ---
+       |            |            |            |
+       |            |            |            |
+        --> maple    -->birch     --> pine     --> oak
+@end group
+@end smallexample
+
+@c   An empty sequence contributes nothing to the value returned by
+@c @code{append}.  As a consequence of this, a final @code{nil} argument
+@c forces a copy of the previous argument:
+空シーケンスは@code{append}が返す値にはまったく寄与しません。
+この結果、最後の@code{nil}引数は直前の引数をコピーするように強制します。
+
+@example
+@group
+trees
+     @result{} (pine oak)
+@end group
+@group
+(setq wood (append trees nil))
+     @result{} (pine oak)
+@end group
+@group
+wood
+     @result{} (pine oak)
+@end group
+@group
+(eq wood trees)
+     @result{} nil
+@end group
+@end example
+
+@noindent
+@c This once was the usual way to copy a list, before the function
+@c @code{copy-sequence} was invented.  @xref{Sequences Arrays Vectors}.
+この方法は、関数@code{copy-sequence}を導入するまでは、
+リストをコピーする普通の方法でした。
+@xref{Sequences Arrays Vectors}。
+
+@c   Here we show the use of vectors and strings as arguments to @code{append}:
+@code{append}の引数にベクトルと文字列を使った例をつぎに示します。
+
+@example
+@group
+(append [a b] "cd" nil)
+     @result{} (a b 99 100)
+@end group
+@end example
+
+@c   With the help of @code{apply} (@pxref{Calling Functions}), we can append
+@c all the lists in a list of lists:
+@code{apply}（@pxref{Calling Functions}）の助けを借りれば、
+リストのリストの中にあるすべてのリストを連結できます。
+
+@example
+@group
+(apply 'append '((a b c) nil (x y z) nil))
+     @result{} (a b c x y z)
+@end group
+@end example
+
+@c   If no @var{sequences} are given, @code{nil} is returned:
+@var{sequences}をまったく指定しないと@code{nil}を返します。
+
+@example
+@group
+(append)
+     @result{} nil
+@end group
+@end example
+
+@c   Here are some examples where the final argument is not a list:
+最後の引数がリストではない例をいくつか示します。
+
+@example
+(append '(x y) 'z)
+     @result{} (x y . z)
+(append '(x y) [z])
+     @result{} (x y . [z])
+@end example
+
+@noindent
+@c The second example shows that when the final argument is a sequence but
+@c not a list, the sequence's elements do not become elements of the
+@c resulting list.  Instead, the sequence becomes the final @sc{cdr}, like
+@c any other non-list final argument.
+最後の引数がリストではなくシーケンスである2番目の例は、
+シーケンスの要素が結果のリストの要素にはならないことを示しています。
+そのかわりに、最後の引数がリストでない場合と同様に、
+シーケンスが最後の@sc{cdr}になります。
+
+@defun reverse list
+@c This function creates a new list whose elements are the elements of
+@c @var{list}, but in reverse order.  The original argument @var{list} is
+@c @emph{not} altered.
+この関数は、@var{list}の要素を逆順にした新たなリストを作成する。
+もとの引数@var{list}は変更@emph{しない}。
+
+@example
+@group
+(setq x '(1 2 3 4))
+     @result{} (1 2 3 4)
+@end group
+@group
+(reverse x)
+     @result{} (4 3 2 1)
+x
+     @result{} (1 2 3 4)
+@end group
+@end example
+@end defun
+
+@node Modifying Lists
+@c @section Modifying Existing List Structure
+@section 既存のリスト構造の修正
+@c @cindex destructive list operations
+@cindex 破壊的なリスト操作
+
+@c   You can modify the @sc{car} and @sc{cdr} contents of a cons cell with the
+@c primitives @code{setcar} and @code{setcdr}.  We call these ``destructive'' 
+@c operations because they change existing list structure.
+基本関数@code{setcar}や@code{setcdr}を使って、
+コンスセルの@sc{car}や@sc{cdr}の内容を変更できます。
+これらは、既存のリスト構造を変更するので、
+『破壊的』な操作と呼びます。
+
+@c @cindex CL note---@code{rplaca} vrs @code{setcar}
+@cindex CLに関した注意−−@code{rplaca}と@code{setcar}
+@quotation
+@findex rplaca
+@findex rplacd
+@c @b{Common Lisp note:} Common Lisp uses functions @code{rplaca} and
+@c @code{rplacd} to alter list structure; they change structure the same
+@c way as @code{setcar} and @code{setcdr}, but the Common Lisp functions
+@c return the cons cell while @code{setcar} and @code{setcdr} return the
+@c new @sc{car} or @sc{cdr}.
+@b{Common Lispに関した注意：}@code{ }
+Common Lispでは、
+リスト構造を変更するには@code{rplaca}や@code{rplacd}を使う。
+これらは@code{setcar}や@code{setcdr}と同様に構造を変更する。
+しかし、Common Lispの関数はコンスセルを返すが、
+@code{setcar}や@code{setcdr}は新たな@sc{car}や@sc{cdr}を返す。
+@end quotation
+
+@menu
+* Setcar::          Replacing an element in a list.
+* Setcdr::          Replacing part of the list backbone.
+                      This can be used to remove or add elements.
+* Rearrangement::   Reordering the elements in a list; combining lists.
+@end menu
+
+@node Setcar
+@c @subsection Altering List Elements with @code{setcar}
+@subsection @code{setcar}によるリスト要素の変更
+
+@c   Changing the @sc{car} of a cons cell is done with @code{setcar}.  When
+@c used on a list, @code{setcar} replaces one element of a list with a
+@c different element.
+コンスセルの@sc{car}を変更するには、@code{setcar}を使います。
+リストに対して使用すると、
+@code{setcar}はリストの1つの要素を別の要素に置き換えます。
+
+@defun setcar cons object
+@c This function stores @var{object} as the new @sc{car} of @var{cons},
+@c replacing its previous @sc{car}.  In other words, it changes the
+@c @sc{car} slot of @var{cons} to point to @var{object}.  It returns the
+@c value @var{object}.  For example:
+この関数は、@var{cons}の新たな@sc{car}として@var{object}を格納し、
+以前の@sc{car}を置き換える。
+いいかえれば、@var{cons}の@sc{car}スロットが@var{object}を指すように変更する。
+この関数は値@var{object}を返す。
+たとえば、つぎのようになる。
+
+@example
+@group
+(setq x '(1 2))
+     @result{} (1 2)
+@end group
+@group
+(setcar x 4)
+     @result{} 4
+@end group
+@group
+x
+     @result{} (4 2)
+@end group
+@end example
+@end defun
+
+@c   When a cons cell is part of the shared structure of several lists,
+@c storing a new @sc{car} into the cons changes one element of each of
+@c these lists.  Here is an example:
+コンスセルが複数のリストの共有構造の一部であるときには、
+コンスセルに新たな@sc{car}を格納すると、
+そのような各リストの1つの要素を変更することになります。
+
+@example
+@group
+@c ;; @r{Create two lists that are partly shared.}
+;; @r{共有部分がある2つのリストを作る}
+(setq x1 '(a b c))
+     @result{} (a b c)
+(setq x2 (cons 'z (cdr x1)))
+     @result{} (z b c)
+@end group
+
+@group
+@c ;; @r{Replace the @sc{car} of a shared link.}
+;; @r{共有部分の@sc{car}を置き換える}
+(setcar (cdr x1) 'foo)
+     @result{} foo
+@c x1                           ; @r{Both lists are changed.}
+x1                           ; @r{両方のリストが変更されている}
+     @result{} (a foo c)
+x2
+     @result{} (z foo c)
+@end group
+
+@group
+@c ;; @r{Replace the @sc{car} of a link that is not shared.}
+;; @r{非共有部分の@sc{car}を置き換える}
+(setcar x1 'baz)
+     @result{} baz
+@c x1                           ; @r{Only one list is changed.}
+x1                           ; @r{1つのリストだけが変更されている}
+     @result{} (baz foo c)
+x2
+     @result{} (z foo c)
+@end group
+@end example
+
+@c   Here is a graphical depiction of the shared structure of the two lists
+@c in the variables @code{x1} and @code{x2}, showing why replacing @code{b}
+@c changes them both:
+変数@code{x1}と@code{x2}に入っている共有部分を持つ2つのリストを図示すると
+つぎのようになります。
+@code{b}を置き換えるとなぜ両者が変更されるのかわかるでしょう。
+
+@example
+@group
+        --- ---        --- ---      --- ---
+x1---> |   |   |----> |   |   |--> |   |   |--> nil
+        --- ---        --- ---      --- ---
+         |        -->   |            |
+         |       |      |            |
+          --> a  |       --> b        --> c
+                 |
+       --- ---   |
+x2--> |   |   |--
+       --- ---
+        |
+        |
+         --> z
+@end group
+@end example
+
+@c   Here is an alternative form of box diagram, showing the same relationship:
+同じ関係を別の箱表示で示します。
+
+@example
+@group
+x1:
+ --------------       --------------       --------------
+| car   | cdr  |     | car   | cdr  |     | car   | cdr  |
+|   a   |   o------->|   b   |   o------->|   c   |  nil |
+|       |      |  -->|       |      |     |       |      |
+ --------------  |    --------------       --------------
+                 |
+x2:              |
+ --------------  |
+| car   | cdr  | |
+|   z   |   o----
+|       |      |
+ --------------
+@end group
+@end example
+
+@node Setcdr
+@c @subsection Altering the CDR of a List
+@subsection リストのCDRの変更
+
+@c   The lowest-level primitive for modifying a @sc{cdr} is @code{setcdr}:
+@sc{cdr}を修正するもっとも低レベルの基本関数は@code{setcdr}です。
+
+@defun setcdr cons object
+@c This function stores @var{object} as the new @sc{cdr} of @var{cons},
+@c replacing its previous @sc{cdr}.  In other words, it changes the
+@c @sc{cdr} slot of @var{cons} to point to @var{object}.  It returns the
+@c value @var{object}.
+この関数は、@var{cons}の新たな@sc{cdr}として@var{object}を格納し、
+以前の@sc{cdr}を置き換える。
+いいかえれば、@var{cons}の@sc{cdr}スロットが@var{object}を指すように変更する。
+この関数は値@var{object}を返す。
+@end defun
+
+@c   Here is an example of replacing the @sc{cdr} of a list with a
+@c different list.  All but the first element of the list are removed in
+@c favor of a different sequence of elements.  The first element is
+@c unchanged, because it resides in the @sc{car} of the list, and is not
+@c reached via the @sc{cdr}.
+リストの@sc{cdr}を別のリストで置き換える例を示します。
+リストの最初の要素以外は取り除かれ、
+要素の別のシーケンスになります。
+最初の要素は変更されません。
+というのは、それはリストの@sc{car}の中にあり、
+@sc{cdr}からは辿れないからです。
+
+@example
+@group
+(setq x '(1 2 3))
+     @result{} (1 2 3)
+@end group
+@group
+(setcdr x '(4))
+     @result{} (4)
+@end group
+@group
+x
+     @result{} (1 4)
+@end group
+@end example
+
+@c   You can delete elements from the middle of a list by altering the
+@c @sc{cdr}s of the cons cells in the list.  For example, here we delete
+@c the second element, @code{b}, from the list @code{(a b c)}, by changing
+@c the @sc{cdr} of the first cons cell:
+リスト内のコンスセル群の@sc{cdr}を変更することで、
+リストの中ほどの要素を削除できます。
+つぎの例は、リスト@code{(a b c)}の最初のコンスセルの@sc{cdr}を変更することで、
+このリストの第2要素@code{b}を削除します。
+
+@example
+@group
+(setq x1 '(a b c))
+     @result{} (a b c)
+(setcdr x1 (cdr (cdr x1)))
+     @result{} (c)
+x1
+     @result{} (a c)
+@end group
+@end example
+
+@need 4000
+@c   Here is the result in box notation:
+箱表記では、この結果はつぎのようになります。
+
+@example
+@group
+                   --------------------
+                  |                    |
+ --------------   |   --------------   |    --------------
+| car   | cdr  |  |  | car   | cdr  |   -->| car   | cdr  |
+|   a   |   o-----   |   b   |   o-------->|   c   |  nil |
+|       |      |     |       |      |      |       |      |
+ --------------       --------------        --------------
+@end group
+@end example
+
+@noindent
+@c The second cons cell, which previously held the element @code{b}, still
+@c exists and its @sc{car} is still @code{b}, but it no longer forms part
+@c of this list.
+以前に要素@code{b}を保持していた2番目のコンスセルはまだ存在していて、
+その@sc{car}もまだ@code{b}ですが、このリストの一部ではありません。
+
+@c   It is equally easy to insert a new element by changing @sc{cdr}s:
+@sc{cdr}を変更して新たな要素を挿入するのも同様に簡単です。
+
+@example
+@group
+(setq x1 '(a b c))
+     @result{} (a b c)
+(setcdr x1 (cons 'd (cdr x1)))
+     @result{} (d b c)
+x1
+     @result{} (a d b c)
+@end group
+@end example
+
+@c   Here is this result in box notation:
+箱表記では、この結果はつぎのようになります。
+
+@smallexample
+@group
+ --------------        -------------       -------------
+| car  | cdr   |      | car  | cdr  |     | car  | cdr  |
+|   a  |   o   |   -->|   b  |   o------->|   c  |  nil |
+|      |   |   |  |   |      |      |     |      |      |
+ --------- | --   |    -------------       -------------
+           |      |
+     -----         --------
+    |                      |
+    |    ---------------   |
+    |   | car   | cdr   |  |
+     -->|   d   |   o------
+        |       |       |
+         ---------------
+@end group
+@end smallexample
+
+@node Rearrangement
+@c @subsection Functions that Rearrange Lists
+@subsection リストの順序を変更する関数
+@c @cindex rearrangement of lists
+@c @cindex modification of lists
+@cindex リストの順序の変更
+@cindex リストの変更
+
+@c   Here are some functions that rearrange lists ``destructively'' by
+@c modifying the @sc{cdr}s of their component cons cells.  We call these
+@c functions ``destructive'' because they chew up the original lists passed
+@c to them as arguments, relinking their cons cells to form a new list that
+@c is the returned value.
+以下は、リストを構成するコンスセルの@sc{cdr}を変更することで、
+『破壊的に』リストの順序を変更する関数です。
+これらの関数を『破壊的』と呼ぶのは、
+渡された引数であるもとのリストのコンスセルを繋ぎ換えて新たなリストに
+変えるからです。
+
+@ifinfo
+@c   See @code{delq}, in @ref{Sets And Lists}, for another function
+@c that modifies cons cells.
+コンスセルを変更する他の関数については、
+@ref{Sets And Lists}のSee @code{delq}を参照してください。
+@end ifinfo
+@iftex
+@c    The function @code{delq} in the following section is another example
+@c of destructive list manipulation.
+以下の節の関数@code{delq}は、破壊的なリスト操作関数の別の例です。
+@end iftex
+
+@defun nconc &rest lists
+@c @cindex concatenating lists
+@c @cindex joining lists
+@cindex リストを連結する
+@cindex 連結、リスト
+@cindex リストを接続する
+@cindex 接続、リスト
+@c This function returns a list containing all the elements of @var{lists}.
+@c Unlike @code{append} (@pxref{Building Lists}), the @var{lists} are
+@c @emph{not} copied.  Instead, the last @sc{cdr} of each of the
+@c @var{lists} is changed to refer to the following list.  The last of the
+@c @var{lists} is not altered.  For example:
+この関数は、@var{lists}のすべての要素を入れたリストを返す。
+@code{append}（@pxref{Building Lists}）と異なり、
+@var{lists}をコピー@emph{しない}。
+そのかわりに、各@var{lists}の最後の@sc{cdr}を後続のリストを指すように変更する。
+@var{lists}の最後は変更しない。
+たとえば、つぎのようになる。
+
+@example
+@group
+(setq x '(1 2 3))
+     @result{} (1 2 3)
+@end group
+@group
+(nconc x '(4 5))
+     @result{} (1 2 3 4 5)
+@end group
+@group
+x
+     @result{} (1 2 3 4 5)
+@end group
+@end example
+
+@c    Since the last argument of @code{nconc} is not itself modified, it is
+@c reasonable to use a constant list, such as @code{'(4 5)}, as in the
+@c above example.  For the same reason, the last argument need not be a
+@c list:
+@code{nconc}は最後の引数を変更しないので、
+上述の例のように、@code{'(4 5)}などの定数リストを使ってよい。
+同じ理由で最後の引数はリストである必要もない。
+
+@example
+@group
+(setq x '(1 2 3))
+     @result{} (1 2 3)
+@end group
+@group
+(nconc x 'z)
+     @result{} (1 2 3 . z)
+@end group
+@group
+x
+     @result{} (1 2 3 . z)
+@end group
+@end example
+
+@c However, the other arguments (all but the last) must be lists.
+しかしながら、すべての引数は（最後のものを除いて）リストである必要がある。
+
+@c A common pitfall is to use a quoted constant list as a non-last
+@c argument to @code{nconc}.  If you do this, your program will change
+@c each time you run it!  Here is what happens:
+よくある落し穴は、@code{nconc}の最後以外の引数に、
+クォートした定数リストを使うことである。
+こうすると、読者のプログラムは実行するたびに定数を変えてしまう。
+たとえば、つぎのようになる。
+
+@smallexample
+@group
+@c (defun add-foo (x)            ; @r{We want this function to add}
+@c   (nconc '(foo) x))           ;   @r{@code{foo} to the front of its arg.}
+(defun add-foo (x)            ; @r{この関数は引数の先頭に}
+  (nconc '(foo) x))           ;   @r{@code{foo}を追加する、としたい}
+@end group
+
+@group
+(symbol-function 'add-foo)
+     @result{} (lambda (x) (nconc (quote (foo)) x))
+@end group
+
+@group
+@c (setq xx (add-foo '(1 2)))    ; @r{It seems to work.}
+(setq xx (add-foo '(1 2)))    ; @r{動いているように見える}
+     @result{} (foo 1 2)
+@end group
+@group
+@c (setq xy (add-foo '(3 4)))    ; @r{What happened?}
+(setq xy (add-foo '(3 4)))    ; @r{どうなってるの？}
+     @result{} (foo 1 2 3 4)
+@end group
+@group
+(eq xx xy)
+     @result{} t
+@end group
+
+@group
+(symbol-function 'add-foo)
+     @result{} (lambda (x) (nconc (quote (foo 1 2 3 4) x)))
+@end group
+@end smallexample
+@end defun
+
+@defun nreverse list
+@c @cindex reversing a list
+@cindex リストを逆順にする
+@cindex 逆順、リスト
+@c   This function reverses the order of the elements of @var{list}.
+@c Unlike @code{reverse}, @code{nreverse} alters its argument by reversing
+@c the @sc{cdr}s in the cons cells forming the list.  The cons cell that
+@c used to be the last one in @var{list} becomes the first cons cell of the
+@c value.
+この関数は、@var{list}の要素の順番を逆順にする。
+@code{reverse}と異なり、@code{nreverse}は
+リストを構成するコンスセルの@sc{cdr}を逆向きにして引数を変えてしまう。
+@var{list}の最後にあったコンスセルは戻り値の最初のコンスセルになる。
+
+@c   For example:
+たとえば、つぎのようになる。
+
+@example
+@group
+(setq x '(1 2 3 4))
+     @result{} (1 2 3 4)
+@end group
+@group
+x
+     @result{} (1 2 3 4)
+(nreverse x)
+     @result{} (4 3 2 1)
+@end group
+@group
+@c ;; @r{The cons cell that was first is now last.}
+;; @r{先頭にあったコンスセルは、今、最後になっている}
+x
+     @result{} (1)
+@end group
+@end example
+
+@c   To avoid confusion, we usually store the result of @code{nreverse}
+@c back in the same variable which held the original list:
+混乱を避けるために、@code{nreverse}の結果は、
+もとのリストを収めていたものと同じ変数に格納する。
+
+@example
+(setq x (nreverse x))
+@end example
+
+@c   Here is the @code{nreverse} of our favorite example, @code{(a b c)},
+@c presented graphically:
+@code{nreverse}を@code{(a b c)}に適用した結果を図示すると
+つぎのようになる。
+
+@smallexample
+@group
+@c @r{Original list head:}                       @r{Reversed list:}
+@r{もとのリストの先頭}                        @r{逆順にしたリスト}
+ -------------        -------------        ------------
+| car  | cdr  |      | car  | cdr  |      | car | cdr  |
+|   a  |  nil |<--   |   b  |   o  |<--   |   c |   o  |
+|      |      |   |  |      |   |  |   |  |     |   |  |
+ -------------    |   --------- | -    |   -------- | -
+                  |             |      |            |
+                   -------------        ------------
+@end group
+@end smallexample
+@end defun
+
+@defun sort list predicate
+@c @cindex stable sort
+@c @cindex sorting lists
+@cindex 順序を保ったソート
+@cindex リストのソート
+@cindex ソート、リスト
+@c This function sorts @var{list} stably, though destructively, and
+@c returns the sorted list.  It compares elements using @var{predicate}.  A
+@c stable sort is one in which elements with equal sort keys maintain their
+@c relative order before and after the sort.  Stability is important when
+@c successive sorts are used to order elements according to different
+@c criteria.
+この関数は、破壊的にではあるが、
+@var{list}を順序を保ってソートしたリストを返す。
+要素の比較には@var{predicate}を使う。
+順序を保ったソートとは、同じソートキーを持つ要素の相対順序を、
+ソート実行前後で変更しないソートである。
+異なる基準でつぎつぎにソートするときには、
+順序を保つことは重要である。
+
+@c The argument @var{predicate} must be a function that accepts two
+@c arguments.  It is called with two elements of @var{list}.  To get an
+@c increasing order sort, the @var{predicate} should return @code{t} if the
+@c first element is ``less than'' the second, or @code{nil} if not.
+引数@var{predicate}は、2つの引数を取る関数である必要がある。
+この関数は、@var{list}の2つの要素で呼び出される。
+昇順のソートでは、@var{predicate}は、
+第1引数が第2引数より『小さい』ときに@code{t}を返し、
+さもなければ@code{nil}を返す必要がある。
+
+@c The comparison function @var{predicate} must give reliable results for
+@c any given pair of arguments, at least within a single call to
+@c @code{sort}.  It must be @dfn{antisymmetric}; that is, if @var{a} is
+@c less than @var{b}, @var{b} must not be less than @var{a}.  It must be
+@c @dfn{transitive}---that is, if @var{a} is less than @var{b}, and @var{b}
+@c is less than @var{c}, then @var{a} must be less than @var{c}.  If you
+@c use a comparison function which does not meet these requirements, the
+@c result of @code{sort} is unpredictable.
+比較関数@var{predicate}は、少なくとも単一の@code{sort}の呼び出し中は、
+引数の任意の対に対して信頼できる結果を返す必要がある。
+@c = この用語でよかったかなぁ？
+まず、@dfn{反対称}であること。
+つまり、@var{a}が@var{b}より小さいときには、
+@var{b}が@var{a}より小さくてはいけない。
+@c = この用語でよかったかなぁ？
+また、@dfn{遷移則}が成り立つこと。
+つまり、@var{a}が@var{b}より小さく、かつ、@var{b}が@var{c}より小さいときには、
+@var{a}は@var{c}より小さくなければならない。
+これらの要請を満たさない比較関数を用いると、
+@code{sort}の結果は予測できない。
+
+@c The destructive aspect of @code{sort} is that it rearranges the cons
+@c cells forming @var{list} by changing @sc{cdr}s.  A nondestructive sort
+@c function would create new cons cells to store the elements in their
+@c sorted order.  If you wish to make a sorted copy without destroying the
+@c original, copy it first with @code{copy-sequence} and then sort.
+@code{sort}が破壊的であるというのは、
+@var{list}を構成するコンスセルの@sc{cdr}を変更して、
+コンスセルの順序を変更するからである。
+非破壊的なソート関数では、ソートした要素を格納するために新たなコンスセルを
+作成するであろう。
+もとのリストを破壊せずにソートしたければ、
+まず@code{copy-sequence}でコピーを作り、それをソートする。
+
+@c Sorting does not change the @sc{car}s of the cons cells in @var{list};
+@c the cons cell that originally contained the element @code{a} in
+@c @var{list} still has @code{a} in its @sc{car} after sorting, but it now
+@c appears in a different position in the list due to the change of
+@c @sc{cdr}s.  For example:
+ソートする際、@var{list}のコンスセルの@sc{car}は変更しない。
+@var{list}内の要素@code{a}を入れていたコンスセルは、
+ソート後にもその@sc{car}には@code{a}が入っている。
+しかし、@sc{cdr}を変更してあるので、リスト内では異なる場所に現れる。
+たとえば、つぎのようになる。
+
+@example
+@group
+(setq nums '(1 3 2 6 5 4 0))
+     @result{} (1 3 2 6 5 4 0)
+@end group
+@group
+(sort nums '<)
+     @result{} (0 1 2 3 4 5 6)
+@end group
+@group
+nums
+     @result{} (1 2 3 4 5 6)
+@end group
+@end example
+
+@noindent
+@c @strong{Warning}: Note that the list in @code{nums} no longer contains
+@c 0; this is the same cons cell that it was before, but it is no longer
+@c the first one in the list.  Don't assume a variable that formerly held
+@c the argument now holds the entire sorted list!  Instead, save the result
+@c of @code{sort} and use that.  Most often we store the result back into
+@c the variable that held the original list:
+@strong{警告}：@code{ }@code{nums}のリストには
+0が入っていないことに注意。
+（@code{nums}が指す）コンスセルはソート前と同じコンスセルだが、
+それはもはやリストの先頭にはない。
+引数を保持していた変数が、
+ソートしたリスト全体を保持していると仮定しないこと！@code{ }
+かわりに、@code{sort}の結果を保存して、それを使う。
+多くの場合、つぎのように、もとのリストを保持していた変数に結果を保存し直す。
+
+@example
+(setq nums (sort nums '<))
+@end example
+
+@c @xref{Sorting}, for more functions that perform sorting.
+@c See @code{documentation} in @ref{Accessing Documentation}, for a
+@c useful example of @code{sort}.
+ソートを行う他の関数については、@pxref{Sorting}。
+@code{sort}の有用な例については、
+@ref{Accessing Documentation}の@code{documentation}を参照。
+@end defun
+
+@node Sets And Lists
+@c @section Using Lists as Sets
+@section 集合としてのリストの利用
+@c @cindex lists as sets
+@c @cindex sets
+@cindex 集合としてのリスト
+@cindex 集合
+
+@c   A list can represent an unordered mathematical set---simply consider a
+@c value an element of a set if it appears in the list, and ignore the
+@c order of the list.  To form the union of two sets, use @code{append} (as
+@c long as you don't mind having duplicate elements).  Other useful
+@c functions for sets include @code{memq} and @code{delq}, and their
+@c @code{equal} versions, @code{member} and @code{delete}.
+リストで、数学の順序のない集合を表現できます。
+つまり、リストに現れる要素を集合の要素と考え、
+リスト内での順序は無視します。
+2つの集合の和集合を作るには、
+（要素が重複することを気にしなければ）@code{append}を使います。
+集合向けの他の有用な関数には、@code{memq}や@code{delq}、および、
+これらの@code{equal}版である@code{member}や@code{delete}があります。
+
+@c @cindex CL note---lack @code{union}, @code{intersection}
+@cindex CLに関した注意−−@code{union}と@code{intersection}の欠落
+@quotation
+@c @b{Common Lisp note:} Common Lisp has functions @code{union} (which
+@c avoids duplicate elements) and @code{intersection} for set operations,
+@c but GNU Emacs Lisp does not have them.  You can write them in Lisp if
+@c you wish.
+@b{Common Lispに関した注意：}@code{ }
+Common Lispには、集合演算向けに
+（要素の重複を避ける）関数@code{union}と@code{intersection}があるが、
+GNU Emacs Lispにはない。
+必要ならば、読者みずからLispでこれらを書ける。
+@end quotation
+
+@defun memq object list
+@c @cindex membership in a list
+@cindex リストのメンバ
+@c This function tests to see whether @var{object} is a member of
+@c @var{list}.  If it is, @code{memq} returns a list starting with the
+@c first occurrence of @var{object}.  Otherwise, it returns @code{nil}.
+@c The letter @samp{q} in @code{memq} says that it uses @code{eq} to
+@c compare @var{object} against the elements of the list.  For example:
+この関数は、@var{object}が@var{list}の要素かどうか調べる。
+そうならば、
+@code{memq}は@var{object}が最初に現れるところから始まるリストを返す。
+さもなければ@code{nil}を返す。
+@code{memq}の文字@samp{q}は、リストの要素に対する@var{object}の比較に
+@code{eq}を使うことを意味する。
+たとえば、
+
+@example
+@group
+(memq 'b '(a b c b a))
+     @result{} (b c b a)
+@end group
+@group
+@c (memq '(2) '((1) (2)))    ; @r{@code{(2)} and @code{(2)} are not @code{eq}.}
+(memq '(2) '((1) (2)))    ; @r{@code{(2)}と@code{(2)}は@code{eq}ではない}
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@defun delq object list
+@c @cindex deletion of elements
+@cindex 要素の削除
+@cindex 削除、要素
+@c This function destructively removes all elements @code{eq} to
+@c @var{object} from @var{list}.  The letter @samp{q} in @code{delq} says
+@c that it uses @code{eq} to compare @var{object} against the elements of
+@c the list, like @code{memq}.
+この関数は、@var{list}から@var{object}に@code{eq}であるすべての要素を
+破壊的に削除する。
+@code{delq}の文字@samp{q}は、@code{memq}と同様に、
+リストの要素に対する@var{object}の比較に@code{eq}を使うことを意味する。
+@end defun
+
+@c When @code{delq} deletes elements from the front of the list, it does so
+@c simply by advancing down the list and returning a sublist that starts
+@c after those elements:
+@code{delq}がリストの先頭から要素を削除する場合には、
+単にリストを辿って削除した要素のつぎから始まる部分リストを返します。
+
+@example
+@group
+(delq 'a '(a b c)) @equiv{} (cdr '(a b c))
+@end group
+@end example
+
+@c When an element to be deleted appears in the middle of the list,
+@c removing it involves changing the @sc{cdr}s (@pxref{Setcdr}).
+リストの中ほどの要素を削除する場合には、
+削除には@sc{cdr}の変更を伴います（@pxref{Setcdr}）。
+
+@example
+@group
+(setq sample-list '(a b c (4)))
+     @result{} (a b c (4))
+@end group
+@group
+(delq 'a sample-list)
+     @result{} (b c (4))
+@end group
+@group
+sample-list
+     @result{} (a b c (4))
+@end group
+@group
+(delq 'c sample-list)
+     @result{} (a b (4))
+@end group
+@group
+sample-list
+     @result{} (a b (4))
+@end group
+@end example
+
+@c Note that @code{(delq 'c sample-list)} modifies @code{sample-list} to
+@c splice out the third element, but @code{(delq 'a sample-list)} does not
+@c splice anything---it just returns a shorter list.  Don't assume that a
+@c variable which formerly held the argument @var{list} now has fewer
+@c elements, or that it still holds the original list!  Instead, save the
+@c result of @code{delq} and use that.  Most often we store the result back
+@c into the variable that held the original list:
+@code{(delq 'c sample-list)}は、
+3番目の要素を切り取って@code{sample-list}を変更しますが、
+@code{(delq 'a sample-list)}では、
+なにも切り取らずに単に短いリストを返すことに注意してください。
+引数@var{list}を保持していた変数が、実行後には少ない要素を持つと仮定したり、
+もとのリストを保持し続けていると仮定したりしないでください！@code{ }
+そのかわりに、@code{delq}の結果を保存して、それを使ってください。
+多くの場合、つぎのように、
+もとのリストを保持していた変数に結果を保存し直します。
+
+@example
+(setq flowers (delq 'rose flowers))
+@end example
+
+@c In the following example, the @code{(4)} that @code{delq} attempts to match
+@c and the @code{(4)} in the @code{sample-list} are not @code{eq}:
+つぎの例では、@code{delq}が一致を取ろうとしている@code{(4)}と
+@code{sample-list}の@code{(4)}とは@code{eq}ではありません。
+
+@example
+@group
+(delq '(4) sample-list)
+     @result{} (a c (4))
+@end group
+@end example
+
+@c The following two functions are like @code{memq} and @code{delq} but use
+@c @code{equal} rather than @code{eq} to compare elements.  @xref{Equality
+@c Predicates}.
+つぎの2つの関数は、@code{memq}や@code{delq}に似ていますが、
+比較には@code{eq}のかわりに@code{equal}を使います。
+@xref{Equality Predicates}。
+
+@defun member object list
+@c The function @code{member} tests to see whether @var{object} is a member
+@c of @var{list}, comparing members with @var{object} using @code{equal}.
+@c If @var{object} is a member, @code{member} returns a list starting with
+@c its first occurrence in @var{list}.  Otherwise, it returns @code{nil}.
+関数@code{member}は、@code{equal}を使って@var{object}と要素を比較して、
+@var{object}が@var{list}の要素かどうか調べる。
+@var{object}が要素であれば、
+@code{member}は@var{list}内でそれが最初に現れるところから始まるリストを返す。
+さもなければ@code{nil}を返す。
+
+@c Compare this with @code{memq}:
+@code{memq}と比較してほしい。
+
+@example
+@group
+@c (member '(2) '((1) (2)))  ; @r{@code{(2)} and @code{(2)} are @code{equal}.}
+(member '(2) '((1) (2)))  ; @r{@code{(2)}と@code{(2)}は@code{equal}である}
+     @result{} ((2))
+@end group
+@group
+@c (memq '(2) '((1) (2)))    ; @r{@code{(2)} and @code{(2)} are not @code{eq}.}
+(memq '(2) '((1) (2)))    ; @r{@code{(2)}と@code{(2)}は@code{eq}ではない}
+     @result{} nil
+@end group
+@group
+@c ;; @r{Two strings with the same contents are @code{equal}.}
+;; @r{同じ内容の2つの文字列は@code{equal}である}
+(member "foo" '("foo" "bar"))
+     @result{} ("foo" "bar")
+@end group
+@end example
+@end defun
+
+@defun delete object list
+@c This function destructively removes all elements @code{equal} to
+@c @var{object} from @var{list}.  It is to @code{delq} as @code{member} is
+@c to @code{memq}: it uses @code{equal} to compare elements with
+@c @var{object}, like @code{member}; when it finds an element that matches,
+@c it removes the element just as @code{delq} would.  For example:
+この関数は、@var{list}から@var{object}に@code{equal}であるすべての要素を
+破壊的に削除する。
+@code{member}が@code{memeq}に対応するように、@code{delq}に対応する。
+@code{member}と同様に、
+要素と@var{object}との比較には@code{equal}を使う。
+一致する要素をみつけると、@code{delq}と同様に要素を削除する。
+たとえば、つぎのとおり。
+
+@example
+@group
+(delete '(2) '((2) (1) (2)))
+     @result{} ((1))
+@end group
+@end example
+@end defun
+
+@quotation
+@c @b{Common Lisp note:} The functions @code{member} and @code{delete} in
+@c GNU Emacs Lisp are derived from Maclisp, not Common Lisp.  The Common
+@c Lisp versions do not use @code{equal} to compare elements.
+@b{Common Lispに関した注意：}@code{ }
+GNU Emacs Lispの関数@code{member}と関数@code{delete}は
+Maclispから受け継いだものであり、Common Lispからではない。
+Common Lisp版では要素の比較には@code{equal}を使わない。
+@end quotation
+
+@c   See also the function @code{add-to-list}, in @ref{Setting Variables},
+@c for another way to add an element to a list stored in a variable.
+変数に格納したリストに要素を追加する別の方法については、
+@ref{Setting Variables}の関数@code{add-to-list}を参照してください。
+
+@node Association Lists
+@c @section Association Lists
+@section 連想リスト
+@c @cindex association list
+@c @cindex alist
+@cindex 連想リスト（alist）
+@cindex alist（連想リスト）
+
+@c   An @dfn{association list}, or @dfn{alist} for short, records a mapping
+@c from keys to values.  It is a list of cons cells called
+@c @dfn{associations}: the @sc{car} of each cons cell is the @dfn{key}, and the
+@c @sc{cdr} is the @dfn{associated value}.@footnote{This usage of ``key''
+@c is not related to the term ``key sequence''; it means a value used to
+@c look up an item in a table.  In this case, the table is the alist, and
+@c the alist associations are the items.}
+@dfn{連想リスト}（association list）、略して@dfn{alist}は、
+キーから値への対応付けを記録しています。
+これは@dfn{連想}（associations）と呼ばれるコンスセルのリストです。
+各コンスセルの@sc{car}は@dfn{key}であり、
+@sc{cdr}は@dfn{連想値}（associated value）です。
+@footnote{この『キー』の使い方は、『キー列』とは無関係。
+キーとは、表の項目を探すために使う値を意味する。
+ここでは、表は連想リストであり、項目は連想リストの連想値である。}
+
+@c   Here is an example of an alist.  The key @code{pine} is associated with
+@c the value @code{cones}; the key @code{oak} is associated with
+@c @code{acorns}; and the key @code{maple} is associated with @code{seeds}.
+連想リストの例を示します。
+キー@code{pine}を値@code{cones}に、キー@code{oak}を値@code{acorns}に、
+キー@code{maple}を値@code{seeds}に対応付けています。
+
+@example
+@group
+'((pine . cones)
+  (oak . acorns)
+  (maple . seeds))
+@end group
+@end example
+
+@c   The associated values in an alist may be any Lisp objects; so may the
+@c keys.  For example, in the following alist, the symbol @code{a} is
+@c associated with the number @code{1}, and the string @code{"b"} is
+@c associated with the @emph{list} @code{(2 3)}, which is the @sc{cdr} of
+@c the alist element:
+連想リスト内の連想値は任意のLispオブジェクトでよく、キーもそうです。
+たとえば、つぎの連想リストでは、シンボル@code{a}に数@code{1}を、
+文字列@code{"b"}に@emph{リスト}@code{(2 3)}を対応付けています。
+@emph{リスト}@code{(2 3)}は連想リストの要素の@sc{cdr}です。
+
+@example
+((a . 1) ("b" 2 3))
+@end example
+
+@c   Sometimes it is better to design an alist to store the associated
+@c value in the @sc{car} of the @sc{cdr} of the element.  Here is an
+@c example:
+要素の@sc{cdr}の@sc{car}に連想値を格納するように
+連想リストを設計したほうがよい場合もあります。
+つぎのようにします。
+
+@example
+'((rose red) (lily white) (buttercup yellow))
+@end example
+
+@noindent
+@c Here we regard @code{red} as the value associated with @code{rose}.  One
+@c advantage of this kind of alist is that you can store other related
+@c information---even a list of other items---in the @sc{cdr} of the
+@c @sc{cdr}.  One disadvantage is that you cannot use @code{rassq} (see
+@c below) to find the element containing a given value.  When neither of
+@c these considerations is important, the choice is a matter of taste, as
+@c long as you are consistent about it for any given alist.
+ここで、@code{red}は@code{rose}に対応付けた値と考えます。
+この種の連想リストの利点の1つは、関連する別の情報を、
+他の項目から成るリストでさえも、@sc{cdr}の@sc{cdr}に格納できることです。
+1つの欠点は、@code{rassq}（下記参照）を使って
+指定した値を含む要素を探せないことです。
+これらの条件が重要でない場合には、1つの連想リストに関する限り、
+一貫性があればどちらを選ぶかは好みの問題です。
+
+@c   Note that the same alist shown above could be regarded as having the
+@c associated value in the @sc{cdr} of the element; the value associated
+@c with @code{rose} would be the list @code{(red)}.
+上に示した連想リストは、要素の@sc{cdr}に連想値が収めてあると
+考えることもできます。
+@code{rose}の連想値はリスト@code{(red)}になります。
+
+@c   Association lists are often used to record information that you might
+@c otherwise keep on a stack, since new associations may be added easily to
+@c the front of the list.  When searching an association list for an
+@c association with a given key, the first one found is returned, if there
+@c is more than one.
+連想リストはスタックなどに置くような情報の記録に使います。
+というには、リストの先頭に新たな連想を追加するのが簡単だからです。
+指定したキーに対する連想を連想リストから探すとき、
+それらが複数個存在する場合には、最初にみつかったものを返します。
+
+@c   In Emacs Lisp, it is @emph{not} an error if an element of an
+@c association list is not a cons cell.  The alist search functions simply
+@c ignore such elements.  Many other versions of Lisp signal errors in such
+@c cases.
+Emacs Listでは、連想リストの要素がコンスセルでなくても
+エラーでは@emph{ありません}。
+連想リスト探索関数はそのような要素を単に無視します。
+他の多くのLispでは、そのような場面ではエラーを通知します。
+
+@c   Note that property lists are similar to association lists in several
+@c respects.  A property list behaves like an association list in which
+@c each key can occur only once.  @xref{Property Lists}, for a comparison
+@c of property lists and association lists.
+属性リストもいろいろな意味で連想リストに類似しています。
+属性リストは、キーが一度しか現れない連想リストのようにふるまいます。
+属性リストと連想リストの比較については、@xref{Property Lists}。
+
+@defun assoc key alist
+@c This function returns the first association for @var{key} in
+@c @var{alist}.  It compares @var{key} against the alist elements using
+@c @code{equal} (@pxref{Equality Predicates}).  It returns @code{nil} if no
+@c association in @var{alist} has a @sc{car} @code{equal} to @var{key}.
+@c For example:
+この関数は、@var{alist}内の@var{key}に対する最初の連想を返す。
+@var{key}と連想リストの各要素との比較には、
+@code{equal}（@pxref{Equality Predicates}）を用いる。
+@var{alist}の中に@sc{car}が@var{key}に@code{equal}である連想が
+存在しなければ、@code{nil}を返す。
+たとえば、つぎのとおり。
+
+@smallexample
+(setq trees '((pine . cones) (oak . acorns) (maple . seeds)))
+     @result{} ((pine . cones) (oak . acorns) (maple . seeds))
+(assoc 'oak trees)
+     @result{} (oak . acorns)
+(cdr (assoc 'oak trees))
+     @result{} acorns
+(assoc 'birch trees)
+     @result{} nil
+@end smallexample
+
+@c Here is another example, in which the keys and values are not symbols:
+つぎは、キーと値がシンボルではない例。
+
+@smallexample
+(setq needles-per-cluster
+      '((2 "Austrian Pine" "Red Pine")
+        (3 "Pitch Pine")
+        (5 "White Pine")))
+
+(cdr (assoc 3 needles-per-cluster))
+     @result{} ("Pitch Pine")
+(cdr (assoc 2 needles-per-cluster))
+     @result{} ("Austrian Pine" "Red Pine")
+@end smallexample
+@end defun
+
+@c   The functions @code{assoc-ignore-representation} and
+@c @code{assoc-ignore-case} are much like @code{assoc} except using
+@c @code{compare-strings} to do the comparison.  @xref{Text Comparison}.
+関数@code{assoc-ignore-representation}と@code{assoc-ignore-case}は
+@code{assoc}に似ていますが、
+それらは比較に@code{compare-strings}を使う点が異なります。
+@xref{Text Comparison}。
+
+@defun rassoc value alist
+@c This function returns the first association with value @var{value} in
+@c @var{alist}.  It returns @code{nil} if no association in @var{alist} has
+@c a @sc{cdr} @code{equal} to @var{value}.
+この関数は、@var{alist}の中で@var{value}を値とする最初の連想を返す。
+@var{alist}の中に@sc{cdr}が@var{value}に@code{equal}である連想が
+存在しなければ、@code{nil}を返す。
+
+@c @code{rassoc} is like @code{assoc} except that it compares the @sc{cdr} of
+@c each @var{alist} association instead of the @sc{car}.  You can think of
+@c this as ``reverse @code{assoc}'', finding the key for a given value.
+@code{rassoc}は@code{assoc}に似ているが、
+@var{alist}の各連想の@sc{car}のかわりに@sc{cdr}を比較する点が異なる。
+指定した値に対するキーを探す『@code{assoc}の逆演算』と考えることができる。
+@end defun
+
+@defun assq key alist
+@c This function is like @code{assoc} in that it returns the first
+@c association for @var{key} in @var{alist}, but it makes the comparison
+@c using @code{eq} instead of @code{equal}.  @code{assq} returns @code{nil}
+@c if no association in @var{alist} has a @sc{car} @code{eq} to @var{key}.
+@c This function is used more often than @code{assoc}, since @code{eq} is
+@c faster than @code{equal} and most alists use symbols as keys.
+@c @xref{Equality Predicates}.
+この関数は、@var{alist}内の@var{key}に対する最初の連想を返すという意味で
+@code{assoc}に似ているが、@code{equal}のかわりに@code{eq}で比較する。
+@var{alist}内の連想の@sc{car}が@var{key}に@code{eq}であるものが存在しないと、
+@code{assq}は@code{nil}を返す。
+この関数は@code{assoc}より多用される。
+というのは、@code{eq}は@code{equal}より高速であり、
+ほとんどの連想リストではキーとしてシンボルを使うからである。
+
+@smallexample
+(setq trees '((pine . cones) (oak . acorns) (maple . seeds)))
+     @result{} ((pine . cones) (oak . acorns) (maple . seeds))
+(assq 'pine trees)
+     @result{} (pine . cones)
+@end smallexample
+
+@c On the other hand, @code{assq} is not usually useful in alists where the
+@c keys may not be symbols:
+一方で、キーがシンボルではない連想リストでは、
+@code{assq}は、通常、有用ではない。
+
+@smallexample
+(setq leaves
+      '(("simple leaves" . oak)
+        ("compound leaves" . horsechestnut)))
+
+(assq "simple leaves" leaves)
+     @result{} nil
+(assoc "simple leaves" leaves)
+     @result{} ("simple leaves" . oak)
+@end smallexample
+@end defun
+
+@defun rassq value alist
+@c This function returns the first association with value @var{value} in
+@c @var{alist}.  It returns @code{nil} if no association in @var{alist} has
+@c a @sc{cdr} @code{eq} to @var{value}.
+この関数は、@var{alist}の中で@var{value}を値とする最初の連想を返す。
+@var{alist}の中に@sc{cdr}が@var{value}に@code{eq}である連想が
+存在しなければ、@code{nil}を返す。
+
+@c @code{rassq} is like @code{assq} except that it compares the @sc{cdr} of
+@c each @var{alist} association instead of the @sc{car}.  You can think of
+@c this as ``reverse @code{assq}'', finding the key for a given value.
+@code{rassq}は@code{assq}に似ているが、
+@var{alist}の各連想の@sc{car}のかわりに@sc{cdr}を比較する点が異なる。
+指定した値に対するキーを探す『@code{assq}の逆演算』と考えることができる。
+
+@c For example:
+たとえばつぎのとおり。
+
+@smallexample
+(setq trees '((pine . cones) (oak . acorns) (maple . seeds)))
+
+(rassq 'acorns trees)
+     @result{} (oak . acorns)
+(rassq 'spores trees)
+     @result{} nil
+@end smallexample
+
+@c Note that @code{rassq} cannot search for a value stored in the @sc{car}
+@c of the @sc{cdr} of an element:
+@code{rassq}では、
+要素の@sc{cdr}の@sc{car}に格納された値を探せないことに注意。
+
+@smallexample
+(setq colors '((rose red) (lily white) (buttercup yellow)))
+
+(rassq 'white colors)
+     @result{} nil
+@end smallexample
+
+@c In this case, the @sc{cdr} of the association @code{(lily white)} is not
+@c the symbol @code{white}, but rather the list @code{(white)}.  This
+@c becomes clearer if the association is written in dotted pair notation:
+この場合、連想@code{(lily white)}の@sc{cdr}は、
+シンボル@code{white}ではなくリスト@code{(white)}である。
+連想をドット対記法で書くとこれが明確になる。
+
+@smallexample
+(lily white) @equiv{} (lily . (white))
+@end smallexample
+@end defun
+
+@tindex assoc-default
+@defun assoc-default key alist test default
+@c This function searches @var{alist} for a match for @var{key}.  For each
+@c element of @var{alist}, it compares the element (if it is an atom) or
+@c the element's @sc{car} (if it is a cons) against @var{key}, by calling
+@c @var{test} with two arguments: the element or its @sc{car}, and
+@c @var{key}.  The arguments are passed in that order so that you can get
+@c useful results using @code{string-match} with an alist that contains
+@c regular expressions (@pxref{Regexp Search}).  If @var{test} is omitted
+@c or @code{nil}, @code{equal} is used for comparison.
+この関数は、@var{key}に一致するものを@var{alist}から探す。
+@var{alist}の各要素について、（アトムならば）要素と@var{key}を、
+あるいは、（コンスならば）要素の@sc{car}と@var{key}を比較する。
+比較にはこれらを2つの引数として@var{test}を呼び出す。
+引数を渡す順序はこの順なので、
+正規表現（@pxref{Regexp Search}）を収めた連想リストに対して
+@code{string-match}を使うと有益な結果を得られる。
+@var{test}を省略したり@code{nil}であると、比較には@code{equal}を用いる。
+
+@c If an alist element matches @var{key} by this criterion,
+@c then @code{assoc-default} returns a value based on this element.
+@c If the element is a cons, then the value is the element's @sc{cdr}.
+@c Otherwise, the return value is @var{default}.
+上の条件で連想リストの要素が@var{key}に一致するならば、
+@code{assoc-default}はその要素に基づく値を返す。
+要素がコンスならば値は要素の@sc{cdr}。
+さもなければ、戻り値は@var{default}。
+
+@c If no alist element matches @var{key}, @code{assoc-default} returns
+@c @code{nil}.
+@var{key}に一致する連想リストの要素が存在しなければ、
+@code{assoc-default}は@code{nil}を返す。
+@end defun
+
+@defun copy-alist alist
+@c @cindex copying alists
+@cindex 連想リストのコピー
+@c This function returns a two-level deep copy of @var{alist}: it creates a
+@c new copy of each association, so that you can alter the associations of
+@c the new alist without changing the old one.
+この関数は、@var{alist}を2レベルの深さまでコピーしたものを返す。
+各連想ごとに新たなコピーを作るので、
+新たな連想リストの連想を変更しても、もとの連想リストは変更しない。
+
+@smallexample
+@group
+(setq needles-per-cluster
+      '((2 . ("Austrian Pine" "Red Pine"))
+        (3 . ("Pitch Pine"))
+@end group
+        (5 . ("White Pine"))))
+@result{}
+((2 "Austrian Pine" "Red Pine")
+ (3 "Pitch Pine")
+ (5 "White Pine"))
+
+(setq copy (copy-alist needles-per-cluster))
+@result{}
+((2 "Austrian Pine" "Red Pine")
+ (3 "Pitch Pine")
+ (5 "White Pine"))
+
+(eq needles-per-cluster copy)
+     @result{} nil
+(equal needles-per-cluster copy)
+     @result{} t
+(eq (car needles-per-cluster) (car copy))
+     @result{} nil
+(cdr (car (cdr needles-per-cluster)))
+     @result{} ("Pitch Pine")
+@group
+(eq (cdr (car (cdr needles-per-cluster)))
+    (cdr (car (cdr copy))))
+     @result{} t
+@end group
+@end smallexample
+
+@c   This example shows how @code{copy-alist} makes it possible to change
+@c the associations of one copy without affecting the other:
+この例は、@code{copy-alist}により、
+コピーの連想を変更して他のものになぜ影響しないかを示す。
+
+@smallexample
+@group
+(setcdr (assq 3 copy) '("Martian Vacuum Pine"))
+(cdr (assq 3 needles-per-cluster))
+     @result{} ("Pitch Pine")
+@end group
+@end smallexample
+@end defun

@@ -1,0 +1,2121 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/processes
+@node Processes, Display, Abbrevs, Top
+@c @chapter Processes
+@chapter プロセス
+@c @cindex child process
+@c @cindex parent process
+@c @cindex subprocess
+@c @cindex process
+@cindex 子プロセス
+@cindex 親プロセス
+@cindex サブプロセス
+@cindex プロセス
+
+@c   In the terminology of operating systems, a @dfn{process} is a space in
+@c which a program can execute.  Emacs runs in a process.  Emacs Lisp
+@c programs can invoke other programs in processes of their own.  These are
+@c called @dfn{subprocesses} or @dfn{child processes} of the Emacs process,
+@c which is their @dfn{parent process}.
+オペレーティングシステムの用語では、
+@dfn{プロセス}（process）とは、プログラムを実行する空間のことです。
+Emacsはプロセスとして動いています。
+Emacs Lispのプログラムでは、
+独自のプロセスとして他のプログラムを起動できます。
+それらは、Emacsプロセスの@dfn{サブプロセス}（subprocess）とか
+@dfn{子プロセス}（child process）と呼ばれ、
+Emacsプロセスはそれらの@dfn{親プロセス}（parent process）です。
+
+@c   A subprocess of Emacs may be @dfn{synchronous} or @dfn{asynchronous},
+@c depending on how it is created.  When you create a synchronous
+@c subprocess, the Lisp program waits for the subprocess to terminate
+@c before continuing execution.  When you create an asynchronous
+@c subprocess, it can run in parallel with the Lisp program.  This kind of
+@c subprocess is represented within Emacs by a Lisp object which is also
+@c called a ``process''.  Lisp programs can use this object to communicate
+@c with the subprocess or to control it.  For example, you can send
+@c signals, obtain status information, receive output from the process, or
+@c send input to it.
+Emacsのサブプロセスは、それを作成する方法に依存して、
+@dfn{同期}（synchronous）であるか@dfn{非同期}（asynchronous）です。
+同期サブプロセスを作成すると、
+Lispプログラムは実行を継続するまえにそのサブプロセスの終了を待ちます。
+非同期サブプロセスを作成すると、それはLispプログラムと並行して動作します。
+この種のサブプロセスは、Emacs内部ではやはり『プロセス』と呼ばれる
+Lispオブジェクトで表現されます。
+Lispプログラムはこのオブジェクトを用いて
+サブプロセスと通信したりそれを制御できます。
+たとえば、シグナルを送ったり、状態情報を取得したり、
+プロセスからの出力を受け取ったり、プロセスへ入力を送れます。
+
+@defun processp object
+@c This function returns @code{t} if @var{object} is a process,
+@c @code{nil} otherwise.
+この関数は、@var{object}がプロセスであれば@code{t}を返し、
+さもなければ@code{nil}を返す。
+@end defun
+
+@menu
+* Subprocess Creation::      Functions that start subprocesses.
+* Shell Arguments::          Quoting an argument to pass it to a shell.
+* Synchronous Processes::    Details of using synchronous subprocesses.
+* Asynchronous Processes::   Starting up an asynchronous subprocess.
+* Deleting Processes::       Eliminating an asynchronous subprocess.
+* Process Information::      Accessing run-status and other attributes.
+* Input to Processes::       Sending input to an asynchronous subprocess.
+* Signals to Processes::     Stopping, continuing or interrupting
+                               an asynchronous subprocess.
+* Output from Processes::    Collecting output from an asynchronous subprocess.
+* Sentinels::                Sentinels run when process run-status changes.
+* Transaction Queues::	     Transaction-based communication with subprocesses.
+* Network::                  Opening network connections.
+@end menu
+
+@node Subprocess Creation
+@c @section Functions that Create Subprocesses
+@section サブプロセス作成関数
+
+@c   There are three functions that create a new subprocess in which to run
+@c a program.  One of them, @code{start-process}, creates an asynchronous
+@c process and returns a process object (@pxref{Asynchronous Processes}).
+@c The other two, @code{call-process} and @code{call-process-region},
+@c create a synchronous process and do not return a process object
+@c (@pxref{Synchronous Processes}).
+プログラムを実行するために新たなサブプロセスを作る関数が3つあります。
+その1つ@code{start-process}は、非同期プロセスを作成して
+プロセスオブジェクトを返します（@pxref{Asynchronous Processes}）。
+残りの2つ、@code{call-process}と@code{call-process-region}は
+同期プロセスを作成しますが、プロセスオブジェクトは返しません
+（@pxref{Synchronous Processes}）。
+
+@c   Synchronous and asynchronous processes are explained in following
+@c sections.  Since the three functions are all called in a similar
+@c fashion, their common arguments are described here.
+同期／非同期プロセスについては以下の節に述べます。
+3つの関数の呼び出し方は類似しているので、
+ここではそれらに共通な引数について述べます。
+
+@c @cindex execute program
+@c @cindex @code{PATH} environment variable
+@c @cindex @code{HOME} environment variable
+@cindex プログラムの実行
+@cindex 実行、
+@cindex 環境変数@code{PATH}
+@cindex @code{PATH}、環境変数
+@cindex 環境変数@code{HOME}
+@cindex @code{HOME}、環境変数
+@c   In all cases, the function's @var{program} argument specifies the
+@c program to be run.  An error is signaled if the file is not found or
+@c cannot be executed.  If the file name is relative, the variable
+@c @code{exec-path} contains a list of directories to search.  Emacs
+@c initializes @code{exec-path} when it starts up, based on the value of
+@c the environment variable @code{PATH}.  The standard file name
+@c constructs, @samp{~}, @samp{.}, and @samp{..}, are interpreted as usual
+@c in @code{exec-path}, but environment variable substitutions
+@c (@samp{$HOME}, etc.) are not recognized; use
+@c @code{substitute-in-file-name} to perform them (@pxref{File Name
+@c Expansion}).
+いずれの場合でも、関数の引数@var{program}は、
+実行すべきプログラムを指定します。
+そのファイルがみつからなかったり実行できないと、
+エラーを通知します。
+ファイル名が相対名であると、
+変数@code{exec-path}は探索すべきディレクトリのリストを保持しています。
+Emacsは起動時に環境変数@code{PATH}の値に基づいて@code{exec-path}を
+初期化します。
+@samp{~}、@samp{.}、@samp{..}のファイル名の標準的な書き方は、
+@code{exec-path}でも普通どおりに解釈されますが、
+（@samp{$HOME}などの）環境変数の置換は認識しません。
+それには@code{substitute-in-file-name}を使います
+（@pxref{File Name Expansion}）。
+
+@c   Each of the subprocess-creating functions has a @var{buffer-or-name}
+@c argument which specifies where the standard output from the program will
+@c go.  It should be a buffer or a buffer name; if it is a buffer name,
+@c that will create the buffer if it does not already exist.  It can also
+@c be @code{nil}, which says to discard the output unless a filter function
+@c handles it.  (@xref{Filter Functions}, and @ref{Read and Print}.)
+@c Normally, you should avoid having multiple processes send output to the
+@c same buffer because their output would be intermixed randomly.
+サブプロセスを作成する各関数には、
+プログラムの標準出力の受け取り場所を指定する
+引数@var{buffer-or-name}があります。
+これはバッファかバッファ名である必要があります。
+バッファ名であると、そのバッファが既存でなければ新たに作成します。
+@code{nil}でもかまいませんが、その場合、
+フィルタ関数で処理しない限り出力を破棄します。
+（@ref{Filter Functions}と@pxref{Read and Print}）。
+通常、複数のプロセスの出力を同じバッファへは送らないようにします。
+それらの出力がでたらめに混ざってしまうからです。
+
+@c @cindex program arguments
+@cindex プログラムの引数
+@cindex 引数、プログラム
+@c   All three of the subprocess-creating functions have a @code{&rest}
+@c argument, @var{args}.  The @var{args} must all be strings, and they are
+@c supplied to @var{program} as separate command line arguments.  Wildcard
+@c characters and other shell constructs have no special meanings in these
+@c strings, since the whole strings are passed directly to the specified
+@c program.
+サブプロセスを作成する3つの関数すべてに、
+@code{&rest}引数である@var{args}があります。
+@var{args}はすべてが文字列である必要があり、
+それぞれを区切ってコマンド行引数として@var{program}に与えられます。
+引数全体を指定されたプログラムへ直接渡すため、
+これらの引数ではワイルドカード文字や他のシェル構文の特別な意味はありません。
+
+@c   @strong{Please note:} The argument @var{program} contains only the
+@c name of the program; it may not contain any command-line arguments.  You
+@c must use @var{args} to provide those.
+@strong{注意}：@code{ }引数@var{program}にはプログラムの名前だけを指定し、
+コマンド行引数はいっさい指定しない。
+コマンド行引数は@var{args}で与えること。
+
+@c   The subprocess gets its current directory from the value of
+@c @code{default-directory} (@pxref{File Name Expansion}).
+サブプロセスのカレントディレクトリは
+@code{default-directory}の値で決まります（@pxref{File Name Expansion}）。
+
+@c @cindex environment variables, subprocesses
+@cindex 環境変数、サブプロセス
+@cindex サブプロセスの環境変数
+@c   The subprocess inherits its environment from Emacs, but you can
+@c specify overrides for it with @code{process-environment}.  @xref{System
+@c Environment}.
+サブプロセスはEmacsから環境変数を継承しますが、
+優先するものを@code{process-environment}で指定できます。
+@xref{System Environment}。
+
+@defvar exec-directory 
+@pindex movemail
+@c The value of this variable is the name of a directory (a string) that
+@c contains programs that come with GNU Emacs, programs intended for Emacs
+@c to invoke.  The program @code{movemail} is an example of such a program;
+@c Rmail uses it to fetch new mail from an inbox.
+この変数の値は、Emaccsが起動することを意図した
+GNU Emacsとともに配布されたプログラム群を収めたディレクトリ名
+（文字列）である。
+プログラム@code{movemail}はそのようなプログラムの例であり、
+inboxから新たなメイルを取り出すためにrmailが利用する。
+@end defvar
+
+@defopt exec-path
+@c The value of this variable is a list of directories to search for
+@c programs to run in subprocesses.  Each element is either the name of a
+@c directory (i.e., a string), or @code{nil}, which stands for the default
+@c directory (which is the value of @code{default-directory}).
+@c @cindex program directories
+この変数の値は、サブプロセスで実行するプログラムを探索する
+ディレクトリのリストである。
+各要素はディレクトリ名（文字列）であるか、
+デフォルトディレクトリ（つまり@code{default-directory}の値）
+を意味する@code{nil}である。
+@cindex プログラムを探すディレクトリ
+
+@c The value of @code{exec-path} is used by @code{call-process} and
+@c @code{start-process} when the @var{program} argument is not an absolute
+@c file name.
+引数@var{program}が絶対ファイル名でないと、
+@code{call-process}と@code{start-process}は
+@code{exec-path}の値を使う。
+@end defopt
+
+@node Shell Arguments
+@c @section Shell Arguments
+@section シェル引数
+
+@c   Lisp programs sometimes need to run a shell and give it a command
+@c which contains file names that were specified by the user.  These
+@c programs ought to be able to support any valid file name.  But the shell
+@c gives special treatment to certain characters, and if these characters
+@c occur in the file name, they will confuse the shell.  To handle these
+@c characters, use the function @code{shell-quote-argument}:
+Lispプログラムから、
+ユーザーが指定したファイル名を含んだコマンドを指定して
+シェルを実行する必要がときどきあります。
+これらのプログラムでは、任意の正しいファイル名を扱える必要があります。
+しかし、シェルは、特定の文字がファイル名として現れると特別に扱うので、
+そのような文字がシェルに混乱をもたらします。
+そのような文字を扱うには、関数@code{shell-quote-argument}を使います。
+
+@defun shell-quote-argument argument
+@c This function returns a string which represents, in shell syntax,
+@c an argument whose actual contents are @var{argument}.  It should
+@c work reliably to concatenate the return value into a shell command
+@c and then pass it to a shell for execution.
+この関数は、@var{argument}を実際の内容とする
+シェル構文で表した引数を文字列で返す。
+この戻り値をシェルコマンドに連結し、
+実行のためにシェルに渡しても問題を生じないはずである。
+
+@c Precisely what this function does depends on your operating system.  The
+@c function is designed to work with the usual shell syntax; if you use an
+@c unusual shell, you will need to redefine this function.  On MS-DOS, the
+@c function returns @var{argument} unchanged; while this is not really
+@c correct, it is the best one can do, since the MS-DOS shell has no
+@c quoting features.
+この関数が行うことの詳細は読者のオペレーティングシステムに依存する。
+この関数は通常のシェル構文に合うように設計してある。
+非標準のシェルを使う場合には、この関数を再定義する必要があろう。
+MS-DOSでは、この関数は@var{argument}を無変更で返す。
+MS-DOSのシェルにはクォートの機能がないため、
+これは本当は正しいことではないが最良のことである。
+
+@example
+@c ;; @r{This example shows the behavior on GNU and Unix systems.}
+;; @r{つぎの例はGNUとUNIXシステムのふるまいである}
+(shell-quote-argument "foo > bar")
+     @result{} "foo\\ \\>\\ bar"
+@end example
+
+@c Here's an example of using @code{shell-quote-argument} to construct
+@c a shell command:
+シェルコマンドを作る@code{shell-quote-argument}の使用例をつぎに示す。
+
+@example
+(concat "diff -c "
+        (shell-quote-argument oldfile)
+        " "
+        (shell-quote-argument newfile))
+@end example
+@end defun
+
+@node Synchronous Processes
+@c @section Creating a Synchronous Process
+@section 同期プロセスの作成
+@c @cindex synchronous subprocess
+@cindex 同期サブプロセス
+@cindex サブプロセス、同期
+
+@c   After a @dfn{synchronous process} is created, Emacs waits for the
+@c process to terminate before continuing.  Starting Dired is an example of
+@c this: it runs @code{ls} in a synchronous process, then modifies the
+@c output slightly.  Because the process is synchronous, the entire
+@c directory listing arrives in the buffer before Emacs tries to do
+@c anything with it.
+@dfn{同期プロセス}（synchronous process）を作成すると、
+Emacsは実行を続行するまえにそのプロセスが終了するのを待ちます。
+diredはその例です。
+@code{ls}を同期プロセスで実行し、その出力を少々修正します。
+プロセスは同期なので、Emacsがなにかを行おうとするまえに
+ディレクトリ一覧全部がバッファに届きます。
+
+@c   While Emacs waits for the synchronous subprocess to terminate, the
+@c user can quit by typing @kbd{C-g}.  The first @kbd{C-g} tries to kill
+@c the subprocess with a @code{SIGINT} signal; but it waits until the
+@c subprocess actually terminates before quitting.  If during that time the
+@c user types another @kbd{C-g}, that kills the subprocess instantly with
+@c @code{SIGKILL} and quits immediately.  @xref{Quitting}.
+Emacsは同期サブプロセスの終了を待ちますが、
+ユーザーは@kbd{C-g}と打って中断できます。
+@kbd{C-g}はまずシグナル@code{SIGINT}でサブプロセスをキルしようとしますが、
+中断を完了するまえにサブプロセスが終了するのを待ちます。
+その期間にユーザーがさらに@kbd{C-g}を打つと、
+@code{SIGKILL}でサブプロセスを即座にキルし、ただちに中断を完了します。
+@xref{Quitting}。
+
+@c   The synchronous subprocess functions return an indication of how the
+@c process terminated.
+同期サブプロセス作成関数は、
+そのプロセスがどのように終了したかを表すものを返します。
+
+@c   The output from a synchronous subprocess is generally decoded using a
+@c coding system, much like text read from a file.  The input sent to a
+@c subprocess by @code{call-process-region} is encoded using a coding
+@c system, much like text written into a file.  @xref{Coding Systems}.
+同期サブプロセスからの出力は、ファイルから読むテキストと同様に、
+コーディングシステムを用いて一般には復号化します。
+@code{call-process-region}がサブプロセスへ送る入力は、
+ファイルへ書くテキストと同様に、
+コーディングシステムを用いて符号化します。
+@xref{Coding Systems}。
+
+@defun call-process program &optional infile destination display &rest args
+@c This function calls @var{program} in a separate process and waits for
+@c it to finish.
+この関数は、別のプロセスで@var{program}を呼び出し、
+それが終了するのを待つ。
+
+@c The standard input for the process comes from file @var{infile} if
+@c @var{infile} is not @code{nil}, and from @file{/dev/null} otherwise.
+@c The argument @var{destination} says where to put the process output.
+@c Here are the possibilities:
+@var{infile}が@code{nil}でなければ
+プロセスへの標準入力は@var{infile}であるが、
+さもなければ@file{/dev/null}である。
+引数@var{destination}でプロセスの出力先をつぎのように指定する。
+
+@table @asis
+@c @item a buffer
+@item バッファ
+@c Insert the output in that buffer, before point.  This includes both the
+@c standard output stream and the standard error stream of the process.
+このバッファのポイントのまえに出力を挿入する。
+これにはプロセスの標準出力と標準エラーの両者を含む。
+
+@c @item a string
+@item 文字列
+@c Insert the output in a buffer with that name, before point.
+文字列で指定した名前のバッファのポイントのまえに出力を挿入する。
+
+@item @code{t}
+@c Insert the output in the current buffer, before point.
+カレントバッファのポイントのまえに出力を挿入する。
+
+@item @code{nil}
+@c Discard the output.
+出力を破棄する。
+
+@item 0
+@c Discard the output, and return immediately without waiting
+@c for the subprocess to finish.
+出力を破棄し、サブプロセスの終了を待たずにただちに戻る。
+
+@c In this case, the process is not truly synchronous, since it can run in
+@c parallel with Emacs; but you can think of it as synchronous in that
+@c Emacs is essentially finished with the subprocess as soon as this
+@c function returns.
+この場合、このプロセスはEmacsと並行して動作するので真のサブプロセスではない。
+しかし、この関数から戻るとEmacsはサブプロセスの処理を本質的には終えたと
+いう意味で同期プロセスと考えることができる。
+
+@item @code{(@var{real-destination} @var{error-destination})}
+@c Keep the standard output stream separate from the standard error stream;
+@c deal with the ordinary output as specified by @var{real-destination},
+@c and dispose of the error output according to @var{error-destination}.
+@c If @var{error-destination} is @code{nil}, that means to discard the
+@c error output, @code{t} means mix it with the ordinary output, and a
+@c string specifies a file name to redirect error output into.
+標準出力と標準エラーを分離し、
+@var{real-destination}の指定に従って通常の出力を扱い、
+@var{error-destination}に従ってエラー出力を処理する。
+@var{error-destination}が@code{nil}であるとエラー出力を破棄し、
+@code{t}であると通常の出力に混ぜ、
+文字列であるとその名前のファイルにエラー出力を振り向ける。
+
+@c You can't directly specify a buffer to put the error output in; that is
+@c too difficult to implement.  But you can achieve this result by sending
+@c the error output to a temporary file and then inserting the file into a
+@c buffer.
+エラー出力を入れるバッファを直接に指定することはできない。
+それを実装するのは難しすぎる。
+しかし、エラー出力を一時ファイルへ送ってから
+そのファイルをバッファに挿入すれば、同じ効果を得られる。
+@end table
+
+@c If @var{display} is non-@code{nil}, then @code{call-process} redisplays
+@c the buffer as output is inserted.  (However, if the coding system chosen
+@c for decoding output is @code{undecided}, meaning deduce the encoding
+@c from the actual data, then redisplay sometimes cannot continue once
+@c non-@sc{ASCII} characters are encountered.  There are fundamental
+@c reasons why it is hard to fix this.)  Otherwise the function
+@c @code{call-process} does no redisplay, and the results become visible on
+@c the screen only when Emacs redisplays that buffer in the normal course
+@c of events.
+@var{display}が@code{nil}以外であると、@code{call-process}は、
+出力が挿入されるとバッファを再表示する。
+（しかし、コーディングシステムとして実際のデータから
+コーディングシステムを推定する@code{undecided}を指定していると、
+非@sc{ASCII}文字に出会うと再表示を継続できない場合もある。
+これを修正するのが困難である根本的な理由がある。）
+さもなければ、関数@code{call-process}は再表示しないので、
+Emacsが通常の過程でそのバッファを再表示するまでは、
+スクリーン上で結果は見えない。
+
+@c The remaining arguments, @var{args}, are strings that specify command
+@c line arguments for the program.
+残りの引数@var{args}は、プログラムに対する
+コマンド行引数を指定する文字列である。
+
+@c The value returned by @code{call-process} (unless you told it not to
+@c wait) indicates the reason for process termination.  A number gives the
+@c exit status of the subprocess; 0 means success, and any other value
+@c means failure.  If the process terminated with a signal,
+@c @code{call-process} returns a string describing the signal.
+（待たないように指示しない限り）@code{call-process}が返す値は、
+プロセスの終了理由を表す。
+数でサブプロセスの終了状態を表し、
+0は成功、それ以外の値は失敗を意味する。
+プロセスがシグナルで終了すると、
+@code{call-process}はシグナルを記述する文字列を返す。
+
+@c In the examples below, the buffer @samp{foo} is current.
+つぎの例では、バッファ@samp{foo}がカレントである。
+
+@smallexample
+@group
+(call-process "pwd" nil t)
+     @result{} nil
+
+---------- Buffer: foo ----------
+/usr/user/lewis/manual
+---------- Buffer: foo ----------
+@end group
+
+@group
+(call-process "grep" nil "bar" nil "lewis" "/etc/passwd")
+     @result{} nil
+
+---------- Buffer: bar ----------
+lewis:5LTsHm66CSWKg:398:21:Bil Lewis:/user/lewis:/bin/csh
+
+---------- Buffer: bar ----------
+@end group
+@end smallexample
+
+@c Here is a good example of the use of @code{call-process}, which used to
+@c be found in the definition of @code{insert-directory}:
+@code{insert-directory}の定義にある@code{call-process}の
+よい使用例をつぎに示す。
+
+@smallexample
+@group
+(call-process insert-directory-program nil t nil @var{switches}
+              (if full-directory-p
+                  (concat (file-name-as-directory file) ".")
+                file))
+@end group
+@end smallexample
+@end defun
+
+@defun call-process-region start end program &optional delete destination display &rest args
+@c This function sends the text between @var{start} to @var{end} as
+@c standard input to a process running @var{program}.  It deletes the text
+@c sent if @var{delete} is non-@code{nil}; this is useful when
+@c @var{destination} is @code{t}, to insert the output in the current
+@c buffer in place of the input.
+この関数は、@var{program}を動かすプロセスの標準入力として
+@var{start}と@var{end}のあいだのテキストを送る。
+@var{delete}が@code{nil}以外であると、送ったテキストを削除する。
+これは、カレントバッファに送った入力のかわりに出力を挿入することを
+意味する@var{destination}が@code{t}であるときに有用である。
+
+@c The arguments @var{destination} and @var{display} control what to do
+@c with the output from the subprocess, and whether to update the display
+@c as it comes in.  For details, see the description of
+@c @code{call-process}, above.  If @var{destination} is the integer 0,
+@c @code{call-process-region} discards the output and returns @code{nil}
+@c immediately, without waiting for the subprocess to finish.
+引数@var{destination}と@var{display}は、
+サブプロセスからの出力をどのように扱い、
+出力か到着するたびに表示を更新するかどうかを制御する。
+詳しくは、上記の@code{call-process}の記述を参照。
+@var{destination}が整数0であると、
+@code{call-process-region}は、サブプロセスの終了を待たずに
+出力を破棄してただちに@code{nil}を返す。
+
+@c The remaining arguments, @var{args}, are strings that specify command
+@c line arguments for the program.
+残りの引数@var{args}は、プログラムに対する
+コマンド行引数を指定する文字列である。
+
+@c The return value of @code{call-process-region} is just like that of
+@c @code{call-process}: @code{nil} if you told it to return without
+@c waiting; otherwise, a number or string which indicates how the
+@c subprocess terminated.
+@code{call-process-region}の戻り値は@code{call-process}と同様であり、
+待たずに戻るように指示すると@code{nil}であり、
+さもなければサブプロセスの終了状態を表す数か文字列である。
+
+@c In the following example, we use @code{call-process-region} to run the
+@c @code{cat} utility, with standard input being the first five characters
+@c in buffer @samp{foo} (the word @samp{input}).  @code{cat} copies its
+@c standard input into its standard output.  Since the argument
+@c @var{destination} is @code{t}, this output is inserted in the current
+@c buffer.
+つぎの例では、
+バッファ@samp{foo}の始めの5文字（単語@samp{input}）を標準入力として
+ユーティリティ@code{cat}を実行するために@code{call-process-region}を使う。
+@code{cat}は、標準入力を標準出力へコピーする。
+引数@var{destination}が@code{t}であるので、
+出力はカレントバッファに挿入される。
+
+@smallexample
+@group
+---------- Buffer: foo ----------
+input@point{}
+---------- Buffer: foo ----------
+@end group
+
+@group
+(call-process-region 1 6 "cat" nil t)
+     @result{} nil
+
+---------- Buffer: foo ----------
+inputinput@point{}
+---------- Buffer: foo ----------
+@end group
+@end smallexample
+
+@c   The @code{shell-command-on-region} command uses
+@c @code{call-process-region} like this:
+コマンド@code{shell-command-on-region}は、
+つぎのように@code{call-process-region}を使う。
+
+@smallexample
+@group
+(call-process-region 
+ start end         
+@c  shell-file-name      ; @r{Name of program.}
+@c  nil                  ; @r{Do not delete region.}
+@c  buffer               ; @r{Send output to @code{buffer}.}
+@c  nil                  ; @r{No redisplay during output.}
+@c  "-c" command)        ; @r{Arguments for the shell.}
+ shell-file-name      ; @r{プログラムの名前}
+ nil                  ; @r{リージョンを削除しない}
+ buffer               ; @r{出力は@code{buffer}へ入れる}
+ nil                  ; @r{出力中は再表示しない}
+ "-c" command)        ; @r{シェルに対する引数}
+@end group
+@end smallexample
+@end defun
+
+@defun shell-command-to-string command
+@tindex shell-command-to-string
+@c This function executes @var{command} (a string) as a shell command,
+@c then returns the command's output as a string.
+この関数は、シェルコマンドとして@var{command}（文字列）を実行し、
+コマンドの出力を文字列として返す。
+@end defun
+
+@node Asynchronous Processes
+@c @section Creating an Asynchronous Process
+@section 非同期プロセスの作成
+@c @cindex asynchronous subprocess
+@cindex 非同期プロセス
+@cindex プロセス、非同期
+
+@c   After an @dfn{asynchronous process} is created, Emacs and the subprocess
+@c both continue running immediately.  The process thereafter runs
+@c in parallel with Emacs, and the two can communicate with each other
+@c using the functions described in following sections.  However,
+@c communication is only partially asynchronous: Emacs sends data to the
+@c process only when certain functions are called, and Emacs accepts data
+@c from the process only when Emacs is waiting for input or for a time
+@c delay.
+@dfn{非同期プロセス}を作成すると、Emacsとサブプロセスの両者は
+ただちに動作を継続します。
+そしてプロセスはEmacsと並行に動作し、
+両者は以下の節に述べる関数を用いて互いに通信できます。
+しかし、通信は部分的に非同期です。
+特定の関数を呼び出したときにだけEmacsはプロセスへデータを送り、
+Emacsが入力待ちか時間待ちをしているときにだけ
+プロセスからの出力を受け取れます。
+
+@c   Here we describe how to create an asynchronous process.
+ここでは、非同期プロセスの作成方法について述べます。
+
+@defun start-process name buffer-or-name program &rest args
+@c This function creates a new asynchronous subprocess and starts the
+@c program @var{program} running in it.  It returns a process object that
+@c stands for the new subprocess in Lisp.  The argument @var{name}
+@c specifies the name for the process object; if a process with this name
+@c already exists, then @var{name} is modified (by appending @samp{<1>},
+@c etc.) to be unique.  The buffer @var{buffer-or-name} is the buffer to
+@c associate with the process.
+この関数は、新たな非同期サブプロセスを作成し、
+そのプロセスでプログラム@var{program}を走らせる。
+Lispにおいて新たなサブプロセスを表すプロセスオブジェクトを返す。
+引数@var{name}はプロセスオブジェクトの名前を指定する。
+その名前のプロセスがすでに存在すると、
+名前を一意にするために（@samp{<1>}などを付加して）@var{name}を修正する。
+バッファ@var{buffer-or-name}は、そのプロセスに対応付けるバッファである。
+
+@c The remaining arguments, @var{args}, are strings that specify command
+@c line arguments for the program.
+残りの引数@var{args}は、プログラムに対する
+コマンド行引数を指定する文字列である。
+
+@c In the example below, the first process is started and runs (rather,
+@c sleeps) for 100 seconds.  Meanwhile, the second process is started, and
+@c given the name @samp{my-process<1>} for the sake of uniqueness.  It
+@c inserts the directory listing at the end of the buffer @samp{foo},
+@c before the first process finishes.  Then it finishes, and a message to
+@c that effect is inserted in the buffer.  Much later, the first process
+@c finishes, and another message is inserted in the buffer for it.
+つぎの例では、最初のプロセスは動き始めると
+100秒間（休止ではなく）動作する。
+そのあいだに2番目のプロセスを動かし始めると、
+一意であるためにそれには名前@samp{my-process<1>}が与えられる。
+2番目のプロセスは、最初のプロセスが終了するまえに
+バッファ@samp{foo}にディレクトリ一覧を挿入する。
+2番目のプロセスが終了するとそれを表すメッセージがバッファに挿入される。
+しばらくして最初のプロセスが終了すると、
+別のメッセージがバッファに挿入される。
+
+@smallexample
+@group
+(start-process "my-process" "foo" "sleep" "100")
+     @result{} #<process my-process>
+@end group
+
+@group
+(start-process "my-process" "foo" "ls" "-l" "/user/lewis/bin")
+     @result{} #<process my-process<1>>
+
+---------- Buffer: foo ----------
+total 2
+lrwxrwxrwx  1 lewis     14 Jul 22 10:12 gnuemacs --> /emacs
+-rwxrwxrwx  1 lewis     19 Jul 30 21:02 lemon
+
+Process my-process<1> finished
+
+Process my-process finished
+---------- Buffer: foo ----------
+@end group
+@end smallexample
+@end defun
+
+@defun start-process-shell-command name buffer-or-name command &rest command-args
+@c This function is like @code{start-process} except that it uses a shell
+@c to execute the specified command.  The argument @var{command} is a shell
+@c command name, and @var{command-args} are the arguments for the shell
+@c command.  The variable @code{shell-file-name} specifies which shell to
+@c use.
+この関数は@code{start-process}と同様であるが、
+指定したコマンドを実行するためにシェルを用いる点が異なる。
+引数@var{command}はシェルコマンドの名前であり、
+@var{command-args}はそのシェルコマンドに対する引数である。
+変数@code{shell-file-name}は、使用するシェルを指定する。
+
+@c The point of running a program through the shell, rather than directly
+@c with @code{start-process}, is so that you can employ shell features such
+@c as wildcards in the arguments.  It follows that if you include an
+@c arbitrary user-specified filename in the command, you should quote it
+@c with @code{shell-quote-argument} first, so that any special shell
+@c characters in the file name do @emph{not} have their special shell
+@c meanings.  @xref{Shell Arguments}.
+@code{start-process}で直接にではなく
+シェルを介してプログラムを実行すると、
+引数のワイルドカードなどのシェルの機能を利用できる。
+つまり、ユーザー指定の任意のファイル名をコマンドに入れる場合には、
+まえもって@code{shell-quote-argument}でクォートし、
+ファイル名内のシェルの特別な文字が
+そのような特別な意味を持た@emph{ない}ようにする。
+@pxref{Shell Arguments}。
+@end defun
+
+@defvar process-connection-type
+@c @cindex pipes
+@cindex パイプ
+@c @cindex @sc{pty}s
+@cindex 疑似端末@sc{pty}
+@c This variable controls the type of device used to communicate with
+@c asynchronous subprocesses.  If it is non-@code{nil}, then @sc{pty}s are
+@c used, when available.  Otherwise, pipes are used.
+この変数は、非同期サブプロセスとの通信に用いる装置の型を制御する。
+これが@code{nil}以外であると疑似端末@sc{pty}を利用できる場合にはそれを用る。
+さもなければパイプを用いる。
+
+@c @sc{pty}s are usually preferable for processes visible to the user, as
+@c in Shell mode, because they allow job control (@kbd{C-c}, @kbd{C-z},
+@c etc.) to work between the process and its children, whereas pipes do
+@c not.  For subprocesses used for internal purposes by programs, it is
+@c often better to use a pipe, because they are more efficient.  In
+@c addition, the total number of @sc{pty}s is limited on many systems and
+@c it is good not to waste them.
+シェル（shell）モードなどのユーザーに見えるプロセス向けには、
+パイプでは不可能なプロセスとその子プロセスとのあいだで
+ジョブ制御（@kbd{C-c}、@kbd{C-z}など）を許すので
+疑似端末@sc{pty}が望ましい。
+プログラムの内部目的向けに使われるサブプロセスでは、
+効率的なパイプを用いるほうがよい。
+また、多くのシステムでは疑似端末@sc{pty}の総数には制約があり、
+それらを浪費しないほうがよい。
+
+@c The value @code{process-connection-type} is used when
+@c @code{start-process} is called.  So you can specify how to communicate
+@c with one subprocess by binding the variable around the call to
+@c @code{start-process}.
+@code{process-connection-type}の値は
+@code{start-process}を呼び出したときに使われる。
+したがって、@code{start-process}の呼び出しの周りでこの変数を束縛することで、
+1つのサブプロセスに対する通信方法を指定できる。
+
+@smallexample
+@group
+@c (let ((process-connection-type nil))  ; @r{Use a pipe.}
+(let ((process-connection-type nil))  ; @r{パイプを使う}
+  (start-process @dots{}))
+@end group
+@end smallexample
+
+@c To determine whether a given subprocess actually got a pipe or a
+@c @sc{pty}, use the function @code{process-tty-name} (@pxref{Process
+@c Information}).
+サブプロセスが実際にはパイプか疑似端末@sc{pty}のどちらを
+使っているかを調べるには、関数@code{process-tty-name}を使う
+（@pxref{Process Information}）。
+@end defvar
+
+@node Deleting Processes
+@c @section Deleting Processes
+@section プロセスの削除
+@c @cindex deleting processes
+@cindex プロセスの削除
+
+@c   @dfn{Deleting a process} disconnects Emacs immediately from the
+@c subprocess, and removes it from the list of active processes.  It sends
+@c a signal to the subprocess to make the subprocess terminate, but this is
+@c not guaranteed to happen immediately.  The process object itself
+@c continues to exist as long as other Lisp objects point to it.  The
+@c process mark continues to point to the same place as before (usually
+@c into a buffer where output from the process was being inserted).
+@dfn{プロセスを削除する}とは、サブプロセスからEmacsをただちに切り離し、
+サブプロセスを活性なプロセスリストから取り除くことです。
+サブプロセスへシグナルを送ってサブプロセスを終了させますが、
+ただちに終了するとは保証されません。
+プロセスオブジェクトを指すLispオブジェクトがある限り、
+プロセスオブジェクトは存在し続けます。
+プロセスマークは以前と同様に同じ場所
+（プロセスからの出力をバッファに挿入した箇所）を指し続けます。
+
+@c   You can delete a process explicitly at any time.  Processes are
+@c deleted automatically after they terminate, but not necessarily right
+@c away.  If you delete a terminated process explicitly before it is
+@c deleted automatically, no harm results.
+プロセスはいつでも明示的に削除できます。
+プロセスは終了後に自動的に削除されますが、
+終了後ただちにではありません。
+終了したプロセスが自動的に削除されるまえに明示的に削除しても無害です。
+
+@defopt delete-exited-processes
+@c This variable controls automatic deletion of processes that have
+@c terminated (due to calling @code{exit} or to a signal).  If it is
+@c @code{nil}, then they continue to exist until the user runs
+@c @code{list-processes}.  Otherwise, they are deleted immediately after
+@c they exit.
+この変数は、（@code{exit}を呼び出すかシグナルのために）終了した
+プロセスの自動削除を制御する。
+@code{nil}であると、ユーザーが@code{list-processes}を
+実行するまで存在し続ける。
+さもなければ、終了後にただちに削除する。
+@end defopt
+
+@defun delete-process name
+@c This function deletes the process associated with @var{name}, killing it
+@c with a @code{SIGHUP} signal.  The argument @var{name} may be a process,
+@c the name of a process, a buffer, or the name of a buffer.
+この関数は、@var{name}に対応付けられたプロセスを
+シグナル@code{SIGHUP}でキルし削除する。
+引数は、プロセス、プロセス名、バッファ、バッファ名のいずれかである。
+
+@smallexample
+@group
+(delete-process "*shell*")
+     @result{} nil
+@end group
+@end smallexample
+@end defun
+
+@defun process-kill-without-query process &optional do-query
+@c This function specifies whether Emacs should query the user if
+@c @var{process} is still running when Emacs is exited.  If @var{do-query}
+@c is @code{nil}, the process will be deleted silently.
+@c Otherwise, Emacs will query about killing it.
+この関数は、Emacsを終了するときにプロセス@var{process}が動作中であると、
+ユーザーに問い合わせるかどうかを指定する。
+@var{do-query}が@code{nil}であると、プロセスを黙って削除する。
+さもなければ、Emacsはプロセスのキルに関して問い合わせる。
+
+@c The value is @code{t} if the process was formerly set up to require
+@c query, @code{nil} otherwise.  A newly-created process always requires
+@c query.
+問い合わせるようにしてあったプロセスであると戻り値は@code{t}であり、
+さもなければ戻り値は@code{nil}である。
+新たに作成されたプロセスは、つねに問い合わせ用になっている。
+
+@smallexample
+@group
+(process-kill-without-query (get-process "shell"))
+     @result{} t
+@end group
+@end smallexample
+@end defun
+
+@node Process Information
+@c @section Process Information
+@section プロセス情報
+
+@c   Several functions return information about processes.
+@c @code{list-processes} is provided for interactive use.
+プロセスに関する情報を返す関数がいくつかあります。
+@code{list-processes}は対話的利用のためにあります。
+
+@c @deffn Command list-processes
+@deffn コマンド list-processes
+@c This command displays a listing of all living processes.  In addition,
+@c it finally deletes any process whose status was @samp{Exited} or
+@c @samp{Signaled}.  It returns @code{nil}.
+このコマンドは、活性なすべてのプロセスの一覧を表示する。
+さらに、@samp{Exited}や@samp{Signaled}である状態の
+プロセスをすべて削除する。
+@code{nil}を返す。
+@end deffn
+
+@defun process-list
+@c This function returns a list of all processes that have not been deleted.
+この関数は、削除されていないすべてのプロセスのリストを返す。
+
+@smallexample
+@group
+(process-list)
+     @result{} (#<process display-time> #<process shell>)
+@end group
+@end smallexample
+@end defun
+
+@defun get-process name
+@c This function returns the process named @var{name}, or @code{nil} if
+@c there is none.  An error is signaled if @var{name} is not a string.
+この関数は@var{name}という名前のプロセスを返す。
+あるいは、そのようなプロセスがなければ@code{nil}を返す。
+@var{name}が文字列でないとエラーを通知する。
+
+@smallexample
+@group
+(get-process "shell")
+     @result{} #<process shell>
+@end group
+@end smallexample
+@end defun
+
+@defun process-command process
+@c This function returns the command that was executed to start
+@c @var{process}.  This is a list of strings, the first string being the
+@c program executed and the rest of the strings being the arguments that
+@c were given to the program.
+この関数は、プロセス@var{process}を始動するために実行したコマンドを返す。
+これは文字列のリストであり、
+最初の文字列は実行されたプログラム、
+残りの文字列はそのプログラムに与えた引数である。
+
+@smallexample
+@group
+(process-command (get-process "shell"))
+     @result{} ("/bin/csh" "-i")
+@end group
+@end smallexample
+@end defun
+
+@defun process-id process
+@c This function returns the @sc{pid} of @var{process}.  This is an
+@c integer that distinguishes the process @var{process} from all other
+@c processes running on the same computer at the current time.  The
+@c @sc{pid} of a process is chosen by the operating system kernel when the
+@c process is started and remains constant as long as the process exists.
+この関数は、プロセス@var{process}のプロセス番号@sc{pid}を返す。
+これは同じ計算機上で動いている他のすべてのプロセスと
+プロセス@var{process}を区別するための整数である。
+プロセスの@sc{pid}は、プロセスを始動したときに
+オペレーティングシステムのカーネルが選び、
+プロセスが終了するまで変わらない。
+@end defun
+
+@defun process-name process
+@c This function returns the name of @var{process}.
+この関数はプロセス@var{process}の名前を返す。
+@end defun
+
+@defun process-contact process
+@tindex process-contact
+@c This function returns @code{t} for an ordinary child process, and
+@c @code{(@var{hostname} @var{service})} for a net connection
+@c (@pxref{Network}).
+この関数は、通常の子プロセスに対しては@code{t}を返し、
+ネットワーク接続に対しては@code{(@var{hostname} @var{service})}を返す
+（@pxref{Network}）。
+@end defun
+
+@defun process-status process-name
+@c This function returns the status of @var{process-name} as a symbol.
+@c The argument @var{process-name} must be a process, a buffer, a
+@c process name (string) or a buffer name (string).
+この関数は、@var{process-name}の状態をシンボルとして返す。
+引数@var{process-name}は、プロセス、バッファ、プロセス名（文字列）、
+バッファ名（文字列）のいずれかであること。
+
+@c The possible values for an actual subprocess are:
+実際のサブプロセスに対して可能な値はつぎのとおり。
+
+@table @code
+@item run
+@c for a process that is running.
+実行中のプロセスである。
+@item stop
+@c for a process that is stopped but continuable.
+一時停止しているが継続可能である。
+@item exit
+@c for a process that has exited.
+終了したプロセス。
+@item signal
+@c for a process that has received a fatal signal.
+致命的なシグナルを受け取ったプロセスである。
+@item open
+@c for a network connection that is open.
+ネットワーク接続を開いている。
+@item closed
+@c for a network connection that is closed.  Once a connection
+@c is closed, you cannot reopen it, though you might be able to open
+@c a new connection to the same place.
+ネットワーク接続は閉じている。
+接続をいったん閉じるとそれを再度開くことはできないが、
+同じ接続先へ新たな接続を開くことはできる。
+@item nil
+@c if @var{process-name} is not the name of an existing process.
+@var{process-name}は既存プロセスの名前ではない。
+@end table
+
+@smallexample
+@group
+(process-status "shell")
+     @result{} run
+@end group
+@group
+(process-status (get-buffer "*shell*"))
+     @result{} run
+@end group
+@group
+x
+     @result{} #<process xx<1>>
+(process-status x)
+     @result{} exit
+@end group
+@end smallexample
+
+@c For a network connection, @code{process-status} returns one of the symbols
+@c @code{open} or @code{closed}.  The latter means that the other side
+@c closed the connection, or Emacs did @code{delete-process}.
+ネットワーク接続では、@code{process-status}は
+シンボル@code{open}か@code{closed}のいずれかを返す。
+後者は、相手側が接続を閉じたか
+Emacsが@code{delete-process}を行ったことを表す。
+@end defun
+
+@defun process-exit-status process
+@c This function returns the exit status of @var{process} or the signal
+@c number that killed it.  (Use the result of @code{process-status} to
+@c determine which of those it is.)  If @var{process} has not yet
+@c terminated, the value is 0.
+この関数は、プロセス@var{process}の終了状態か、
+プロセスをキルしたシグナル番号を返す。
+（どちらであるかを判定するには、@code{process-status}の結果を用いる。）
+@var{process}が終了していないと値は0である。
+@end defun
+
+@defun process-tty-name process
+@c This function returns the terminal name that @var{process} is using for
+@c its communication with Emacs---or @code{nil} if it is using pipes
+@c instead of a terminal (see @code{process-connection-type} in
+@c @ref{Asynchronous Processes}).
+この関数は、プロセス@var{process}がEmacsとの通信に用いている端末名を返す。
+あるいは、端末のかわりにパイプを用いていれば@code{nil}を返す
+（@ref{Asynchronous Processes}の@code{process-connection-type}を参照）。
+@end defun
+
+@defun process-coding-system process
+@tindex process-coding-system
+@c This function returns a cons cell describing the coding systems in use
+@c for decoding output from @var{process} and for encoding input to
+@c @var{process} (@pxref{Coding Systems}).  The value has this form:
+この関数は、プロセス@var{process}からの出力を
+復号化するために用いているコーディングシステムと、
+@var{process}への入力を符号化するために用いている
+コーディングシステムを記述するコンスセルを返す。
+
+@example
+(@var{coding-system-for-decoding} . @var{coding-system-for-encoding})
+@end example
+@end defun
+
+@defun set-process-coding-system process decoding-system encoding-system
+@tindex set-process-coding-system
+@c This function specifies the coding systems to use for subsequent output
+@c from and input to @var{process}.  It will use @var{decoding-system} to
+@c decode subprocess output, and @var{encoding-system} to encode subprocess
+@c input.
+この関数は、プロセス@var{process}からの以降の出力および入力に用いる
+コーディングシステムを指定する。
+サブプロセスから出力の復号化には@var{decoding-system}を使い、
+サブプロセスの入力の符号化には@var{encoding-system}を使う。
+@end defun
+
+@node Input to Processes
+@c @section Sending Input to Processes
+@section プロセスへ入力を送る
+@c @cindex process input
+@cindex プロセスの入力
+@cindex 入力、プロセス
+
+@c   Asynchronous subprocesses receive input when it is sent to them by
+@c Emacs, which is done with the functions in this section.  You must
+@c specify the process to send input to, and the input data to send.  The
+@c data appears on the ``standard input'' of the subprocess.
+本節の関数を用いてEmacsが入力を送ると、
+非同期プロセスは入力を受け取ります。
+入力の送先であるプロセスと、送るべき入力データを指定する必要があります。
+そのデータは、サブプロセスの『標準入力』に現れます。
+
+@c   Some operating systems have limited space for buffered input in a
+@c @sc{pty}.  On these systems, Emacs sends an @sc{eof} periodically amidst
+@c the other characters, to force them through.  For most programs,
+@c these @sc{eof}s do no harm.
+疑似端末@sc{pty}のバッファ付き入力の容量に上限がある
+オペレーティングシステムもあります。
+そのようなシステムでは、Emacsは他の文字に混ぜて定期的に@sc{eof}を送り、
+文字が流れるように強制します。
+ほとんどのプログラムでは、このような@sc{eof}は無害なはずです。
+
+@c   Subprocess input is normally encoded using a coding system before the
+@c subprocess receives it, much like text written into a file.  You can use
+@c @code{set-process-coding-system} to specify which coding system to use
+@c (@pxref{Process Information}).  Otherwise, the coding system comes from
+@c @code{coding-system-for-write}, if that is non-@code{nil}; or else from
+@c the defaulting mechanism (@pxref{Default Coding Systems}).
+ファイルに書き込むテキストと同様に、
+サブプロセスの入力は、サブプロセスがそれを受け取るまえに
+コーディングシステムを用いて普通は符号化されます。
+@code{set-process-coding-system}で
+使用するコーディングシステムを指定できます
+（@pxref{Process Information}）。
+さもなければ、@code{coding-system-for-write}が
+@code{nil}以外であればこれを使います。
+それ以外ではデフォルトの機構で決まるものを使います
+（@pxref{Default Coding Systems}）。
+
+@defun process-send-string process-name string
+@c This function sends @var{process-name} the contents of @var{string} as
+@c standard input.  The argument @var{process-name} must be a process or
+@c the name of a process.  If it is @code{nil}, the current buffer's
+@c process is used.
+この関数は、文字列@var{string}の内容を
+標準入力としてプロセス@var{process-name}に送る。
+引数@var{process-name}は、プロセスかプロセス名であること。
+これが@code{nil}であると、カレントバッファのプロセスを用いる。
+
+@c   The function returns @code{nil}.
+関数は@code{nil}を返す。
+
+@smallexample
+@group
+(process-send-string "shell<1>" "ls\n")
+     @result{} nil
+@end group
+
+
+@group
+---------- Buffer: *shell* ----------
+...
+introduction.texi               syntax-tables.texi~
+introduction.texi~              text.texi
+introduction.txt                text.texi~
+...
+---------- Buffer: *shell* ----------
+@end group
+@end smallexample
+@end defun
+
+@c @deffn Command process-send-region process-name start end
+@deffn コマンド process-send-region process-name start end
+@c This function sends the text in the region defined by @var{start} and
+@c @var{end} as standard input to @var{process-name}, which is a process or
+@c a process name.  (If it is @code{nil}, the current buffer's process is
+@c used.)
+この関数は、@var{start}と@var{end}で定義される領域内のテキストを
+標準入力としてプロセス@var{process-name}へ送る。
+@var{process-name}はプロセスかプロセス名であること。
+（@code{nil}であると、カレントバッファのプロセスを使う。）
+
+@c An error is signaled unless both @var{start} and @var{end} are
+@c integers or markers that indicate positions in the current buffer.  (It
+@c is unimportant which number is larger.)
+@var{start}と@var{end}のどちらかが
+カレントバッファ内の位置を表す整数でもマーカでもないと、
+エラーを通知する。
+（どちらが大きな数であるかは重要ではない。）
+@end deffn
+
+@defun process-send-eof &optional process-name
+@c   This function makes @var{process-name} see an end-of-file in its
+@c input.  The @sc{eof} comes after any text already sent to it.
+この関数は、プロセス@var{process-name}が入力で
+「ファイルの終り@sc{eof}」を見るようにする。
+@sc{eof}はそれまでに送ったテキストのあとにある。
+
+@c   If @var{process-name} is not supplied, or if it is @code{nil}, then
+@c this function sends the @sc{eof} to the current buffer's process.  An
+@c error is signaled if the current buffer has no process.
+@var{process-name}を指定しなかったり@code{nil}であると、
+この関数はカレントバッファのプロセスに@sc{eof}を送る。
+カレントバッファにプロセスがないとエラーを通知する。
+
+@c   The function returns @var{process-name}.
+関数は@var{process-name}を返す。
+
+@smallexample
+@group
+(process-send-eof "shell")
+     @result{} "shell"
+@end group
+@end smallexample
+@end defun
+
+@node Signals to Processes
+@c @section Sending Signals to Processes
+@section プロセスにシグナルを送る
+@c @cindex process signals
+@c @cindex sending signals
+@c @cindex signals
+@cindex プロセスシグナル
+@cindex シグナルを送る
+@cindex シグナル
+
+@c   @dfn{Sending a signal} to a subprocess is a way of interrupting its
+@c activities.  There are several different signals, each with its own
+@c meaning.  The set of signals and their names is defined by the operating
+@c system.  For example, the signal @code{SIGINT} means that the user has
+@c typed @kbd{C-c}, or that some analogous thing has happened.
+サブプロセスに@dfn{シグナルを送る}ことは、
+サブプロセスの動作に割り込む一方法です。
+それぞれ独自の意味を持つ異なるシグナルがいくつかあります。
+一連のシグナルとそれらの名前は、オペレーティングシステムが定義します。
+たとえば、シグナル@code{SIGINT}は、ユーザーが@kbd{C-c}を打った、
+あるいは、それと同様なことが起こったことを意味します。
+
+@c   Each signal has a standard effect on the subprocess.  Most signals
+@c kill the subprocess, but some stop or resume execution instead.  Most
+@c signals can optionally be handled by programs; if the program handles
+@c the signal, then we can say nothing in general about its effects.
+各シグナルには、サブプロセスに対する標準的な効果があります。
+ほとんどのシグナルはサブプロセスをキルしますが、
+その実行を一時停止したり再開するものもあります。
+プログラムがシグナルを処理している場合には、
+シグナルの効果を一般的に述べることはできません。
+
+@c   You can send signals explicitly by calling the functions in this
+@c section.  Emacs also sends signals automatically at certain times:
+@c killing a buffer sends a @code{SIGHUP} signal to all its associated
+@c processes; killing Emacs sends a @code{SIGHUP} signal to all remaining
+@c processes.  (@code{SIGHUP} is a signal that usually indicates that the
+@c user hung up the phone.)
+本節の関数を呼び出してシグナルを明示的に送ることができます。
+また、Emacsは特定の場面で自動的にシグナルを送ります。
+バッファを削除すると、そのバッファに対応付けられているすべての
+プロセスにシグナル@code{SIGHUP}を送ります。
+Emacsを終了するときには、動作しているすべてのサブプロセスに
+シグナル@code{SIGHUP}を送ります。
+（@code{SIGHUP}は、ユーザーが電話を切ったことを普通は表すシグナル。）
+
+@c   Each of the signal-sending functions takes two optional arguments:
+@c @var{process-name} and @var{current-group}.
+シグナルを送る各関数は、省略可能な2つの引数、
+@var{process-name}と@var{current-group}を受け付けます。
+
+@c   The argument @var{process-name} must be either a process, the name of
+@c one, or @code{nil}.  If it is @code{nil}, the process defaults to the
+@c process associated with the current buffer.  An error is signaled if
+@c @var{process-name} does not identify a process.
+引数@var{process-name}は、プロセス、プロセス名、@code{nil}のいずれかです。
+これが@code{nil}であると、カレントバッファに対応付けられているプロセスが
+デフォルトになります。
+@var{process-name}がプロセスを指定しないとエラーを通知します。
+
+@c   The argument @var{current-group} is a flag that makes a difference
+@c when you are running a job-control shell as an Emacs subprocess.  If it
+@c is non-@code{nil}, then the signal is sent to the current process-group
+@c of the terminal that Emacs uses to communicate with the subprocess.  If
+@c the process is a job-control shell, this means the shell's current
+@c subjob.  If it is @code{nil}, the signal is sent to the process group of
+@c the immediate subprocess of Emacs.  If the subprocess is a job-control
+@c shell, this is the shell itself.
+引数@var{current-group}は、Emacsのサブプロセスとして
+ジョブ制御可能なシェルを実行しているときに違いが現れるフラグです。
+これが@code{nil}以外であると、
+Emacsがサブプロセスとの通信に用いている端末の現在のプロセスグループに
+シグナルを送ります。
+プロセスがジョブ制御可能なシェルであると、
+これはシェルの現在のサブジョブ
+@footnote{【訳注】シェルのもとで動いているプロセス群}
+であることを意味します。
+@code{nil}であると、Emacsのサブプロセスの直接のプロセスグループに
+シグナルを送ります。
+プロセスがジョブ制御可能なシェルであると、これはシェルそのものです。
+
+@c   The flag @var{current-group} has no effect when a pipe is used to
+@c communicate with the subprocess, because the operating system does not
+@c support the distinction in the case of pipes.  For the same reason,
+@c job-control shells won't work when a pipe is used.  See
+@c @code{process-connection-type} in @ref{Asynchronous Processes}.
+オペレーティングシステムはパイプではプロセスグループを扱わないため、
+サブプロセスとの通信にパイプを用いている場合には、
+フラグ@var{current-group}には効果はありません。
+同じ理由で、パイプを用いている場合には
+ジョブ制御可能なシェル（のジョブ制御機能）は働きません。
+@ref{Asynchronous Processes}の
+@code{process-connection-type}を参照してください。
+
+@defun interrupt-process &optional process-name current-group
+@c This function interrupts the process @var{process-name} by sending the
+@c signal @code{SIGINT}.  Outside of Emacs, typing the ``interrupt
+@c character'' (normally @kbd{C-c} on some systems, and @code{DEL} on
+@c others) sends this signal.  When the argument @var{current-group} is
+@c non-@code{nil}, you can think of this function as ``typing @kbd{C-c}''
+@c on the terminal by which Emacs talks to the subprocess.
+この関数は、プロセス@var{process-name}に
+シグナル@code{SIGINT}を送って割り込む。
+Emacsの外側では、『割り込み文字』（普通、@kbd{C-c}であるシステムもあり、
+その他のシステムでは@code{DEL}）を打つとこのシグナルを送る。
+引数@var{current-group}が@code{nil}以外であると、
+この関数は、Emacsがサブプロセスと通信している端末上で
+『@kbd{C-c}を打つ』と考えることができる。
+@end defun
+
+@defun kill-process &optional process-name current-group
+@c This function kills the process @var{process-name} by sending the
+@c signal @code{SIGKILL}.  This signal kills the subprocess immediately,
+@c and cannot be handled by the subprocess.
+この関数は、プロセス@var{process-name}に
+シグナル@code{SIGKILL}を送ってキルする。
+このシグナルはサブプロセスを即座にキルし、
+サブプロセスはこれを処理できない。
+@end defun
+
+@defun quit-process &optional process-name current-group
+@c This function sends the signal @code{SIGQUIT} to the process
+@c @var{process-name}.  This signal is the one sent by the ``quit
+@c character'' (usually @kbd{C-b} or @kbd{C-\}) when you are not inside
+@c Emacs.
+この関数は、プロセス@var{process-name}にシグナル@code{SIGQUIT}を送る。
+このシグナルは、『中断文字』
+（Emacsの外側では普通は@kbd{C-b}や@kbd{C-\}）が
+送るシグナルと同じものである。
+@end defun
+
+@defun stop-process &optional process-name current-group
+@c This function stops the process @var{process-name} by sending the
+@c signal @code{SIGTSTP}.  Use @code{continue-process} to resume its
+@c execution.
+この関数は、プロセス@var{process-name}に
+シグナル@code{SIGTSTP}を送って一時停止させる。
+その実行を再開させるには@code{continue-process}を使う。
+
+@c Outside of Emacs, on systems with job control, the ``stop character''
+@c (usually @kbd{C-z}) normally sends this signal.  When
+@c @var{current-group} is non-@code{nil}, you can think of this function as
+@c ``typing @kbd{C-z}'' on the terminal Emacs uses to communicate with the
+@c subprocess.
+Emacsの外側でジョブ制御可能なシステムでは、
+『一時停止文字』（普通は@kbd{C-z}）が普通はこのシグナルを送る。
+@var{current-group}が@code{nil}以外であると、
+この関数は、Emacsがサブプロセスと通信している端末上で
+『@kbd{C-z}を打つ』と考えることができる。
+@end defun
+
+@defun continue-process &optional process-name current-group
+@c This function resumes execution of the process @var{process} by sending
+@c it the signal @code{SIGCONT}.  This presumes that @var{process-name} was
+@c stopped previously.
+この関数は、プロセス@var{process}に
+シグナル@code{SIGTCONT}を送って実行を再開させる。
+以前に一時停止させられた@var{process}を再開する。
+@end defun
+
+@c Emacs 19 feature
+@defun signal-process pid signal
+@c This function sends a signal to process @var{pid}, which need not be
+@c a child of Emacs.  The argument @var{signal} specifies which signal
+@c to send; it should be an integer.
+この関数は、必ずしもEmacsの子プロセスではない
+プロセス@var{pid}にシグナルを送る。
+引数@var{signal}は、送るべきシグナルを整数で指定する。
+@end defun
+
+@node Output from Processes
+@c @section Receiving Output from Processes
+@section プロセスからの出力を受け取る
+@c @cindex process output
+@c @cindex output from processes
+@cindex プロセスの出力
+@cindex 出力、プロセス
+
+@c   There are two ways to receive the output that a subprocess writes to
+@c its standard output stream.  The output can be inserted in a buffer,
+@c which is called the associated buffer of the process, or a function
+@c called the @dfn{filter function} can be called to act on the output.  If
+@c the process has no buffer and no filter function, its output is
+@c discarded.
+サブプロセスが標準出力に書く出力を受け取る方法は2つあります。
+プロセスに対応付けられたバッファに出力を挿入するか、
+あるいは、@dfn{フィルタ関数}（filter function）と呼ばれる関数を
+出力に対して作用させます。
+プロセスにバッファもフィルタ関数もなければ、その出力は破棄します。
+
+@c   Output from a subprocess can arrive only while Emacs is waiting: when
+@c reading terminal input, in @code{sit-for} and @code{sleep-for}
+@c (@pxref{Waiting}), and in @code{accept-process-output} (@pxref{Accepting
+@c Output}).  This minimizes the problem of timing errors that usually
+@c plague parallel programming.  For example, you can safely create a
+@c process and only then specify its buffer or filter function; no output
+@c can arrive before you finish, if the code in between does not call any
+@c primitive that waits.
+サブプロセスからの出力は、Emacsが待っている、つまり、
+端末入力を読んでいるとき、
+@code{sit-for}や@code{sleep-for}を実行中のとき（@pxref{Waiting}）、
+@code{accept-process-output}（@pxref{Accepting Output}）を実行中のときに
+だけ到着します。
+これにより、並行プログラムを普通は悩ますような
+タイミングエラーの問題を最小に抑えます。
+たとえば、安全にプロセスを作成してから、
+バッファかフィルタ関数を指定できます。
+この処理の途中で待つような基本関数を呼び出さなければ、
+出力は到着しません。
+
+@c   Subprocess output is normally decoded using a coding system before the
+@c buffer or filter function receives it, much like text read from a file.
+@c You can use @code{set-process-coding-system} to specify which coding
+@c system to use (@pxref{Process Information}).  Otherwise, the coding
+@c system comes from @code{coding-system-for-read}, if that is
+@c non-@code{nil}; or else from the defaulting mechanism (@pxref{Default
+@c Coding Systems}).
+ファイルから読むテキストと同様に、
+サブプロセスの出力は、バッファやフィルタ関数が受け取るまえに
+コーディングシステムを用いて普通は復号化します。
+@code{set-process-coding-system}で
+使用するコーディングシステムを指定できます
+（@pxref{Process Information}）。
+さもなければ、@code{coding-system-for-read}が
+@code{nil}以外であればこれを使います。
+それ以外ではデフォルトの機構で決まるものを使います
+（@pxref{Default Coding Systems}）。
+
+@c   @strong{Warning:} Coding systems such as @code{undecided} which
+@c determine the coding system from the data do not work entirely reliably
+@c with asynchronous subprocess output.  This is because Emacs has to
+@c process asynchronous subprocess output in batches, as it arrives.  Emacs
+@c must try to detect the proper coding system from one batch at a time,
+@c and this does not always work.  Therefore, if at all possible, use a
+@c coding system which determines both the character code conversion and
+@c the end of line conversion---that is, one like @code{latin-1-unix},
+@c rather than @code{undecided} or @code{latin-1}.
+@strong{警告：}@code{ }
+データからコーディングシステムを決定する@code{undecided}のような
+コーディングシステムは、非同期サブプロセスの出力に対しては
+完全に信頼性のある動作はできない。
+これは、Emacsが非同期サブプロセスの出力が
+到着するたびに一塊で処理するからである。
+Emacsは1つの塊から正しい変換を検出しようと試みるが、
+これがつねに動作するとは限らない。
+したがって、可能な限り
+文字コード変換と行末変換の両方を指定したコーディングシステムを使う。
+つまり、@code{undecided}や@code{latin-1}などではなく、
+@code{latin-1-unix}のようなものを使う。
+
+@menu
+* Process Buffers::       If no filter, output is put in a buffer.
+* Filter Functions::      Filter functions accept output from the process.
+* Accepting Output::      Explicitly permitting subprocess output.
+                            Waiting for subprocess output.
+@end menu
+
+@node Process Buffers
+@c @subsection Process Buffers
+@subsection プロセスバッファ
+
+@c   A process can (and usually does) have an @dfn{associated buffer},
+@c which is an ordinary Emacs buffer that is used for two purposes: storing
+@c the output from the process, and deciding when to kill the process.  You
+@c can also use the buffer to identify a process to operate on, since in
+@c normal practice only one process is associated with any given buffer.
+@c Many applications of processes also use the buffer for editing input to
+@c be sent to the process, but this is not built into Emacs Lisp.
+プロセスには@dfn{対応付けられたバッファ}が（普通は）あります。
+そのバッファはEmacsの普通のバッファであり、2つの目的に使われます。
+プロセスからの出力を保存することと、
+プロセスがキルされたことを判定するためです。
+バッファを用いてそれを操作しているプロセスを識別することもできます。
+普通は1つのバッファに1つのプロセスを対応付けるからです。
+プロセスの多くの応用では、プロセスへ送る入力を編集するために
+バッファを使いますが、これはEmacs Lispに組み込まれたことではありません。
+
+@c   Unless the process has a filter function (@pxref{Filter Functions}),
+@c its output is inserted in the associated buffer.  The position to insert
+@c the output is determined by the @code{process-mark}, which is then
+@c updated to point to the end of the text just inserted.  Usually, but not
+@c always, the @code{process-mark} is at the end of the buffer.
+プロセスにフィルタ関数（@pxref{Filter Functions}）がなければ、
+その出力は対応付けられたバッファに挿入されます。
+出力の挿入位置は@code{process-mark}で決定され、
+@code{process-mark}は挿入したばかりのテキストの末尾を
+指すように更新されます。
+@code{process-mark}は普通はバッファの末尾にありますが、
+つねにそうであるとは限りません。
+
+@defun process-buffer process
+@c This function returns the associated buffer of the process
+@c @var{process}.
+この関数は、プロセス@var{process}に対応付けられているバッファを返す。
+
+@smallexample
+@group
+(process-buffer (get-process "shell"))
+     @result{} #<buffer *shell*>
+@end group
+@end smallexample
+@end defun
+
+@defun process-mark process
+@c This function returns the process marker for @var{process}, which is the
+@c marker that says where to insert output from the process.
+この関数は、プロセス@var{process}からの出力を挿入する箇所を指定する
+@var{process}のプロセスマーカを返す。
+
+@c If @var{process} does not have a buffer, @code{process-mark} returns a
+@c marker that points nowhere.
+@var{process}にバッファがなければ、
+@code{process-mark}はどこも指していないマーカである。
+
+@c Insertion of process output in a buffer uses this marker to decide where
+@c to insert, and updates it to point after the inserted text.  That is why
+@c successive batches of output are inserted consecutively.
+バッファにプロセス出力を挿入する際には、
+挿入箇所を決定するためにこのマーカを使用し、
+挿入したテキストの末尾を指すようにこのマーカを更新する。
+これにより、出力の連続した塊を順に挿入できるのである。
+
+@c Filter functions normally should use this marker in the same fashion
+@c as is done by direct insertion of output in the buffer.  A good
+@c example of a filter function that uses @code{process-mark} is found at
+@c the end of the following section.
+バッファに出力を直接挿入する場合と同様に、
+フィルタ関数はこのマーカを扱うべきである。
+@code{process-mark}を用いたフィルタ関数の好例は、以下の節にある。
+
+@c When the user is expected to enter input in the process buffer for
+@c transmission to the process, the process marker separates the new input
+@c from previous output.
+プロセスへ送るためにユーザーがプロセスバッファに
+入力することが予想されるときは、
+プロセスマーカは新たな入力とそれ以前の出力を区切る。
+@end defun
+
+@defun set-process-buffer process buffer
+@c This function sets the buffer associated with @var{process} to
+@c @var{buffer}.  If @var{buffer} is @code{nil}, the process becomes
+@c associated with no buffer.
+この関数は、プロセス@var{process}にバッファ@var{buffer}を対応付ける。
+@var{buffer}が@code{nil}であると、
+プロセスに対応付けられたバッファはない。
+@end defun
+
+@defun get-buffer-process buffer-or-name
+@c This function returns the process associated with @var{buffer-or-name}.
+@c If there are several processes associated with it, then one is chosen.
+@c (Currently, the one chosen is the one most recently created.)  It is
+@c usually a bad idea to have more than one process associated with the
+@c same buffer.
+この関数は@var{buffer-or-name}に対応付けられたプロセスを返す。
+バッファに複数のプロセスが対応付けられている場合には、
+それらの1つを選ぶ。
+（現状では、もっとも最近に作られたプロセスを選ぶ。）
+同じバッファに複数のプロセスを対応付けることは一般にはよくない。
+
+@smallexample
+@group
+(get-buffer-process "*shell*")
+     @result{} #<process shell>
+@end group
+@end smallexample
+
+@c Killing the process's buffer deletes the process, which kills the
+@c subprocess with a @code{SIGHUP} signal (@pxref{Signals to Processes}).
+プロセスのバッファを削除すると、
+サブプロセスにシグナル@code{SIGHUP}を送ってプロセスを削除する
+（@pxref{Signals to Processes}）。
+@end defun
+
+@node Filter Functions
+@c @subsection Process Filter Functions
+@subsection プロセスフィルタ関数
+@c @cindex filter function
+@c @cindex process filter
+@cindex フィルタ関数
+@cindex プロセスフィルタ
+
+@c   A process @dfn{filter function} is a function that receives the
+@c standard output from the associated process.  If a process has a filter,
+@c then @emph{all} output from that process is passed to the filter.  The
+@c process buffer is used directly for output from the process only when
+@c there is no filter.
+プロセスの@dfn{フィルタ関数}（filter function）は、
+対応付けられたプロセスからの標準出力を受け取る関数です。
+プロセスにフィルタがあると、そのプロセスからの@emph{すべて}の出力は
+フィルタに渡されます。
+プロセスにフィルタがない場合に限って、
+プロセスからの出力向けにプロセスバッファを直接使います。
+
+@c   The filter function can only be called when Emacs is waiting for
+@c something, because process output arrives only at such times.  Emacs
+@c waits when reading terminal input, in @code{sit-for} and
+@c @code{sleep-for} (@pxref{Waiting}), and in @code{accept-process-output}
+@c (@pxref{Accepting Output}).
+フィルタ関数は、Emacsがなにかを待っているときにのみ呼ばれます。
+そのような期間にのみプロセスの出力が到着するからです。
+Emacsが待つのは、端末入力を読んでいるとき、
+@code{sit-for}や@code{sleep-for}を実行中のとき（@pxref{Waiting}）、
+@code{accept-process-output}（@pxref{Accepting Output}）を実行中のときです。
+
+@c   A filter function must accept two arguments: the associated process
+@c and a string, which is output just received from it.  The function is
+@c then free to do whatever it chooses with the output.
+フィルタ関数は2つの引数、
+対応付けられたプロセスとそのプロセスから受け取ったばかりの出力である文字列を
+受け取ります。
+関数は出力に対してなにを行ってもかまいません。
+
+@c   Quitting is normally inhibited within a filter function---otherwise,
+@c the effect of typing @kbd{C-g} at command level or to quit a user
+@c command would be unpredictable.  If you want to permit quitting inside a
+@c filter function, bind @code{inhibit-quit} to @code{nil}.
+@c @xref{Quitting}.
+フィルタ関数の内側では中断は普通は禁止されています。
+さもないと、コマンドレベルで打った@kbd{C-g}の効果や、
+ユーザーコマンドを中断するために打った@kbd{C-g}の効果は予測できません。
+フィルタ関数の内側で中断を行いたい場合には、
+@code{inhibit-quit}に@code{nil}を束縛します。
+@xref{Quitting}。
+
+@c   If an error happens during execution of a filter function, it is
+@c caught automatically, so that it doesn't stop the execution of whatever
+@c program was running when the filter function was started.  However, if
+@c @code{debug-on-error} is non-@code{nil}, the error-catching is turned
+@c off.  This makes it possible to use the Lisp debugger to debug the
+@c filter function.  @xref{Debugger}.
+フィルタ関数の実行中にエラーが発生するとそのエラーは自動的に捕捉され、
+フィルタ関数を始動したときに動いていた
+プログラムの実行を停止しないようにします。
+しかし、@code{debug-on-error}が@code{nil}以外であると、
+エラーを捕捉しません。
+これにより、Lispデバッガでフィルタ関数をデバッグできます。
+@xref{Debugger}。
+
+@c   Many filter functions sometimes or always insert the text in the
+@c process's buffer, mimicking the actions of Emacs when there is no
+@c filter.  Such filter functions need to use @code{set-buffer} in order to
+@c be sure to insert in that buffer.  To avoid setting the current buffer
+@c semipermanently, these filter functions must save and restore the
+@c current buffer.  They should also update the process marker, and in some
+@c cases update the value of point.  Here is how to do these things:
+多くのフィルタ関数は、ときどきあるいはつねに、
+プロセスのバッファにテキストを挿入します。
+これはフィルタ関数がないときのEmacsの動作を模倣するものです。
+そのようなフィルタ関数では、対象のバッファに挿入するために
+@code{set-buffer}を使う必要があります。
+カレントバッファをなかば恒久的に切り替えないように、
+これらのフィルタ関数はカレントバッファを記録／復元する必要があります。
+プロセスマーカを更新し、必要に応じてポイントの値も更新します。
+これらはつぎのように行います。
+
+@smallexample
+@group
+(defun ordinary-insertion-filter (proc string)
+  (with-current-buffer (process-buffer proc)
+    (let ((moving (= (point) (process-mark proc))))
+@end group
+@group
+      (save-excursion
+@c         ;; @r{Insert the text, advancing the process marker.}
+        ;; @r{テキストを挿入し、プロセスマーカを進める}
+        (goto-char (process-mark proc))
+        (insert string)
+        (set-marker (process-mark proc) (point)))
+      (if moving (goto-char (process-mark proc))))))
+@end group
+@end smallexample
+
+@noindent
+@c The reason to use @code{with-current-buffer}, rather than using
+@c @code{save-excursion} to save and restore the current buffer, is so as
+@c to preserve the change in point made by the second call to
+@c @code{goto-char}.
+カレントバッファを記録／復元するために@code{save-excursion}ではなく
+@code{with-current-buffer}を使うのは、
+2番目の@code{goto-char}の呼び出しで行うポイントの移動効果を
+有効にするためです。
+
+@c   To make the filter force the process buffer to be visible whenever new
+@c text arrives, insert the following line just before the
+@c @code{with-current-buffer} construct:
+新たにテキストが到着するたびにプロセスバッファが見えるように
+フィルタ関数で強制するには、
+つぎのような行を@code{with-current-buffer}の直前に入れます。
+
+@smallexample
+(display-buffer (process-buffer proc))
+@end smallexample
+
+@c   To force point to the end of the new output, no matter where it was
+@c previously, eliminate the variable @code{moving} and call
+@c @code{goto-char} unconditionally.
+ポイント位置に関わらずに新たな出力の末尾にポイントを移動するには、
+変数@code{moving}を削除して、
+無条件に@code{goto-char}を呼び出します。
+
+@c   In earlier Emacs versions, every filter function that did regular
+@c expression searching or matching had to explicitly save and restore the
+@c match data.  Now Emacs does this automatically for filter functions;
+@c they never need to do it explicitly.  @xref{Match Data}.
+Emacsの初期の版では、正規表現を探索したり一致処理するフィルタ関数では、
+マッチデータを明示的に保存／復元する必要がありました。
+今のEmacsは、フィルタ関数に対してはこれを自動的に行いますから、
+フィルタ関数で明示的に行う必要はありません。
+@xref{Match Data}。
+
+@c   A filter function that writes the output into the buffer of the
+@c process should check whether the buffer is still alive.  If it tries to
+@c insert into a dead buffer, it will get an error.  The expression
+@c @code{(buffer-name (process-buffer @var{process}))} returns @code{nil}
+@c if the buffer is dead.
+プロセスのバッファに出力を書き込むフィルタ関数は、
+そのバッファが有効であるかどうかを検査するべきです。
+無効なバッファに挿入しようとするとエラーになります。
+バッファが無効であれば、
+式@code{(buffer-name (process-buffer @var{process}))}
+を実行すると@code{nil}を返します。
+
+@c   The output to the function may come in chunks of any size.  A program
+@c that produces the same output twice in a row may send it as one batch of
+@c 200 characters one time, and five batches of 40 characters the next.  If
+@c the filter looks for certain text strings in the subprocess output, make
+@c sure to handle the case where one of these strings is split across two
+@c or more batches of output.
+関数に渡される出力は任意のサイズの塊できます。
+同じ出力を2回生成するプログラムは、
+あるときには一度に200文字の塊を1つ送る場合もあれば、
+40文字の塊を5つ送る場合もあります。
+サブプロセスの出力から特定のテキスト文字列を探すフィルタでは、
+そのような文字列が2つかそれ以上の出力の塊に分割される場合も
+扱えるようにします。
+
+@defun set-process-filter process filter
+@c This function gives @var{process} the filter function @var{filter}.  If
+@c @var{filter} is @code{nil}, it gives the process no filter.
+この関数は、プロセス@var{process}にフィルタ関数@var{filter}を指定する。
+@var{filter}が@code{nil}であると、プロセスにフィルタはない。
+@end defun
+
+@defun process-filter process
+@c This function returns the filter function of @var{process}, or @code{nil}
+@c if it has none.
+この関数は、プロセス@var{process}のフィルタ関数を返す。
+あるいは、フィルタ関数がなければ@code{nil}を返す。
+@end defun
+
+@c   Here is an example of use of a filter function:
+フィルタ関数の使用例をつぎに示します。
+
+@smallexample
+@group
+(defun keep-output (process output)
+   (setq kept (cons output kept)))
+     @result{} keep-output
+@end group
+@group
+(setq kept nil)
+     @result{} nil
+@end group
+@group
+(set-process-filter (get-process "shell") 'keep-output)
+     @result{} keep-output
+@end group
+@group
+(process-send-string "shell" "ls ~/other\n")
+     @result{} nil
+kept
+     @result{} ("lewis@@slug[8] % "
+@end group
+@group
+"FINAL-W87-SHORT.MSS    backup.otl              kolstad.mss~
+address.txt             backup.psf              kolstad.psf
+backup.bib~             david.mss               resume-Dec-86.mss~
+backup.err              david.psf               resume-Dec.psf
+backup.mss              dland                   syllabus.mss
+"
+"#backups.mss#          backup.mss~             kolstad.mss
+")
+@end group
+@end smallexample
+
+@ignore   @c The code in this example doesn't show the right way to do things.
+Here is another, more realistic example, which demonstrates how to use
+the process mark to do insertion in the same fashion as is done when
+there is no filter function:
+
+@smallexample
+@group
+;; @r{Insert input in the buffer specified by @code{my-shell-buffer}}
+;;   @r{and make sure that buffer is shown in some window.}
+(defun my-process-filter (proc str)
+  (let ((cur (selected-window))
+        (pop-up-windows t))
+    (pop-to-buffer my-shell-buffer)
+@end group
+@group
+    (goto-char (point-max))
+    (insert str)
+    (set-marker (process-mark proc) (point-max))
+    (select-window cur)))
+@end group
+@end smallexample
+@end ignore
+
+@node Accepting Output
+@c @subsection Accepting Output from Processes
+@subsection プロセスからの出力を受け取る
+
+@c   Output from asynchronous subprocesses normally arrives only while
+@c Emacs is waiting for some sort of external event, such as elapsed time
+@c or terminal input.  Occasionally it is useful in a Lisp program to
+@c explicitly permit output to arrive at a specific point, or even to wait
+@c until output arrives from a process.
+非同期サブプロセスからの出力は、
+Emacsが時間待ちや端末入力などの
+なんらかの外部事象を待っているときにのみ到着します。
+Lispプログラムから特定の場面で出力の到着を明示的に許したり、
+プロセスの出力が到着するのを待つことができると有用なことがあります。
+
+@defun accept-process-output &optional process seconds millisec
+@c This function allows Emacs to read pending output from processes.  The
+@c output is inserted in the associated buffers or given to their filter
+@c functions.  If @var{process} is non-@code{nil} then this function does
+@c not return until some output has been received from @var{process}.
+この関数は、Emacsにプロセスからの未処理の出力を読み取ることを許す。
+その出力は、対応付けられたバッファに挿入されるか、
+フィルタ関数に与えられる。
+@var{process}が@code{nil}以外であると、
+この関数は、@var{process}からなんらかの出力を得るまで戻らない。
+
+@c @c Emacs 19 feature
+@c The arguments @var{seconds} and @var{millisec} let you specify timeout
+@c periods.  The former specifies a period measured in seconds and the
+@c latter specifies one measured in milliseconds.  The two time periods
+@c thus specified are added together, and @code{accept-process-output}
+@c returns after that much time whether or not there has been any
+@c subprocess output.
+引数@var{seconds}と@var{millisec}は、時間切れを指定する。
+前者は秒単位の時間、後者はミリ秒単位の時間を指定する。
+指定された2つの時間は合計され、
+任意のサブプロセスの出力を受け取ったどうかに関わらず、
+その時間だけ経過すると@code{accept-process-output}は戻ってくる。
+
+@c The argument @var{seconds} need not be an integer.  If it is a floating
+@c point number, this function waits for a fractional number of seconds.
+@c Some systems support only a whole number of seconds; on these systems,
+@c @var{seconds} is rounded down.
+引数@var{seconds}は整数である必要はない。
+浮動小数点数であると、この関数は秒未満の時間も待つ。
+秒未満を扱えないシステムもある。
+そのようなシステムでは、@var{seconds}を切り下げる。
+
+@c Not all operating systems support waiting periods other than multiples
+@c of a second; on those that do not, you get an error if you specify
+@c nonzero @var{millisec}.
+すべてのオペレーティングシステムで秒未満を扱えるわけではない。
+扱えないシステムで@var{millisec}にゼロ以外を指定すると
+エラーになる。
+
+@c The function @code{accept-process-output} returns non-@code{nil} if it
+@c did get some output, or @code{nil} if the timeout expired before output
+@c arrived.
+関数@code{accept-process-output}は、
+出力を得ると@code{nil}以外を返す。
+あるいは、出力が到着するまえに時間切れすると@code{nil}を返す。
+@end defun
+
+@node Sentinels
+@c @section Sentinels: Detecting Process Status Changes
+@section 番兵：プロセスの状態変化の検出
+@c @cindex process sentinel
+@c @cindex sentinel
+@cindex プロセスの番兵
+@cindex 番兵
+
+@c   A @dfn{process sentinel} is a function that is called whenever the
+@c associated process changes status for any reason, including signals
+@c (whether sent by Emacs or caused by the process's own actions) that
+@c terminate, stop, or continue the process.  The process sentinel is also
+@c called if the process exits.  The sentinel receives two arguments: the
+@c process for which the event occurred, and a string describing the type
+@c of event.
+@dfn{プロセスの番兵}（process sentinel）は、
+プロセスを終了／一時停止／継続させる
+（Emacsが送ったかプロセス自身の動作によって生起した）シグナルを含めて
+対応付けられたプロセスの状態が任意の理由で変化したときに
+呼び出される関数です。
+プロセスの番兵は、プロセスが終了しても呼び出されます。
+番兵は2つの引数、事象が発生したプロセスと
+事象の種類を記述する文字列を受け取ります。
+
+@c   The string describing the event looks like one of the following:
+事象を記述する文字列はつぎのとおりです。
+
+@itemize @bullet
+@item 
+@code{"finished\n"}.
+
+@item
+@code{"exited abnormally with code @var{exitcode}\n"}.
+
+@item
+@code{"@var{name-of-signal}\n"}.
+
+@item
+@code{"@var{name-of-signal} (core dumped)\n"}.
+@end itemize
+
+@c   A sentinel runs only while Emacs is waiting (e.g., for terminal input,
+@c or for time to elapse, or for process output).  This avoids the timing
+@c errors that could result from running them at random places in the
+@c middle of other Lisp programs.  A program can wait, so that sentinels
+@c will run, by calling @code{sit-for} or @code{sleep-for}
+@c (@pxref{Waiting}), or @code{accept-process-output} (@pxref{Accepting
+@c Output}).  Emacs also allows sentinels to run when the command loop is
+@c reading input.
+番兵はEmacsが（たとえば、端末入力や時間経過、プロセスの出力を）
+待っているときにのみ実行されます。
+他のLispプログラムの実行途中で無秩序に番兵を実行した場合に起こる
+タイミングエラーを回避するためです。
+@code{sit-for}や@code{sleep-for}（@pxref{Waiting}）、あるいは、
+@code{accept-process-output}（@pxref{Accepting Output}）を
+呼び出すとプログラムは待ちに入り、番兵が動けることになります。
+Emacsは、コマンドループで入力を読むときにも番兵の実行を許します。
+
+@c   Quitting is normally inhibited within a sentinel---otherwise, the
+@c effect of typing @kbd{C-g} at command level or to quit a user command
+@c would be unpredictable.  If you want to permit quitting inside a
+@c sentinel, bind @code{inhibit-quit} to @code{nil}.  @xref{Quitting}.
+番兵の内側では中断は普通は禁止されています。
+さもないと、コマンドレベルで打った@kbd{C-g}の効果や、
+ユーザーコマンドを中断するために打った@kbd{C-g}の効果は予測できません。
+番兵の内側で中断を行いたい場合には、
+@code{inhibit-quit}に@code{nil}を束縛します。
+@xref{Quitting}。
+
+@c   A sentinel that writes the output into the buffer of the process
+@c should check whether the buffer is still alive.  If it tries to insert
+@c into a dead buffer, it will get an error.  If the buffer is dead,
+@c @code{(buffer-name (process-buffer @var{process}))} returns @code{nil}.
+プロセスのバッファに出力を書き込む番兵は、
+そのバッファが有効であるかどうかを検査するべきです。
+無効なバッファに挿入しようとするとエラーになります。
+バッファが無効であれば、
+式@code{(buffer-name (process-buffer @var{process}))}
+を実行すると@code{nil}を返します。
+
+@c   If an error happens during execution of a sentinel, it is caught
+@c automatically, so that it doesn't stop the execution of whatever
+@c programs was running when the sentinel was started.  However, if
+@c @code{debug-on-error} is non-@code{nil}, the error-catching is turned
+@c off.  This makes it possible to use the Lisp debugger to debug the
+@c sentinel.  @xref{Debugger}.
+番兵の実行中にエラーが発生するとそのエラーは自動的に捕捉され、
+番兵を始動したときに動いていた
+プログラムの実行を停止しないようにします。
+しかし、@code{debug-on-error}が@code{nil}以外であると、
+エラーを捕捉しません。
+これにより、Lispデバッガで番兵をデバッグできます。
+@xref{Debugger}。
+
+@c   In earlier Emacs versions, every sentinel that did regular expression
+@c searching or matching had to explicitly save and restore the match data.
+@c Now Emacs does this automatically for sentinels; they never need to do
+@c it explicitly.  @xref{Match Data}.
+Emacsの初期の版では、正規表現を探索したり一致処理する番兵では、
+マッチデータを明示的に保存／復元する必要がありました。
+今のEmacsは、番兵に対してはこれを自動的に行いますから、
+番兵で明示的に行う必要はありません。
+@xref{Match Data}。
+
+@defun set-process-sentinel process sentinel
+@c This function associates @var{sentinel} with @var{process}.  If
+@c @var{sentinel} is @code{nil}, then the process will have no sentinel.
+@c The default behavior when there is no sentinel is to insert a message in
+@c the process's buffer when the process status changes.
+この関数は、プロセス@var{process}に番兵@var{sentinel}を対応付ける。
+@var{sentinel}が@code{nil}であると、プロセスに番兵はない。
+番兵がない場合のデフォルトのふるまいは、
+プロセス状態が変化するとプロセスのバッファにメッセージを挿入する。
+
+@smallexample
+@group
+(defun msg-me (process event)
+   (princ
+     (format "Process: %s had the event `%s'" process event)))
+(set-process-sentinel (get-process "shell") 'msg-me)
+     @result{} msg-me
+@end group
+@group
+(kill-process (get-process "shell"))
+     @print{} Process: #<process shell> had the event `killed'
+     @result{} #<process shell>
+@end group
+@end smallexample
+@end defun
+
+@defun process-sentinel process
+@c This function returns the sentinel of @var{process}, or @code{nil} if it
+@c has none.
+この関数は、プロセス@var{process}の番兵を返すか、
+番兵がなければ@code{nil}を返す。
+@end defun
+
+@defun waiting-for-user-input-p
+@c While a sentinel or filter function is running, this function returns
+@c non-@code{nil} if Emacs was waiting for keyboard input from the user at
+@c the time the sentinel or filter function was called, @code{nil} if it
+@c was not.
+番兵やフィルタ関数が動作中にこの関数を呼び出すと、
+番兵やフィルタ関数を呼び出したときにEmacsがユーザーからの
+キーボード入力を待ってると@code{nil}以外を返し、
+それ以外では@code{nil}を返す。
+@end defun
+
+@node Transaction Queues
+@c @section Transaction Queues
+@section トランザクションキュー
+@c @cindex transaction queue
+@cindex トランザクションキュー
+
+@c You can use a @dfn{transaction queue} to communicate with a subprocess
+@c using transactions.  First use @code{tq-create} to create a transaction
+@c queue communicating with a specified process.  Then you can call
+@c @code{tq-enqueue} to send a transaction.
+トランザクションを用いたサブプロセスとの通信に
+@dfn{トランザクションキュー}（transaction queue）を使えます。
+まず@code{tq-create}を用いて、
+指定したプロセスとの通信用トランザクションキューを作成します。
+そして、トランザクションを送るために@code{tq-enqueue}を呼び出します。
+
+@defun tq-create process
+@c This function creates and returns a transaction queue communicating with
+@c @var{process}.  The argument @var{process} should be a subprocess
+@c capable of sending and receiving streams of bytes.  It may be a child
+@c process, or it may be a TCP connection to a server, possibly on another
+@c machine.
+この関数は、プロセス@var{process}との通信用トランザクションキューを
+作成して返す。
+引数@var{process}は、バイトストリームを送受信できる機能を
+有するサブプロセスであること。
+つまり、子プロセスであるか、別のマシン上の可能性もある
+サーバーへのTCP接続である。
+@end defun
+
+@defun tq-enqueue queue question regexp closure fn
+@c This function sends a transaction to queue @var{queue}.  Specifying the
+@c queue has the effect of specifying the subprocess to talk to.
+この関数はキュー@var{queue}にトランザクションを送る。
+キューを指定することは、
+通信相手のサブプロセスを指定する効果がある。
+
+@c The argument @var{question} is the outgoing message that starts the
+@c transaction.  The argument @var{fn} is the function to call when the
+@c corresponding answer comes back; it is called with two arguments:
+@c @var{closure}, and the answer received.
+引数@var{question}は、トランザクションを始める送出メッセージである。
+引数@var{fn}は、対応する応答が戻ってきたときに呼び出す関数である。
+その関数は2つの引数、@var{closure}と受け取った応答で呼び出される。
+
+@c The argument @var{regexp} is a regular expression that should match the
+@c entire answer, but nothing less; that's how @code{tq-enqueue} determines
+@c where the answer ends.
+引数@var{regexp}は、1つの応答だけに一致する正規表現である。
+@code{tq-enqueue}が応答の末尾を判定するために使う。
+
+@c The return value of @code{tq-enqueue} itself is not meaningful.
+@code{tq-enqueue}の戻り値そのものに意味はない。
+@end defun
+
+@defun tq-close queue
+@c Shut down transaction queue @var{queue}, waiting for all pending transactions
+@c to complete, and then terminate the connection or child process.
+未処理のトランザクションすべてが完了するのを待ち、
+接続や子プロセスを終了して、
+トランザクションキュー@var{queue}を終える。
+@end defun
+
+@c Transaction queues are implemented by means of a filter function.
+@c @xref{Filter Functions}.
+トランザクションキューはフィルタ関数を用いて実装してあります。
+@xref{Filter Functions}。
+
+@node Network
+@c @section Network Connections
+@section ネットワーク接続
+@c @cindex network connection
+@cindex ネットワーク接続
+@cindex TCP
+
+@c   Emacs Lisp programs can open TCP network connections to other processes on
+@c the same machine or other machines.  A network connection is handled by Lisp
+@c much like a subprocess, and is represented by a process object.
+@c However, the process you are communicating with is not a child of the
+@c Emacs process, so you can't kill it or send it signals.  All you can do
+@c is send and receive data.  @code{delete-process} closes the connection,
+@c but does not kill the process at the other end; that process must decide
+@c what to do about closure of the connection.
+Emacs Lispプログラムは、同一マシンや別のマシン上の他のプロセスに対して
+TCPネットワーク接続を開くことができます。
+ネットワーク接続は、サブプロセスと同様にLispが扱い、
+プロセスオブジェクトとして表現されます。
+しかし、通信相手のプロセスはEmacsプロセスの子プロセスではありませんから、
+キルしたりシグナルを送ることはできません。
+データの送受信のみが可能です。
+@code{delete-process}は接続を閉じますが、
+もう一方の端のプロセスをキルしません。
+そのプロセスは、接続が閉じた場合の動作を判断する必要があります。
+
+@c   You can distinguish process objects representing network connections
+@c from those representing subprocesses with the @code{process-status}
+@c function.  It always returns either @code{open} or @code{closed} for a
+@c network connection, and it never returns either of those values for a
+@c real subprocess.  @xref{Process Information}.
+ネットワーク接続を表すプロセスオブジェクトと
+サブプロセスを表すプロセスオブジェクトとは、
+関数@code{process-status}を使って区別できます。
+この関数は、ネットワーク接続に対しては
+@code{open}か@code{closed}をつねに返し、
+本当のサブプロセスに対してはこれらのいずれの値もけっして返しません。
+@xref{Process Information}。
+
+@defun open-network-stream name buffer-or-name host service
+@c This function opens a TCP connection for a service to a host.  It
+@c returns a process object to represent the connection.
+この関数は、ホストのサーバーに対するTCP接続を開く。
+接続を表すプロセスオブジェクトを返す。
+
+@c The @var{name} argument specifies the name for the process object.  It
+@c is modified as necessary to make it unique.
+引数@var{name}は、プロセスオブジェクトに付ける名前を指定する。
+必要に応じて一意にするために修正される。
+
+@c The @var{buffer-or-name} argument is the buffer to associate with the
+@c connection.  Output from the connection is inserted in the buffer,
+@c unless you specify a filter function to handle the output.  If
+@c @var{buffer-or-name} is @code{nil}, it means that the connection is not
+@c associated with any buffer.
+引数@var{buffer-or-name}は、接続に対応付けるバッファである。
+出力を扱うフィルタ関数を指定しない限り、
+接続からの出力はそのバッファに挿入される。
+@var{buffer-or-name}が@code{nil}であると、
+接続にはバッファを対応付けないことを意味する。
+
+@c The arguments @var{host} and @var{service} specify where to connect to;
+@c @var{host} is the host name (a string), and @var{service} is the name of
+@c a defined network service (a string) or a port number (an integer).
+引数@var{host}と@var{service}は、接続先を指定する。
+@var{host}はホスト名（文字列）であり、
+@var{service}は定義済みのネットワークサービス（文字列）か
+ポート番号（整数）である。
+@end defun

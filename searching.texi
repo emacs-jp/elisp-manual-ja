@@ -1,0 +1,2264 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/searching
+@node Searching and Matching, Syntax Tables, Non-ASCII Characters, Top
+@c @chapter Searching and Matching
+@chapter 探索と一致
+@c @cindex searching
+@cindex 探索
+
+@c   GNU Emacs provides two ways to search through a buffer for specified
+@c text: exact string searches and regular expression searches.  After a
+@c regular expression search, you can examine the @dfn{match data} to
+@c determine which text matched the whole regular expression or various
+@c portions of it.
+GNU Emacsにはバッファから指定したテキストを探す方法が2つあります。
+文字列そのものを正確に探索するのと正規表現の探索です。
+正規表現の探索のあとでは、
+正規表現全体やそのさまざまな部分に一致したテキストを表す
+@dfn{マッチデータ}（match data）を調べることができます。
+
+@menu
+* String Search::         Search for an exact match.
+* Regular Expressions::   Describing classes of strings.
+* Regexp Search::         Searching for a match for a regexp.
+* POSIX Regexps::         Searching POSIX-style for the longest match.
+* Search and Replace::	  Internals of @code{query-replace}.
+* Match Data::            Finding out which part of the text matched
+                            various parts of a regexp, after regexp search.
+* Searching and Case::    Case-independent or case-significant searching.
+* Standard Regexps::      Useful regexps for finding sentences, pages,...
+@end menu
+
+@c   The @samp{skip-chars@dots{}} functions also perform a kind of searching.
+@c @xref{Skipping Characters}.
+@samp{skip-chars@dots{}}などの関数もある種の探索を行います。
+@xref{Skipping Characters}。
+
+@node String Search
+@c @section Searching for Strings
+@section 文字列の探索
+@c @cindex string search
+@cindex 文字列探索
+
+@c   These are the primitive functions for searching through the text in a
+@c buffer.  They are meant for use in programs, but you may call them
+@c interactively.  If you do so, they prompt for the search string;
+@c @var{limit} and @var{noerror} are set to @code{nil}, and @var{repeat}
+@c is set to 1.
+これらは、バッファ内のテキストを探索するための基本関数です。
+これらはプログラムで使うことを意図していますが、
+対話的に呼び出すこともできます。
+その場合、探索文字列を問い合わせてきますが、
+@var{limit}と@var{noerror}は@code{nil}に、@var{repeat}は1に設定されます。
+
+@c   These search functions convert the search string to multibyte if the
+@c buffer is multibyte; they convert the search string to unibyte if the
+@c buffer is unibyte.  @xref{Text Representations}.
+これらの探索関数は、バッファがマルチバイトであると
+探索文字列をマルチバイトに変換します。
+バッファがユニバイトであると探索文字列をユニバイトに変換します。
+@xref{Text Representations}。
+
+@c @deffn Command search-forward string &optional limit noerror repeat
+@deffn コマンド search-forward string &optional limit noerror repeat
+@c This function searches forward from point for an exact match for
+@c @var{string}.  If successful, it sets point to the end of the occurrence
+@c found, and returns the new value of point.  If no match is found, the
+@c value and side effects depend on @var{noerror} (see below).
+@c @c Emacs 19 feature
+この関数は、ポイントから前方へ向けて文字列@var{string}に
+ちょうど一致するものを探す。
+それに成功すれば、ポイントをみつけた出現箇所の末尾に移動し、
+ポイントの新たな値を返す。
+一致がみつからなければ、戻り値と副作用は@var{noerror}に依存する（下記参照）。
+
+@c In the following example, point is initially at the beginning of the
+@c line.  Then @code{(search-forward "fox")} moves point after the last
+@c letter of @samp{fox}:
+つぎの例では、ポイントは始めは行頭にある。
+そして@code{(search-forward "fox")}は@samp{fox}の最後の文字のうしろに
+ポイントを移動する。
+
+@example
+@group
+---------- Buffer: foo ----------
+@point{}The quick brown fox jumped over the lazy dog.
+---------- Buffer: foo ----------
+@end group
+
+@group
+(search-forward "fox")
+     @result{} 20
+
+---------- Buffer: foo ----------
+The quick brown fox@point{} jumped over the lazy dog.
+---------- Buffer: foo ----------
+@end group
+@end example
+
+@c The argument @var{limit} specifies the upper bound to the search.  (It
+@c must be a position in the current buffer.)  No match extending after
+@c that position is accepted.  If @var{limit} is omitted or @code{nil}, it
+@c defaults to the end of the accessible portion of the buffer.
+引数@var{limit}は探索の上限を指定する。
+（カレントバッファ内の位置であること。）
+その位置を越える箇所での一致は受け入れない。
+@var{limit}を省略したり@code{nil}であると、
+デフォルトは、バッファの参照可能部分の末尾である。
+
+@kindex search-failed
+@c What happens when the search fails depends on the value of
+@c @var{noerror}.  If @var{noerror} is @code{nil}, a @code{search-failed}
+@c error is signaled.  If @var{noerror} is @code{t}, @code{search-forward}
+@c returns @code{nil} and does nothing.  If @var{noerror} is neither
+@c @code{nil} nor @code{t}, then @code{search-forward} moves point to the
+@c upper bound and returns @code{nil}.  (It would be more consistent now to
+@c return the new position of point in that case, but some existing
+@c programs may depend on a value of @code{nil}.)
+探索に失敗した場合の動作は、@var{noerror}の値に依存する。
+@var{noerror}が@code{nil}であると、
+エラー@code{search-failed}を通知する。
+@var{noerror}が@code{t}であると、
+@code{search-forward}は@code{nil}を返しなにもしない。
+@var{noerror}が@code{nil}でも@code{t}でもないと、
+@code{search-forward}はポイントを上限位置へ移動して@code{nil}を返す。
+（この場合にもポイントの新たな値を返すほうが一貫性があるが、
+値@code{nil}に依存しているプログラムがある。）
+
+@c If @var{repeat} is supplied (it must be a positive number), then the
+@c search is repeated that many times (each time starting at the end of the
+@c previous time's match).  If these successive searches succeed, the
+@c function succeeds, moving point and returning its new value.  Otherwise
+@c the search fails.
+@var{repeat}を指定してあると（正の数であること）、
+その回数だけ探索を繰り返す（一致箇所の末尾を新たな探索の開始位置とする）。
+連続してこれらの探索に成功すると関数は成功し、
+ポイントを移動してその新たな値を返す。
+さもなければ探索は失敗である。
+@end deffn
+
+@c @deffn Command search-backward string &optional limit noerror repeat
+@deffn コマンド search-backward string &optional limit noerror repeat
+@c This function searches backward from point for @var{string}.  It is
+@c just like @code{search-forward} except that it searches backwards and
+@c leaves point at the beginning of the match.
+この関数は、ポイントから後方へ向けて@var{string}を探索する。
+@code{search-forward}と同様であるが、後方へ向けて探索し
+一致箇所の先頭にポイントを置く点が異なる。
+@end deffn
+
+@c @deffn Command word-search-forward string &optional limit noerror repeat
+@deffn コマンド word-search-forward string &optional limit noerror repeat
+@c @cindex word search
+@cindex 単語の探索
+@c This function searches forward from point for a ``word'' match for
+@c @var{string}.  If it finds a match, it sets point to the end of the
+@c match found, and returns the new value of point.
+@c @c Emacs 19 feature
+この関数は、ポイントから前方へ向けて@var{string}に一致する『単語』を探索する。
+一致をみつけると、一致箇所の末尾にポイントを設定し
+ポイントの新たな値を返す。
+
+@c Word matching regards @var{string} as a sequence of words, disregarding
+@c punctuation that separates them.  It searches the buffer for the same
+@c sequence of words.  Each word must be distinct in the buffer (searching
+@c for the word @samp{ball} does not match the word @samp{balls}), but the
+@c details of punctuation and spacing are ignored (searching for @samp{ball
+@c boy} does match @samp{ball.  Boy!}).
+単語の一致では、@var{string}を単語の列とみなし、
+それらを区切る句読点は無視する。
+バッファ内の同じ単語の列を探す。
+バッファ内の各単語は別々になっている必要があるが
+（単語@samp{ball}を探索すると単語@samp{balls}には一致しない）、
+句読点や空白の詳細は無視される
+（@samp{ball boy}を探索すると@samp{ball.  Boy!}に一致する）。
+
+@c In this example, point is initially at the beginning of the buffer; the
+@c search leaves it between the @samp{y} and the @samp{!}.
+つぎの例では、ポイントは始めはバッファの先頭にある。
+探索するとポイントは@samp{y}と@samp{!}のあいだに移動する。
+
+@example
+@group
+---------- Buffer: foo ----------
+@point{}He said "Please!  Find
+the ball boy!"
+---------- Buffer: foo ----------
+@end group
+
+@group
+(word-search-forward "Please find the ball, boy.")
+     @result{} 35
+
+---------- Buffer: foo ----------
+He said "Please!  Find
+the ball boy@point{}!"
+---------- Buffer: foo ----------
+@end group
+@end example
+
+@c If @var{limit} is non-@code{nil} (it must be a position in the current
+@c buffer), then it is the upper bound to the search.  The match found must
+@c not extend after that position.
+@var{limit}が@code{nil}以外（カレントバッファ内の位置）であると、
+それは探索の上限を指定する。
+みつかった一致箇所はその位置を越えてはならない。
+
+@c If @var{noerror} is @code{nil}, then @code{word-search-forward} signals
+@c an error if the search fails.  If @var{noerror} is @code{t}, then it
+@c returns @code{nil} instead of signaling an error.  If @var{noerror} is
+@c neither @code{nil} nor @code{t}, it moves point to @var{limit} (or the
+@c end of the buffer) and returns @code{nil}.
+@var{noerror}が@code{nil}であると、
+探索に失敗するとエラー@code{word-search-failed}を通知する。
+@var{noerror}が@code{t}であると、
+エラーを通知するかわりに@code{nil}を返す。
+@var{noerror}が@code{nil}でも@code{t}でもないと、
+ポイントを@var{limit}（あるいはバッファの末尾）へ移動して@code{nil}を返す。
+
+@c If @var{repeat} is non-@code{nil}, then the search is repeated that many
+@c times.  Point is positioned at the end of the last match.
+@var{repeat}が@code{nil}以外であると、
+その回数だけ探索を繰り返す。
+ポイントは最後の一致箇所の末尾へ置かれる。
+@end deffn
+
+@c @deffn Command word-search-backward string &optional limit noerror repeat
+@deffn コマンド word-search-backward string &optional limit noerror repeat
+@c This function searches backward from point for a word match to
+@c @var{string}.  This function is just like @code{word-search-forward}
+@c except that it searches backward and normally leaves point at the
+@c beginning of the match.
+この関数はポイントから後方へ向けて@var{string}に一致する単語を探索する。
+この関数は@code{word-search-forward}と同様であるが、
+後方へ向けて探索し一致箇所の先頭にポイントを置く点が異なる。
+@end deffn
+
+@node Regular Expressions
+@c @section Regular Expressions
+@section 正規表現
+@c @cindex regular expression
+@cindex 正規表現
+@c @cindex regexp
+@cindex regexp（正規表現）
+
+@c   A @dfn{regular expression} (@dfn{regexp}, for short) is a pattern that
+@c denotes a (possibly infinite) set of strings.  Searching for matches for
+@c a regexp is a very powerful operation.  This section explains how to write
+@c regexps; the following section says how to search for them.
+@dfn{正規表現}（regular expression、略して@dfn{regexp}）は、
+文字列の（無限の可能性もある）集合を表すパターンです。
+正規表現への一致を探すことは、非常に強力な操作です。
+本節では、正規表現の書き方を説明します。
+続く節では、それらを探索する方法を説明します。
+
+@menu
+* Syntax of Regexps::       Rules for writing regular expressions.
+* Regexp Example::          Illustrates regular expression syntax.
+@end menu
+
+@node Syntax of Regexps
+@c @subsection Syntax of Regular Expressions
+@subsection 正規表現の構文
+
+@c   Regular expressions have a syntax in which a few characters are
+@c special constructs and the rest are @dfn{ordinary}.  An ordinary
+@c character is a simple regular expression that matches that character and
+@c nothing else.  The special characters are @samp{.}, @samp{*}, @samp{+},
+@c @samp{?}, @samp{[}, @samp{]}, @samp{^}, @samp{$}, and @samp{\}; no new
+@c special characters will be defined in the future.  Any other character
+@c appearing in a regular expression is ordinary, unless a @samp{\}
+@c precedes it.
+正規表現では、数個の文字が特別な構成であり、残りは@dfn{普通}です。
+普通の文字は、その文字だけに一致する単純な正規表現です。
+特別な文字は、@samp{.}、@samp{*}、@samp{+}、
+@samp{?}、@samp{[}、@samp{]}、@samp{^}、@samp{$}、@samp{\}であり、
+将来新たな文字が定義されることはありません。
+正規表現に現れるこれら以外の文字は、
+まえに@samp{\}がない限り普通の文字です。
+
+@c For example, @samp{f} is not a special character, so it is ordinary, and
+@c therefore @samp{f} is a regular expression that matches the string
+@c @samp{f} and no other string.  (It does @emph{not} match the string
+@c @samp{ff}.)  Likewise, @samp{o} is a regular expression that matches
+@c only @samp{o}.@refill
+たとえば、@samp{f}は特別な文字ではないので普通の文字です。
+ですから、@samp{f}は文字列@samp{f}だけに一致する正規表現です。
+（これは文字列@samp{ff}には一致しない。）
+同様に、@samp{o}は@samp{o}だけに一致する正規表現です。
+
+@c Any two regular expressions @var{a} and @var{b} can be concatenated.  The
+@c result is a regular expression that matches a string if @var{a} matches
+@c some amount of the beginning of that string and @var{b} matches the rest of
+@c the string.@refill
+任意の2つの正規表現@var{a}と@var{b}を連結できます。
+その結果は、@var{a}が文字列の始めの部分に一致し、かつ、
+@var{b}がその文字列の残りに一致するときにその文字列に一致する
+正規表現になります。
+
+@c As a simple example, we can concatenate the regular expressions @samp{f}
+@c and @samp{o} to get the regular expression @samp{fo}, which matches only
+@c the string @samp{fo}.  Still trivial.  To do something more powerful, you
+@c need to use one of the special characters.  Here is a list of them:
+簡単な例として、正規表現 @samp{f}と@samp{o}を連結して
+正規表現@samp{fo}を得られます。
+これは文字列@samp{fo}だけに一致します。
+これは明らかですね。
+より強力なことをするには、特別な文字の1つを使う必要があります。
+それらの一覧を以下に示します。
+
+@need 800
+@table @asis
+@c @item @samp{.}@: @r{(Period)}
+@item @samp{.}@: @r{（ピリオド）}
+@c @cindex @samp{.} in regexp
+@cindex @samp{.}、正規表現
+@cindex 正規表現の@samp{.}
+@c is a special character that matches any single character except a newline.
+@c Using concatenation, we can make regular expressions like @samp{a.b}, which
+@c matches any three-character string that begins with @samp{a} and ends with
+@c @samp{b}.@refill
+特別な文字であり、改行以外の任意の1文字に一致する。
+連結を使って@samp{a.b}のような正規表現を作れる。
+これは、@samp{a}で始まり@samp{b}で終る任意の3文字の文字列に一致する。
+
+@item @samp{*}
+@c @cindex @samp{*} in regexp
+@cindex @samp{*}、正規表現
+@cindex 正規表現の@samp{*}
+@c is not a construct by itself; it is a postfix operator that means to
+@c match the preceding regular expression repetitively as many times as
+@c possible.  Thus, @samp{o*} matches any number of @samp{o}s (including no
+@c @samp{o}s).
+単独では構成要素ではない。
+直前の正規表現を可能な限り反復することを意味する後置演算子である。
+すなわち、@samp{o*}は（@samp{o}が存在しない場合も含めて）
+任意個の@samp{o}に一致する。
+
+@c @samp{*} always applies to the @emph{smallest} possible preceding
+@c expression.  Thus, @samp{fo*} has a repeating @samp{o}, not a repeating
+@c @samp{fo}.  It matches @samp{f}, @samp{fo}, @samp{foo}, and so on.
+@samp{*}はつねに先行する@emph{最小}の正規表現に適用される。
+したがって、@samp{fo*}は@samp{fo}を繰り返すのではなく、
+@samp{o}を繰り返す。
+この正規表現は@samp{f}、@samp{fo}、@samp{foo}などに一致する。
+
+@c The matcher processes a @samp{*} construct by matching, immediately, as
+@c many repetitions as can be found.  Then it continues with the rest of
+@c the pattern.  If that fails, backtracking occurs, discarding some of the
+@c matches of the @samp{*}-modified construct in the hope that that will
+@c make it possible to match the rest of the pattern.  For example, in
+@c matching @samp{ca*ar} against the string @samp{caaar}, the @samp{a*}
+@c first tries to match all three @samp{a}s; but the rest of the pattern is
+@c @samp{ar} and there is only @samp{r} left to match, so this try fails.
+@c The next alternative is for @samp{a*} to match only two @samp{a}s.  With
+@c this choice, the rest of the regexp matches successfully.@refill
+@samp{*}を用いた構成の一致を処理するときには、
+ただちに得られる限りの反復回数に展開される。
+そうしてから、残りのパターンを処理する。
+一致に失敗するとバックトラック（後戻り）が発生して、
+@samp{*}を用いた構成の反復回数を減らして
+パターンの残りの部分が一致できるようにする。
+たとえば、文字列@samp{caaar}に対して
+@samp{ca*ar}を一致させることを考えてみる。
+始めに、@samp{a*}を3つの@samp{a}すべてに一致させようとする。
+しかし、残りのパターンが@samp{ar}なのに@samp{r}しか残っていないため、
+この試みは失敗する。
+そこで、つぎは@samp{a*}を@samp{a}2つだけに一致させる。
+こうすると、残りの正規表現も正しく一致する。
+
+@c Nested repetition operators can be extremely slow if they specify
+@c backtracking loops.  For example, it could take hours for the regular
+@c expression @samp{\(x+y*\)*a} to try to match the sequence
+@c @samp{xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxz}, before it ultimately fails.
+@c The slowness is because Emacs must try each imaginable way of grouping
+@c the 35 @samp{x}s before concluding that none of them can work.  To make
+@c sure your regular expressions run fast, check nested repetitions
+@c carefully.
+入れ子にした反復演算子がバックトラックのループを指定する場合、
+それはとても遅くなる。
+たとえば、正規表現@samp{\(x+y*\)*a}を
+@samp{xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxz}の列に一致させると
+最終的に失敗するまで何時間も費してしまう。
+遅さの原因は、Emacsは35個の@samp{x}をグループに分ける各方法を
+すべて試してからでないとそれらが一致しないことを結論できないからである。
+読者の正規表現が素早く動作することを保証するために、
+入れ子になった繰り返しを注意深く調べること。
+
+@item @samp{+}
+@c @cindex @samp{+} in regexp
+@cindex @samp{+}、正規表現
+@cindex 正規表現の@samp{+}
+@c is a postfix operator, similar to @samp{*} except that it must match
+@c the preceding expression at least once.  So, for example, @samp{ca+r}
+@c matches the strings @samp{car} and @samp{caaaar} but not the string
+@c @samp{cr}, whereas @samp{ca*r} matches all three strings.
+@samp{*}に似た後置演算子だが、
+直前の正規表現に1回以上一致する必要がある。
+たとえば、@samp{ca+r}は、文字列@samp{car}や@samp{caaaar}には一致するが、
+文字列@samp{cr}には一致ない。
+一方、@samp{ca*r}の場合は、上記の3つすべてに一致する。
+
+@item @samp{?}
+@c @cindex @samp{?} in regexp
+@cindex @samp{?}、正規表現
+@cindex 正規表現の@samp{?}
+@c is a postfix operator, similar to @samp{*} except that it must match the
+@c preceding expression either once or not at all.  For example,
+@c @samp{ca?r} matches @samp{car} or @samp{cr}; nothing else.
+@samp{*}に似た後置演算子だが、
+直前の正規表現に1回だけ一致するか、あるいは、1回も一致しない。
+たとえば、@samp{ca?r}は、@samp{car}や@samp{cr}に一致するが、
+他のものには一致しない。
+
+@item @samp{[ @dots{} ]}
+@c @cindex character alternative (in regexp)
+@c @cindex @samp{[} in regexp
+@c @cindex @samp{]} in regexp
+@cindex 文字選択（正規表現）
+@cindex @samp{[}、正規表現
+@cindex 正規表現の@samp{[}
+@cindex @samp{]}、正規表現
+@cindex 正規表現の@samp{]}
+@c is a @dfn{character alternative}, which begins with @samp{[} and is
+@c terminated by @samp{]}.  In the simplest case, the characters between
+@c the two brackets are what this character alternative can match.
+@samp{[}で始まり@samp{]}で終る@dfn{文字選択}を表す。
+もっとも単純な場合は、
+この2つの中括弧のあいだにある文字の1つ1つがこの文字選択に一致する。
+
+@c Thus, @samp{[ad]} matches either one @samp{a} or one @samp{d}, and
+@c @samp{[ad]*} matches any string composed of just @samp{a}s and @samp{d}s
+@c (including the empty string), from which it follows that @samp{c[ad]*r}
+@c matches @samp{cr}, @samp{car}, @samp{cdr}, @samp{caddaar}, etc.
+したがって、@samp{[ad]}は、@samp{a}1文字か@samp{d}1文字のどちらにも一致する。
+@samp{[ad]*}は、@samp{a}と@samp{d}だけから成る
+（空の文字列を含む）任意の文字列に一致する。
+このことから、@samp{c[ad]*r}は、
+@samp{cr}、@samp{car}、@samp{cdr}、@samp{caddaar}などに一致することがわかる。
+
+@c You can also include character ranges in a character alternative, by
+@c writing the starting and ending characters with a @samp{-} between them.
+@c Thus, @samp{[a-z]} matches any lower-case @sc{ASCII} letter.  Ranges may be
+@c intermixed freely with individual characters, as in @samp{[a-z$%.]},
+@c which matches any lower case @sc{ASCII} letter or @samp{$}, @samp{%} or
+@c period.
+文字選択には、文字範囲の指定を含めることもでき、
+始めの文字と終りの文字のあいだに@samp{-}を書く。
+つまり、@samp{[a-z]}はすべての@sc{ASCII}小英文字に一致する。
+範囲指定と個々の文字を自由に織り混ぜてよく、
+@samp{[a-z$%.]}のように書ける。
+これは、任意の@sc{ASCII}小英文字、@samp{$}、@samp{%}、ピリオドに一致する。
+ 
+@c You cannot always match all non-@sc{ASCII} characters with the regular
+@c expression @samp{[\200-\377]}.  This works when searching a unibyte
+@c buffer or string (@pxref{Text Representations}), but not in a multibyte
+@c buffer or string, because many non-@sc{ASCII} characters have codes
+@c above octal 0377.  However, the regular expression @samp{[^\000-\177]}
+@c does match all non-@sc{ASCII} characters, in both multibyte and unibyte
+@c representations, because only the @sc{ASCII} characters are excluded.
+正規表現@samp{[\200-\377]}で
+すべての非@sc{ASCII}文字につねに一致するとは限らない。
+ユニバイト（@pxref{Text Representations}）のバッファや文字列を
+探索するときにはうまく働くが、マルチバイトのバッファや文字列では
+多くの非@sc{ASCII}文字のコードは8進数0377より大きいために働かない。
+しかし、正規表現@samp{[^\000-\177]}は、
+@sc{ASCII}文字のみを除外しているため、
+マルチバイト表現でもユニバイト表現でもすべての非@sc{ASCII}文字に一致する。
+
+@c The beginning and end of a range must be in the same character set
+@c (@pxref{Character Sets}).  Thus, @samp{[a-\x8e0]} is invalid because
+@c @samp{a} is in the @sc{ASCII} character set but the character 0x8e0
+@c (@samp{a} with grave accent) is in the Emacs character set for Latin-1.
+範囲指定の始めと終りは同じ文字集合（@pxref{Character Sets}）に
+属している必要がある。
+したがって、@samp{[a-\x8e0]}は正しくない。
+@samp{a}は@sc{ASCII}文字集合に属し、
+文字0x8e0（グレーブアクセント付き@samp{a}）は
+EmacsのLatin-1の文字集合に属しているからである。
+
+@c Note that the usual regexp special characters are not special inside a
+@c character alternative.  A completely different set of characters are
+@c special inside character alternatives: @samp{]}, @samp{-} and @samp{^}.
+正規表現の普通の特別な文字は、文字選択の内側では特別ではないことに注意。
+文字選択の内側では、まったく別の文字の集まり、
+@samp{]}、@samp{-}、@samp{^}が特別である。
+
+@c To include a @samp{]} in a character alternative, you must make it the
+@c first character.  For example, @samp{[]a]} matches @samp{]} or @samp{a}.
+@c To include a @samp{-}, write @samp{-} as the first or last character of
+@c the character alternative, or put it after a range.  Thus, @samp{[]-]}
+@c matches both @samp{]} and @samp{-}.
+文字選択に@samp{]}を含めるには、
+@samp{]}を最初の文字として指定する必要がある。
+たとえば、@samp{[]a]}は、@samp{]}や@samp{a}に一致する。
+@samp{-}を含めるには、@samp{-}を文字選択の最初の文字か
+最後の文字として書くか、範囲指定のあとに置く。
+したがって、@samp{[]-]}は、@samp{]}と@samp{-}の両方に一致する。
+
+@c To include @samp{^} in a character alternative, put it anywhere but at
+@c the beginning.
+文字選択に@samp{^}を含めるには、@samp{^}を文字選択の2番目以降に置く。
+
+@item @samp{[^ @dots{} ]}
+@c @cindex @samp{^} in regexp
+@cindex @samp{^}、正規表現
+@cindex 正規表現の@samp{^}
+@c @samp{[^} begins a @dfn{complemented character alternative}, which matches any
+@c character except the ones specified.  Thus, @samp{[^a-z0-9A-Z]} matches
+@c all characters @emph{except} letters and digits.
+@samp{[^}は@dfn{文字選択の補集合}の始まりを意味し、
+指定した文字を除く任意の文字に一致する。
+すなわち、@samp{[^a-z0-9A-Z]}は、
+英文字と数字文字を@emph{除く}すべての文字に一致する。
+
+@c @samp{^} is not special in a character alternative unless it is the first
+@c character.  The character following the @samp{^} is treated as if it
+@c were first (in other words, @samp{-} and @samp{]} are not special there).
+@samp{^}は文字選択の先頭になければ文字選択では特別な意味を持たない。
+@samp{^}に続く文字は先頭にあるものとして扱われる
+（いいかえれば、ここでは@samp{-}や@samp{]}は特別な意味を持たない）。
+
+@c A complemented character alternative can match a newline, unless newline is
+@c mentioned as one of the characters not to match.  This is in contrast to
+@c the handling of regexps in programs such as @code{grep}.
+文字選択の補集合は、一致しない文字として改行を指定しない限り、
+改行にも一致する。
+この点は、@code{grep}のようなプログラムでの正規表現の扱い方と対照的である。
+
+@item @samp{^}
+@c @cindex beginning of line in regexp
+@cindex 行頭、正規表現
+@cindex 正規表現による行頭
+@c is a special character that matches the empty string, but only at the
+@c beginning of a line in the text being matched.  Otherwise it fails to
+@c match anything.  Thus, @samp{^foo} matches a @samp{foo} that occurs at
+@c the beginning of a line.
+空の文字列に一致する特別な文字であり、
+一致を取る対象のテキストの行頭のみに一致する。
+それ以外では、一致に失敗する。
+したがって、@samp{^foo}は、行頭にある@samp{foo}に一致する。
+
+@c When matching a string instead of a buffer, @samp{^} matches at the
+@c beginning of the string or after a newline character @samp{\n}.
+バッファのかわりに文字列と一致を取るときには、
+@samp{^}は文字列の先頭や改行文字@samp{\n}のうしろに一致する。
+
+@item @samp{$}
+@c @cindex @samp{$} in regexp
+@cindex @samp{$}、正規表現
+@cindex 正規表現の@samp{$}
+@c is similar to @samp{^} but matches only at the end of a line.  Thus,
+@c @samp{x+$} matches a string of one @samp{x} or more at the end of a line.
+@samp{^}と同様だが行末のみに一致する。
+したがって、@samp{x+$}は、
+行末にある1文字以上の@samp{x}から成る文字列に一致する。
+
+@c When matching a string instead of a buffer, @samp{$} matches at the end
+@c of the string or before a newline character @samp{\n}.
+バッファのかわりに文字列と一致を取るときには、
+@samp{$}は文字列の末尾や改行文字@samp{\n}のまえに一致する。
+
+@item @samp{\}
+@c @cindex @samp{\} in regexp
+@cindex @samp{\}、正規表現
+@cindex 正規表現の@samp{\}
+@c has two functions: it quotes the special characters (including
+@c @samp{\}), and it introduces additional special constructs.
+2つの機能がある。
+（@samp{\}を含む）特別な文字をクォートする（意味を抑える）ことと、
+特別な構成を導入することである。
+
+@c Because @samp{\} quotes special characters, @samp{\$} is a regular
+@c expression that matches only @samp{$}, and @samp{\[} is a regular
+@c expression that matches only @samp{[}, and so on.
+@samp{\}は特別な文字をクォートするので、
+@samp{\$}は文字@samp{$}だけに一致する正規表現、
+@samp{\[}は文字@samp{[}だけに一致する正規表現、
+といった具合になる。
+
+@c Note that @samp{\} also has special meaning in the read syntax of Lisp
+@c strings (@pxref{String Type}), and must be quoted with @samp{\}.  For
+@c example, the regular expression that matches the @samp{\} character is
+@c @samp{\\}.  To write a Lisp string that contains the characters
+@c @samp{\\}, Lisp syntax requires you to quote each @samp{\} with another
+@c @samp{\}.  Therefore, the read syntax for a regular expression matching
+@c @samp{\} is @code{"\\\\"}.@refill
+@samp{\}にはLisp文字列の入力構文（@pxref{String Type}）でも
+特別な意味があり、@samp{\}でクォートする必要があることに注意してほしい。
+たとえば、文字@samp{\}に一致する正規表現は@samp{\\}である。
+文字群@samp{\\}を含むLisp文字列を書くには、各@samp{\}をクォートするために
+@samp{\}が必要である。
+したがって、@samp{\}に一致する正規表現の入力構文は@code{"\\\\"}である。
+@end table
+
+@c @strong{Please note:} For historical compatibility, special characters
+@c are treated as ordinary ones if they are in contexts where their special
+@c meanings make no sense.  For example, @samp{*foo} treats @samp{*} as
+@c ordinary since there is no preceding expression on which the @samp{*}
+@c can act.  It is poor practice to depend on this behavior; quote the
+@c special character anyway, regardless of where it appears.@refill
+@strong{注意：}@code{ }従来との互換性のために、
+特別な文字がそれらの特別な意味をなしえない文脈で使われた場合には、
+普通の文字として扱われる。
+たとえば、@samp{*foo}では、@samp{*}の対象となる正規表現が直前にないため、
+@samp{*}は普通の文字として扱われる。
+このようなふるまいに依存することはよいことではない。
+特別な文字は書く位置に関係なくクォートするべきである。
+
+@c For the most part, @samp{\} followed by any character matches only that
+@c character.  However, there are several exceptions: two-character
+@c sequences starting with @samp{\} which have special meanings.  (The
+@c second character in such a sequence is always ordinary when used on its
+@c own.)  Here is a table of @samp{\} constructs.
+多くの場合、任意の文字を伴う@samp{\}はその文字だけに一致します。
+しかし、いくつか例外があって、
+@samp{\}で始まる2文字列が特別な意味を持つ場合があります。
+（2文字目にくる文字は、
+単独で使った場合にはつねに普通の文字として扱われる。）
+以下に@samp{\}の構成を示します。
+
+@table @samp
+@item \|
+@c @cindex @samp{|} in regexp
+@c @cindex regexp alternative
+@cindex @samp{|}、正規表現
+@cindex 正規表現の@samp{|}
+@cindex 正規表現の選択肢
+@c specifies an alternative.
+@c Two regular expressions @var{a} and @var{b} with @samp{\|} in
+@c between form an expression that matches anything that either @var{a} or
+@c @var{b} matches.@refill
+選択肢を指定する。
+@samp{\|}をあいだに伴った2つの正規表現@var{a}と@var{b}は、
+@var{a}か@var{b}のいずれかに一致する文字列に一致する正規表現となる。
+
+@c Thus, @samp{foo\|bar} matches either @samp{foo} or @samp{bar}
+@c but no other string.@refill
+したがって、@samp{foo\|bar}は、@samp{foo}や@samp{bar}に一致するが、
+それ以外の文字列には一致しない。
+
+@c @samp{\|} applies to the largest possible surrounding expressions.  Only a
+@c surrounding @samp{\( @dots{} \)} grouping can limit the grouping power of
+@c @samp{\|}.@refill
+@samp{\|}は、周囲にある適用しうる正規表現の中でも最大のものに適用される。
+@samp{\|}によるグループ化を制限するのは、
+これを囲む@samp{\( @dots{} \)}によるグループ化だけである。
+
+@c Full backtracking capability exists to handle multiple uses of @samp{\|}.
+何度@samp{\|}を使っても処理できるだけの十分なバックトラック能力がある。
+
+@item \( @dots{} \)
+@c @cindex @samp{(} in regexp
+@c @cindex @samp{)} in regexp
+@c @cindex regexp grouping
+@cindex @samp{(}、正規表現
+@cindex 正規表現の@samp{(}
+@cindex @samp{)}、正規表現
+@cindex 正規表現の@samp{)}
+@cindex 正規表現のグループ化
+@c is a grouping construct that serves three purposes:
+以下の3つの目的を果たすグループ化のための構成。
+
+@enumerate
+@item
+@c To enclose a set of @samp{\|} alternatives for other operations.  Thus,
+@c the regular expression @samp{\(foo\|bar\)x} matches either @samp{foox}
+@c or @samp{barx}.
+他の操作に使うために一連の選択肢@samp{\|}を括る。
+したがって、@samp{\(foo\|bar\)x}は、
+@samp{foox}か@samp{barx}のいずれかに一致する。
+
+@item
+@c To enclose a complicated expression for the postfix operators @samp{*},
+@c @samp{+} and @samp{?} to operate on.  Thus, @samp{ba\(na\)*} matches
+@c @samp{ba}, @samp{bana}, @samp{banana}, @samp{bananana}, etc., with any
+@c number (zero or more) of @samp{na} strings.
+後置演算子、@samp{*}、@samp{+}、@samp{?}を適用できるように、
+複雑な正規表現を括る。
+したがって、@samp{ba\(na\)*}は、
+@samp{bananana}のように、（0個以上の）任意個の
+文字列@samp{na}に一致する。
+
+@item
+@c To record a matched substring for future reference.
+あとで参照できるように、一致した部分文字列を記録する。
+@end enumerate
+
+@c This last application is not a consequence of the idea of a
+@c parenthetical grouping; it is a separate feature that happens to be
+@c assigned as a second meaning to the same @samp{\( @dots{} \)} construct
+@c because there is no conflict in practice between the two meanings.
+@c Here is an explanation of this feature:
+最後の使い方は、括弧によるグループ化という考え方から
+派生したものではない。
+同一の@samp{\( @dots{} \)}構成に与えた2つめの別の機能である。
+実用上、これら2つの意味が混同されることはないからである。
+この機能をつぎに説明する。
+
+@item \@var{digit}
+@c matches the same text that matched the @var{digit}th occurrence of a
+@c @samp{\( @dots{} \)} construct.
+@var{d}番目に現れた@samp{\( @dots{} \)}に一致したテキストと
+同じテキストに一致する。
+
+@c In other words, after the end of a @samp{\( @dots{} \)} construct, the
+@c matcher remembers the beginning and end of the text matched by that
+@c construct.  Then, later on in the regular expression, you can use
+@c @samp{\} followed by @var{digit} to match that same text, whatever it
+@c may have been.
+いいかえれば、一致を処理するときには、
+@samp{\( @dots{} \)}構成の末尾に達すると、
+この構成に一致したテキストの始めと終りを記録する。
+そして、正規表現のそれよりうしろでは、
+『@var{d}番目に現れた@samp{\( @dots{} \)}に一致したテキスト』という意味で
+それがなんであろうと@samp{\}に続けて数字@var{d}を使える。
+
+@c The strings matching the first nine @samp{\( @dots{} \)} constructs
+@c appearing in a regular expression are assigned numbers 1 through 9 in
+@c the order that the open parentheses appear in the regular expression.
+@c So you can use @samp{\1} through @samp{\9} to refer to the text matched
+@c by the corresponding @samp{\( @dots{} \)} constructs.
+1つの正規表現内に現れる最初の9個の@samp{\( @dots{} \)}に一致する文字列には、
+正規表現中で開き括弧が現れた順に、1から9までの番号を割り振る。
+そのため、@samp{\1}から@samp{\9}で、
+対応する@samp{\( @dots{} \)}に一致したテキストを参照できる。
+
+@c For example, @samp{\(.*\)\1} matches any newline-free string that is
+@c composed of two identical halves.  The @samp{\(.*\)} matches the first
+@c half, which may be anything, but the @samp{\1} that follows must match
+@c the same exact text.
+たとえば、@samp{\(.*\)\1}は、改行を含まない文字列で、かつ、
+前半と後半が同一である文字列に一致する。
+@samp{\(.*\)}は前半部分に一致し、それはどのようなものでもかまわない。
+一方、それに続く@samp{\1}は、
+前半部分とまったく同じテキストに一致しなければならない。
+
+@item \w
+@c @cindex @samp{\w} in regexp
+@cindex @samp{\w}、正規表現
+@cindex 正規表現の@samp{\w}
+@c matches any word-constituent character.  The editor syntax table
+@c determines which characters these are.  @xref{Syntax Tables}.
+任意の単語構成文字に一致する。
+エディタの構文テーブルによってこの文字が決まる。
+@pxref{Syntax Tables}。
+
+@item \W
+@c @cindex @samp{\W} in regexp
+@cindex @samp{\W}、正規表現
+@cindex 正規表現の@samp{\W}
+@c matches any character that is not a word constituent.
+単語構成文字以外の文字に一致する。
+
+@item \s@var{code}
+@c @cindex @samp{\s} in regexp
+@cindex @samp{\s}、正規表現
+@cindex 正規表現の@samp{\s}
+@c matches any character whose syntax is @var{code}.  Here @var{code} is a
+@c character that represents a syntax code: thus, @samp{w} for word
+@c constituent, @samp{-} for whitespace, @samp{(} for open parenthesis,
+@c etc.  To represent whitespace syntax, use either @samp{-} or a space
+@c character.  @xref{Syntax Class Table}, for a list of syntax codes and
+@c the characters that stand for them.
+構文コードが@var{code}である文字だけに一致する。
+ここで、@var{code}は構文コードを表す文字である。
+つまり、@samp{w}は単語構成要素を、
+@samp{-}は白文字を、@samp{(}は開き括弧を表すといった具合である。
+白文字の構文を表すには、@samp{-}か空白のいずれかを使う。
+構文コードとそれらを表す文字の一覧については、
+@pxref{Syntax Class Table}。
+
+@item \S@var{code}
+@c @cindex @samp{\S} in regexp
+@cindex @samp{\S}、正規表現
+@cindex 正規表現の@samp{\S}
+@c matches any character whose syntax is not @var{code}.
+構文が@var{code}でない任意の文字に一致する。
+@end table
+
+@c   The following regular expression constructs match the empty string---that is,
+@c they don't use up any characters---but whether they match depends on the
+@c context.
+つぎの正規表現は空の文字列に一致します。
+つまりこれらは文字を使用しませんが、
+これらが一致するかどうか文脈に依存します。
+
+@table @samp
+@item \`
+@c @cindex @samp{\`} in regexp
+@cindex @samp{\`}、正規表現
+@cindex 正規表現の@samp{\`}
+@c matches the empty string, but only at the beginning
+@c of the buffer or string being matched against.
+空の文字列に一致するが、
+一致対象であるバッファや文字列の先頭に限る。
+
+@item \'
+@c @cindex @samp{\'} in regexp
+@cindex @samp{\'}、正規表現
+@cindex 正規表現の@samp{\'}
+@c matches the empty string, but only at the end of
+@c the buffer or string being matched against.
+空の文字列に一致するが、
+一致対象であるバッファや文字列の末尾に限る。
+
+@item \=
+@c @cindex @samp{\=} in regexp
+@cindex @samp{\=}、正規表現
+@cindex 正規表現の@samp{\=}
+@c matches the empty string, but only at point.
+@c (This construct is not defined when matching against a string.)
+空の文字列に一致するが、ポイント位置に限る。
+（文字列に対する一致ではこの構文は定義されない。）
+
+@item \b
+@c @cindex @samp{\b} in regexp
+@cindex @samp{\b}、正規表現
+@cindex 正規表現の@samp{\b}
+@c matches the empty string, but only at the beginning or
+@c end of a word.  Thus, @samp{\bfoo\b} matches any occurrence of
+@c @samp{foo} as a separate word.  @samp{\bballs?\b} matches
+@c @samp{ball} or @samp{balls} as a separate word.@refill
+空の文字列に一致するが、単語の先頭や末尾に限る。
+したがって、@samp{\bfoo\b}は、単語として独立して現れる@samp{foo}に一致する。
+@samp{\bballs?\b}は、単語として独立して現れる
+@samp{ball}や@samp{balls}に一致する。
+
+@c @samp{\b} matches at the beginning or end of the buffer
+@c regardless of what text appears next to it.
+@samp{\b}は、
+バッファの先頭や末尾にあるテキストとは無関係に、
+バッファの先頭や末尾にも一致する。
+
+@item \B
+@c @cindex @samp{\B} in regexp
+@cindex @samp{\B}、正規表現
+@cindex 正規表現の@samp{\B}
+@c matches the empty string, but @emph{not} at the beginning or
+@c end of a word.
+空の文字列に一致するが、単語の先頭や末尾@emph{以外}に限る。
+
+@item \<
+@c @cindex @samp{\<} in regexp
+@cindex @samp{\<}、正規表現
+@cindex 正規表現の@samp{\<}
+@c matches the empty string, but only at the beginning of a word.
+@c @samp{\<} matches at the beginning of the buffer only if a
+@c word-constituent character follows.
+空の文字列に一致するが、単語の先頭に限る。
+@samp{\<}はバッファの先頭にも一致するが、単語構成文字が続く場合に限る。
+
+@item \>
+@c @cindex @samp{\>} in regexp
+@cindex @samp{\>}、正規表現
+@cindex 正規表現の@samp{\>}
+@c matches the empty string, but only at the end of a word.  @samp{\>}
+@c matches at the end of the buffer only if the contents end with a
+@c word-constituent character.
+空の文字列に一致するが、単語の末尾に限る。
+@samp{\>}はバッファの末尾にも一致するが、
+単語構成文字で終了している場合に限る。
+@end table
+
+@kindex invalid-regexp
+@c   Not every string is a valid regular expression.  For example, a string
+@c with unbalanced square brackets is invalid (with a few exceptions, such
+@c as @samp{[]]}), and so is a string that ends with a single @samp{\}.  If
+@c an invalid regular expression is passed to any of the search functions,
+@c an @code{invalid-regexp} error is signaled.
+任意の文字列が正しい正規表現ではありません。
+たとえば、（@samp{[]]}のような少数の例外を除けば）
+角括弧が対応していない文字列は正しくありませんし、
+1つの@samp{\}で終る文字列も正しくありません。
+不正な正規表現を探索関数に渡すと、
+エラー@code{invalid-regexp}が通知されます。
+
+@defun regexp-quote string
+@c This function returns a regular expression string that matches exactly
+@c @var{string} and nothing else.  This allows you to request an exact
+@c string match when calling a function that wants a regular expression.
+この関数は、@var{string}だけに正確に一致する正規表現の文字列を返す。
+これにより、正規表現を必要とする関数を呼び出すときに
+この文字列だけに正確に一致できる。
+
+@example
+@group
+(regexp-quote "^The cat$")
+     @result{} "\\^The cat\\$"
+@end group
+@end example
+
+@c One use of @code{regexp-quote} is to combine an exact string match with
+@c context described as a regular expression.  For example, this searches
+@c for the string that is the value of @var{string}, surrounded by
+@c whitespace:
+@code{regexp-quote}の用途の1つは、
+正規表現で記述された文脈に正確に一致する文字列を組み合わせることである。
+たとえば、つぎは、白文字で囲まれた@var{string}の値で表される文字列を探索する。
+
+@example
+@group
+(re-search-forward
+ (concat "\\s-" (regexp-quote string) "\\s-"))
+@end group
+@end example
+@end defun
+
+@defun regexp-opt strings &optional paren
+@tindex regexp-opt
+@c This function returns an efficient regular expression that will match
+@c any of the strings @var{strings}.  This is useful when you need to make
+@c matching or searching as fast as possible---for example, for Font Lock
+@c mode.
+この関数は、文字列@var{strings}のいずれかに一致する
+効率よい正規表現を返す。
+これは、たとえばフォントロック（font-lock）モードなどで、
+可能な限り高速な一致や探索を行う必要がある場合に有用である。
+
+@c If the optional argument @var{paren} is non-@code{nil}, then the
+@c returned regular expression is always enclosed by at least one
+@c parentheses-grouping construct.
+省略可能な引数@var{paren}が@code{nil}以外であると、
+返される正規表現はつねに少なくとも1つの括弧によるグループ構文で囲まれる。
+
+@c This simplified definition of @code{regexp-opt} produces a
+@c regular expression which is equivalent to the actual value
+@c (but not as efficient):
+つぎの@code{regexp-opt}の簡略版定義は、
+実際の値に等価な（ただしそれほど効率よくない）正規表現を生成する。
+
+@example
+(defun regexp-opt (strings paren)
+  (let ((open-paren (if paren "\\(" ""))
+        (close-paren (if paren "\\)" "")))
+    (concat open-paren
+            (mapconcat 'regexp-quote strings "\\|")
+            close-paren)))
+@end example
+@end defun
+
+@defun regexp-opt-depth regexp
+@tindex regexp-opt-depth
+@c This function returns the total number of grouping constructs
+@c (parenthesized expressions) in @var{regexp}.
+この関数は、var{regexp}内のグループ化構文（括弧で括った式）の
+総個数を返す。
+@end defun
+
+@node Regexp Example
+@comment  node-name,  next,  previous,  up
+@c @subsection Complex Regexp Example
+@subsection 複雑な正規表現の例
+
+@c   Here is a complicated regexp, used by Emacs to recognize the end of a
+@c sentence together with any whitespace that follows.  It is the value of
+@c the variable @code{sentence-end}.  
+ここでは、任意個数の白文字を伴った文末を認識するために
+Emacsで使われている複雑な正規表現について述べます。
+それは変数@code{sentence-end}の値です。
+
+@c   First, we show the regexp as a string in Lisp syntax to distinguish
+@c spaces from tab characters.  The string constant begins and ends with a
+@c double-quote.  @samp{\"} stands for a double-quote as part of the
+@c string, @samp{\\} for a backslash as part of the string, @samp{\t} for a
+@c tab and @samp{\n} for a newline.
+まず、タブ文字と空白を区別するためにLisp構文の文字列として
+正規表現を示します。
+文字列定数はダブルクォートで始まり終ります。
+@samp{\"}は文字列の一部としてのダブルクォート、
+@samp{\\}は文字列の一部としてのバックスラッシュ、
+@samp{\t}はタブ、@samp{\n}は改行を表します。
+
+@example
+"[.?!][]\"')@}]*\\($\\| $\\|\t\\|  \\)[ \t\n]*"
+@end example
+
+@noindent
+@c In contrast, if you evaluate the variable @code{sentence-end}, you
+@c will see the following:
+対照的に、変数@code{sentence-end}を評価するとつぎのように
+なっているはずです。
+
+@example
+@group
+sentence-end
+     @result{} "[.?!][]\"')@}]*\\($\\| $\\|  \\|  \\)[       
+]*"
+@end group
+@end example
+
+@noindent
+@c In this output, tab and newline appear as themselves.
+この出力では、タブと改行はそれ自身として現れています。
+
+@c   This regular expression contains four parts in succession and can be
+@c deciphered as follows:
+この正規表現には、連続してつぎのような4つの部分が含まれています。
+
+@table @code
+@item [.?!]
+@c The first part of the pattern is a character alternative that matches
+@c any one of three characters: period, question mark, and exclamation
+@c mark.  The match must begin with one of these three characters.
+パターンの最初の部分は、3つの文字、ピリオド、疑問符、感嘆符の
+いずれかに一致する文字選択である。
+一致部分はこれらの3つの文字の1つで始まる必要がある。
+
+@item []\"')@}]*
+@c The second part of the pattern matches any closing braces and quotation
+@c marks, zero or more of them, that may follow the period, question mark
+@c or exclamation mark.  The @code{\"} is Lisp syntax for a double-quote in
+@c a string.  The @samp{*} at the end indicates that the immediately
+@c preceding regular expression (a character alternative, in this case) may be
+@c repeated zero or more times.
+パターンの2番目の部分は、ピリオド、疑問符、感嘆符のいずれかに続く、
+任意の閉じ括弧やクォーテーションマークの0個以上の繰り返しに一致する。
+@code{\"}は、文字列内のダブルクォートを表すLisp構文である。
+最後の@samp{*}は、直前の正規表現（この場合は文字選択）を
+0回以上繰り返すことを表す。
+
+@item \\($\\|@ $\\|\t\\|@ @ \\)
+@c The third part of the pattern matches the whitespace that follows the
+@c end of a sentence: the end of a line (optionally with a space), or a
+@c tab, or two spaces.  The double backslashes mark the parentheses and
+@c vertical bars as regular expression syntax; the parentheses delimit a
+@c group and the vertical bars separate alternatives.  The dollar sign is
+@c used to match the end of a line.
+パターンの3番目の部分は、文末に続く白文字、
+つまり、（空白を伴うかもしれない）行末、1つのタブ、2つの空白の
+いずれかに一致する。
+2つのバックスラッシュは、括弧や縦棒を正規表現の構文にする。
+括弧はグループを区切り、縦棒は選択肢を区切る。
+ドル記号は行末に一致するために用いている。
+
+@item [ \t\n]*
+@c Finally, the last part of the pattern matches any additional whitespace
+@c beyond the minimum needed to end a sentence.
+パターンの最後の部分は、
+文末に最低限必要な白文字より余計な白文字に一致する。
+@end table
+
+@node Regexp Search
+@c @section Regular Expression Searching
+@section 正規表現の探索
+@c @cindex regular expression searching
+@c @cindex regexp searching
+@c @cindex searching for regexp
+@cindex 正規表現の探索
+@cindex 探索、正規表現
+
+@c   In GNU Emacs, you can search for the next match for a regular
+@c expression either incrementally or not.  For incremental search
+@c commands, see @ref{Regexp Search, , Regular Expression Search, emacs,
+@c The GNU Emacs Manual}.  Here we describe only the search functions
+@c useful in programs.  The principal one is @code{re-search-forward}.
+GNU Emacsでは、正規表現に一致するつぎの部分を
+インクリメンタルにもそうでなくも探せます。
+インクリメンタルサーチコマンドについては、
+@ref{Regexp Search,, 正規表現探索, emacs, GNU Emacs マニュアル}を
+参照してください。
+ここでは、プログラムで有用な探索関数のみについて述べます。
+基本的なものは@code{re-search-forward}です。
+
+@c   These search functions convert the regular expression to multibyte if
+@c the buffer is multibyte; they convert the regular expression to unibyte
+@c if the buffer is unibyte.  @xref{Text Representations}.
+これらの探索関数は、バッファがマルチバイトであれば
+正規表現をマルチバイトに変換します。
+バッファがユニバイトであれば、正規表現をユニバイトに変換します。
+@xref{Text Representations}。
+
+@c @deffn Command re-search-forward regexp &optional limit noerror repeat
+@deffn コマンド re-search-forward regexp &optional limit noerror repeat
+@c This function searches forward in the current buffer for a string of
+@c text that is matched by the regular expression @var{regexp}.  The
+@c function skips over any amount of text that is not matched by
+@c @var{regexp}, and leaves point at the end of the first match found.
+@c It returns the new value of point.
+この関数は、カレントバッファにおいて前方へ向けて
+正規表現@var{regexp}に一致するテキストの文字列を探索する。
+関数は@var{regexp}に一致しないテキストはすべて飛び越え、
+みつけた一致箇所の末尾へポイントを置く。
+ポイントの新たな値を返す。
+
+@c If @var{limit} is non-@code{nil} (it must be a position in the current
+@c buffer), then it is the upper bound to the search.  No match extending
+@c after that position is accepted.
+@var{limit}が@code{nil}以外（カレントバッファ内の位置であること）であると、
+探索の上限を表す。
+その位置を越える箇所での一致は受け入れない。
+
+@c If @var{repeat} is supplied (it must be a positive number), then the
+@c search is repeated that many times (each time starting at the end of the
+@c previous time's match).  If all these successive searches succeed, the
+@c function succeeds, moving point and returning its new value.  Otherwise
+@c the function fails.
+@var{repeat}を指定してあると（正の数であること）、
+その回数だけ探索を繰り返す（一致箇所の末尾を新たな探索の開始位置とする）。
+連続してこれらの探索に成功すると関数は成功し、
+ポイントを移動してその新たな値を返す。
+さもなければ探索は失敗である。
+
+@c What happens when the function fails depends on the value of
+@c @var{noerror}.  If @var{noerror} is @code{nil}, a @code{search-failed}
+@c error is signaled.  If @var{noerror} is @code{t},
+@c @code{re-search-forward} does nothing and returns @code{nil}.  If
+@c @var{noerror} is neither @code{nil} nor @code{t}, then
+@c @code{re-search-forward} moves point to @var{limit} (or the end of the
+@c buffer) and returns @code{nil}.
+関数が失敗した場合の動作は、@var{noerror}の値に依存する。
+@var{noerror}が@code{nil}であると、
+エラー@code{search-failed}を通知する。
+@var{noerror}が@code{t}であると、
+@code{re-search-forward}はなにもせずに@code{nil}を返す。
+@var{noerror}が@code{nil}でも@code{t}でもないと、
+@code{re-search-forward}はポイントを@var{limit}（あるいはバッファの末尾）へ
+移動して@code{nil}を返す。
+
+@c In the following example, point is initially before the @samp{T}.
+@c Evaluating the search call moves point to the end of that line (between
+@c the @samp{t} of @samp{hat} and the newline).
+つぎの例では、ポイントは始めは@samp{T}のまえにある。
+探索を呼び出すと、ポイントは当該行の末尾
+（@samp{hat}の@samp{t}と改行のあいだ）へ移動する。
+
+@example
+@group
+---------- Buffer: foo ----------
+I read "@point{}The cat in the hat
+comes back" twice.
+---------- Buffer: foo ----------
+@end group
+
+@group
+(re-search-forward "[a-z]+" nil t 5)
+     @result{} 27
+
+---------- Buffer: foo ----------
+I read "The cat in the hat@point{}
+comes back" twice.
+---------- Buffer: foo ----------
+@end group
+@end example
+@end deffn
+
+@c @deffn Command re-search-backward regexp &optional limit noerror repeat
+@deffn コマンド re-search-backward regexp &optional limit noerror repeat
+@c This function searches backward in the current buffer for a string of
+@c text that is matched by the regular expression @var{regexp}, leaving
+@c point at the beginning of the first text found.
+この関数は、カレントバッファにおいて後方へ向けて
+正規表現@var{regexp}に一致するテキストの文字列を探索し、
+みつけた一致箇所の先頭へポイントを置く。
+
+@c This function is analogous to @code{re-search-forward}, but they are not
+@c simple mirror images.  @code{re-search-forward} finds the match whose
+@c beginning is as close as possible to the starting point.  If
+@c @code{re-search-backward} were a perfect mirror image, it would find the
+@c match whose end is as close as possible.  However, in fact it finds the
+@c match whose beginning is as close as possible.  The reason is that
+@c matching a regular expression at a given spot always works from
+@c beginning to end, and starts at a specified beginning position.
+この関数は@code{re-search-forward}に類似したものであるが、
+単純な鏡像ではない。
+@code{re-search-forward}は、一致箇所の先頭が
+開始位置に可能な限り近い一致箇所を探す。
+@code{re-search-backward}が完全な鏡像であれば、
+一致箇所の末尾が可能な限り近い一致箇所を探す。
+しかし、実際には、一致箇所の先頭が可能な限り近い一致箇所を探す。
+これは、正規表現との一致をとる処理は、
+指定開始位置において先頭から末尾へ向けてつねに行われるからである。
+
+@c A true mirror-image of @code{re-search-forward} would require a special
+@c feature for matching regular expressions from end to beginning.  It's
+@c not worth the trouble of implementing that.
+@code{re-search-forward}の完全な鏡像には、
+正規表現の一致を末尾から先頭へ向けて行う特別な機能が必要である。
+それを実装する手間をかけるほどの価値はない。
+@end deffn
+
+@defun string-match regexp string &optional start
+@c This function returns the index of the start of the first match for
+@c the regular expression @var{regexp} in @var{string}, or @code{nil} if
+@c there is no match.  If @var{start} is non-@code{nil}, the search starts
+@c at that index in @var{string}.
+この関数は、文字列@var{string}において正規表現@var{regexp}に一致した
+最初の箇所の添字を返す。
+あるいは、一致がなければ@code{nil}を返す。
+@var{start}が@code{nil}以外であると、
+@var{string}の指定した添字から探索を始める。
+
+@c For example,
+たとえばつぎのとおりである。
+
+@example
+@group
+(string-match
+ "quick" "The quick brown fox jumped quickly.")
+     @result{} 4
+@end group
+@group
+(string-match
+ "quick" "The quick brown fox jumped quickly." 8)
+     @result{} 27
+@end group
+@end example
+
+@noindent
+@c The index of the first character of the
+@c string is 0, the index of the second character is 1, and so on.
+文字列の最初の文字の添字は0であり、
+2番目の文字の添字は1であるといった具合になる。
+
+@c After this function returns, the index of the first character beyond
+@c the match is available as @code{(match-end 0)}.  @xref{Match Data}.
+この関数から戻ったあとでは、
+一致箇所を越えた最初の文字の添字は@code{(match-end 0)}で得られる。
+@pxref{Match Data}。
+
+@example
+@group
+(string-match
+ "quick" "The quick brown fox jumped quickly." 8)
+     @result{} 27
+@end group
+
+@group
+(match-end 0)
+     @result{} 32
+@end group
+@end example
+@end defun
+
+@defun looking-at regexp
+@c This function determines whether the text in the current buffer directly
+@c following point matches the regular expression @var{regexp}.  ``Directly
+@c following'' means precisely that: the search is ``anchored'' and it can
+@c succeed only starting with the first character following point.  The
+@c result is @code{t} if so, @code{nil} otherwise.
+この関数は、カレントバッファ内のポイントの直後のテキストが
+正規表現@var{regexp}に一致するかどうかを調べる。
+ここで『直後』とは、開始位置は固定されていて、
+ポイントのうしろの最初の文字で始まる場合にのみ探索は成功する。
+結果は、一致すれば@code{t}であり、さもなければ@code{nil}である。
+
+@c This function does not move point, but it updates the match data, which
+@c you can access using @code{match-beginning} and @code{match-end}.
+@c @xref{Match Data}.
+この関数はポイントを移動しないが、マッチデータを更新する。
+@code{match-beginning}や@code{match-end}を使ってマッチデータを参照できる。
+
+@c In this example, point is located directly before the @samp{T}.  If it
+@c were anywhere else, the result would be @code{nil}.
+つぎの例では、ポイントは@samp{T}の直前にある。
+ポイントがこれ以外の場所にあると結果は@code{nil}になる。
+
+@example
+@group
+---------- Buffer: foo ----------
+I read "@point{}The cat in the hat
+comes back" twice.
+---------- Buffer: foo ----------
+
+(looking-at "The cat in the hat$")
+     @result{} t
+@end group
+@end example
+@end defun
+
+@node POSIX Regexps
+@c @section POSIX Regular Expression Searching
+@section POSIXの正規表現探索
+
+@c   The usual regular expression functions do backtracking when necessary
+@c to handle the @samp{\|} and repetition constructs, but they continue
+@c this only until they find @emph{some} match.  Then they succeed and
+@c report the first match found.
+普通の正規表現関数は、@samp{\|}や反復構文を扱うために必要なときには
+バックトラックしますが、これを行い続けるのは
+@emph{なんらか}の一致をみつけるまでです。
+みつけてしまえば、それらは成功してみつけた最初の一致を報告します。
+
+@c   This section describes alternative search functions which perform the
+@c full backtracking specified by the POSIX standard for regular expression
+@c matching.  They continue backtracking until they have tried all
+@c possibilities and found all matches, so they can report the longest
+@c match, as required by POSIX.  This is much slower, so use these
+@c functions only when you really need the longest match.
+本節では、正規表現の一致に関するPOSIX規格で規定された
+完全なバックトラックを行う代替の探索関数について述べます。
+それらはすべての可能性を試し尽くしすべての一致箇所を探し終える
+までバックトラックを継続してます。
+そのため、POSIXで要求されるとおりの最長の一致を報告できるのです。
+これは動作がとても遅いですから、最長一致が本当に必要な場合に限って
+これらの関数を使ってください。
+
+@defun posix-search-forward regexp &optional limit noerror repeat
+@c This is like @code{re-search-forward} except that it performs the full
+@c backtracking specified by the POSIX standard for regular expression
+@c matching.
+これは@code{re-search-forward}と同様であるが、
+正規表現の一致に関するPOSIX規格で規定された完全なバックトラックを行う。
+@end defun
+
+@defun posix-search-backward regexp &optional limit noerror repeat
+@c This is like @code{re-search-backward} except that it performs the full
+@c backtracking specified by the POSIX standard for regular expression
+@c matching.
+これは@code{re-search-backward}と同様であるが、
+正規表現の一致に関するPOSIX規格で規定された完全なバックトラックを行う。
+@end defun
+
+@defun posix-looking-at regexp
+@c This is like @code{looking-at} except that it performs the full
+@c backtracking specified by the POSIX standard for regular expression
+@c matching.
+これは@code{looking-at}と同様であるが、
+正規表現の一致に関するPOSIX規格で規定された完全なバックトラックを行う。
+@end defun
+
+@defun posix-string-match regexp string &optional start
+@c This is like @code{string-match} except that it performs the full
+@c backtracking specified by the POSIX standard for regular expression
+@c matching.
+これは@code{string-match}と同様であるが、
+正規表現の一致に関するPOSIX規格で規定された完全なバックトラックを行う。
+@end defun
+
+@ignore
+@c @deffn Command delete-matching-lines regexp
+@deffn コマンド delete-matching-lines regexp
+@c This function is identical to @code{delete-non-matching-lines}, save
+@c that it deletes what @code{delete-non-matching-lines} keeps.
+この関数は@code{delete-non-matching-lines}と同一であるが、
+@code{delete-non-matching-lines}が残しておくものを削除し、
+削除するものを残しておく。
+
+@c In the example below, point is located on the first line of text.
+つぎの例では、ポイントはテキストの先頭行にある。
+
+@example
+@group
+---------- Buffer: foo ----------
+We hold these truths
+to be self-evident,
+that all men are created
+equal, and that they are
+---------- Buffer: foo ----------
+@end group
+
+@group
+(delete-matching-lines "the")
+     @result{} nil
+
+---------- Buffer: foo ----------
+to be self-evident,
+that all men are created
+---------- Buffer: foo ----------
+@end group
+@end example
+@end deffn
+
+@c @deffn Command flush-lines regexp
+@deffn コマンド flush-lines regexp
+@c This function is the same as @code{delete-matching-lines}.
+この関数は@code{delete-matching-lines}と同じである。
+@end deffn
+
+@defun delete-non-matching-lines regexp
+@c This function deletes all lines following point which don't
+@c contain a match for the regular expression @var{regexp}.
+この関数は、ポイント以降にある
+正規表現@var{regexp}に一致するものを含まない行をすべて削除する。
+@end defun
+
+@c @deffn Command keep-lines regexp
+@deffn コマンド keep-lines regexp
+@c This function is the same as @code{delete-non-matching-lines}.
+この関数は@code{delete-non-matching-lines}と同じである。
+@end deffn
+
+@c @deffn Command how-many regexp
+@deffn コマンド how-many regexp
+@c This function counts the number of matches for @var{regexp} there are in
+@c the current buffer following point.  It prints this number in
+@c the echo area, returning the string printed.
+この関数は、カレントバッファにおいてポイント以降にある
+@var{regexp}に一致する箇所の個数を数える。
+その個数をエコー領域に表示し、表示した文字列を返す。
+@end deffn
+
+@c @deffn Command count-matches regexp
+@deffn コマンド count-matches regexp
+@c This function is a synonym of @code{how-many}.
+この関数は@code{how-many}の同義語である。
+@end deffn
+
+@c @deffn Command list-matching-lines regexp nlines
+@deffn コマンド list-matching-lines regexp nlines
+@c This function is a synonym of @code{occur}.
+@c Show all lines following point containing a match for @var{regexp}.
+@c Display each line with @var{nlines} lines before and after,
+@c or @code{-}@var{nlines} before if @var{nlines} is negative.
+@c @var{nlines} defaults to @code{list-matching-lines-default-context-lines}.
+@c Interactively it is the prefix arg.
+この関数は@code{occur}の同義語である。
+ポイント以降の@var{regexp}に一致する箇所を含む各行を表示する。
+各行の前後@var{nlines}行を表示するか、
+@var{nlines}が負ならばまえの@code{-}@var{nlines}行を表示する。
+@var{nlines}のデフォルトは
+@code{list-matching-lines-default-context-lines}である。
+対話的な場合には前置引数である。
+
+@c The lines are shown in a buffer named @samp{*Occur*}.
+@c It serves as a menu to find any of the occurrences in this buffer.
+@c @kbd{C-h m} (@code{describe-mode} in that buffer gives help.
+行は@samp{*Occur*}という名前のバッファに表示される。
+これは、対象バッファ内の任意の出現箇所を探すメニューとして働く。
+このバッファで@kbd{C-h m}（@code{describe-mode}）と打つとヘルプが表示される。
+@end deffn
+
+@defopt list-matching-lines-default-context-lines
+@c Default value is 0.
+@c Default number of context lines to include around a @code{list-matching-lines}
+@c match.  A negative number means to include that many lines before the match.
+@c A positive number means to include that many lines both before and after.
+デフォルト値は0である。
+@code{list-matching-lines}で一致した行の周りの行数を指定する
+デフォルトである。
+負の値は、一致した行のまえ何行を含めるかを意味する。
+正の値は、一致した行の前後何行を含めるかを意味する。
+@end defopt
+@end ignore
+
+@node Search and Replace
+@c @section Search and Replace
+@section 探索と置換
+@c @cindex replacement
+@cindex 置換
+
+@defun perform-replace from-string replacements query-flag regexp-flag delimited-flag &optional repeat-count map
+@c This function is the guts of @code{query-replace} and related commands.
+@c It searches for occurrences of @var{from-string} and replaces some or
+@c all of them.  If @var{query-flag} is @code{nil}, it replaces all
+@c occurrences; otherwise, it asks the user what to do about each one.
+この関数は、@code{query-replace}と関連するコマンドの中身である。
+@var{from-string}の出現を探しだし、それらの一部やすべてを置き換える。
+@var{query-flag}が@code{nil}であると、すべての出現を置換する。
+さもなければ、1つ1つユーザーにどうするかを問い合わせる。
+
+@c If @var{regexp-flag} is non-@code{nil}, then @var{from-string} is
+@c considered a regular expression; otherwise, it must match literally.  If
+@c @var{delimited-flag} is non-@code{nil}, then only replacements
+@c surrounded by word boundaries are considered.
+@var{regexp-flag}が@code{nil}以外であると、
+@var{from-string}を正規表現として扱う。
+さもなければ、その字面とおりに一致する。
+@var{delimited-flag}が@code{nil}以外であると、
+単語区切りで囲まれたもののみを対象にする。
+
+@c The argument @var{replacements} specifies what to replace occurrences
+@c with.  If it is a string, that string is used.  It can also be a list of
+@c strings, to be used in cyclic order.
+引数@var{replacements}は、出現を置き換えるものを指定する。
+それが文字列であれば、その文字列を使う。
+文字列のリストでもよく、要素を巡回して使う。
+
+@c If @var{repeat-count} is non-@code{nil}, it should be an integer.  Then
+@c it specifies how many times to use each of the strings in the
+@c @var{replacements} list before advancing cyclicly to the next one.
+@var{repeat-count}が@code{nil}以外であれば、整数であること。
+これは、@var{replacements}のリスト内の各文字列を
+つぎに進めるまえに何回使用するかを指定する。
+
+@c Normally, the keymap @code{query-replace-map} defines the possible user
+@c responses for queries.  The argument @var{map}, if non-@code{nil}, is a
+@c keymap to use instead of @code{query-replace-map}.
+通常、キーマップ@code{query-replace-map}で、
+可能なユーザーの応答を定義する。
+引数@var{map}が@code{nil}以外であれば、
+@code{query-replace-map}のかわりに使うキーマップである。
+@end defun
+
+@defvar query-replace-map
+@c This variable holds a special keymap that defines the valid user
+@c responses for @code{query-replace} and related functions, as well as
+@c @code{y-or-n-p} and @code{map-y-or-n-p}.  It is unusual in two ways:
+この変数は、@code{y-or-n-p}や@code{map-y-or-n-p}に加えて、
+@code{query-replace}や関連する関数に対する
+正しいユーザー応答を定義する特別なキーマップを保持する。
+2つの意味で普通のものではない。
+
+@itemize @bullet
+@item
+@c The ``key bindings'' are not commands, just symbols that are meaningful
+@c to the functions that use this map.
+『キーバインディング』はコマンドではなく、
+このキーマップを用いる関数にのみ意味がある単なるシンボルである。
+
+@item
+@c Prefix keys are not supported; each key binding must be for a
+@c single-event key sequence.  This is because the functions don't use
+@c @code{read-key-sequence} to get the input; instead, they read a single
+@c event and look it up ``by hand.''
+プレフィックスキーは扱えない。
+各キーバインディングは単一イベントのキー列である必要がある。
+これは、関数では入力を得るために@code{read-key-sequence}を使わずに、
+『自前』でイベントを読み取り探索するからである。
+@end itemize
+@end defvar
+
+@c Here are the meaningful ``bindings'' for @code{query-replace-map}.
+@c Several of them are meaningful only for @code{query-replace} and
+@c friends.
+@code{query-replace-map}向けの意味のある『バインディング』をつぎに示します。
+@code{query-replace}と関連するものだけに意味のあるものもあります。
+
+@table @code
+@item act
+@c Do take the action being considered---in other words, ``yes.''
+当該動作を行う、いいかえれば『yes』。
+
+@item skip
+@c Do not take action for this question---in other words, ``no.''
+この問いに対する動作は行わない、いいかえれば『no』。
+
+@item exit
+@c Answer this question ``no,'' and give up on the entire series of
+@c questions, assuming that the answers will be ``no.''
+この問いには『no』で答え、
+残りの応答も『no』と仮定して一連の問いを止める。
+
+@item act-and-exit
+@c Answer this question ``yes,'' and give up on the entire series of
+@c questions, assuming that subsequent answers will be ``no.''
+この問いには『yes』で答え、
+残りの応答は『no』と仮定して一連の問いを止める。
+
+@item act-and-show
+@c Answer this question ``yes,'' but show the results---don't advance yet
+@c to the next question.
+この問いには『yes』で答えるが、結果を表示する。
+つぎの問いへは進まない。
+
+@item automatic
+@c Answer this question and all subsequent questions in the series with
+@c ``yes,'' without further user interaction.
+この問いと以降の一連の問いに『yes』で答え、
+これ以降ユーザーに問い合わせない。
+
+@item backup
+@c Move back to the previous place that a question was asked about.
+問いに答えたまえの箇所へ戻る。
+
+@item edit
+@c Enter a recursive edit to deal with this question---instead of any
+@c other action that would normally be taken.
+この問いに対処するために、通常の動作のかわりに再帰編集に入る。
+
+@item delete-and-edit
+@c Delete the text being considered, then enter a recursive edit to replace
+@c it.
+対象のテキストを削除してから、
+それを置き換えるために再帰編集に入る。
+
+@item recenter
+@c Redisplay and center the window, then ask the same question again.
+ウィンドウの中央に位置決めして再表示してから、
+同じ問いを問い直す。
+
+@item quit
+@c Perform a quit right away.  Only @code{y-or-n-p} and related functions
+@c use this answer.
+ただちに中断する。
+@code{y-or-n-p}と関連する関数でのみ、この応答を用いる。
+
+@item help
+@c Display some help, then ask again.
+ヘルプを表示してから、再度問い直す。
+@end table
+
+@node Match Data
+@c @section The Match Data
+@section マッチデータ
+@c @cindex match data
+@cindex マッチデータ
+
+@c   Emacs keeps track of the positions of the start and end of segments of
+@c text found during a regular expression search.  This means, for example,
+@c that you can search for a complex pattern, such as a date in an Rmail
+@c message, and then extract parts of the match under control of the
+@c pattern.
+Emacsは、正規表現の探索中に捜し出したテキスト断片の開始／終了位置を
+記録しています。
+つまり、たとえば、rmailメッセージ内で日付のような複雑なパターンを
+探索してから、パターンの制御をもとに一致した一部分を取り出せるのです。
+
+@c   Because the match data normally describe the most recent search only,
+@c you must be careful not to do another search inadvertently between the
+@c search you wish to refer back to and the use of the match data.  If you
+@c can't avoid another intervening search, you must save and restore the
+@c match data around it, to prevent it from being overwritten.
+マッチデータは、通常、もっとも最近に行った探索のみを記述するので、
+あとで使用したい探索とそのマッチデータを使うあいだに、
+不注意に別の探索を行わないように注意してください。
+あいだで探索を行う必要がある場合には、その周りで
+マッチデータを保存／復元してそれらが上書きされないようにします。
+
+@menu
+* Replacing Match::	  Replacing a substring that was matched.
+* Simple Match Data::     Accessing single items of match data,
+			    such as where a particular subexpression started.
+* Entire Match Data::     Accessing the entire match data at once, as a list.
+* Saving Match Data::     Saving and restoring the match data.
+@end menu
+
+@node Replacing Match
+@c @subsection Replacing the Text That Matched
+@subsection 一致したテキストの置換
+
+@c   This function replaces the text matched by the last search with
+@c @var{replacement}.
+この関数は、最後の探索で一致したテキストを@var{replacement}で置換します。
+
+@c @cindex case in replacements
+@cindex 置換時の大文字小文字
+@defun replace-match replacement &optional fixedcase literal string subexp
+@c This function replaces the text in the buffer (or in @var{string}) that
+@c was matched by the last search.  It replaces that text with
+@c @var{replacement}.
+この関数は、最後の探索で一致したバッファ内（あるいは文字列@var{string}）の
+テキストを置換する。
+当該テキストを@var{replacement}で置き換える。
+
+@c If you did the last search in a buffer, you should specify @code{nil}
+@c for @var{string}.  Then @code{replace-match} does the replacement by
+@c editing the buffer; it leaves point at the end of the replacement text,
+@c and returns @code{t}.
+バッファで最後に探索を行った場合には、
+@var{string}に@code{nil}を指定すること。
+そうすると、@code{replace-match}はバッファを編集することで置換を行い、
+置換したテキストの末尾にポイントを置き@code{t}を返す。
+
+@c If you did the search in a string, pass the same string as @var{string}.
+@c Then @code{replace-match} does the replacement by constructing and
+@c returning a new string.
+文字列で探索した場合には、@var{string}に同じ文字列を渡すこと。
+そうすると、@code{replace-match}は新たな文字列を構築することで
+置換を行い、新たな文字列を返す。
+
+@c If @var{fixedcase} is non-@code{nil}, then the case of the replacement
+@c text is not changed; otherwise, the replacement text is converted to a
+@c different case depending upon the capitalization of the text to be
+@c replaced.  If the original text is all upper case, the replacement text
+@c is converted to upper case.  If the first word of the original text is
+@c capitalized, then the first word of the replacement text is capitalized.
+@c If the original text contains just one word, and that word is a capital
+@c letter, @code{replace-match} considers this a capitalized first word
+@c rather than all upper case.
+@var{fixedcase}が@code{nil}以外であると、
+置換テキストの大文字小文字は変更しない。
+さもなければ、置換テキストの大文字小文字は、
+対象テキストの大文字小文字に応じて変換される。
+元テキストがすべて大文字であると、置換テキストも大文字に変換される。
+元テキストの最初の単語が大文字で始まっていると、
+置換テキストの最初の単語も大文字で始める。
+元テキストが1単語のみであり、しかも、その単語が大文字1文字であると、
+@code{replace-match}はすべてが大文字ではなく大文字で始まるとみなす。
+
+@c If @code{case-replace} is @code{nil}, then case conversion is not done,
+@c regardless of the value of @var{fixed-case}.  @xref{Searching and Case}.
+@code{case-replace}が@code{nil}であると、
+@var{fixed-case}の値に関わらず、大文字小文字変換を行わない。
+@pxref{Searching and Case}。
+
+@c If @var{literal} is non-@code{nil}, then @var{replacement} is inserted
+@c exactly as it is, the only alterations being case changes as needed.
+@c If it is @code{nil} (the default), then the character @samp{\} is treated
+@c specially.  If a @samp{\} appears in @var{replacement}, then it must be
+@c part of one of the following sequences:
+@var{literal}が@code{nil}以外であると、
+必要に応じて大文字小文字変換は行うものの
+@var{replacement}をそのまま挿入する。
+それが@code{nil}（デフォルト）であると、
+文字@samp{\}を特別に扱う。
+@var{replacement}に@samp{\}が現れるときには、
+つぎの列のいずれかであること。
+
+@table @asis
+@item @samp{\&}
+@c @cindex @samp{&} in replacement
+@cindex @samp{&}、置換
+@cindex 置換の@samp{&}
+@c @samp{\&} stands for the entire text being replaced.
+@samp{\&}は置換対象のテキスト全体を表す。
+
+@item @samp{\@var{n}}
+@c @cindex @samp{\@var{n}} in replacement
+@cindex @samp{\@var{n}}、置換
+@cindex 置換の@samp{\@var{n}}
+@c @samp{\@var{n}}, where @var{n} is a digit, stands for the text that
+@c matched the @var{n}th subexpression in the original regexp.
+@c Subexpressions are those expressions grouped inside @samp{\(@dots{}\)}.
+@var{n}を数字文字とすると@samp{\@var{n}}は、
+もとの正規表現内の@var{n}番目の部分式に一致したテキストを表す。
+部分式とは、@samp{\(@dots{}\)}で囲んでグループ化した式である。
+
+@item @samp{\\}
+@c @cindex @samp{\} in replacement
+@cindex @samp{\}、置換
+@cindex 置換の@samp{\}
+@c @samp{\\} stands for a single @samp{\} in the replacement text.
+@samp{\\}は置換テキスト内で1つの@samp{\}を表す。
+@end table
+
+@c If @var{subexp} is non-@code{nil}, that says to replace just
+@c subexpression number @var{subexp} of the regexp that was matched, not
+@c the entire match.  For example, after matching @samp{foo \(ba*r\)},
+@c calling @code{replace-match} with 1 as @var{subexp} means to replace
+@c just the text that matched @samp{\(ba*r\)}.
+@var{subexp}が@code{nil}以外であると、
+一致箇所全体ではなく正規表現の@var{subexp}番目の部分式に
+一致した箇所のみを置換することを指示する。
+たとえば、@samp{foo \(ba*r\)}に一致させたあとで、
+@var{subexp}に1を指定して@code{replace-match}を呼び出すと、
+@samp{\(ba*r\)}に一致したテキストのみを置換することを意味する。
+@end defun
+
+@node Simple Match Data
+@c @subsection Simple Match Data Access
+@subsection マッチデータの簡単な参照
+
+@c   This section explains how to use the match data to find out what was
+@c matched by the last search or match operation.
+本節では、最後の探索や一致操作において
+なにに一致したのかを調べるためのマッチデータの使い方を説明します。
+
+@c   You can ask about the entire matching text, or about a particular
+@c parenthetical subexpression of a regular expression.  The @var{count}
+@c argument in the functions below specifies which.  If @var{count} is
+@c zero, you are asking about the entire match.  If @var{count} is
+@c positive, it specifies which subexpression you want.
+一致したテキスト全体や正規表現の括弧で括った特定の部分式に一致した
+テキストを調べることができます。
+以下の関数の引数@var{count}でどれかを指定します。
+@var{count}がゼロであれば、一致全体を調べることになります。
+@var{count}が正であれば、望みの部分式を指定します。
+
+@c   Recall that the subexpressions of a regular expression are those
+@c expressions grouped with escaped parentheses, @samp{\(@dots{}\)}.  The
+@c @var{count}th subexpression is found by counting occurrences of
+@c @samp{\(} from the beginning of the whole regular expression.  The first
+@c subexpression is numbered 1, the second 2, and so on.  Only regular
+@c expressions can have subexpressions---after a simple string search, the
+@c only information available is about the entire match.
+正規表現の部分式は、エスケープした括弧@samp{\(@dots{}\)}でグループ化した
+式であることに注意してください。
+@var{count}番目の部分式は、正規表現全体の先頭から
+@samp{\(}の出現を数えてみつけます。
+最初の部分式は1、つぎは2、といった具合です。
+部分式は正規表現だけにあります。
+単純な文字列探索のあとでは、利用可能な情報は一致全体に関するものだけです。
+
+@c   A search which fails may or may not alter the match data.  In the
+@c past, a failing search did not do this, but we may change it in the
+@c future.
+探索に失敗すると、マッチデータを変更することもしないこともあります。
+過去には探索に失敗しても変更しなかったのですが、
+将来そうなります。
+
+@defun match-string count &optional in-string
+@c This function returns, as a string, the text matched in the last search
+@c or match operation.  It returns the entire text if @var{count} is zero,
+@c or just the portion corresponding to the @var{count}th parenthetical
+@c subexpression, if @var{count} is positive.  If @var{count} is out of
+@c range, or if that subexpression didn't match anything, the value is
+@c @code{nil}.
+この関数は、最後の探索や一致操作で一致したテキストを文字列として返す。
+@var{count}がゼロであるとテキスト全体を返す。
+@var{count}が正であれば、@var{count}番目の括弧で囲んだ部分式に対応する
+部分のみを返す。
+@var{count}が範囲を越えていたり、当該部分式に一致するものがない場合には、
+値は@code{nil}である。
+
+@c If the last such operation was done against a string with
+@c @code{string-match}, then you should pass the same string as the
+@c argument @var{in-string}.  After a buffer search or match,
+@c you should omit @var{in-string} or pass @code{nil} for it; but you
+@c should make sure that the current buffer when you call
+@c @code{match-string} is the one in which you did the searching or
+@c matching.
+最後の探索や一致操作を@code{string-match}で文字列に対して行った場合には、
+引数@var{in-string}として同じ文字列を渡すこと。
+バッファの探索や一致のあとでは、@var{in-string}を省略するか
+@code{nil}を渡すこと。
+ただし、@code{match-string}を呼び出すときのカレントバッファが
+探索を行ったときのバッファであること。
+@end defun
+
+@defun match-string-no-properties count
+@c This function is like @code{match-string} except that the result
+@c has no text properties.
+この関数は@code{match-string}と同様であるが、
+結果にはテキスト属性を含まない。
+@end defun
+
+@defun match-beginning count
+@c This function returns the position of the start of text matched by the
+@c last regular expression searched for, or a subexpression of it.
+この関数は、最後の正規表現探索やその部分式に一致したテキストの開始位置を返す。
+
+@c If @var{count} is zero, then the value is the position of the start of
+@c the entire match.  Otherwise, @var{count} specifies a subexpression in
+@c the regular expression, and the value of the function is the starting
+@c position of the match for that subexpression.
+@var{count}がゼロであると、値は一致全体の開始位置である。
+さもなければ、@var{count}は正規表現内の部分式を指定し、
+関数の値は当該部分式に一致した部分の開始位置である。
+
+@c The value is @code{nil} for a subexpression inside a @samp{\|}
+@c alternative that wasn't used in the match.
+一致に利用されなかった選択肢@samp{\|}内の部分式に対しては、
+値は@code{nil}である。
+@end defun
+
+@defun match-end count
+@c This function is like @code{match-beginning} except that it returns the
+@c position of the end of the match, rather than the position of the
+@c beginning.
+この関数は@code{match-beginning}と同様であるが、
+一致箇所の開始位置ではなく終了位置を返す点が異なる。
+@end defun
+
+@c   Here is an example of using the match data, with a comment showing the
+@c positions within the text:
+コメントでテキスト内の位置を示しながら
+マッチデータの利用例を示します。
+
+@example
+@group
+(string-match "\\(qu\\)\\(ick\\)"
+              "The quick fox jumped quickly.")
+              ;0123456789      
+     @result{} 4
+@end group
+
+@group
+(match-string 0 "The quick fox jumped quickly.")
+     @result{} "quick"
+(match-string 1 "The quick fox jumped quickly.")
+     @result{} "qu"
+(match-string 2 "The quick fox jumped quickly.")
+     @result{} "ick"
+@end group
+
+@group
+@c (match-beginning 1)       ; @r{The beginning of the match}
+@c      @result{} 4                 ;   @r{with @samp{qu} is at index 4.}
+(match-beginning 1)       ; @r{一致箇所@samp{qu}の先頭は}
+     @result{} 4                 ;   @r{添字4}
+@end group
+
+@group
+@c (match-beginning 2)       ; @r{The beginning of the match}
+@c      @result{} 6                 ;   @r{with @samp{ick} is at index 6.}
+(match-beginning 2)       ; @r{一致箇所@samp{ick}の先頭は}
+     @result{} 6                 ;   @r{添字6}
+@end group
+
+@group
+@c (match-end 1)             ; @r{The end of the match}
+@c      @result{} 6                 ;   @r{with @samp{qu} is at index 6.}
+(match-end 1)             ; @r{一致箇所@samp{qu}の末尾は}
+     @result{} 6                 ;   @r{添字6}
+
+@c (match-end 2)             ; @r{The end of the match}
+@c      @result{} 9                 ;   @r{with @samp{ick} is at index 9.}
+(match-end 2)             ; @r{一致箇所@samp{ick}の末尾は}
+     @result{} 9                 ;   @r{添字9}
+@end group
+@end example
+
+@c   Here is another example.  Point is initially located at the beginning
+@c of the line.  Searching moves point to between the space and the word
+@c @samp{in}.  The beginning of the entire match is at the 9th character of
+@c the buffer (@samp{T}), and the beginning of the match for the first
+@c subexpression is at the 13th character (@samp{c}).
+別の例も示します。
+ポイントは始めは行頭にあります。
+探索によって、ポイントは空白と単語@samp{in}のあいだに移動します。
+一致箇所全体の先頭はバッファの9番目の文字（@samp{T}）であり、
+最初の部分式の一致箇所の先頭は13番目の文字（@samp{c}）です。
+
+@example
+@group
+(list
+  (re-search-forward "The \\(cat \\)")
+  (match-beginning 0)
+  (match-beginning 1))
+    @result{} (9 9 13)
+@end group
+
+@group
+---------- Buffer: foo ----------
+I read "The cat @point{}in the hat comes back" twice.
+        ^   ^
+        9  13
+---------- Buffer: foo ----------
+@end group
+@end example
+
+@noindent
+@c (In this case, the index returned is a buffer position; the first
+@c character of the buffer counts as 1.)
+（この例では、返される添字はバッファ内位置であり、
+バッファの最初の文字を1と数える。）
+
+@node Entire Match Data
+@c @subsection Accessing the Entire Match Data
+@subsection マッチデータ全体を参照する
+
+@c   The functions @code{match-data} and @code{set-match-data} read or
+@c write the entire match data, all at once.
+関数@code{match-data}と@code{set-match-data}は、
+マッチデータ全体を一度に読んだり書いたりします。
+
+@defun match-data
+@c This function returns a newly constructed list containing all the
+@c information on what text the last search matched.  Element zero is the
+@c position of the beginning of the match for the whole expression; element
+@c one is the position of the end of the match for the expression.  The
+@c next two elements are the positions of the beginning and end of the
+@c match for the first subexpression, and so on.  In general, element
+この関数は、最後の探索で一致したテキストに関するすべての情報を収めた
+新たに構築したリストを返す。
+要素0が式全体に一致した部分の先頭位置であり、
+要素1が式全体に一致した部分の終了位置である。
+つぎの2つの要素は最初の部分式に一致した部分の先頭／終了位置、
+といった具合である。
+一般に、要素
+@ifinfo
+@c number 2@var{n}
+番号2@var{n}
+@end ifinfo
+@tex
+%c number {\mathsurround=0pt $2n$}
+番号{\mathsurround=0pt $2n$}
+@end tex
+@c corresponds to @code{(match-beginning @var{n})}; and
+@c element
+は@code{(match-beginning @var{n})}に対応し、
+要素
+@ifinfo
+@c number 2@var{n} + 1
+番号2@var{n} + 1
+@end ifinfo
+@tex
+%c number {\mathsurround=0pt $2n+1$}
+番号{\mathsurround=0pt $2n+1$}
+@end tex
+@c corresponds to @code{(match-end @var{n})}.
+は@code{(match-end @var{n})}に対応する。
+
+@c All the elements are markers or @code{nil} if matching was done on a
+@c buffer, and all are integers or @code{nil} if matching was done on a
+@c string with @code{string-match}.
+バッファで行った一致ではすべての要素はマーカか@code{nil}であり、
+@code{string-match}により文字列で行った一致では
+すべての要素は整数か@code{nil}である。
+
+@c As always, there must be no possibility of intervening searches between
+@c the call to a search function and the call to @code{match-data} that is
+@c intended to access the match data for that search.
+探索関数の呼び出しとその探索結果としてのマッチデータを参照するための
+@code{match-data}の呼び出しのあいだには、
+別の探索があってはならない。
+
+@example
+@group
+(match-data)
+     @result{}  (#<marker at 9 in foo>
+          #<marker at 17 in foo>
+          #<marker at 13 in foo>
+          #<marker at 17 in foo>)
+@end group
+@end example
+@end defun
+
+@defun set-match-data match-list
+@c This function sets the match data from the elements of @var{match-list},
+@c which should be a list that was the value of a previous call to
+@c @code{match-data}.
+この関数は、@var{match-list}の要素からマッチデータを設定する。
+@var{match-list}は、以前に@code{match-data}の呼び出しで得たリストであること。
+
+@c If @var{match-list} refers to a buffer that doesn't exist, you don't get
+@c an error; that sets the match data in a meaningless but harmless way.
+@var{match-list}が存在しないバッファを指していても、エラーにはならない。
+無意味な情報をマッチデータに設定するが、害にはならない。
+
+@findex store-match-data
+@c @code{store-match-data} is a semi-obsolete alias for @code{set-match-data}.
+@code{store-match-data}はほぼ廃れている@code{set-match-data}の別名である。
+@end defun
+
+@node Saving Match Data
+@c @subsection Saving and Restoring the Match Data
+@subsection マッチデータの保存と復元
+
+@c   When you call a function that may do a search, you may need to save
+@c and restore the match data around that call, if you want to preserve the
+@c match data from an earlier search for later use.  Here is an example
+@c that shows the problem that arises if you fail to save the match data:
+探索を行う可能性がある関数を呼び出す場合、
+あとで使うためにそれ以前の探索によるマッチデータを保存したいときには、
+当該関数の呼び出しの周りでマッチデータを保存し復元する必要があります。
+つぎの例は、マッチデータを保存し損なった場合に生じる問題点を
+示しています。
+
+@example
+@group
+(re-search-forward "The \\(cat \\)")
+     @result{} 48
+@c (foo)                   ; @r{Perhaps @code{foo} does}
+@c                         ;   @r{more searching.}
+(foo)                   ; @r{@code{foo}はさらに}
+                        ;   @r{探索する}
+(match-end 0)
+@c      @result{} 61              ; @r{Unexpected result---not 48!}
+     @result{} 61              ; @r{予期しない結果。48でない！}
+@end group
+@end example
+
+@c   You can save and restore the match data with @code{save-match-data}:
+マッチデータの保存と復元は@code{save-match-data}で行えます。
+
+@defmac save-match-data body@dots{}
+@c This macro executes @var{body}, saving and restoring the match
+@c data around it.
+このマクロは、周りのマッチデータを保存し復元して、
+@var{body}を実行する。
+@end defmac
+
+@c   You could use @code{set-match-data} together with @code{match-data} to
+@c imitate the effect of the special form @code{save-match-data}.  Here is
+@c how:
+スペシャルフォーム@code{save-match-data}の効果をまねるために
+@code{match-data}とともに@code{set-match-data}を使うこともできます。
+つぎのようにします。
+
+@example
+@group
+(let ((data (match-data)))
+  (unwind-protect
+@c       @dots{}   ; @r{Ok to change the original match data.}
+      @dots{}   ; @r{もとのマッチデータを変更しても大丈夫}
+    (set-match-data data)))
+@end group
+@end example
+
+@c   Emacs automatically saves and restores the match data when it runs
+@c process filter functions (@pxref{Filter Functions}) and process
+@c sentinels (@pxref{Sentinels}).
+プロセスフィルタ関数（@pxref{Filter Functions}）や
+プロセスの番兵（@pxref{Sentinels}）を実行するときには、
+Emacsは自動的にマッチデータを保存し復元します。
+
+@ignore
+  Here is a function which restores the match data provided the buffer
+associated with it still exists.
+
+@smallexample
+@group
+(defun restore-match-data (data)
+@c It is incorrect to split the first line of a doc string.
+@c If there's a problem here, it should be solved in some other way.
+  "Restore the match data DATA unless the buffer is missing."
+  (catch 'foo
+    (let ((d data))
+@end group
+      (while d
+        (and (car d)
+             (null (marker-buffer (car d)))
+@group
+             ;; @file{match-data} @r{buffer is deleted.}
+             (throw 'foo nil))
+        (setq d (cdr d)))
+      (set-match-data data))))
+@end group
+@end smallexample
+@end ignore
+
+@node Searching and Case
+@c @section Searching and Case
+@section 探索と大文字小文字
+@c @cindex searching and case
+@cindex 探索と大文字小文字
+
+@c   By default, searches in Emacs ignore the case of the text they are
+@c searching through; if you specify searching for @samp{FOO}, then
+@c @samp{Foo} or @samp{foo} is also considered a match.  This applies to
+@c regular expressions, too; thus, @samp{[aB]} would match @samp{a} or
+@c @samp{A} or @samp{b} or @samp{B}.
+デフォルトでは、Emacsの探索は探索対象テキストの大文字小文字を区別しません。
+@samp{FOO}を探す指定を行うと、
+@samp{Foo}や@samp{foo}にも一致するとみなします。
+これは、正規表現にも適用されます。
+したがって、@samp{[aB]}は、@samp{a}や@samp{A}や@samp{b}や@samp{B}に一致します。
+
+@c   If you do not want this feature, set the variable
+@c @code{case-fold-search} to @code{nil}.  Then all letters must match
+@c exactly, including case.  This is a buffer-local variable; altering the
+@c variable affects only the current buffer.  (@xref{Intro to
+@c Buffer-Local}.)  Alternatively, you may change the value of
+@c @code{default-case-fold-search}, which is the default value of
+@c @code{case-fold-search} for buffers that do not override it.
+この機能を望まないときには、
+変数@code{case-fold-search}に@code{nil}を設定します。
+すると、すべての文字は大文字小文字を保ってそのとおりに一致します。
+これはバッファローカルな変数ですから、
+変数を変更してもカレントバッファだけに影響します。
+（@pxref{Intro to Buffer-Local}。）
+あるいは、@code{default-case-fold-search}の値を変更します。
+これは、@code{case-fold-search}を書き変えていないバッファ向けの
+デフォルト値です。
+
+@c   Note that the user-level incremental search feature handles case
+@c distinctions differently.  When given a lower case letter, it looks for
+@c a match of either case, but when given an upper case letter, it looks
+@c for an upper case letter only.  But this has nothing to do with the
+@c searching functions used in Lisp code.
+ユーザーレベルのインクリメンタルサーチ機能では、
+大文字小文字の区別は異なった扱い方をします。
+小英文字を与えるとその大文字にも一致しますが、
+大英文字を与えると大文字のみに一致します。
+しかし、これはLispコードで使用している探索関数には
+まったく関係ありません。
+
+@defopt case-replace
+@c This variable determines whether the replacement functions should
+@c preserve case.  If the variable is @code{nil}, that means to use the
+@c replacement text verbatim.  A non-@code{nil} value means to convert the
+@c case of the replacement text according to the text being replaced.
+この変数は、置換関数が大文字小文字を保存するかどうかを決定する。
+変数が@code{nil}であると、置換テキストをそのまま使うことを意味する。
+@code{nil}以外の値であると、置換対象のテキストに応じて
+置換テキストの大文字小文字を変換することを意味する。
+
+@c The function @code{replace-match} is where this variable actually has
+@c its effect.  @xref{Replacing Match}.
+この変数が実際に効果を発揮するのは関数@code{replace-match}においてである。
+@pxref{Replacing Match}。
+@end defopt
+
+@defopt case-fold-search
+@c This buffer-local variable determines whether searches should ignore
+@c case.  If the variable is @code{nil} they do not ignore case; otherwise
+@c they do ignore case.
+このバッファローカルな変数は、
+大文字小文字を区別して探索するかどうかを決定する。
+変数が@code{nil}であると大文字小文字を区別する。
+さもなければ大文字小文字を区別しない。
+@end defopt
+
+@defvar default-case-fold-search
+@c The value of this variable is the default value for
+@c @code{case-fold-search} in buffers that do not override it.  This is the
+@c same as @code{(default-value 'case-fold-search)}.
+この変数の値は、@code{case-fold-search}を書き変えていないバッファ向けの
+デフォルト値である。
+これは@code{(default-value 'case-fold-search)}と同じである。
+@end defvar
+
+@node Standard Regexps
+@c @section Standard Regular Expressions Used in Editing
+@section 編集に用いられる標準的な正規表現
+@c @cindex regexps used standardly in editing
+@c @cindex standard regexps used in editing
+@cindex 編集に用いられる標準的な正規表現
+@cindex 標準的な正規表現
+
+@c   This section describes some variables that hold regular expressions
+@c used for certain purposes in editing:
+本節では、編集上の特定目的に用いられる正規表現を保持している
+変数について述べます。
+
+@defvar page-delimiter
+@c This is the regular expression describing line-beginnings that separate
+@c pages.  The default value is @code{"^\014"} (i.e., @code{"^^L"} or
+@c @code{"^\C-l"}); this matches a line that starts with a formfeed
+@c character.
+これは、ページを区切る行頭を記述した正規表現である。
+デフォルト値は、@code{"^\014"}（つまり、@code{"^^L"}すなわち@code{"^\C-l"}）
+である。
+これはページ送り文字で始まる行に一致する。
+@end defvar
+
+@c   The following two regular expressions should @emph{not} assume the
+@c match always starts at the beginning of a line; they should not use
+@c @samp{^} to anchor the match.  Most often, the paragraph commands do
+@c check for a match only at the beginning of a line, which means that
+@c @samp{^} would be superfluous.  When there is a nonzero left margin,
+@c they accept matches that start after the left margin.  In that case, a
+@c @samp{^} would be incorrect.  However, a @samp{^} is harmless in modes
+@c where a left margin is never used.
+つぎの2つの正規表現は、つねに行の先頭から一致が
+始まると仮定しては@emph{いけません}。
+一致の開始位置を固定する@samp{^}を使うべきではありません。
+ほとんどの場合、段落コマンドは行の先頭でのみ一致を検査しますから、
+@samp{^}は不必要であることを意味します。
+幅0以外の左端余白があると、段落コマンドは左端余白のうしろからの一致を
+受け入れます。
+そのような場合、@samp{^}は誤りです。
+しかし、左端余白をけっして使わないモードならば、
+@samp{^}は無害です。
+
+@defvar paragraph-separate
+@c This is the regular expression for recognizing the beginning of a line
+@c that separates paragraphs.  (If you change this, you may have to
+@c change @code{paragraph-start} also.)  The default value is
+@c @w{@code{"[@ \t\f]*$"}}, which matches a line that consists entirely of
+@c spaces, tabs, and form feeds (after its left margin).
+これは、段落を区切る行の始まりを認識するための正規表現である。
+（これを変更したら、@code{paragraph-start}も変更すること。）
+デフォルト値は@w{@code{"[@ \t\f]*$"}}であり、
+（左端余白に続く）空白やタブやページ送りだけから成る行に一致する。
+@end defvar
+
+@defvar paragraph-start
+@c This is the regular expression for recognizing the beginning of a line
+@c that starts @emph{or} separates paragraphs.  The default value is
+@c @w{@code{"[@ \t\n\f]"}}, which matches a line starting with a space, tab,
+@c newline, or form feed (after its left margin).
+これは、段落を始める行や区切る行の始まりを認識するための正規表現である。
+デフォルト値は@w{@code{"[@ \t\n\f]"}}であり、
+（左端余白に続く）空白やタブやページ送りだけから成る行に一致する。
+@end defvar
+
+@defvar sentence-end
+@c This is the regular expression describing the end of a sentence.  (All
+@c paragraph boundaries also end sentences, regardless.)  The default value
+@c is:
+これは、文末を記述する正規表現である。
+（これに関わらず、段落の区切りも文末である。）
+デフォルト値はつぎのとおりである。
+
+@example
+"[.?!][]\"')@}]*\\($\\| $\\|\t\\| \\)[ \t\n]*"
+@end example
+
+@c This means a period, question mark or exclamation mark, followed
+@c optionally by a closing parenthetical character, followed by tabs,
+@c spaces or new lines.
+これは、ピリオド、疑問符、感嘆符のいずれかのあとに
+閉じ括弧文字が続き（なくてもよい）、
+タブや空白や改行が続くことを意味する。
+
+@c For a detailed explanation of this regular expression, see @ref{Regexp
+@c Example}.
+この正規表現の詳しい説明は、@ref{Regexp Example}を参照。
+@end defvar

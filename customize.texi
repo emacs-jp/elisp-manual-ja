@@ -1,0 +1,1172 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1997, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/customize
+@node Customization, Loading, Macros, Top
+@c @chapter Writing Customization Definitions
+@chapter カスタマイズ定義の書き方
+
+@c   This chapter describes how to declare user options for customization,
+@c and also customization groups for classifying them.  We use the term
+@c @dfn{customization item} to include both kinds of customization
+@c definitions---as well as face definitions (@pxref{Defining Faces}).
+本章では、カスタマイズのためのユーザーオプションの宣言方法、
+および、それらを分類するカスタマイズグループの宣言方法を説明します。
+フェイスの定義（@pxref{Defining Faces}）に加えて、
+カスタマイズの両方の種類を含めて、
+@dfn{カスタマイズ項目}（customization item）という用語を使います。
+
+@menu
+* Common Keywords::
+* Group Definitions::            
+* Variable Definitions::         
+* Customization Types::
+@end menu
+
+@node Common Keywords
+@c @section Common Keywords for All Kinds of Items
+@section すべての種類の項目に共通のキーワード
+
+@c   All kinds of customization declarations (for variables and groups, and
+@c for faces) accept keyword arguments for specifying various information.
+@c This section describes some keywords that apply to all kinds.
+（変数やグループ、フェイスの）すべての種類のカスタマイズ宣言では、
+さまざまな情報を指定するためのキーワード引数を受け付けます。
+本節では、全種類に適用できるキーワードを説明します。
+
+@c   All of these keywords, except @code{:tag}, can be used more than once
+@c in a given item.  Each use of the keyword has an independent effect.
+@c The keyword @code{:tag} is an exception because any given item can only
+@c display one name.
+@code{:tag}を除くこれらのキーワードすべては、各項目で複数回使えます。
+キーワードのそれぞれの使用には、独立の効果があります。
+キーワード@code{:tag}は例外です。
+任意の項目には名前を1つしか表示できないからです。
+
+@table @code
+@item :tag @var{name}
+@c Use @var{name}, a string, instead of the item's name, to label the item
+@c in customization menus and buffers.
+カスタマイズメニューやカスタマイズバッファ内で
+項目に付けるラベルとして、項目の名前のかわりに文字列@var{name}を使う。
+
+@item :group @var{group}
+@c Put this customization item in group @var{group}.  When you use
+@c @code{:group} in a @code{defgroup}, it makes the new group a subgroup of
+@c @var{group}.
+このカスタマイズ項目をグループ@var{group}に入れる。
+@code{defgroup}の中で@code{:group}を使うと、
+新たなグループを@var{group}の下位グループにする。
+
+@c If you use this keyword more than once, you can put a single item into
+@c more than one group.  Displaying any of those groups will show this
+@c item.  Be careful not to overdo this!
+このキーワードを複数回使うと、
+1つの項目を複数のグループに入れることができる。
+それらのグループのどれを表示しても、この項目が表示される。
+これを多用しすぎないように注意すること！
+
+@item :link @var{link-data}
+@c Include an external link after the documentation string for this item.
+@c This is a sentence containing an active field which references some
+@c other documentation.
+この項目に対する説明文字列のうしろに外部リンクを含める。
+これは、他の説明文字列を参照するアクティブフィールドを含む文である。
+
+@c There are three alternatives you can use for @var{link-data}:
+@var{link-data}として使えるものは3種類ある。
+
+@table @code
+@item (custom-manual @var{info-node})
+@c Link to an Info node; @var{info-node} is a string which specifies the
+@c node name, as in @code{"(emacs)Top"}.  The link appears as
+@c @samp{[manual]} in the customization buffer.
+infoのノードへリンクする。
+@var{info-node}は、@code{"(emacs)Top"}のようなノード名を指定する文字列。
+リンクは、カスタマイズバッファでは@samp{[manual]}のように表示される。
+
+@item (info-link @var{info-node})
+@c Like @code{custom-manual} except that the link appears
+@c in the customization buffer with the Info node name.
+@code{custom-manual}と同様であるが、
+カスタマイズバッファに現れるリンクはinfoのノード名になる。
+
+@item (url-link @var{url})
+@c Link to a web page; @var{url} is a string which specifies the @sc{url}.
+@c The link appears in the customization buffer as @var{url}.
+webページへリンクする。
+@var{url}は、@sc{url}を指定する文字列。
+カスタマイズバッファに現れるリンクは@var{url}になる。
+@end table
+
+@c You can specify the text to use in the customization buffer by adding
+@c @code{:tag @var{name}} after the first element of the @var{link-data};
+@c for example, @code{(info-link :tag "foo" "(emacs)Top")} makes a link to
+@c the Emacs manual which appears in the buffer as @samp{foo}.
+@var{link-data}の先頭要素のうしろに@code{:tag @var{name}}を使うことで、
+カスタマイズバッファに使うテキストを指定できる。
+たとえば、@code{(info-link :tag "foo" "(emacs)Top")}とすると、
+バッファでは@samp{foo}と表示されるEmacsマニュアルへのリンクを作れる。
+
+@c An item can have more than one external link; however, most items have
+@c none at all.
+1つの項目に複数個の外部リンクがあってもよいが、
+ほとんどの項目には外部リンクはない。
+
+@item :load @var{file}
+@c Load file @var{file} (a string) before displaying this customization
+@c item.  Loading is done with @code{load-library}, and only if the file is
+@c not already loaded.
+このカスタマイズ項目を表示するまえにファイル@var{file}（文字列）をロードする。
+ファイルをすでにロードしていない場合に限り、
+@code{load-library}でロードする。
+
+@item :require @var{feature}
+@c Require feature @var{feature} (a symbol) when installing a value for
+@c this item (an option or a face) that was saved using the customization
+@c feature.  This is done by calling @code{require}.
+カスタマイズ機能を用いて保存するこの項目に対する値をインストールするときに
+必要となる機能@var{feature}（シンボル）を指定する。
+@code{require}を呼び出す。
+
+@c The most common reason to use @code{:require} is when a variable enables
+@c a feature such as a minor mode, and just setting the variable won't have
+@c any effect unless the code which implements the mode is loaded.
+@code{:require}を使うもっとも一般的な理由は、
+変数がマイナモードなどの機能をオンにするとき、
+そのモードを実装するコードをロードしてないと、
+変数にはなんの効果もないからである。
+@end table
+
+@node Group Definitions
+@c @section Defining Custom Groups
+@section カスタマイズグループを定義する
+
+@c   Each Emacs Lisp package should have one main customization group which
+@c contains all the options, faces and other groups in the package.  If the
+@c package has a small number of options and faces, use just one group and
+@c put everything in it.  When there are more than twelve or so options and
+@c faces, then you should structure them into subgroups, and put the
+@c subgroups under the package's main customization group.  It is OK to
+@c put some of the options and faces in the package's main group alongside
+@c the subgroups.
+Emacs Lispの各パッケージには、
+そのパッケージのすべてのオプション、フェイス、他のグループを含んだ
+1つの主要なカスタマイズグループがあるべきです。
+パッケージに少数のオプションやフェイスしかなければ、
+それらを1つのグループにまとめます。
+12個を超えるオプションやフェイスがある場合には、
+それらを下位グループに構造化して、
+下位グループすべてをパッケージの主カスタマイズグループに入れておきます。
+パッケージの主グループに下位グループとともにいくつかのオプションやフェイスを
+入れておくのもよいでしょう。
+
+@c   The package's main or only group should be a member of one or more of
+@c the standard customization groups.  (To display the full list of them,
+@c use @kbd{M-x customize}.)  Choose one or more of them (but not too
+@c many), and add your group to each of them using the @code{:group}
+@c keyword.
+パッケージの主グループや単一のグループは、
+標準カスタマイズグループの1つかそれ以上のメンバであるべきです。
+（それらの完全な一覧を表示するには@kbd{M-x customize}を使う。）
+それらの中から1個か数個を選び（多すぎないこと）、
+キーワード@code{:group}を使って、それぞれに読者のグループを追加します。
+
+@c   The way to declare new customization groups is with @code{defgroup}.
+新たなカスタマイズグループは、@code{defgroup}で宣言します。
+
+@defmac defgroup group members doc [keyword value]...
+@tindex defgroup
+@c Declare @var{group} as a customization group containing @var{members}.
+@c Do not quote the symbol @var{group}.  The argument @var{doc} specifies
+@c the documentation string for the group.
+@var{members}を含むカスタマイズグループとして@var{group}を宣言する。
+シンボル@var{group}をクォートしないこと。
+引数@var{doc}は、グループの説明文字列を指定する。
+
+@c The argument @var{members} is a list specifying an initial set of
+@c customization items to be members of the group.  However, most often
+@c @var{members} is @code{nil}, and you specify the group's members by
+@c using the @code{:group} keyword when defining those members.
+引数@var{members}は、グループのメンバとなる
+カスタマイズ項目の初期集合を指定するリストである。
+しかし、ほとんどの場合、@var{members}は@code{nil}であり、
+それらのメンバを定義するときに、キーワード@code{:group}を使って、
+グループのメンバであることを指定する。
+
+@c If you want to specify group members through @var{members}, each element
+@c should have the form @code{(@var{name} @var{widget})}.  Here @var{name}
+@c is a symbol, and @var{widget} is a widget type for editing that symbol.
+@c Useful widgets are @code{custom-variable} for a variable,
+@c @code{custom-face} for a face, and @code{custom-group} for a group.
+@var{members}でグループのメンバを指定する場合には、
+各要素は@code{(@var{name} @var{widget})}という形式であること。
+ここで、@var{name}はシンボル、
+@var{widget}はそのシンボルを編集するためのウィジェット型である。
+有用なウィジェットは、変数に対しては@code{custom-variable}、
+フェイスに対しては@code{custom-face}、
+グループに対しては@code{custom-group}である。
+
+@c In addition to the common keywords (@pxref{Common Keywords}), you can
+@c use this keyword in @code{defgroup}:
+共通のキーワード（@pxref{Common Keywords}）に加えて、
+@code{defgroup}ではつぎのキーワードも使える。
+
+@table @code
+@item :prefix @var{prefix}
+@c If the name of an item in the group starts with @var{prefix}, then the
+@c tag for that item is constructed (by default) by omitting @var{prefix}.
+グループ内の項目の名前が@var{prefix}で始まるときには、
+その項目に対するタグを（デフォルトでは）@var{prefix}を省略して作る。
+
+@c One group can have any number of prefixes.
+1つのグループに@code{prefix}がいくつあってもよい。
+@end table
+@end defmac
+
+@c   The prefix-discarding feature is currently turned off, which means
+@c that @code{:prefix} currently has no effect.  We did this because we
+@c found that discarding the specified prefixes often led to confusing
+@c names for options.  This happened because the people who wrote the
+@c @code{defgroup} definitions for various groups added @code{:prefix}
+@c keywords whenever they make logical sense---that is, whenever the
+@c variables in the library have a common prefix.
+接頭辞を取りさる機能は、現在、オフにしてあります。
+つまり、@code{:prefix}は、現在、なんの効果もありません。
+このようにしたのは、指定した接頭辞を取りさると、
+オプション名がしばしば混乱するからです。
+さまざまなグループの@code{defgroup}定義を書く人は、
+論理的と考えられるとき、つまり、ライブラリに共通の接頭辞があるときには
+キーワード@code{:prefix}を追加するので、このようになるのです。
+
+@c   In order to obtain good results with @code{:prefix}, it would be
+@c necessary to check the specific effects of discarding a particular
+@c prefix, given the specific items in a group and their names and
+@c documentation.  If the resulting text is not clear, then @code{:prefix}
+@c should not be used in that case.
+@code{:prefix}を使ってよい結果を得るには、
+グループ内の特定の項目とそれらの名前と説明文字列に関して、
+特定の接頭辞を取りさった場合の効果を調べる必要があります。
+その結果、テキストがわかり難ければ、
+その場面では、@code{:prefix}を使うべきではないのでしょう。
+
+@c   It should be possible to recheck all the customization groups, delete
+@c the @code{:prefix} specifications which give unclear results, and then
+@c turn this feature back on, if someone would like to do the work.
+カスタマイズグループすべてを調べ直して、
+わかり難くなる結果をもたらす@code{:prefix}指定を削除し、
+この機能をオンにすることは、誰かが頑張れば、可能です。
+
+@node Variable Definitions
+@c @section Defining Customization Variables
+@section カスタマイズ変数を定義する
+
+@c   Use @code{defcustom} to declare user-editable variables.
+@code{defcustom}を使って、ユーザーが編集可能な変数を宣言します。
+
+@defmac defcustom option default doc [keyword value]...
+@tindex defcustom
+@c Declare @var{option} as a customizable user option variable.  Do not
+@c quote @var{option}.  The argument @var{doc} specifies the documentation
+@c string for the variable.
+カスタマイズ可能なユーザーオプション変数として@var{option}を宣言する。
+@var{option}をクォートしないこと。
+引数@var{doc}は変数の説明文字列を指定する。
+
+@c If @var{option} is void, @code{defcustom} initializes it to
+@c @var{default}.  @var{default} should be an expression to compute the
+@c value; be careful in writing it, because it can be evaluated on more
+@c than one occasion.
+@var{option}が空であると、@code{defcustom}は@var{default}で初期化する。
+@var{default}は値を計算する式であること。
+これは複数回評価される可能性があるので、書き方には注意すること。
+@end defmac
+
+@c   @code{defcustom} accepts the following additional keywords:
+@code{defcustom}では、つぎの追加キーワードも使えます。
+
+@table @code
+@item :type @var{type}
+@c Use @var{type} as the data type for this option.  It specifies which
+@c values are legitimate, and how to display the value.
+@c @xref{Customization Types}, for more information.
+このオプションのデータ型として@var{type}を使う。
+これは、正しい値とその表示方法を指定する。
+詳しくは、@pxref{Customization Types}。
+
+@item :options @var{list}
+@c Specify @var{list} as the list of reasonable values for use in this
+@c option.
+このオプションに使える合理的な値のリストとして@var{list}を指定する。
+
+@c Currently this is meaningful only when the type is @code{hook}.  In that
+@c case, the elements of @var{list} should be functions that are useful as
+@c elements of the hook value.  The user is not restricted to using only
+@c these functions, but they are offered as convenient alternatives.
+これは、現時点では、型が@code{hook}のときだけ意味を持つ。
+その場合、@var{list}の要素は、フックの値の要素として使える関数であること。
+ユーザーはこれらの関数以外も使えるが、便利な選択肢として提示する。
+
+@item :version @var{version}
+@c This option specifies that the variable was first introduced, or its
+@c default value was changed, in Emacs version @var{version}.  The value
+@c @var{version} must be a string.  For example,
+このオプションは、変数を最初に導入したり、デフォルト値を変更したりした
+Emacsの版@var{version}を指定する。
+値@var{version}は、文字列であること。
+たとえば、つぎのとおり。
+
+@example
+(defcustom foo-max 34
+  "*Maximum number of foo's allowed."
+  :type 'integer
+  :group 'foo
+  :version "20.3")
+@end example
+
+@item :set @var{setfunction}
+@c Specify @var{setfunction} as the way to change the value of this option.
+@c The function @var{setfunction} should take two arguments, a symbol and
+@c the new value, and should do whatever is necessary to update the value
+@c properly for this option (which may not mean simply setting the option
+@c as a Lisp variable).  The default for @var{setfunction} is
+@c @code{set-default}.
+このオプションの値を変更する方法として@var{setfunction}を指定する。
+関数@var{setfunction}は、2つの引数、つまり、シンボルと新しい値を取り、
+このオプションの値を（Lisp変数としてオプションを設定するだけでなく）
+適切に更新するために必要なことを行うこと。
+@var{setfunction}のデフォルトは@code{set-default}。
+
+@item :get @var{getfunction}
+@c Specify @var{getfunction} as the way to extract the value of this
+@c option.  The function @var{getfunction} should take one argument, a
+@c symbol, and should return the ``current value'' for that symbol (which
+@c need not be the symbol's Lisp value).  The default is
+@c @code{default-value}.
+このオプションの値を取り出す方法として@var{getfunction}を指定する。
+関数@var{getfunction}は、1つの引数、つまり、シンボルを取り、
+そのシンボル（のLisp値とは必ずしも限らない）の『現在値』を返すこと。
+デフォルトは@code{default-value}。
+
+@item :initialize @var{function}
+@c @var{function} should be a function used to initialize the variable when
+@c the @code{defcustom} is evaluated.  It should take two arguments, the
+@c symbol and value.  Here are some predefined functions meant for use in
+@c this way:
+@var{function}は、@code{defcustom}を評価したときに変数の初期化に使う関数。
+この関数は、2つの引数、つまり、シンボルと値を取ること。
+このように使うことを意図した定義済みの関数がいくつかある。
+
+@table @code
+@item custom-initialize-set
+@c Use the variable's @code{:set} function to initialize the variable, but
+@c do not reinitialize it if it is already non-void.  This is the default
+@c @code{:initialize} function.
+変数の@code{:set}関数を使って変数を初期化するが、
+変数の値が空でないときには再初期化しない。
+これは@code{:initialize}のデフォルト。
+
+@item custom-initialize-default
+@c Like @code{custom-initialize-set}, but use the function
+@c @code{set-default} to set the variable, instead of the variable's
+@c @code{:set} function.  This is the usual choice for a variable whose
+@c @code{:set} function enables or disables a minor mode; with this choice,
+@c defining the variable will not call the minor mode function, but
+@c customizing the variable will do so.
+@code{custom-initialize-set}に似ているが、
+変数の@code{:set}関数のかわりに関数@code{set-default}を使って変数を設定する。
+変数の@code{:set}関数がマイナモードをオン／オフする場合には、
+普通はこれを選ぶ。
+これを選ぶと、変数を定義してもマイナモード関数を呼び出さないが、
+変数をカスタマイズするとマイナモード関数を呼び出す。
+
+@item custom-initialize-reset
+@c Always use the @code{:set} function to initialize the variable.  If the
+@c variable is already non-void, reset it by calling the @code{:set}
+@c function using the current value (returned by the @code{:get} method).
+変数を初期化するにはつねに@code{:set}関数を使う。
+変数の値が空でない場合には、（@code{:get}で得られる）現在値で
+@code{:set}関数を呼び出して、変数をリセットする。
+
+@item custom-initialize-changed
+@c Use the @code{:set} function to initialize the variable, if it is
+@c already set or has been customized; otherwise, just use
+@c @code{set-default}.
+変数がすでに設定されていたりカスタマイズしてあるときに、
+変数を初期化するために@code{:set}関数を使う。
+さもなければ、@code{set-default}を使う。
+@end table
+@end table
+
+@c   The @code{:require} option is useful for an option that turns on the
+@c operation of a certain feature.  Assuming that the package is coded to
+@c check the value of the option, you still need to arrange for the package
+@c to be loaded.  You can do that with @code{:require}.  @xref{Common
+@c Keywords}.  Here is an example, from the library @file{paren.el}:
+@code{:require}オプションは、
+特定の機能をオンにするようなオプションには便利です。
+パッケージがオプション変数の値を検査するように書かれていたとしても、
+パッケージをロードするようにする必要があります。
+これを@code{:require}で行えるのです。
+@xref{Common Keywords}。
+ライブラリ@file{paren.el}からとった例をつぎに示します。
+
+@example
+(defcustom show-paren-mode nil
+  "Toggle Show Paren mode@enddots{}"
+  :set (lambda (symbol value)
+         (show-paren-mode (or value 0)))
+  :initialize 'custom-initialize-default
+  :type 'boolean
+  :group 'paren-showing
+  :require 'paren)
+@end example
+
+@ignore
+Use @code{custom-add-option} to specify that a specific function is
+useful as an member of a hook.
+
+@defun custom-add-option symbol option
+To the variable @var{symbol} add @var{option}.
+
+If @var{symbol} is a hook variable, @var{option} should be a hook
+member.  For other types variables, the effect is undefined."
+@end defun
+@end ignore
+
+@c Internally, @code{defcustom} uses the symbol property
+@c @code{standard-value} to record the expression for the default value,
+@c and @code{saved-value} to record the value saved by the user with the
+@c customization buffer.  The @code{saved-value} property is actually a
+@c list whose car is an expression which evaluates to the value.
+内部的には、@code{defcustom}は、
+デフォルト値を与える式は属性@code{standard-value}を使って記録し、
+ユーザーがカスタマイズバッファで保存した値は
+属性@code{saved-value}を使って記録しています。
+属性@code{saved-value}は実際にはリストであり、
+その@sc{car}が値に評価される式です。
+
+@node Customization Types
+@c @section Customization Types
+@section カスタマイズ型
+
+@c   When you define a user option with @code{defcustom}, you must specify
+@c its @dfn{customization type}.  That is a Lisp object which describes (1)
+@c which values are legitimate and (2) how to display the value in the
+@c customization buffer for editing.
+@code{defcustom}でユーザーオプションを定義するときには、
+その@dfn{カスタマイズ型}（customization type）を定義する必要があります。
+これはLispオブジェクトであり、
+（1）どのような値が正しいものであり、
+（2）編集用にカスタマイズバッファに表示する方法、
+を示します。
+
+@c   You specify the customization type in @code{defcustom} with the
+@c @code{:type} keyword.  The argument of @code{:type} is evaluated; since
+@c types that vary at run time are rarely useful, normally you use a quoted
+@c constant.  For example:
+カスタマイズ型は、@code{defcustom}内の@code{:type}キーワードで指定します。
+@code{:type}の引数は評価されます。
+実行時に型が変わるものはほとんど使い途がないので、
+普通、クォートした型を指定します。
+たとえば、つぎのとおりです。
+
+@example
+(defcustom diff-command "diff"
+  "*The command to use to run diff."
+  :type '(string)
+  :group 'diff)
+@end example
+
+@c   In general, a customization type is a list whose first element is a
+@c symbol, one of the customization type names defined in the following
+@c sections.  After this symbol come a number of arguments, depending on
+@c the symbol.  Between the type symbol and its arguments, you can
+@c optionally write keyword-value pairs (@pxref{Type Keywords}).
+一般に、カスタマイズ型はリストであり、
+その先頭要素はシンボルで、次節以降で定義するカスタマイズ型名の1つです。
+このシンボルのあとには、シンボルに依存した数個の引数が続きます。
+型シンボルとその引数のあいだには、
+キーワード・値の対を書くこともできます
+（@pxref{Type Keywords}）。
+
+@c   Some of the type symbols do not use any arguments; those are called
+@c @dfn{simple types}.  For a simple type, if you do not use any
+@c keyword-value pairs, you can omit the parentheses around the type
+@c symbol.  For example just @code{string} as a customization type is
+@c equivalent to @code{(string)}.
+型シンボルには、引数を取らないものもあります。
+これらを@dfn{単純型}（simple types）と呼びます。
+単純型では、キーワード・値の対を指定しなければ、
+型シンボルを囲む括弧を省略できます。
+たとえば、カスタマイズ型としての@code{string}は、
+@code{(string)}と等価です。
+
+@menu
+* Simple Types::
+* Composite Types::
+* Splicing into Lists::
+* Type Keywords::
+@end menu
+
+@node Simple Types
+@c @subsection Simple Types
+@subsection 単純型
+
+@c   This section describes all the simple customization types.
+本節では、すべての単純型を説明します。
+
+@table @code
+@item sexp
+@c The value may be any Lisp object that can be printed and read back.  You
+@c can use @code{sexp} as a fall-back for any option, if you don't want to
+@c take the time to work out a more specific type to use.
+値は、表示したり読み取れるならば、任意のLispオブジェクトでよい。
+使用する型をより限定する手間を省きたければ、
+任意のオプションに対するデフォルトとして、
+@code{sexp}を使うことができる。
+
+@item integer
+@c The value must be an integer, and is represented textually
+@c in the customization buffer.
+値は整数である必要があり、カスタマイズバッファではテキストで表示する。
+
+@item number
+@c The value must be a number, and is represented textually in the
+@c customization buffer.
+値は数である必要があり、カスタマイズバッファではテキストで表示する。
+
+@item string
+@c The value must be a string, and the customization buffer shows just the
+@c contents, with no delimiting @samp{"} characters and no quoting with
+@c @samp{\}.
+値は文字列である必要があり、
+カスタマイズバッファでは、その内容だけを表示し、
+文字@samp{"}で区切ったり、@samp{\}でクォートしない。
+
+@item regexp
+@c Like @code{string} except that the string must be a valid regular
+@c expression.
+@code{string}と同様であるが、
+文字列は正規表現である必要がある。
+
+@item character
+@c The value must be a character code.  A character code is actually an
+@c integer, but this type shows the value by inserting the character in the
+@c buffer, rather than by showing the number.
+値は文字コードである必要がある。
+文字コードは実際には整数であるが、
+この型では、数として表示するのではなく、
+文字としてバッファに挿入してその値を表示する。
+
+@item file
+@c The value must be a file name, and you can do completion with
+@c @kbd{M-@key{TAB}}.
+値はファイル名である必要があり、@kbd{M-@key{TAB}}で補完できる。
+
+@item (file :must-match t)
+@c The value must be a file name for an existing file, and you can do
+@c completion with @kbd{M-@key{TAB}}.
+値は既存のファイル名である必要があり、@kbd{M-@key{TAB}}で補完できる。
+
+@item directory
+@c The value must be a directory name, and you can do completion with
+@c @kbd{M-@key{TAB}}.
+値はディレクトリ名である必要があり、@kbd{M-@key{TAB}}で補完できる。
+
+@item hook
+@c The value must be a list of functions (or a single function, but that is
+@c obsolete usage).  This customization type is used for hook variables.
+@c You can use the @code{:options} keyword in a hook variable's
+@c @code{defcustom} to specify a list of functions recommended for use in
+@c the hook; see @ref{Variable Definitions}.
+値は関数のリスト（あるいは、単一の関数。ただし、この使い方は廃れている）
+である必要がある。
+このカスタマイズ型は、フック変数に使用する。
+フックに使う推奨される関数のリストを指定するために、
+フック変数の@code{defcustom}で@code{:options}キーワードを使用できる。
+@pxref{Variable Definitions}。
+
+@item symbol
+@c The value must be a symbol.  It appears in the customization buffer as
+@c the name of the symbol.
+値はシンボルである必要がある。
+カスタマイズバッファでは、シンボルの名前を表示する。
+
+@item function
+@c The value must be either a lambda expression or a function name.  When
+@c it is a function name, you can do completion with @kbd{M-@key{TAB}}.
+値はラムダ式か関数名である必要がある。
+関数名の場合、@kbd{M-@key{TAB}}で補完できる。
+
+@item variable
+@c The value must be a variable name, and you can do completion with
+@c @kbd{M-@key{TAB}}.
+値は変数名である必要があり、@kbd{M-@key{TAB}}で補完できる。
+
+@item face
+@c The value must be a symbol which is a face name, and you can do
+@c completion with @kbd{M-@key{TAB}}.
+値はフェイス名を表すシンボルである必要があり、@kbd{M-@key{TAB}}で補完できる。
+
+@item boolean
+@c The value is boolean---either @code{nil} or @code{t}.  Note that by
+@c using @code{choice} and @code{const} together (see the next section),
+@c you can specify that the value must be @code{nil} or @code{t}, but also
+@c specify the text to describe each value in a way that fits the specific
+@c meaning of the alternative.
+値は真理値、つまり、@code{nil}か@code{t}である必要がある。
+@code{choice}と@code{const}を同時に使うと（次節参照）、
+値は@code{nil}か@code{t}である必要があることを指定し、
+さらに、どちらの値がどの選択肢に合うかを記述するテキストを
+指定できることに注意。
+@end table
+
+@node Composite Types
+@c @subsection Composite Types
+@subsection 複合型
+
+@c   When none of the simple types is appropriate, you can use composite
+@c types, which build new types from other types.  Here are several ways of
+@c doing that:
+単純型が適切でない場合には、
+他の型から新たな型を作り上げる複合型を使えます。
+これには、いくつかの方法があります。
+
+@table @code
+@item (restricted-sexp :match-alternatives @var{criteria})
+@c The value may be any Lisp object that satisfies one of @var{criteria}.
+@c @var{criteria} should be a list, and each element should be
+@c one of these possibilities:
+値は、@var{criteria}の1つを満たす任意のLispオブジェクトでよい。
+@var{criteria}はリストであり、その各要素は以下の1つであること。
+
+@itemize @bullet
+@item
+@c A predicate---that is, a function of one argument that has no side
+@c effects, and returns either @code{nil} or non-@code{nil} according to
+@c the argument.  Using a predicate in the list says that objects for which
+@c the predicate returns non-@code{nil} are acceptable.
+述語。
+つまり、引数を1つ取る副作用のない関数であり、
+引数に応じて@code{nil}か@code{nil}以外を返す。
+リスト内の述語がオブジェクトに対して@code{nil}以外を返せば
+そのオブジェクトを受理することを意味する。
+
+@item
+@c A quoted constant---that is, @code{'@var{object}}.  This sort of element
+@c in the list says that @var{object} itself is an acceptable value.
+クォートした定数。
+つまり、@code{'@var{object}}。
+リスト内のこの種の要素は、
+@var{object}そのものが受理できる値であることを意味する。
+@end itemize
+
+@c For example,
+たとえば、
+
+@example
+(restricted-sexp :match-alternatives
+                 (integerp 't 'nil))
+@end example
+
+@noindent
+@c allows integers, @code{t} and @code{nil} as legitimate values.
+は、整数、@code{t}、@code{nil}が正しい値である。
+
+@c The customization buffer shows all legitimate values using their read
+@c syntax, and the user edits them textually.
+カスタマイズバッファでは、すべての正しい値はその入力構文で表示し、
+ユーザーはそれらをテキストとして編集する。
+
+@item (cons @var{car-type} @var{cdr-type})
+@c The value must be a cons cell, its @sc{car} must fit @var{car-type}, and
+@c its @sc{cdr} must fit @var{cdr-type}.  For example, @code{(cons string
+@c symbol)} is a customization type which matches values such as
+@c @code{("foo" . foo)}.
+値はコンスセルである必要があり、
+その@sc{car}は@var{car-type}に合い、かつ、
+その@sc{cdr}は@var{cdr-type}に合う必要がある。
+たとえば、@code{(cons string symbol)}は、
+@code{("foo" . foo)}などの値に一致するカスタマイズ型である。
+
+@c In the customization buffer, the @sc{car} and the @sc{cdr} are
+@c displayed and edited separately, each according to the type
+@c that you specify for it.
+カスタマイズバッファでは、
+@sc{car}と@sc{cdr}は、
+それらに指定した型に応じて別々に表示され、個別に編集できる。
+
+@item (list @var{element-types}@dots{})
+@c The value must be a list with exactly as many elements as the
+@c @var{element-types} you have specified; and each element must fit the
+@c corresponding @var{element-type}.
+値は@var{element-types}に指定したとおりの個数のリストである必要があり、
+各要素は@var{element-type}に合うこと。
+
+@c For example, @code{(list integer string function)} describes a list of
+@c three elements; the first element must be an integer, the second a
+@c string, and the third a function.
+たとえば、@code{(list integer string function)}は、
+3要素のリストを意味し、
+第1要素は整数、第2要素は文字列、第3要素は関数であることを指定する。
+
+@c In the customization buffer, each element is displayed and edited
+@c separately, according to the type specified for it.
+カスタマイズバッファでは、
+各要素は、それらに指定した型に応じて別々に表示され、個別に編集できる。
+
+@item (vector @var{element-types}@dots{})
+@c Like @code{list} except that the value must be a vector instead of a
+@c list.  The elements work the same as in @code{list}.
+@code{list}と同様だが、値はリストではなくベクトルである必要がある。
+その要素は@code{list}の場合と同じ。
+
+@item (choice @var{alternative-types}...)
+@c The value must fit at least one of @var{alternative-types}.
+@c For example, @code{(choice integer string)} allows either an
+@c integer or a string.
+値は、@var{alternative-types}の少なくとも1つに合う必要がある。
+たとえば、@code{(choice integer string)}は、整数か文字列を許す。
+
+@c In the customization buffer, the user selects one of the alternatives
+@c using a menu, and can then edit the value in the usual way for that
+@c alternative.
+カスタマイズバッファでは、ユーザーはメニューを使って選択肢を選び、
+その選択肢において普通の方法で値を編集する。
+
+@c Normally the strings in this menu are determined automatically from the
+@c choices; however, you can specify different strings for the menu by
+@c including the @code{:tag} keyword in the alternatives.  For example, if
+@c an integer stands for a number of spaces, while a string is text to use
+@c verbatim, you might write the customization type this way,
+通常、このメニューの選択肢名は、選択肢から自動的に決定されるが、
+選択肢に@code{:tag}キーワードを含めることで、
+メニューに異なる名前を指定できる。
+たとえば、整数が空白の個数を表し、文字列がそのまま使うテキストを表す場合には、
+つぎのようにカスタマイズ型を書く。
+
+@example
+(choice (integer :tag "Number of spaces")
+        (string :tag "Literal text"))
+@end example
+
+@noindent
+@c so that the menu offers @samp{Number of spaces} and @samp{Literal Text}.
+そうすると、メニューには、
+@samp{Number of spaces}と@samp{Literal Text}が表示される。
+
+@c In any alternative for which @code{nil} is not a valid value, other than
+@c a @code{const}, you should specify a valid default for that alternative
+@c using the @code{:value} keyword.  @xref{Type Keywords}.
+@code{const}以外の@code{nil}が正当な値ではない選択肢では、
+そのような選択肢には@code{:value}キーワードを使って
+正当なデフォルト値を指定すること。
+@xref{Type Keywords}。
+
+@item (const @var{value})
+@c The value must be @var{value}---nothing else is allowed.
+値は@var{value}であること。
+それ以外は許さない。
+
+@c The main use of @code{const} is inside of @code{choice}.  For example,
+@c @code{(choice integer (const nil))} allows either an integer or
+@c @code{nil}.
+@code{const}の主な用途は@code{choice}の内側である。
+たとえば、@code{(choice integer (const nil))}は、整数か@code{nil}を許す。
+
+@c @code{:tag} is often used with @code{const}, inside of @code{choice}.
+@c For example,
+@code{choice}の内側では、@code{const}にしばしば@code{:tag}を使う。
+たとえば、
+
+@example
+(choice (const :tag "Yes" t)
+        (const :tag "No" nil)
+        (const :tag "Ask" foo))
+@end example
+
+@noindent
+@c describes a variable for which @code{t} means yes, @code{nil} means no,
+@c and @code{foo} means ``ask.''
+は、@code{t}は『yes』（はい）、@code{nil}は『no』（いいえ）、
+@code{foo}は『ask』（問い合わせる）を意味する変数を記述する。
+
+@item (other @var{value})
+@c This alternative can match any Lisp value, but if the user chooses this
+@c alternative, that selects the value @var{value}.
+この選択肢は任意のLisp値に一致するが、
+ユーザーがこの選択肢を選ぶと、値@var{value}を選ぶことになる。
+
+@c The main use of @code{other} is as the last element of @code{choice}.
+@c For example,
+@code{other}は、主に、@code{choice}の最後の要素として使うことである。
+たとえば、
+
+@example
+(choice (const :tag "Yes" t)
+        (const :tag "No" nil)
+        (other :tag "Ask" foo))
+@end example
+
+@noindent
+@c describes a variable for which @code{t} means yes, @code{nil} means no,
+@c and anything else means ``ask.''  If the user chooses @samp{Ask} from
+@c the menu of alternatives, that specifies the value @code{foo}; but any
+@c other value (not @code{t}, @code{nil} or @code{foo}) displays as
+@c @samp{Ask}, just like @code{foo}.
+は、@code{t}は『yes』（はい）、@code{nil}は『no』（いいえ）、
+それ以外は『ask』（問い合わせる）を意味することを示す。
+ユーザーが選択肢のメニューから@samp{Ask}を選ぶと、値@code{foo}を指定する。
+しかし、（@code{t}でも@code{nil}でも@code{foo}でもない）それ以外の値は、
+@code{foo}と同様に@samp{Ask}と表示される。
+
+@item (function-item @var{function})
+@c Like @code{const}, but used for values which are functions.  This
+@c displays the documentation string as well as the function name.
+@c The documentation string is either the one you specify with
+@c @code{:doc}, or @var{function}'s own documentation string.
+@code{const}と同様だが、関数であるような値に使う。
+これは、関数名に加えて説明文字列を表示する。
+説明文字列は、@code{:doc}に指定したものか、
+@var{function}そのものの説明文字列である。
+
+@item (variable-item @var{variable})
+@c Like @code{const}, but used for values which are variable names.  This
+@c displays the documentation string as well as the variable name.  The
+@c documentation string is either the one you specify with @code{:doc}, or
+@c @var{variable}'s own documentation string.
+@code{const}と同様だが、変数名であるような値に使う。
+これは、変数名に加えて説明文字列を表示する。
+説明文字列は、@code{:doc}に指定したものか、
+@var{variable}そのものの説明文字列である。
+
+@item (set @var{elements}@dots{})
+@c The value must be a list and each element of the list must be one of the
+@c @var{elements} specified.  This appears in the customization buffer as a
+@c checklist.
+値はリストである必要があり、
+その各要素は@var{elements}に指定したものの1つである必要がある。
+これは、カスタマイズバッファにはチェックリストとして表示される。
+
+@item (repeat @var{element-type})
+@c The value must be a list and each element of the list must fit the type
+@c @var{element-type}.  This appears in the customization buffer as a
+@c list of elements, with @samp{[INS]} and @samp{[DEL]} buttons for adding
+@c more elements or removing elements.
+値はリストである必要があり、
+その各要素は@var{element-type}に指定した型に合う必要がある。
+これは、カスタマイズバッファには、
+要素を追加したり削除したりする@samp{[INS]}や@samp{[DEL]}ボタンを伴って、
+要素のリストとして表示される。
+@end table
+
+@node Splicing into Lists
+@c @subsection Splicing into Lists
+@subsection リストに繋ぎ合わせる
+
+@c   The @code{:inline} feature lets you splice a variable number of
+@c elements into the middle of a list or vector.  You use it in a
+@c @code{set}, @code{choice} or @code{repeat} type which appears among the
+@c element-types of a @code{list} or @code{vector}.
+@code{:inline}機能により、可変個数の要素をリストやベクトルの
+途中に繋ぎ合わせることができます。
+@code{list}や@code{vector}の要素型に現れる
+@code{set}型、@code{choice}型、@code{repeat}型の中に使います。
+
+@c   Normally, each of the element-types in a @code{list} or @code{vector}
+@c describes one and only one element of the list or vector.  Thus, if an
+@c element-type is a @code{repeat}, that specifies a list of unspecified
+@c length which appears as one element.
+通常、@code{list}や@code{vector}のおのおのの要素型は、
+リストやベクトルのたった1つの要素を記述します。
+したがって、要素型が@code{repeat}であると、
+1要素として表示される長さを指定しないリストを指定します。
+
+@c   But when the element-type uses @code{:inline}, the value it matches is
+@c merged directly into the containing sequence.  For example, if it
+@c matches a list with three elements, those become three elements of the
+@c overall sequence.  This is analogous to using @samp{,@@} in the backquote
+@c construct.
+しかし、要素型に@code{:inline}を使うと、
+これに一致する値は、@code{:inline}を含むシーケンスに直接に併合されます。
+たとえば、3要素のリストに一致すると、
+それがシーケンス全体の3つの要素になります。
+これはバッククォート構文の@samp{,@@}の使い方に似ています。
+
+@c   For example, to specify a list whose first element must be @code{t}
+@c and whose remaining arguments should be zero or more of @code{foo} and
+@c @code{bar}, use this customization type:
+たとえば、先頭要素が@code{t}であり、
+残りが@code{foo}か@code{bar}の0個以上の繰り返しであるリストを指定するには、
+つぎのカスタマイズ型を使います。
+
+@example
+(list (const t) (set :inline t foo bar))
+@end example
+
+@noindent
+@c This matches values such as @code{(t)}, @code{(t foo)}, @code{(t bar)}
+@c and @code{(t foo bar)}.
+これは、@code{(t)}、@code{(t foo)}、@code{(t bar)}、@code{(t foo bar)}などの
+値に一致します。
+
+@c   When the element-type is a @code{choice}, you use @code{:inline} not
+@c in the @code{choice} itself, but in (some of) the alternatives of the
+@c @code{choice}.  For example, to match a list which must start with a
+@c file name, followed either by the symbol @code{t} or two strings, use
+@c this customization type:
+要素型が@code{choice}であるときには、
+@code{choice}そのものには@code{:inline}を使いませんが、
+@code{choice}の選択肢（のどれか）に@code{:inline}を使います。
+たとえば、ファイル名で始まりシンボル@code{t}か2つの文字列が続くような
+リストに一致するようにするには、
+つぎのカスタマイズ型を使います。
+
+@example
+(list file
+      (choice (const t)
+              (list :inline t string string)))
+@end example
+
+@noindent
+@c If the user chooses the first alternative in the choice, then the
+@c overall list has two elements and the second element is @code{t}.  If
+@c the user chooses the second alternative, then the overall list has three
+@c elements and the second and third must be strings.
+ユーザーが最初の選択肢を選ぶと、全体としてのリストは2要素になり、
+第2要素は@code{t}です。
+ユーザーが2番目の選択肢を選ぶと、
+全体としてのリストは3要素になり、
+第2要素と第3要素は文字列である必要があります。
+
+@node Type Keywords
+@c @subsection Type Keywords
+@subsection 型キーワード
+
+@c You can specify keyword-argument pairs in a customization type after the
+@c type name symbol.  Here are the keywords you can use, and their
+@c meanings:
+型名のシンボルのあとに、カスタマイズ型内にキーワード・引数の対を指定できます。
+使えるキーワードとその意味を以下に示します。
+
+@table @code
+@item :value @var{default}
+@c This is used for a type that appears as an alternative inside of
+@c @code{choice}; it specifies the default value to use, at first, if and
+@c when the user selects this alternative with the menu in the
+@c customization buffer.
+@code{choice}の内側の選択肢として現れる型に使う。
+これは、カスタマイズバッファのメニューでユーザーがこの選択肢を選ぶと、
+使用するデフォルト値をまず指定する。
+
+@c Of course, if the actual value of the option fits this alternative, it
+@c will appear showing the actual value, not @var{default}.
+もちろん、オプションの実際の値がこの選択肢に合えば、
+@var{default}ではなく実際の値が表示される。
+
+@c If @code{nil} is not a valid value for the alternative, then it is
+@c essential to specify a valid default with @code{:value}.
+選択肢の値として@code{nil}が不正であるときには、
+@code{:value}で正当なデフォルトを指定することが本質的である。
+
+@item :format @var{format-string}
+@c This string will be inserted in the buffer to represent the value
+@c corresponding to the type.  The following @samp{%} escapes are available
+@c for use in @var{format-string}:
+この文字列は、型に対応する値を表現するためにバッファに挿入される。
+@var{format-string}には、以下に示す@samp{%}を使える。
+
+@table @samp
+@item %[@var{button}%]
+@c Display the text @var{button} marked as a button.  The @code{:action}
+@c attribute specifies what the button will do if the user invokes it;
+@c its value is a function which takes two arguments---the widget which
+@c the button appears in, and the event.
+ボタンとして印を付けたテキスト@var{button}を表示する。
+@code{:action}属性は、ユーザーがボタンを起動したらなにを行うかを指定する。
+その値は2つの引数、つまり、ボタンが現れるウィジェットとイベント
+を取る関数であること。
+
+@c There is no way to specify two different buttons with different
+@c actions.
+異なるアクションを有する異なるボタンを指定する方法はない。
+
+@item %@{@var{sample}%@}
+@c Show @var{sample} in a special face specified by @code{:sample-face}.
+@code{:sample-face}で指定した特別なフェイスで@var{sample}を表示する。
+
+@item %v
+@c Substitute the item's value.  How the value is represented depends on
+@c the kind of item, and (for variables) on the customization type.
+項目の値で置き換える。
+値の表示方法は項目の種類と、
+（変数の）カスタマイズ型に依存する。
+
+@item %d
+@c Substitute the item's documentation string.
+項目の説明文字列で置き換える。
+
+@item %h
+@c Like @samp{%d}, but if the documentation string is more than one line,
+@c add an active field to control whether to show all of it or just the
+@c first line.
+@samp{%d}と同様だが、説明文字列が1行を超えるときには、
+説明文字列全体を表示するか先頭行だけを表示するかを
+制御するアクティブフィールドを追加する。
+
+@item %t
+@c Substitute the tag here.  You specify the tag with the @code{:tag}
+@c keyword.
+タグで置き換える。
+タグは@code{:tag}キーワードで指定する。
+
+@item %%
+@c Display a literal @samp{%}. 
+@samp{%}をそのまま表示する。
+@end table
+
+@item :action @var{action}
+@c Perform @var{action} if the user clicks on a button.
+ユーザーがボタンをクリックしたら@var{action}を行う。
+
+@item :button-face @var{face}
+@c Use the face @var{face} (a face name or a list of face names) for button
+@c text displayed with @samp{%[@dots{}%]}.
+@samp{%[@dots{}%]}で表示するボタンテキストに
+フェイス@var{face}（フェイス名かフェイス名のリスト）を使う。
+
+@item :button-prefix @var{prefix}
+@itemx :button-suffix @var{suffix}
+@c These specify the text to display before and after a button.
+@c Each can be:
+これらは、以下のようにボタンの前後に表示するテキストを指定する。
+
+@table @asis
+@item @code{nil}
+@c No text is inserted.
+テキストを挿入しない。
+
+@c @item a string
+@item 文字列
+@c The string is inserted literally.
+文字列をそのまま挿入する。
+
+@c @item a symbol
+@item シンボル
+@c The symbol's value is used.
+シンボルの値を使う。
+@end table
+
+@item :tag @var{tag}
+@c Use @var{tag} (a string) as the tag for the value (or part of the value)
+@c that corresponds to this type.
+この型に対応する値（やその一部）に対するタグとして
+@var{tag}（文字列）を使う
+
+@item :doc @var{doc}
+@c Use @var{doc} as the documentation string for this value (or part of the
+@c value) that corresponds to this type.  In order for this to work, you
+@c must specify a value for @code{:format}, and use @samp{%d} or @samp{%h}
+@c in that value.
+この型に対応する値（やその一部）に対する説明文字列として
+@var{doc}を使う。
+これが動作するためには、
+@code{:format}の値を指定し、かつ、
+その値の中で@samp{%d}や@samp{%h}を使う必要がある。
+
+@c The usual reason to specify a documentation string for a type is to
+@c provide more information about the meanings of alternatives inside a
+@c @code{:choice} type or the parts of some other composite type.
+型に対して説明文字列を指定するのは、
+@code{:choice}の選択肢や他の複合型の一部の意味について
+より多くの情報をユーザーに与えるためである。
+
+@item :help-echo @var{motion-doc}
+@c When you move to this item with @code{widget-forward} or
+@c @code{widget-backward}, it will display the string @var{motion-doc}
+@c in the echo area.
+@code{widget-forward}や@code{widget-backward}でこの項目に移動すると、
+エコー領域に文字列@var{motion-doc}を表示する。
+
+@item :match @var{function}
+@c Specify how to decide whether a value matches the type.  The
+@c corresponding value, @var{function}, should be a function that accepts
+@c two arguments, a widget and a value; it should return non-@code{nil} if
+@c the value is acceptable.
+値がこの型に一致することを調べる方法を指定する。
+対応する値@var{function}は、2つの引数、つまり、
+ウィジェットと値を取る関数であること。
+受理できる値の場合には@code{nil}以外を返すこと。
+
+@ignore
+@item :indent @var{columns}
+Indent this item by @var{columns} columns.  The indentation is used for
+@samp{%n}, and automatically for group names, for checklists and radio
+buttons, and for editable lists.  It affects the whole of the
+item except for the first line.
+
+@item :offset @var{columns}
+An integer indicating how many extra spaces to indent the subitems of
+this item.  By default, subitems are indented the same as their parent.
+
+@item :extra-offset
+An integer indicating how many extra spaces to add to this item's
+indentation, compared to its parent.
+
+@item :notify
+A function called each time the item or a subitem is changed.  The
+function is called with two or three arguments.  The first argument is
+the item itself, the second argument is the item that was changed, and
+the third argument is the event leading to the change, if any.
+
+@item :menu-tag
+Tag used in the menu when the widget is used as an option in a
+@code{menu-choice} widget.
+
+@item :menu-tag-get
+Function used for finding the tag when the widget is used as an option
+in a @code{menu-choice} widget.  By default, the tag used will be either the
+@code{:menu-tag} or @code{:tag} property if present, or the @code{princ}
+representation of the @code{:value} property if not.
+
+@item :validate
+A function which takes a widget as an argument, and return nil if the
+widgets current value is valid for the widget.  Otherwise, it should
+return the widget containing the invalid data, and set that widgets
+@code{:error} property to a string explaining the error.
+
+You can use the function @code{widget-children-validate} for this job;
+it tests that all children of @var{widget} are valid.
+
+@item :tab-order
+Specify the order in which widgets are traversed with
+@code{widget-forward} or @code{widget-backward}.  This is only partially
+implemented.
+
+@enumerate a
+@item
+Widgets with tabbing order @code{-1} are ignored.
+
+@item 
+(Unimplemented) When on a widget with tabbing order @var{n}, go to the
+next widget in the buffer with tabbing order @var{n+1} or @code{nil},
+whichever comes first.
+
+@item
+When on a widget with no tabbing order specified, go to the next widget
+in the buffer with a positive tabbing order, or @code{nil}
+@end enumerate
+
+@item :parent
+The parent of a nested widget (e.g., a @code{menu-choice} item or an
+element of a @code{editable-list} widget).
+
+@item :sibling-args
+This keyword is only used for members of a @code{radio-button-choice} or
+@code{checklist}.  The value should be a list of extra keyword
+arguments, which will be used when creating the @code{radio-button} or
+@code{checkbox} associated with this item.
+@end ignore
+@end table

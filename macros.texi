@@ -1,0 +1,884 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/macros
+@node Macros, Customization, Functions, Top
+@c @chapter Macros
+@chapter マクロ
+@c @cindex macros
+@cindex マクロ
+
+@c   @dfn{Macros} enable you to define new control constructs and other
+@c language features.  A macro is defined much like a function, but instead
+@c of telling how to compute a value, it tells how to compute another Lisp
+@c expression which will in turn compute the value.  We call this
+@c expression the @dfn{expansion} of the macro.
+@dfn{マクロ}（macros）により、
+新たな制御構造の構文を定義したり、他の言語の機能を定義したりできます。
+マクロは関数のように定義しますが、値の計算方法を指示するかわりに、
+値を計算するための別のLisp式の計算方法を指示します。
+この式をマクロの@dfn{展開形}（expansion）と呼びます。
+
+@c   Macros can do this because they operate on the unevaluated expressions
+@c for the arguments, not on the argument values as functions do.  They can
+@c therefore construct an expansion containing these argument expressions
+@c or parts of them.
+マクロでこのようなことができるのは、
+関数が評価済みの引数を操作するのに対して、
+マクロは引数の未評価の式を操作するからです。
+そのため、これらの引数の式やその一部を含む展開形を構築できるのです。
+
+@c   If you are using a macro to do something an ordinary function could
+@c do, just for the sake of speed, consider using an inline function
+@c instead.  @xref{Inline Functions}.
+実行速度のために普通の関数でできることにマクロを使うのであれば、
+そのかわりにインライン関数を使うことを考えてください。
+
+@menu
+* Simple Macro::            A basic example.
+* Expansion::               How, when and why macros are expanded.
+* Compiling Macros::        How macros are expanded by the compiler.
+* Defining Macros::         How to write a macro definition.
+* Backquote::               Easier construction of list structure.
+* Problems with Macros::    Don't evaluate the macro arguments too many times.
+                              Don't hide the user's variables.
+@end menu
+
+@node Simple Macro
+@c @section A Simple Example of a Macro
+@section マクロの簡単な例
+
+@c   Suppose we would like to define a Lisp construct to increment a
+@c variable value, much like the @code{++} operator in C.  We would like to
+@c write @code{(inc x)} and have the effect of @code{(setq x (1+ x))}.
+@c Here's a macro definition that does the job:
+C言語の演算子@code{++}のように、
+変数の値を増加させるLispの構文を定義したいとしましょう。
+@code{(inc x)}のように書いて、
+@code{(setq x (1+ x))}のような効果を得たいのです。
+これを行うマクロ定義はつぎのようになります。
+
+@findex inc
+@example
+@group
+(defmacro inc (var)
+   (list 'setq var (list '1+ var)))
+@end group
+@end example
+
+@c   When this is called with @code{(inc x)}, the argument @var{var} is the
+@c symbol @code{x}---@emph{not} the @emph{value} of @code{x}, as it would
+@c be in a function.  The body of the macro uses this to construct the
+@c expansion, which is @code{(setq x (1+ x))}.  Once the macro definition
+@c returns this expansion, Lisp proceeds to evaluate it, thus incrementing
+@c @code{x}.
+これを@code{(inc x)}のように呼び出すと、
+引数@var{var}はシンボル@code{x}になります。
+関数のように@code{x}の@emph{値}では@emph{ありません}。
+マクロの本体では、これを使って展開形@code{(setq x (1+ x))}を構築します。
+マクロ定義がこの展開形を返すと、
+Lispはそれを評価することに進み、@code{x}を増やします。
+
+@node Expansion
+@c @section Expansion of a Macro Call
+@section マクロ呼び出しの展開
+@c @cindex expansion of macros
+@c @cindex macro call
+@cindex マクロの展開
+@cindex 展開、マクロ
+@cindex マクロ呼び出し
+
+@c   A macro call looks just like a function call in that it is a list which
+@c starts with the name of the macro.  The rest of the elements of the list
+@c are the arguments of the macro.
+マクロ呼び出しはマクロ名で始まるリストであり、
+関数呼び出しとほとんど同じに見えます。
+リストの残りの要素はマクロの引数です。
+
+@c   Evaluation of the macro call begins like evaluation of a function call
+@c except for one crucial difference: the macro arguments are the actual
+@c expressions appearing in the macro call.  They are not evaluated before
+@c they are given to the macro definition.  By contrast, the arguments of a
+@c function are results of evaluating the elements of the function call
+@c list.
+マクロ呼び出しの評価は、関数呼び出しの評価のように始められますが、
+1つだけ重要な違いがあります。
+マクロの引数は、マクロ呼び出しに現れた実際の引数です。
+マクロ定義に渡すまえに、それらを評価しません。
+一方、関数の引数は、関数呼び出しのリストの要素を評価した結果です。
+
+@c   Having obtained the arguments, Lisp invokes the macro definition just
+@c as a function is invoked.  The argument variables of the macro are bound
+@c to the argument values from the macro call, or to a list of them in the
+@c case of a @code{&rest} argument.  And the macro body executes and
+@c returns its value just as a function body does.
+引数を得ると、Lispは関数定義を起動するのと同様にマクロ定義を起動します。
+マクロの引数変数は、マクロ呼び出しの引数値や
+@code{&rest}引数の場合にはそれらのリストに束縛されます。
+そうして、マクロ本体を実行し、関数本体と同様に値を返します。
+
+@c   The second crucial difference between macros and functions is that the
+@c value returned by the macro body is not the value of the macro call.
+@c Instead, it is an alternate expression for computing that value, also
+@c known as the @dfn{expansion} of the macro.  The Lisp interpreter
+@c proceeds to evaluate the expansion as soon as it comes back from the
+@c macro.
+マクロと関数の重要な違いの2つめは、
+マクロ本体が返した値はマクロ呼び出しの値ではないことです。
+戻り値は値を計算するためのかわりの式であり、
+これをマクロの@dfn{展開形}（expansion）といいます。
+Lispインタープリタは、マクロから戻ってくると、
+ただちに展開形を評価することへ進みます。
+
+@c   Since the expansion is evaluated in the normal manner, it may contain
+@c calls to other macros.  It may even be a call to the same macro, though
+@c this is unusual.
+展開形は、通常どおりに評価されるので、
+展開形から他のマクロを呼び出してもかまいません。
+同一のマクロを呼び出してもかまいませんが、
+それは一般的ではありません。
+
+@c   You can see the expansion of a given macro call by calling
+@c @code{macroexpand}.
+@code{macroexpand}を呼ぶと、指定したマクロの展開形を調べることができます。
+
+@defun macroexpand form &optional environment
+@c @cindex macro expansion
+@cindex マクロ展開
+@c This function expands @var{form}, if it is a macro call.  If the result
+@c is another macro call, it is expanded in turn, until something which is
+@c not a macro call results.  That is the value returned by
+@c @code{macroexpand}.  If @var{form} is not a macro call to begin with, it
+@c is returned as given.
+この関数は、@var{form}がマクロ呼び出しならば、それを展開する。
+その結果がまた別のマクロ呼び出しであれば、さらに展開する。
+マクロ呼び出しでない結果を得るまでこれを繰り返す。
+それが、@code{macroexpand}が返す値である。
+@var{form}が始めからマクロ呼び出しでなければ、
+与えられたとおりのものを返す。
+
+@c Note that @code{macroexpand} does not look at the subexpressions of
+@c @var{form} (although some macro definitions may do so).  Even if they
+@c are macro calls themselves, @code{macroexpand} does not expand them.
+@code{macroexpand}は@var{form}の部分式を調べないことに注意してほしい
+（ただし、マクロ定義によっては調べるかもしれない）。
+部分式がマクロ呼び出しであったとしても、
+@code{macroexpand}はそれらを展開しない。
+
+@c The function @code{macroexpand} does not expand calls to inline functions.
+@c Normally there is no need for that, since a call to an inline function is
+@c no harder to understand than a call to an ordinary function.
+関数@code{macroexpand}は、インライン関数の呼び出しは展開しない。
+インライン関数の呼び出しを理解することは普通の関数呼び出しを理解するのと
+かわりないので、通常、そのような展開を行う必要はない。
+
+@c If @var{environment} is provided, it specifies an alist of macro
+@c definitions that shadow the currently defined macros.  Byte compilation
+@c uses this feature.
+@var{environment}を指定すると、
+それは、現在定義済みのマクロを隠すマクロ定義の連想リストを表す。
+バイトコンパイルではこの機能を使う。
+
+@smallexample
+@group
+(defmacro inc (var)
+    (list 'setq var (list '1+ var)))
+     @result{} inc
+@end group
+
+@group
+(macroexpand '(inc r))
+     @result{} (setq r (1+ r))
+@end group
+
+@group
+(defmacro inc2 (var1 var2)
+    (list 'progn (list 'inc var1) (list 'inc var2)))
+     @result{} inc2
+@end group
+
+@group
+(macroexpand '(inc2 r s))
+@c      @result{} (progn (inc r) (inc s))  ; @r{@code{inc} not expanded here.}
+     @result{} (progn (inc r) (inc s))  ; @r{ここでは@code{inc}を展開しない}
+@end group
+@end smallexample
+@end defun
+
+@node Compiling Macros
+@c @section Macros and Byte Compilation
+@section マクロとバイトコンパイル
+@c @cindex byte-compiling macros
+@cindex マクロのバイトコンパイル
+
+@c   You might ask why we take the trouble to compute an expansion for a
+@c macro and then evaluate the expansion.  Why not have the macro body
+@c produce the desired results directly?  The reason has to do with
+@c compilation.
+なぜ、マクロの展開形をわざわざ計算してから展開形を評価するのか、
+疑問に思うかもしれません。
+なぜ、マクロ本体で望みの結果を直接出さないのでしょう？@code{ }
+その理由には、コンパイルが関係しています。
+
+@c   When a macro call appears in a Lisp program being compiled, the Lisp
+@c compiler calls the macro definition just as the interpreter would, and
+@c receives an expansion.  But instead of evaluating this expansion, it
+@c compiles the expansion as if it had appeared directly in the program.
+@c As a result, the compiled code produces the value and side effects
+@c intended for the macro, but executes at full compiled speed.  This would
+@c not work if the macro body computed the value and side effects
+@c itself---they would be computed at compile time, which is not useful.
+コンパイルするLispプログラムにマクロ呼び出しが現れると、
+Lispコンパイラは、インタープリタがするのと同様にマクロ定義を呼び出し、
+その展開形を受け取ります。
+この展開形を評価するかわりに、コンパイラは、
+展開形がプログラムに直接現れたかのようにそれをコンパイルします。
+その結果、コンパイル済みのコードは、マクロが意図した値と副作用を生じ、
+かつ、実行速度はコンパイルした速度になるのです。
+マクロ本体そのもので値と副作用を計算したのでは、
+このように動作しません。
+コンパイル時に計算してしまい、それでは意味がありません。
+
+@c   In order for compilation of macro calls to work, the macros must
+@c already be defined in Lisp when the calls to them are compiled.  The
+@c compiler has a special feature to help you do this: if a file being
+@c compiled contains a @code{defmacro} form, the macro is defined
+@c temporarily for the rest of the compilation of that file.  To make this
+@c feature work, you must put the @code{defmacro} in the same file where it
+@c is used, and before its first use.
+マクロ呼び出しが正しくコンパイルされるためには、
+それらの呼び出しをコンパイルするときに、
+Lisp内でマクロが定義済みである必要があります。
+コンパイラには、読者がこのようにすることを補佐する機能があります。
+コンパイル対象のファイルにフォーム@code{defmacro}が含まれていると、
+そのファイルの残りをコンパイルするあいだは、
+一時的にマクロを定義します。
+この機能が動作するためには、
+@code{defmacro}を同じファイルの最初に利用する箇所よりまえに
+入れておく必要があります。
+
+@c   Byte-compiling a file executes any @code{require} calls at top-level
+@c in the file.  This is in case the file needs the required packages for
+@c proper compilation.  One way to ensure that necessary macro definitions
+@c are available during compilation is to require the files that define
+@c them (@pxref{Named Features}).  To avoid loading the macro definition files
+@c when someone @emph{runs} the compiled program, write
+@c @code{eval-when-compile} around the @code{require} calls (@pxref{Eval
+@c During Compile}).
+ファイルをバイトコンパイルすると、
+そのファイルのトップレベルにある@code{require}の呼び出しを実行します。
+これは、ファイルを正しくコンパイルするために必要なパッケージを表します。
+コンパイル中に必要なマクロ定義が使えることを保証する1つの方法は、
+それらのマクロを定義するファイルを
+@code{require}に指定しておくことです（@pxref{Named Features}）。
+コンパイル済みのプログラムを@emph{実行}するときに、
+マクロを定義したファイルをロードしてしまうことを避けるには、
+@code{require}の呼び出しの周りに@code{eval-when-compile}を書いておきます
+（@pxref{Eval During Compile}）。
+
+@node Defining Macros
+@c @section Defining Macros
+@section マクロ定義
+
+@c   A Lisp macro is a list whose @sc{car} is @code{macro}.  Its @sc{cdr} should
+@c be a function; expansion of the macro works by applying the function
+@c (with @code{apply}) to the list of unevaluated argument-expressions
+@c from the macro call.
+Lispのマクロは、その@sc{car}が@code{macro}であるリストです。
+その@sc{cdr}は関数であるべきです。
+マクロの展開は、マクロ呼び出しの未評価の引数式に
+（@code{apply}で）関数を適用して動作します。
+
+@c   It is possible to use an anonymous Lisp macro just like an anonymous
+@c function, but this is never done, because it does not make sense to pass
+@c an anonymous macro to functionals such as @code{mapcar}.  In practice,
+@c all Lisp macros have names, and they are usually defined with the
+@c special form @code{defmacro}.
+無名関数のように無名Lispマクロを使うことも可能ですが、
+けっしてしないでしょう。
+@code{mapcar}のようなファンクショナルに無名マクロを渡す意味がないからです。
+実用上は、すべてのLispマクロには名前があり、
+普通、スペシャルフォーム@code{defmacro}で定義します。
+
+@defspec defmacro name argument-list body-forms@dots{}
+@c @code{defmacro} defines the symbol @var{name} as a macro that looks
+@c like this:
+@code{defmacro}は、シンボル@var{name}をつぎのようなマクロとして定義する。
+
+@example
+(macro lambda @var{argument-list} . @var{body-forms})
+@end example
+
+@c (Note that the @sc{cdr} of this list is a function---a lambda expression.)
+@c This macro object is stored in the function cell of @var{name}.  The
+@c value returned by evaluating the @code{defmacro} form is @var{name}, but
+@c usually we ignore this value.
+（このリストの@sc{cdr}は関数、つまり、ラムダ式であることに注意。）
+このマクロオブジェクトは、@var{name}の関数セルに格納される。
+フォーム@code{defmacro}を評価した結果、返される値は@var{name}であるが、
+通常この値は無視する。
+
+@c The shape and meaning of @var{argument-list} is the same as in a
+@c function, and the keywords @code{&rest} and @code{&optional} may be used
+@c (@pxref{Argument List}).  Macros may have a documentation string, but
+@c any @code{interactive} declaration is ignored since macros cannot be
+@c called interactively.
+@var{argument-list}の形式と意味は、関数のそれと同じであり、
+キーワード@code{&rest}や@code{&optional}を使ってもよい
+（@pxref{Argument List}）。
+マクロにも説明文字列を指定できるが、
+マクロを対話的に呼び出すことはできないので、
+@code{interactive}宣言は無視する。
+@end defspec
+
+@node Backquote
+@c @section Backquote
+@section バッククォート
+@c @cindex backquote (list substitution)
+@c @cindex ` (list substitution)
+@cindex バッククォート（リストの置換）
+@cindex ` （リストの置換）
+@findex `
+
+@c   Macros often need to construct large list structures from a mixture of
+@c constants and nonconstant parts.  To make this easier, use the @samp{`}
+@c syntax (usually called @dfn{backquote}).
+マクロでは、定数部分と非定数部分を組み合わせた大きなリスト構造を
+構築する必要がしばしばあります。
+これを簡単に行うためには、
+（通常、@dfn{バッククォート}（backquote）と呼ばれる）@samp{`}構文を
+使います。
+
+@c   Backquote allows you to quote a list, but selectively evaluate
+@c elements of that list.  In the simplest case, it is identical to the
+@c special form @code{quote} (@pxref{Quoting}).  For example, these
+@c two forms yield identical results:
+バッククォートにより、リストの要素を選択に評価しつつ、
+リストをクォートできます。
+もっとも単純な場合、これはスペシャルフォーム@code{quote}（@pxref{Quoting}）と
+等価です。
+たとえば、つぎの2つのフォームは等価な結果になります。
+
+@example
+@group
+`(a list of (+ 2 3) elements)
+     @result{} (a list of (+ 2 3) elements)
+@end group
+@group
+'(a list of (+ 2 3) elements)
+     @result{} (a list of (+ 2 3) elements)
+@end group
+@end example
+
+@c @findex , @r{(with Backquote)}
+@findex , @r{（バッククォート）}
+@c The special marker @samp{,} inside of the argument to backquote
+@c indicates a value that isn't constant.  Backquote evaluates the
+@c argument of @samp{,} and puts the value in the list structure:
+バッククォートの引数の内側にある特別な印@samp{,}は、
+値が定数ではないことを表します。
+バッククォートは、リスト構造の中の@samp{,}の引数を評価し、
+値で置き換えます。
+
+@example
+@group
+(list 'a 'list 'of (+ 2 3) 'elements)
+     @result{} (a list of 5 elements)
+@end group
+@group
+`(a list of ,(+ 2 3) elements)
+     @result{} (a list of 5 elements)
+@end group
+@end example
+
+@c   Substitution with @samp{,} is allowed at deeper levels of the list
+@c structure also.  For example:
+@samp{,}による置き換えは、リスト構造の深いレベルでも許されます。
+たとえば、つぎのとおりです。
+
+@example
+@group
+(defmacro t-becomes-nil (variable)
+  `(if (eq ,variable t)
+       (setq ,variable nil)))
+@end group
+
+@group
+(t-becomes-nil foo)
+     @equiv{} (if (eq foo t) (setq foo nil))
+@end group
+@end example
+
+@c @findex ,@@ @r{(with Backquote)}
+@findex ,@@ @r{（バッククォートとの組み合わせ）}
+@c @cindex splicing (with backquote)
+@cindex 繋ぎ合わせ（バッククォートとの組み合わせ）
+@c   You can also @dfn{splice} an evaluated value into the resulting list,
+@c using the special marker @samp{,@@}.  The elements of the spliced list
+@c become elements at the same level as the other elements of the resulting
+@c list.  The equivalent code without using @samp{`} is often unreadable.
+@c Here are some examples:
+特別な印@samp{,@@}を使って、
+評価結果を結果となるリストに@dfn{繋ぎ合わせる}（splice）こともできます。
+繋ぎ合わせたリストの要素は、結果となるリストの他の要素と同じレベルになります。
+@samp{`}を使わない等価なコードはしばしば読み難くなります。
+例をあげましょう。
+
+@example
+@group
+(setq some-list '(2 3))
+     @result{} (2 3)
+@end group
+@group
+(cons 1 (append some-list '(4) some-list))
+     @result{} (1 2 3 4 2 3)
+@end group
+@group
+`(1 ,@@some-list 4 ,@@some-list)
+     @result{} (1 2 3 4 2 3)
+@end group
+
+@group
+(setq list '(hack foo bar))
+     @result{} (hack foo bar)
+@end group
+@group
+(cons 'use
+  (cons 'the
+    (cons 'words (append (cdr list) '(as elements)))))
+     @result{} (use the words foo bar as elements)
+@end group
+@group
+`(use the words ,@@(cdr list) as elements)
+     @result{} (use the words foo bar as elements)
+@end group
+@end example
+
+@c In old Emacs versions, before version 19.29, @samp{`} used a different
+@c syntax which required an extra level of parentheses around the entire
+@c backquote construct.  Likewise, each @samp{,} or @samp{,@@} substitution
+@c required an extra level of parentheses surrounding both the @samp{,} or
+@c @samp{,@@} and the following expression.  The old syntax required
+@c whitespace between the @samp{`}, @samp{,} or @samp{,@@} and the
+@c following expression.
+19.29版よりまえのEmacsの旧版では、
+@samp{`}の構文は異なっていて、
+バッククォート構文全体を囲む括弧の余分なレベルが必要でした。
+同様に、@samp{,}や@samp{,@@}の置換でも、
+@samp{,}や@samp{,@@}、および後続の式を囲む括弧の余分なレベルが1つ必要でした。
+古い構文では、@samp{`}、 @samp{,}、@samp{,@@}と後続の式とのあいだには
+空白が必要でした。
+
+@c This syntax is still accepted, for compatibility with old Emacs
+@c versions, but we recommend not using it in new programs.
+この構文も受け付けますが、これはEmacsの旧版との互換性のためであり、
+新しいプログラムでは使わないことを勧めます。
+
+@node Problems with Macros
+@c @section Common Problems Using Macros
+@section マクロ使用時の一般的な問題
+
+@c   The basic facts of macro expansion have counterintuitive consequences.
+@c This section describes some important consequences that can lead to
+@c trouble, and rules to follow to avoid trouble.
+マクロ展開に関する基本的事実には、直観的でない結果があります。
+本節では、問題を引き起こしかねない重要な結果を説明し、
+問題を回避するための規則を説明します。
+
+@menu
+* Argument Evaluation::    The expansion should evaluate each macro arg once.
+* Surprising Local Vars::  Local variable bindings in the expansion
+                              require special care.
+* Eval During Expansion::  Don't evaluate them; put them in the expansion.
+* Repeated Expansion::     Avoid depending on how many times expansion is done.
+@end menu
+
+@node Argument Evaluation
+@c @subsection Evaluating Macro Arguments Repeatedly
+@subsection マクロ引数の複数回評価
+
+@c   When defining a macro you must pay attention to the number of times
+@c the arguments will be evaluated when the expansion is executed.  The
+@c following macro (used to facilitate iteration) illustrates the problem.
+@c This macro allows us to write a simple ``for'' loop such as one might
+@c find in Pascal.
+マクロを定義するときには、展開形を実行するときに、
+引数が何回評価かされるかに注意を払う必要があります。
+つぎの（繰り返しを行う）マクロで、この問題を示しましょう。
+このマクロで、Pascalにあるような単純な『for』ループを書けます。
+
+@findex for
+@smallexample
+@group
+(defmacro for (var from init to final do &rest body)
+  "Execute a simple \"for\" loop.
+For example, (for i from 1 to 10 do (print i))."
+  (list 'let (list (list var init))
+        (cons 'while (cons (list '<= var final)
+                           (append body (list (list 'inc var)))))))
+@end group
+@result{} for
+
+@group
+(for i from 1 to 3 do
+   (setq square (* i i))
+   (princ (format "\n%d %d" i square)))
+@expansion{}
+@end group
+@group
+(let ((i 1))
+  (while (<= i 3)
+    (setq square (* i i))
+    (princ (format "%d      %d" i square))
+    (inc i)))
+@end group
+@group
+
+     @print{}1       1
+     @print{}2       4
+     @print{}3       9
+@result{} nil
+@end group
+@end smallexample
+
+@noindent
+@c The arguments @code{from}, @code{to}, and @code{do} in this macro are
+@c ``syntactic sugar''; they are entirely ignored.  The idea is that you
+@c will write noise words (such as @code{from}, @code{to}, and @code{do})
+@c in those positions in the macro call.
+このマクロの引数、@code{from}、@code{to}、@code{do}は、
+『シンタックスシュガー』であり、完全に無視します。
+（@code{from}、@code{to}、@code{do}などの）余分な単語を
+マクロ呼び出しのこの引数位置に書けるようにするのです。
+
+@c Here's an equivalent definition simplified through use of backquote:
+バッククォートを使って単純化した等価な定義をつぎに示します。
+
+@smallexample
+@group
+(defmacro for (var from init to final do &rest body)
+  "Execute a simple \"for\" loop.
+For example, (for i from 1 to 10 do (print i))."
+  `(let ((,var ,init))
+     (while (<= ,var ,final)
+       ,@@body
+       (inc ,var))))
+@end group
+@end smallexample
+
+@c Both forms of this definition (with backquote and without) suffer from
+@c the defect that @var{final} is evaluated on every iteration.  If
+@c @var{final} is a constant, this is not a problem.  If it is a more
+@c complex form, say @code{(long-complex-calculation x)}, this can slow
+@c down the execution significantly.  If @var{final} has side effects,
+@c executing it more than once is probably incorrect.
+この定義の（バッククォートありとなしの）どちらの形式でも、
+各繰り返しごとに@var{final}が評価されるという欠陥があります。
+@var{final}が定数ならば、これは問題になりません。
+たとえば@code{(long-complex-calculation x)}のような、
+より複雑なフォームであると、実行速度をかなり遅くしてしまいます。
+@var{final}に副作用があると、複数回評価するのは正しくありません。
+
+@c @cindex macro argument evaluation
+@cindex マクロ引数の評価
+@cindex 評価、マクロ引数
+@c A well-designed macro definition takes steps to avoid this problem by
+@c producing an expansion that evaluates the argument expressions exactly
+@c once unless repeated evaluation is part of the intended purpose of the
+@c macro.  Here is a correct expansion for the @code{for} macro:
+繰り返し評価することがマクロの意図している目的の一部でなければ、
+よく設計されたマクロ定義では、
+引数をちょうど1回だけ評価するような展開形を生成して、
+上のような問題を回避するように手立てします。
+
+@smallexample
+@group
+(let ((i 1)
+      (max 3))
+  (while (<= i max)
+    (setq square (* i i))
+    (princ (format "%d      %d" i square))
+    (inc i)))
+@end group
+@end smallexample
+
+@c Here is a macro definition that creates this expansion: 
+このような展開形を作るマクロ定義はつぎのようになります。
+
+@smallexample
+@group
+(defmacro for (var from init to final do &rest body)
+  "Execute a simple for loop: (for i from 1 to 10 do (print i))."
+  `(let ((,var ,init)
+         (max ,final))
+     (while (<= ,var max)
+       ,@@body
+       (inc ,var))))
+@end group
+@end smallexample
+
+@c   Unfortunately, this fix introduces another problem,
+@c described in the following section.
+残念なことに、この修正は、
+次節に説明する別の問題を引き起こします。
+
+@node Surprising Local Vars
+@c @subsection Local Variables in Macro Expansions
+@subsection マクロ展開形内のローカル変数
+
+@ifinfo
+@c   In the previous section, the definition of @code{for} was fixed as
+@c follows to make the expansion evaluate the macro arguments the proper
+@c number of times:
+前節では、@code{for}の定義をつぎのように修正して、
+マクロ引数を適切な回数だけ評価する展開形にしました。
+
+@smallexample
+@group
+(defmacro for (var from init to final do &rest body)
+  "Execute a simple for loop: (for i from 1 to 10 do (print i))."
+@end group
+@group
+  `(let ((,var ,init)
+         (max ,final))
+     (while (<= ,var max)
+       ,@@body
+       (inc ,var))))
+@end group
+@end smallexample
+@end ifinfo
+
+@c   The new definition of @code{for} has a new problem: it introduces a
+@c local variable named @code{max} which the user does not expect.  This
+@c causes trouble in examples such as the following:
+@code{for}の新しい定義には、新たな問題があります。
+ユーザーが予期していないローカル変数@code{max}を導入しているのです。
+これは、つぎのような場合、問題を引き起こします。
+
+@smallexample
+@group
+(let ((max 0))
+  (for x from 0 to 10 do
+    (let ((this (frob x)))
+      (if (< max this)
+          (setq max this)))))
+@end group
+@end smallexample
+
+@noindent
+@c The references to @code{max} inside the body of the @code{for}, which
+@c are supposed to refer to the user's binding of @code{max}, really access
+@c the binding made by @code{for}.
+@code{for}の本体内での@code{max}の参照は、
+ユーザーが束縛した@code{max}を参照するものと期待されていますが、
+実際には@code{for}が作った束縛を使います。
+
+@c The way to correct this is to use an uninterned symbol instead of
+@c @code{max} (@pxref{Creating Symbols}).  The uninterned symbol can be
+@c bound and referred to just like any other symbol, but since it is
+@c created by @code{for}, we know that it cannot already appear in the
+@c user's program.  Since it is not interned, there is no way the user can
+@c put it into the program later.  It will never appear anywhere except
+@c where put by @code{for}.  Here is a definition of @code{for} that works
+@c this way:
+これを修正するには、@code{max}のかわりに、
+インターンしてないシンボル（@pxref{Creating Symbols}）を使います。
+インターンしてないシンボルは、他のシンボルと同様に、
+束縛したり参照したりできますが、@code{for}で作ったので、
+ユーザープログラムには現れていないことがわかっています。
+インターンしてないので、ユーザーがプログラムのあとの部分で
+参照する方法もありません。
+@code{for}で使った箇所以外には現れえないのです。
+このように動作する@code{for}の定義をつぎに示します。
+
+@smallexample
+@group
+(defmacro for (var from init to final do &rest body)
+  "Execute a simple for loop: (for i from 1 to 10 do (print i))."
+  (let ((tempvar (make-symbol "max")))
+    `(let ((,var ,init)
+           (,tempvar ,final))
+       (while (<= ,var ,tempvar)
+         ,@@body
+         (inc ,var)))))
+@end group
+@end smallexample
+
+@noindent
+@c This creates an uninterned symbol named @code{max} and puts it in the
+@c expansion instead of the usual interned symbol @code{max} that appears
+@c in expressions ordinarily.
+これは、@code{max}という名前のインターンしてないシンボルを作成し、
+もとの式に現れていたインターンしたシンボル@code{max}のかわりに
+展開形内部で使います。
+
+@node Eval During Expansion
+@c @subsection Evaluating Macro Arguments in Expansion
+@subsection 展開形におけるマクロ引数の評価
+
+@c   Another problem can happen if the macro definition itself
+@c evaluates any of the macro argument expressions, such as by calling
+@c @code{eval} (@pxref{Eval}).  If the argument is supposed to refer to the
+@c user's variables, you may have trouble if the user happens to use a
+@c variable with the same name as one of the macro arguments.  Inside the
+@c macro body, the macro argument binding is the most local binding of this
+@c variable, so any references inside the form being evaluated do refer to
+@c it.  Here is an example:
+@code{eval}（@pxref{Eval}）を呼び出すなどして、
+マクロ定義そのものの中でマクロ引数の式を評価すると、
+別の問題を生じます。
+引数でユーザーの変数を参照する場合、
+ユーザーがマクロ引数の1つと同じ名前を使っていると、
+問題になります。
+マクロ本体の内側では、マクロ引数の束縛が最ローカルな束縛ですから、
+そのフォームの内側からの参照は、この束縛を使います。
+例を示しましょう。
+
+@example
+@group
+(defmacro foo (a)
+  (list 'setq (eval a) t))
+     @result{} foo
+@end group
+@group
+(setq x 'b)
+(foo x) @expansion{} (setq b t)
+@c      @result{} t                  ; @r{and @code{b} has been set.}
+     @result{} t                  ; @r{@code{b}を設定する}
+@c ;; @r{but}
+;; @r{しかし}
+(setq a 'c)
+(foo a) @expansion{} (setq a t)
+@c      @result{} t                  ; @r{but this set @code{a}, not @code{c}.}
+     @result{} t                  ; @r{@code{c}ではなく@code{a}を設定する}
+
+@end group
+@end example
+
+@c   It makes a difference whether the user's variable is named @code{a} or
+@c @code{x}, because @code{a} conflicts with the macro argument variable
+@c @code{a}.
+ユーザーの引数の名前が@code{a}か@code{x}かで違いがでます。
+というのは、マクロ引数の変数@code{a}と@code{a}が衝突するからです。
+
+@c   Another problem with calling @code{eval} in a macro definition is that
+@c it probably won't do what you intend in a compiled program.  The
+@c byte-compiler runs macro definitions while compiling the program, when
+@c the program's own computations (which you might have wished to access
+@c with @code{eval}) don't occur and its local variable bindings don't
+@c exist.
+マクロ定義内で@code{eval}を呼び出したときの別の問題点は、
+コンパイルしたプログラムでは、意図した動作をしないだろうということです。
+バイトコンパイラは、プログラムをコンパイル中にマクロ定義を実行しますから、
+（@code{eval}で参照したい）プログラムそのものの計算は行われず、
+そのローカル変数の束縛も存在しません。
+
+@c   To avoid these problems, @strong{don't evaluate an argument expression
+@c while computing the macro expansion}.  Instead, substitute the
+@c expression into the macro expansion, so that its value will be computed
+@c as part of executing the expansion.  This is how the other examples in
+@c this chapter work.
+これらの問題を回避するには、
+@strong{マクロ展開の計算過程では、引数の式を評価しない}ことです。
+そのかわりに、マクロ展開では式の置換を使って、
+展開時にその値が計算されるようにします。
+このようにすれば、本章の他の例題は動作します。
+
+@node Repeated Expansion
+@c @subsection How Many Times is the Macro Expanded?
+@subsection マクロは何回展開されるか
+
+@c   Occasionally problems result from the fact that a macro call is
+@c expanded each time it is evaluated in an interpreted function, but is
+@c expanded only once (during compilation) for a compiled function.  If the
+@c macro definition has side effects, they will work differently depending
+@c on how many times the macro is expanded.
+関数を解釈実行しているときには、マクロ呼び出しを評価するたびに展開しますが、
+コンパイルした関数では、（コンパイル時に）1回だけ展開します。
+この違いが問題になることもあります。
+マクロ定義に副作用があると、
+マクロを何回展開したかに依存して動作が異なります。
+
+@c   Therefore, you should avoid side effects in computation of the
+@c macro expansion, unless you really know what you are doing.
+したがって、マクロ展開の計算では、
+本当になにをしているのか理解していない限り、副作用は避けてください。
+
+@c   One special kind of side effect can't be avoided: constructing Lisp
+@c objects.  Almost all macro expansions include constructed lists; that is
+@c the whole point of most macros.  This is usually safe; there is just one
+@c case where you must be careful: when the object you construct is part of a
+@c quoted constant in the macro expansion.
+特別な種類の副作用の1つ、つまり、
+Lispオブジェクトを構築することは回避できません。
+ほとんどすべてのマクロ展開では、リストを構築し、
+それがマクロの重要な点でもあります。
+これは、通常、安全ですが、
+1つだけ注意する必要があります。
+読者が構築したオブジェクトが、
+マクロ展開形の中のクォートした定数の一部であるときです。
+
+@c   If the macro is expanded just once, in compilation, then the object is
+@c constructed just once, during compilation.  But in interpreted
+@c execution, the macro is expanded each time the macro call runs, and this
+@c means a new object is constructed each time.
+コンパイル時にマクロを1回だけ展開すると、
+コンパイル中にはオブジェクトは一度だけ作られます。
+しかし、解釈実行中には、マクロ呼び出しを行うたびにマクロを展開するので、
+そのたびに新たなオブジェクトが作成されたことを意味します。
+
+@c   In most clean Lisp code, this difference won't matter.  It can matter
+@c only if you perform side-effects on the objects constructed by the macro
+@c definition.  Thus, to avoid trouble, @strong{avoid side effects on
+@c objects constructed by macro definitions}.  Here is an example of how
+@c such side effects can get you into trouble:
+見通しのよいほとんどのLispコードでは、この違いは関係ありません。
+マクロ定義で構築したオブジェクトに副作用のある操作を行うと
+違いが出てきます。
+したがって、問題を回避するには、
+@strong{マクロ定義で構築したオブジェクトに副作用のある操作は行わない}
+ということです。
+そのような副作用がどのように問題を引き起こすのか、例をあげましょう。
+
+@lisp
+@group
+(defmacro empty-object ()
+  (list 'quote (cons nil nil)))
+@end group
+
+@group
+(defun initialize (condition)
+  (let ((object (empty-object)))
+    (if condition
+        (setcar object condition))
+    object))
+@end group
+@end lisp
+
+@noindent
+@c If @code{initialize} is interpreted, a new list @code{(nil)} is
+@c constructed each time @code{initialize} is called.  Thus, no side effect
+@c survives between calls.  If @code{initialize} is compiled, then the
+@c macro @code{empty-object} is expanded during compilation, producing a
+@c single ``constant'' @code{(nil)} that is reused and altered each time
+@c @code{initialize} is called.
+@code{initialize}を解釈実行しているときには、
+@code{initialize}を呼び出すたびに新たなリスト@code{(nil)}が作られます。
+したがって、2つの呼び出しのあいだで副作用が残ることはありません。
+@code{initialize}をコンパイルしてあると、
+マクロ@code{empty-object}はコンパイル時に展開され、
+1つの『定数』@code{(nil)}を作りますが、
+これは、@code{initialize}を呼び出すたびに、
+再利用され変更されてしまいます。
+
+@c One way to avoid pathological cases like this is to think of
+@c @code{empty-object} as a funny kind of constant, not as a memory
+@c allocation construct.  You wouldn't use @code{setcar} on a constant such
+@c as @code{'(nil)}, so naturally you won't use it on @code{(empty-object)}
+@c either.
+このような病的な場面を回避する1つの方法は、
+@code{empty-object}を、メモリ割り付けではなく、
+ある種の定数と考えることです。
+@code{'(nil)}のような定数に@code{setcar}は使わないでしょうから、
+@code{(empty-object)}も自然にそのように使わないでしょう。

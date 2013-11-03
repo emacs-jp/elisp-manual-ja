@@ -1,0 +1,1223 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/tips
+@node Tips, GNU Emacs Internals, System Interface, Top
+@c @appendix Tips and Conventions
+@appendix ヒントと慣習
+@c @cindex tips
+@c @cindex standards of coding style
+@c @cindex coding standards
+@cindex ヒント
+@cindex コーディングスタイルの標準
+@cindex コーディングスタイル
+
+@c   This chapter describes no additional features of Emacs Lisp.  Instead
+@c it gives advice on making effective use of the features described in the
+@c previous chapters, and describes conventions Emacs Lisp programmers
+@c should follow.
+本章では、Emacs Lispの機能についてさらに述べることはしません。
+かわりに、前章までに述べてきた機能を効率よく使うための助言や
+Emacs Lispプログラマが従うべき慣習について述べます。
+
+@menu
+* Coding Conventions::        Conventions for clean and robust programs.
+* Compilation Tips::          Making compiled code run fast.
+* Documentation Tips::        Writing readable documentation strings.
+* Comment Tips::	      Conventions for writing comments.
+* Library Headers::           Standard headers for library packages.
+@end menu
+
+@node Coding Conventions
+@c @section Emacs Lisp Coding Conventions
+@section Emacs Lispのコーディングの慣習
+
+@c   Here are conventions that you should follow when writing Emacs Lisp
+@c code intended for widespread use:
+ここでは、読者が広く使われることを意図した
+Emacs Lispコードを書く場合に従うべき慣習について述べます。
+
+@itemize @bullet
+@item
+@c Since all global variables share the same name space, and all functions
+@c share another name space, you should choose a short word to distinguish
+@c your program from other Lisp programs.  Then take care to begin the
+@c names of all global variables, constants, and functions with the chosen
+@c prefix.  This helps avoid name conflicts.
+すべてのグローバル変数は同じ名前空間を共有し、
+すべての関数も別の名前空間を共有するため、
+読者のプログラムを別のLispプログラムと区別するための短い単語を選ぶべきである。
+そして、すべてのグローバル変数、定数、関数の名前を
+選んでおいた接頭辞で始めるように注意する。
+
+@c This recommendation applies even to names for traditional Lisp
+@c primitives that are not primitives in Emacs Lisp---even to
+@c @code{copy-list}.  Believe it or not, there is more than one plausible
+@c way to define @code{copy-list}.  Play it safe; append your name prefix
+@c to produce a name like @code{foo-copy-list} or @code{mylib-copy-list}
+@c instead.
+Emacs Lispでは基本関数ではないがLispの伝統的な基本関数の名前にさえも
+この勧告は適用される。
+たとえ@code{copy-list}にさえもである。
+信じるかどうかは別にして、
+@code{copy-list}のもっともらしい定義方法は複数ある。
+安全であるためには、読者の接頭辞を付けて
+@code{foo-copy-list}や@code{mylib-copy-list}のような名前にする。
+
+@c If you write a function that you think ought to be added to Emacs under
+@c a certain name, such as @code{twiddle-files}, don't call it by that name
+@c in your program.  Call it @code{mylib-twiddle-files} in your program,
+@c and send mail to @samp{bug-gnu-emacs@@gnu.org} suggesting we add
+@c it to Emacs.  If and when we do, we can change the name easily enough.
+読者が、@code{twiddle-files}のような特定の名前でEmacsに
+追加すべき関数を書いた場合には、読者のプログラムでは
+その名前で呼ばないようにする。
+読者のプログラムでは@code{mylib-twiddle-files}としておき、
+Emacsに名前を追加するように提案するメイルを
+@samp{bug-gnu-emacs@@gnu.org}へ送る。
+われわれがそのようにすることを決定したときには、
+名前をとても簡単に変更できる。
+
+@c If one prefix is insufficient, your package may use two or three
+@c alternative common prefixes, so long as they make sense.
+1つの接頭辞では不十分な場合には、
+意味がある限りは、
+2つか3つの共通する別の接頭辞を読者のパッケージで使ってもよい。
+
+@c Separate the prefix from the rest of the symbol name with a hyphen,
+@c @samp{-}.  This will be consistent with Emacs itself and with most Emacs
+@c Lisp programs.
+接頭辞とシンボル名の残りの部分とはハイフン@samp{-}で分ける。
+これはEmacs自身やほとんどのEmacs Lispプログラムと一貫性がある。
+
+@item
+@c It is often useful to put a call to @code{provide} in each separate
+@c library program, at least if there is more than one entry point to the
+@c program.
+プログラムに少なくとも複数の入り口がある場合には、
+各ライブラリプログラムに@code{provide}の呼び出しがあるとしばしば有用である。
+
+@item
+@c If a file requires certain other library programs to be loaded
+@c beforehand, then the comments at the beginning of the file should say
+@c so.  Also, use @code{require} to make sure they are loaded.
+別のライブラリプログラムをあらかじめロードしておく必要があるファイルでは、
+ファイルの先頭のコマンドにそのように記述しておくこと。
+さらに、必要なものが確実にロードされておくように@code{require}を使う。
+
+@item
+@c If one file @var{foo} uses a macro defined in another file @var{bar},
+@c @var{foo} should contain this expression before the first use of the
+@c macro:
+別のファイル@var{bar}で定義されるマクロを
+ファイル@var{foo}で使っている場合には、
+@var{foo}でそのマクロを始めて使うまえに@var{foo}につぎの式があること。
+
+@example
+(eval-when-compile (require '@var{bar}))
+@end example
+
+@noindent
+@c (And the library @var{bar} should contain @code{(provide '@var{bar})},
+@c to make the @code{require} work.)  This will cause @var{bar} to be
+@c loaded when you byte-compile @var{foo}.  Otherwise, you risk compiling
+@c @var{foo} without the necessary macro loaded, and that would produce
+@c compiled code that won't work right.  @xref{Compiling Macros}.
+（さらに、@code{require}が働くように、
+ライブラリ@var{bar}には@code{(provide '@var{bar})}があること。）
+この式により、@var{foo}をバイトコンパイルするときに
+@var{bar}をロードすることになる。
+さもないと、必要なマクロをロードせずに@var{foo}をコンパイルする危険を侵し、
+正しく動作しないコンパイル済みコードを生成することになる。
+@pxref{Compiling Macros}。
+
+@c Using @code{eval-when-compile} avoids loading @var{bar} when
+@c the compiled version of @var{foo} is @emph{used}.
+@code{eval-when-compile}を使うことで、
+@var{foo}のコンパイル済みの版を@emph{使う}ときには
+@var{bar}をロードしない。
+
+@item
+@c When defining a major mode, please follow the major mode
+@c conventions.  @xref{Major Mode Conventions}.
+メジャーモードを定義するときには、
+メジャーモードの慣習に従うこと。
+@pxref{Major Mode Conventions}。
+
+@item
+@c When defining a minor mode, please follow the minor mode
+@c conventions.  @xref{Minor Mode Conventions}.
+マイナモードを定義するときには、
+マイナモードの慣習に従うこと。
+@pxref{Minor Mode Conventions}。
+
+@item
+@c If the purpose of a function is to tell you whether a certain condition
+@c is true or false, give the function a name that ends in @samp{p}.  If
+@c the name is one word, add just @samp{p}; if the name is multiple words,
+@c add @samp{-p}.  Examples are @code{framep} and @code{frame-live-p}.
+関数の目的が特定の条件を満たすかどうかを報告するのであれば、
+その関数には@samp{p}で終る名前を付ける。
+名前が1単語である場合には@samp{p}だけを付加する。
+複数の単語であれば@samp{-p}を付加する。
+たとえば、@code{framep}や@code{frame-live-p}である。
+
+@item
+@c If a user option variable records a true-or-false condition, give it a
+@c name that ends in @samp{-flag}.
+真偽の条件を記録するユーザーオプション変数には、
+@samp{-flag}で終る名前を付ける。
+
+@item
+@c @cindex reserved keys
+@c @cindex keys, reserved
+@cindex 予約済みキー
+@cindex キー、予約済み
+@c Please do not define @kbd{C-c @var{letter}} as a key in your major
+@c modes.  These sequences are reserved for users; they are the
+@c @strong{only} sequences reserved for users, so do not block them.
+読者のメジャーモードでは、
+@kbd{C-c @var{letter}}をキーとして定義しないこと。
+これらのキー列はユーザー向けに予約済みである。
+それら@strong{だけ}がユーザー向けに予約されたキー列であり、
+それらを禁止しないこと。
+
+@c Instead, define sequences consisting of @kbd{C-c} followed by a control
+@c character, a digit, or certain punctuation characters.  These sequences
+@c are reserved for major modes.
+かわりに、@kbd{C-c}のあとにコントロール文字か数字文字か特定の句読点文字が続く
+キー列を定義する。
+これらのキー列は、メジャーモード用に予約してある。
+
+@c Changing all the Emacs major modes to follow this convention was a lot
+@c of work.  Abandoning this convention would make that work go to waste,
+@c and inconvenience users.
+Emacsのすべてのモードをこの慣習に従うように変換するのは
+たいへんな作業量であった。
+この慣習を捨てさるとその作業をむだにしてしまい、ユーザーにも不便である。
+
+@item
+@c Sequences consisting of @kbd{C-c} followed by @kbd{@{}, @kbd{@}},
+@c @kbd{<}, @kbd{>}, @kbd{:} or @kbd{;} are also reserved for major modes.
+@kbd{C-c}のあとに@kbd{@{}、@kbd{@}}、@kbd{<}、@kbd{>}、@kbd{:}、@kbd{;}の
+いずれかが続くキー列もメジャーモード用に予約してある。
+
+@item
+@c Sequences consisting of @kbd{C-c} followed by any other punctuation
+@c character are allocated for minor modes.  Using them in a major mode is
+@c not absolutely prohibited, but if you do that, the major mode binding
+@c may be shadowed from time to time by minor modes.
+@kbd{C-c}のあとにこれら以外の句読点文字が続くキー列は、
+マイナモード用に割り当ててある。
+これらをメジャーモードで使うことは絶対禁止ではないが、
+これらを使うと、メジャーモードのバインディングが
+マイナモードでときどき隠されてしまう。
+
+@item
+@c Function keys @key{F5} through @key{F9} without modifier keys are
+@c reserved for users to define.
+修飾キーを使わないファンクションキー@key{F5}から@key{F9}は、
+ユーザーが定義するように予約してある。
+
+@item
+@c Do not bind @kbd{C-h} following any prefix character (including
+@c @kbd{C-c}).  If you don't bind @kbd{C-h}, it is automatically available
+@c as a help character for listing the subcommands of the prefix character.
+（@kbd{C-c}を含む）任意のプレフィックス文字に続く
+@kbd{C-h}をバインドしないこと。
+@kbd{C-h}をバインドしなければ、これは自動的に
+プレフィックス文字のサブコマンド一覧を表示するヘルプ文字になる。
+
+@item
+@c Do not bind a key sequence ending in @key{ESC} except following
+@c another @key{ESC}.  (That is, it is OK to bind a sequence ending in
+@c @kbd{@key{ESC} @key{ESC}}.)
+@key{ESC}に続く@key{ESC}以外には、
+@key{ESC}で終るキー列をバインドしないこと。
+（つまり、@kbd{@key{ESC} @key{ESC}}で終るキー列をバインドするのはよい。）
+
+@c The reason for this rule is that a non-prefix binding for @key{ESC} in
+@c any context prevents recognition of escape sequences as function keys in
+@c that context.
+この規則の理由は、任意の文脈において
+@key{ESC}に対するプレフィックスでないバインディングがあることで、
+エスケープシーケンスをその文脈におけるファンクションキーと
+認識することを防げる。
+
+@item
+@c Anything which acts like a temporary mode or state which the user can
+@c enter and leave should define @kbd{@key{ESC} @key{ESC}} of
+@c = 誤植?                                                 or
+@c @kbd{@key{ESC} @key{ESC} @key{ESC}} as a way to escape.
+ユーザーが出入りできる一時的なモードや状態のように働くものでは、
+脱出手段として@kbd{@key{ESC} @key{ESC}}や
+@kbd{@key{ESC} @key{ESC} @key{ESC}}を定義する。
+
+@c For a state which accepts ordinary Emacs commands, or more generally any
+@c kind of state in which @key{ESC} followed by a function key or arrow key
+@c is potentially meaningful, then you must not define @kbd{@key{ESC}
+@c @key{ESC}}, since that would preclude recognizing an escape sequence
+@c after @key{ESC}.  In these states, you should define @kbd{@key{ESC}
+@c @key{ESC} @key{ESC}} as the way to escape.  Otherwise, define
+@c @kbd{@key{ESC} @key{ESC}} instead.
+Emacsの普通のコマンドを受け付ける状態、、あるいは、
+より一般的には@key{ESC}に続けてファンクションキーや矢印キーが
+意味を持つ可能性がある任意の状態では、
+@key{ESC}に続くエスケープシーケンスの認識を妨げる
+@kbd{@key{ESC} @key{ESC}}を定義するべきではない。
+そのような状態では、脱出手段として@kbd{@key{ESC} @key{ESC} @key{ESC}}を
+定義する。
+さもなければ脱出手段として@kbd{@key{ESC} @key{ESC}}を定義する。
+
+@item
+@c Applications should not bind mouse events based on button 1 with the
+@c shift key held down.  These events include @kbd{S-mouse-1},
+@c @kbd{M-S-mouse-1}, @kbd{C-S-mouse-1}, and so on.  They are reserved for
+@c users.
+アプリケーションでは、シフトキーを押し下げたボタン1関連のマウスイベントを
+バインドすべきではない。
+これらのイベントには、@kbd{S-mouse-1}、@kbd{M-S-mouse-1}、
+@kbd{C-S-mouse-1}などが含まれる。
+これらはユーザー向けに予約してある。
+
+@item
+@c Special major modes used for read-only text should usually redefine
+@c @kbd{mouse-2} and @key{RET} to trace some sort of reference in the text.
+@c Modes such as Dired, Info, Compilation, and Occur redefine it in this
+@c way.
+読み出し専用のテキスト向けの特別なメジャーモードでは、普通、
+@kbd{mouse-2}と@key{RET}をテキスト内のある種の参照を
+辿るように再定義するべきである。
+dired、info、コンパイル（compilation）、出現（occur）などのモードは
+このように再定義している。
+
+@item
+@c When a package provides a modification of ordinary Emacs behavior, it is
+@c good to include a command to enable and disable the feature, Provide a
+@c command named @code{@var{whatever}-mode} which turns the feature on or
+@c off, and make it autoload (@pxref{Autoload}).  Design the package so
+@c that simply loading it has no visible effect---that should not enable
+@c the feature.  Users will request the feature by invoking the command.
+Emacsの普通のふるまいを変更するようなパッケージでは、
+その機能をオン／オフするコマンドを含めるとよい。
+その機能をオン／オフする@code{@var{whatever}-mode}という
+名前のコマンドを用意し、自動ロード（@pxref{Autoload}）するようにする。
+パッケージをロードしただけでは見ためには効果がない、
+つまり、その機能をオンにしないようにパッケージを設計すること。
+ユーザーはコマンドを起動してその機能をオンにする。
+
+@item
+@c It is a bad idea to define aliases for the Emacs primitives.  Use the
+@c standard names instead.
+Emacsの基本関数の別名を定義することは悪い考えである。
+そのかわりに標準の名前を使う。
+
+@item
+@c Redefining (or advising) an Emacs primitive is discouraged.  It may do
+@c the right thing for a particular program, but there is no telling what
+@c other programs might break as a result.
+Emacsの基本関数を再定義（あるいはアドバイス）することは謹むべきである。
+特定のプログラムに対しては正しく動作するであろうが、
+他のプログラムがその結果どうなるかはわからない。
+
+@item
+@c If a file does replace any of the functions or library programs of
+@c standard Emacs, prominent comments at the beginning of the file should
+@c say which functions are replaced, and how the behavior of the
+@c replacements differs from that of the originals.
+Emacsの標準の関数やライブラリプログラムを置き換えるようなファイルでは、
+そのファイルの先頭の目立つコメントに
+どの関数を置き換え元のふるまいとの相違点を記述すること。
+
+@item
+@c Please keep the names of your Emacs Lisp source files to 13 characters
+@c or less.  This way, if the files are compiled, the compiled files' names
+@c will be 14 characters or less, which is short enough to fit on all kinds
+@c of Unix systems.
+読者のEmacs Lispのソースファイルの名前は13文字以下にすること。
+こうすると、ファイルをコンパイルしても、
+コンパイル済みのファイル名は14文字以下になり、
+どんな種類のUNIXシステムにも収まるだけの短さである。
+
+@item
+@c Don't use @code{next-line} or @code{previous-line} in programs; nearly
+@c always, @code{forward-line} is more convenient as well as more
+@c predictable and robust.  @xref{Text Lines}.
+プログラムでは@code{next-line}や@code{previous-line}を使わないこと。
+ほとんどの場合、@code{forward-line}のほうがより便利であり、
+予測可能で堅牢でもある。
+@pxref{Text Lines}。
+
+@item
+@c Don't call functions that set the mark, unless setting the mark is one
+@c of the intended features of your program.  The mark is a user-level
+@c feature, so it is incorrect to change the mark except to supply a value
+@c for the user's benefit.  @xref{The Mark}.
+マークを設定することが読者のプログラムの意図した機能の一部でなければ、
+マークを設定する関数は呼び出さないこと。
+マークはユーザーレベルの機能であり、
+ユーザーの便宜のために値を指定する以外には、
+マークを変更するのは正しくない。
+@pxref{The Mark}。
+
+@c In particular, don't use any of these functions:
+特に、以下のいずれの関数も使わないこと。
+
+@itemize @bullet
+@item
+@code{beginning-of-buffer}, @code{end-of-buffer}
+@item
+@code{replace-string}, @code{replace-regexp}
+@end itemize
+
+@c If you just want to move point, or replace a certain string, without any
+@c of the other features intended for interactive users, you can replace
+@c these functions with one or two lines of simple Lisp code.
+対話的なユーザー向けの他の機能を必要とせずに
+単にポイントを移動したり特定の文字列を置換するには、
+これらの関数は1行か2行の単純なLispコードで置き換えられる。
+
+@item
+@c Use lists rather than vectors, except when there is a particular reason
+@c to use a vector.  Lisp has more facilities for manipulating lists than
+@c for vectors, and working with lists is usually more convenient.
+ベクトルを使う特別な理由がない限りは、ベクトルではなくリストを使う。
+Lispには、ベクトルに対するよりもリストを操作する機能のほうが多くあり、
+リストを扱うほうが普通はより簡便である。
+
+@c Vectors are advantageous for tables that are substantial in size and are
+@c accessed in random order (not searched front to back), provided there is
+@c no need to insert or delete elements (only lists allow that).
+（リストだけが許す）要素を挿入したり削除する必要がないのであれば、
+ある程度のサイズがあり
+（先頭から末尾に向けての探索ではなく）ランダムに参照する表には
+ベクトルのほうが適している。
+
+@item
+@c The recommended way to print a message in the echo area is with
+@c the @code{message} function, not @code{princ}.  @xref{The Echo Area}.
+エコー領域にメッセージを表示する推奨方法は、
+@code{princ}ではなく関数@code{message}を使うことである。
+@pxref{The Echo Area}。
+
+@item
+@c When you encounter an error condition, call the function @code{error}
+@c (or @code{signal}).  The function @code{error} does not return.
+@c @xref{Signaling Errors}.
+エラー条件に出会ったときには、
+関数@code{error}（あるいは@code{signal}）を呼び出す。
+関数@code{error}は戻ってこない。
+@pxref{Signaling Errors}。
+
+@c Do not use @code{message}, @code{throw}, @code{sleep-for},
+@c or @code{beep} to report errors.
+エラーを報告するために、
+@code{message}、@code{throw}、@code{sleep-for}、@code{beep}は使わないこと。
+
+@item
+@c An error message should start with a capital letter but should not end
+@c with a period.
+エラーメッセージは大英文字で始め、ピリオドで終えないこと。
+
+@item
+@c Many commands that take a long time to execute display a message that
+@c says @samp{Operating...} when they start, and change it to
+@c @samp{Operating...done} when they finish.  Please keep the style of
+@c these messages uniform: @emph{no} space around the ellipsis, and
+@c @emph{no} period at the end.
+実行に時間を要する多くのコマンドでは、
+開始時には@samp{Operating...}のメッセージを表示し、
+終了時にはそれを@samp{Operating...done}と変える。
+これらのメッセージの形を同じにしておくこと。
+@code{...}の周りに空白は@emph{なく}、末尾にピリオドも@emph{ない}。
+
+@item
+@c Try to avoid using recursive edits.  Instead, do what the Rmail @kbd{e}
+@c command does: use a new local keymap that contains one command defined
+@c to switch back to the old local keymap.  Or do what the
+@c @code{edit-options} command does: switch to another buffer and let the
+@c user switch back at will.  @xref{Recursive Editing}.
+再帰編集の使用は避けるように努めること。
+そのかわりにrmailのコマンド@kbd{e}のようにする。
+つまり、古いローカルキーマップに戻るためのコマンドを収めた
+新しいローカルキーマップを使う。
+あるいは、コマンド@code{edit-options}のようにする。
+別のバッファに切り替え、戻るのはユーザーに任せる。
+@pxref{Recursive Editing}。
+
+@item
+@c In some other systems there is a convention of choosing variable names
+@c that begin and end with @samp{*}.  We don't use that convention in Emacs
+@c Lisp, so please don't use it in your programs.  (Emacs uses such names
+@c only for special-purpose buffers.)  The users will find Emacs more
+@c coherent if all libraries use the same conventions.
+変数名を@samp{*}で始めたり終える慣習があるシステムもある。
+Emacs Lispではこの慣習を使わないので、読者のプログラムでも使わないこと。
+（Emacsでは、特別な目的のバッファにのみそのような名前を使う。）
+すべてのライブラリで同じ慣習を使うと、
+ユーザーにはEmacsがより整合して見える。
+
+@item
+@c Try to avoid compiler warnings about undefined free variables, by adding
+@c @code{defvar} definitions for these variables.
+自由変数には@code{defvar}の定義を追加して、
+コンパイル時の未定義な自由変数に対する警告を避けるように努めること。
+
+@c If you bind a variable in one function, and use it or set it in another
+@c function, the compiler warns about the latter function unless the
+@c variable has a definition.  But often these variables have short names,
+@c and it is not clean for Lisp packages to define such variable names.
+@c Therefore, you should rename the variable to start with the name prefix
+@c used for the other functions and variables in your package.
+ある関数で変数を束縛しその変数を別の関数で使ったり設定すると、
+その変数を定義しない限りコンパイラは後者の関数について警告を出す。
+しかし、しばしばこれらの変数は短い名前で、
+Lispパッケージでそのような変数名を定義すべきかどうか明らかでない。
+したがって、そのような変数の名前は、
+読者のパッケージの他の関数や変数に使っている接頭辞で
+始まる名前に改名すべきである。
+
+@item
+@c Indent each function with @kbd{C-M-q} (@code{indent-sexp}) using the
+@c default indentation parameters.
+デフォルトの字下げパラメータを使って、
+各関数を@kbd{C-M-q}（@code{indent-sexp}）で字下げすること。
+
+@item
+@c Don't make a habit of putting close-parentheses on lines by themselves;
+@c Lisp programmers find this disconcerting.  Once in a while, when there
+@c is a sequence of many consecutive close-parentheses, it may make sense
+@c to split the sequence in one or two significant places.
+閉じ括弧だけの行にする癖をつけないこと。
+Lispプログラマはこれに当惑する。
+たまには、閉じ括弧が多数個連続するときに
+それらを1つか2つの塊に分けることは意味がある。
+
+@item
+@c Please put a copyright notice on the file if you give copies to anyone.
+@c Use a message like this one:
+コピーを配布する場合には、ファイルに著作権表示を入れること。
+つぎのような文面を使う。
+
+@smallexample
+;; Copyright (C) @var{year} @var{name}
+
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License as
+;; published by the Free Software Foundation; either version 2 of
+;; the License, or (at your option) any later version.
+
+;; This program is distributed in the hope that it will be
+;; useful, but WITHOUT ANY WARRANTY; without even the implied
+;; warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+;; PURPOSE.  See the GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public
+;; License along with this program; if not, write to the Free
+;; Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+;; MA 02111-1307 USA
+@end smallexample
+
+@c If you have signed papers to assign the copyright to the Foundation,
+@c then use @samp{Free Software Foundation, Inc.} as @var{name}.
+@c Otherwise, use your name.
+読者がフリーソフトウェアファウンデーションに著作権を委譲する契約を
+結んでいるときには、
+@var{name}として@samp{Free Software Foundation, Inc.}を使う。
+さもなければ読者自身の名前を使う。
+@end itemize
+
+@node Compilation Tips
+@c @section Tips for Making Compiled Code Fast
+@section コンパイル済みコードを速くするヒント
+@c @cindex execution speed
+@c @cindex speedups
+@cindex 実行速度
+@cindex 速度向上
+
+@c   Here are ways of improving the execution speed of byte-compiled
+@c Lisp programs.
+バイトコンパイルしたLispプログラムの実行速度を改良する方法を示します。
+
+@itemize @bullet
+@item
+@c @cindex profiling
+@c @cindex timing programs
+@cindex プロファイル
+@cindex プログラムを計時する
+@cindex @file{profile.el}
+@cindex @file{elp.el}
+@c Profile your program with the @file{profile} library or the @file{elp}
+@c library.  See the files @file{profile.el} and @file{elp.el} for
+@c instructions.
+ライブラリ@file{profile}やライブラリ@file{elp}で、
+読者のプログラムを計測する。
+操作方法についてはファイル@file{profile.el}と@file{elp.el}を参照。
+
+@item
+@c Use iteration rather than recursion whenever possible.
+@c Function calls are slow in Emacs Lisp even when a compiled function
+@c is calling another compiled function.
+可能な場合には再帰ではなく繰り返しを使う。
+コンパイル済みの関数が別のコンパイル済み関数を呼び出す場合であっても
+Emacs Lispでは関数呼び出しは遅い。
+
+@item
+@c Using the primitive list-searching functions @code{memq}, @code{member},
+@c @code{assq}, or @code{assoc} is even faster than explicit iteration.  It
+@c can be worth rearranging a data structure so that one of these primitive
+@c search functions can be used.
+@code{memq}、@code{member}、@code{assq}、@code{assoc}のリスト探索基本関数を
+使うほうが明示的な繰り返しよりも速い。
+これらの探索基本関数の1つを使えるようにデータ構造を変更する価値はある。
+
+@item
+@c Certain built-in functions are handled specially in byte-compiled code, 
+@c avoiding the need for an ordinary function call.  It is a good idea to
+@c use these functions rather than alternatives.  To see whether a function
+@c is handled specially by the compiler, examine its @code{byte-compile}
+@c property.  If the property is non-@code{nil}, then the function is
+@c handled specially.
+ある種の組み込み関数は、バイトコンパイル済みのコードでは
+普通の関数呼び出しを避けるように特別に扱われる。
+これらの関数を使うのはよいことである。
+コンパイラが関数を特別に扱うかどうかを調べるには、
+その属性@code{byte-compile}を調べる。
+属性が@code{nil}以外であれば、その関数は特別に扱われる。
+
+@c For example, the following input will show you that @code{aref} is
+@c compiled specially (@pxref{Array Functions}):
+たとえば、つぎの入力は、@code{aref}が特別にコンパイルされることを示す
+（@pxref{Array Functions}）。
+
+@example
+@group
+(get 'aref 'byte-compile)
+     @result{} byte-compile-two-args
+@end group
+@end example
+
+@item
+@c If calling a small function accounts for a substantial part of your
+@c program's running time, make the function inline.  This eliminates
+@c the function call overhead.  Since making a function inline reduces
+@c the flexibility of changing the program, don't do it unless it gives
+@c a noticeable speedup in something slow enough that users care about
+@c the speed.  @xref{Inline Functions}.
+読者のプログラムの実行時間のかなりの部分を小さな関数の呼び出しが
+占めるときには、その関数をインラインにする。
+これにより関数呼び出しのオーバヘッドを削除できる。
+関数をインラインにするとプログラム変更の柔軟性を減じるので、
+ユーザーが速度を気にするほど遅い部分の十分な速度向上が得られない限り、
+このようにしないこと。
+@pxref{Inline Functions}。
+@end itemize
+
+@node Documentation Tips
+@c @section Tips for Documentation Strings
+@section 説明文字列に関するヒント
+
+@tindex checkdoc-minor-mode
+@findex checkdoc-minor-mode
+@c   Here are some tips and conventions for the writing of documentation
+@c strings.  You can check many of these conventions by running the command
+@c @kbd{M-x checkdoc-minor-mode}.
+説明文字列を書くうえでのヒントや慣習を述べます。
+コマンド@kbd{M-x checkdoc-minor-mode}を実行して、
+これらの慣習の多くを確認できます。
+
+@itemize @bullet
+@item
+@c Every command, function, or variable intended for users to know about
+@c should have a documentation string.
+ユーザーが知っておくことを意図した各コマンド、関数、変数には、
+説明文字列を付けること。
+
+@item
+@c An internal variable or subroutine of a Lisp program might as well have
+@c a documentation string.  In earlier Emacs versions, you could save space
+@c by using a comment instead of a documentation string, but that is no
+@c longer the case.
+Lispプログラムの内部変数やサブルーティンにも説明文字列を付ける。
+Emacsの初期の版では、説明文字列のかわりにコメントを使うと容量を節約できたが、
+今はこれはあてはまらない。
+
+@item
+@c The first line of the documentation string should consist of one or two
+@c complete sentences that stand on their own as a summary.  @kbd{M-x
+@c apropos} displays just the first line, and if it doesn't stand on its
+@c own, the result looks bad.  In particular, start the first line with a
+@c capital letter and end with a period.
+説明文字列の最初の行は、1つか2つの完全な文であり、
+それだけで概要を表していること。
+@kbd{M-x apropos}は説明文字列の最初の行だけを表示するため、
+それだけで十分に表せないと表示結果が悪くなる。
+特に、最初の行は大文字で始め、ピリオドで終えること。
+
+@c The documentation string can have additional lines that expand on the
+@c details of how to use the function or variable.  The additional lines
+@c should be made up of complete sentences also, but they may be filled if
+@c that looks good.
+説明文字列には、関数や変数の使い方の詳細を述べる追加の行があってよい。
+それらの行も完全な文から成るべきであるが、見ためをよくするために
+適当に詰めてよい。
+
+@item
+@c For consistency, phrase the verb in the first sentence of a
+@c function's documentation string as an infinitive with ``to'' omitted.  For
+@c instance, use ``Return the cons of A and B.'' in preference to ``Returns
+@c the cons of A and B@.''  Usually it looks good to do likewise for the
+@c rest of the first paragraph.  Subsequent paragraphs usually look better
+@c if they have proper subjects.
+一貫性があるように、関数の説明文字列の最初の文の動詞は
+『to』を省いた不定詞にする。
+たとえば、『Returns the cons of A and B@.』ではなく
+『Return the cons of A and B.』とする。
+最初の行の残りの文についても同様にするとよい。
+以降の文節では適切な主語があるほうが一般にはよい。
+
+@item
+@c Write documentation strings in the active voice, not the passive, and in
+@c the present tense, not the future.  For instance, use ``Return a list
+@c containing A and B.'' instead of ``A list containing A and B will be
+@c returned.''
+説明文字列は受動態ではなく能動態で書き、未来形ではなく現在形で書く。
+たとえば、『A list containing A and B will be returned.』ではなく
+『Return a list containing A and B.』と書く。
+
+@item
+@c Avoid using the word ``cause'' (or its equivalents) unnecessarily.
+@c Instead of, ``Cause Emacs to display text in boldface,'' write just
+@c ``Display text in boldface.''
+不必要に単語『cause』（および同義語）を使わないこと。
+『Cause Emacs to display text in boldface,』ではなく
+単に『Display text in boldface.』と書く。
+
+@item
+@c Do not start or end a documentation string with whitespace.
+説明文字列は、白文字で始めたり終えないこと。
+
+@item
+@c Format the documentation string so that it fits in an Emacs window on an
+@c 80-column screen.  It is a good idea for most lines to be no wider than
+@c 60 characters.  The first line can be wider if necessary to fit the 
+@c information that ought to be there.
+80コラムのスクリーン上のEmacsのウィンドウに収まるように
+説明文字列を整形する。
+ほとんどの行を60文字を越えないようにするとよい。
+必要な情報を入れるためならば最初の行が長くなってもよい。
+
+@c However, rather than simply filling the entire documentation string, you
+@c can make it much more readable by choosing line breaks with care.
+@c Use blank lines between topics if the documentation string is long.
+しかし、説明文字列全体を単純に整形するよりは、
+注意深く行分けすると読みやすくなる。
+説明文字列が長い場合には、話題ごとに空行で区切る。
+ 
+@item
+@c @strong{Do not} indent subsequent lines of a documentation string so
+@c that the text is lined up in the source code with the text of the first
+@c line.  This looks nice in the source code, but looks bizarre when users
+@c view the documentation.  Remember that the indentation before the
+@c starting double-quote is not part of the string!
+ソースコード上で説明文字列の最初の行に揃えるために
+説明文字列の残りの行を字下げ@strong{しないこと}。
+ソースコード上では見ためがよくても、
+ユーザーが説明文字を見るときには奇妙に見える。
+文字列を始めるダブルクォートのまえにある字下げは
+文字列の一部ではないことに注意！
+
+@item
+@c When the user tries to use a disabled command, Emacs displays just the
+@c first paragraph of its documentation string---everything through the
+@c first blank line.  If you wish, you can choose which information to
+@c include before the first blank line so as to make this display useful.
+ユーザーが禁止コマンドを実行しようとすると、
+Emacsは当該コマンドの説明文字列の最初の文節、
+つまり、最初の空行までを表示する。
+必要ならば、最初の空行のまえに入れるべき情報を選んで、
+このような表示が有用であるようにする。
+
+@item
+@c A variable's documentation string should start with @samp{*} if the
+@c variable is one that users would often want to set interactively.  If
+@c the value is a long list, or a function, or if the variable would be set
+@c only in init files, then don't start the documentation string with
+@c @samp{*}.  @xref{Defining Variables}.
+ユーザーが対話的に設定したがるような変数では、
+その変数の説明文字列は@samp{*}で始める。
+変数の値が、長いリストや関数であるとき、あるいは、
+初期化ファイルでのみ設定するような変数であるときには、
+その説明文字列を@samp{*}で始めないこと。
+@pxref{Defining Variables}。
+
+@item
+@c The documentation string for a variable that is a yes-or-no flag should
+@c start with words such as ``Non-nil means@dots{}'', to make it clear that
+@c all non-@code{nil} values are equivalent and indicate explicitly what
+@c @code{nil} and non-@code{nil} mean.
+yes/noのフラグを表す変数の説明文字列は『Non-nil means@dots{}』のような
+単語で始めて、@code{nil}以外の値はすべて同値であることを明らかにし、
+@code{nil}と@code{nil}以外の意味を明確に示すこと。
+
+@item
+@c When a function's documentation string mentions the value of an argument
+@c of the function, use the argument name in capital letters as if it were
+@c a name for that value.  Thus, the documentation string of the function
+@c @code{/} refers to its second argument as @samp{DIVISOR}, because the
+@c actual argument name is @code{divisor}.
+関数の説明文字列でその引数について述べるときには、
+その引数の値を表す名前には大文字で書いた引数名を使う。
+したがって、関数@code{/}の説明文字列では、
+その第2引数の名前は@code{divisor}なので、@samp{DIVISOR}と表す。
+
+@c Also use all caps for meta-syntactic variables, such as when you show
+@c the decomposition of a list or vector into subunits, some of which may
+@c vary.
+また、リストやベクトルを（その一部が変化するかもしれない）構成部分に
+分解したものを示すときなどのメタ変数には、すべて大文字を使う。
+
+@item
+@iftex
+@c When a documentation string refers to a Lisp symbol, write it as it
+@c would be printed (which usually means in lower case), with single-quotes
+@c around it.  For example: @samp{`lambda'}.  There are two exceptions:
+@c write @code{t} and @code{nil} without single-quotes.
+説明文字列でLispシンボルを参照するときには、
+それが表示されるとき（つまり普通はすべて小文字）のように
+シングルクォートで囲って書く。
+これには2つ例外があり、@code{t}と@code{nil}は
+シングルクォートで囲まない。
+@end iftex
+@ifinfo
+@c When a documentation string refers to a Lisp symbol, write it as it
+@c would be printed (which usually means in lower case), with single-quotes
+@c around it.  For example: @samp{lambda}.  There are two exceptions: write
+@c t and nil without single-quotes.  (In this manual, we use a different
+@c convention, with single-quotes for all symbols.)
+説明文字列でLispシンボルを参照するときには、
+それが表示されるとき（つまり普通はすべて小文字）のように
+シングルクォートで囲って書く。
+たとえば、@samp{lambda}である。
+これには2つ例外があり、tとnilはシングルクォートで囲まずに書く。
+（本書では、すべてのシンボルをシングルクォートで囲む別の慣習を用いている。）
+@end ifinfo
+
+@c Help mode automatically creates a hyperlink when a documentation string
+@c uses a symbol name inside single quotes, if the symbol has either a
+@c function or a variable definition.  You do not need to do anything
+@c special to make use of this feature.  However, when a symbol has both a
+@c function definition and a variable definition, and you want to refer to
+@c just one of them, you can specify which one by writing one of the words
+@c @samp{variable}, @samp{option}, @samp{function}, or @samp{command},
+@c immediately before the symbol name.  (Case makes no difference in
+@c recognizing these indicator words.)  For example, if you write
+ヘルプモードでは、説明文字列でシングルクォートで囲ったシンボルを使うと、
+そのシンボルに関数定義や変数定義があるときには自動的に
+ハイパーリンクを作成する。
+この機能を利用するために特別なことをする必要はない。
+しかし、シンボルに関数定義と変数定義の両方があり、
+どちらか一方のみを参照したい場合には、
+シンボルの名前のまえに
+@samp{variable}、@samp{option}、@samp{function}、@samp{command}の
+いずれかの単語を書くだけでどちらであるかを指定できる。
+（これらの単語を認識するときには大文字小文字は区別しない。）
+たとえばつぎのように書くと、
+
+@example
+This function sets the variable `buffer-file-name'.
+@end example
+
+@noindent
+@c then the hyperlink will refer only to the variable documentation of
+@c @code{buffer-file-name}, and not to its function documentation.
+ハイパーリンクは、変数@code{buffer-file-name}の説明文字列を指し、
+その関数の説明文字列は指さない。
+
+@c If a symbol has a function definition and/or a variable definition, but
+@c those are irrelevant to the use of the symbol that you are documenting,
+@c you can write the word @samp{symbol} before the symbol name to prevent
+@c making any hyperlink.  For example,
+シンボルに関数定義や変数定義があっても、
+説明文字列でのシンボルの使い方には無関係な場合には、
+シンボルの名前のまえに単語@samp{symbol}を書けば、
+ハイパーリンクを作らないようにできる。
+たとえば、つぎのようにすると、
+
+@example
+If the argument KIND-OF-RESULT is the symbol `list',
+this function returns a list of all the objects
+that satisfy the criterion.
+@end example
+
+@noindent
+@c does not make a hyperlink to the documentation, irrelevant here, of the
+@c function @code{list}.
+ここでは@code{list}の関数／変数定義は無関係なので、
+関数@code{list}の説明文字列を指すハイパーリンクは作られない。
+
+@item
+@c Don't write key sequences directly in documentation strings.  Instead,
+@c use the @samp{\\[@dots{}]} construct to stand for them.  For example,
+@c instead of writing @samp{C-f}, write the construct
+@c @samp{\\[forward-char]}.  When Emacs displays the documentation string,
+@c it substitutes whatever key is currently bound to @code{forward-char}.
+@c (This is normally @samp{C-f}, but it may be some other character if the
+@c user has moved key bindings.)  @xref{Keys in Documentation}.
+説明文字列に直接キー列を書き込まないこと。
+そのかわりに、それの標準的なキー列を作成する
+@samp{\\[@dots{}]}の書き方を使う。
+たとえば、@samp{C-f}と書くかわりに、@samp{\\[forward-char]}と書く。
+Emacsが説明文字列を表示するときに、
+@code{forward-char}に現在バインドされているキーにEmacsが置き換える。
+（普通は@samp{C-f}であるが、ユーザーがキーバインディングを変更していれば、
+別の文字になる。）
+@pxref{Keys in Documentation}。
+
+@item
+@c In documentation strings for a major mode, you will want to refer to the
+@c key bindings of that mode's local map, rather than global ones.
+@c Therefore, use the construct @samp{\\<@dots{}>} once in the
+@c documentation string to specify which key map to use.  Do this before
+@c the first use of @samp{\\[@dots{}]}.  The text inside the
+@c @samp{\\<@dots{}>} should be the name of the variable containing the
+@c local keymap for the major mode.
+メジャーモードの説明文字列では、
+グローバルなキーマップではなくそのモードのローカルなキーマップでの
+キーバインディングを参照したいだろう。
+それには、使用するキーマップを指定する構文@samp{\\<@dots{}>}を
+説明文字列の中に書く。
+最初に@samp{\\[@dots{}]}を使うまえにこうしておくこと。
+@samp{\\<@dots{}>}の内側のテキストは、
+メジャーモード向けのローカルキーマップを保持する変数の名前であること。
+
+@c It is not practical to use @samp{\\[@dots{}]} very many times, because
+@c display of the documentation string will become slow.  So use this to
+@c describe the most important commands in your major mode, and then use
+@c @samp{\\@{@dots{}@}} to display the rest of the mode's keymap.
+説明文字列の表示を遅くしてしまうので、
+@samp{\\[@dots{}]}を何回も使うのは実用的ではない。
+したがって、読者のメジャーモードのもっとも重要なコマンドの記述にこれを使い、
+モードのキーマップの残りを表示するには@samp{\\@{@dots{}@}}を使う。
+@end itemize
+
+@node Comment Tips
+@c @section Tips on Writing Comments
+@section コメントの書き方のヒント
+
+@c   We recommend these conventions for where to put comments and how to
+@c indent them:
+コメントを置く場所とそれらの字下げ方法については以下のような慣習を推奨します。
+
+@table @samp
+@item ;
+@c Comments that start with a single semicolon, @samp{;}, should all be
+@c aligned to the same column on the right of the source code.  Such
+@c comments usually explain how the code on the same line does its job.  In
+@c Lisp mode and related modes, the @kbd{M-;} (@code{indent-for-comment})
+@c command automatically inserts such a @samp{;} in the right place, or
+@c aligns such a comment if it is already present.
+1つのセミコロン@samp{;}で始まるコメントは、
+ソースコードの右側で同じコラム位置に揃えること。
+そのようなコメントは、その行のコードの動作を説明する。
+lispモードやその関連するモードでは、
+コマンド@kbd{M-;}（@code{indent-for-comment}）で
+自動的に右側の正しい位置に@samp{;}を挿入したり、
+そのようなコメントが既存ならば整列できる。
+
+@c This and following examples are taken from the Emacs sources.
+つぎとその下の例は、Emacsのソースから持ってきたものである。
+
+@smallexample
+@group
+(setq base-version-list                 ; there was a base
+      (assoc (substring fn 0 start-vn)  ; version to which
+             file-version-assoc-list))  ; this looks like
+                                        ; a subversion
+@end group
+@end smallexample
+
+@item ;;
+@c Comments that start with two semicolons, @samp{;;}, should be aligned to
+@c the same level of indentation as the code.  Such comments usually
+@c describe the purpose of the following lines or the state of the program
+@c at that point.  For example:
+2つのセミコロン@samp{;;}で始まるコメントは、
+その部分のコードの字下げに揃えること。
+そのようなコメントは、その後続の行の目的や
+その箇所でのプログラムの状態を記述する。
+
+@smallexample
+@group
+(prog1 (setq auto-fill-function
+             @dots{}
+             @dots{}
+  ;; update mode line
+  (force-mode-line-update)))
+@end group
+@end smallexample
+
+@c Every function that has no documentation string (presumably one that is
+@c used only internally within the package it belongs to), should have
+@c instead a two-semicolon comment right before the function, explaining
+@c what the function does and how to call it properly.  Explain precisely
+@c what each argument means and how the function interprets its possible
+@c values.
+説明文字列を持たない各関数
+（所属するパッケージで内部向けにのみ使用される関数）では、
+関数が行うことと正しい呼び出し方を記述した
+2つのセミコロンで始まるコメントを関数のまえに書くこと。
+各引数の意味とその可能な値を関数がどのように解釈するかを正確に説明すること。
+
+@item ;;;
+@c Comments that start with three semicolons, @samp{;;;}, should start at
+@c the left margin.  Such comments are used outside function definitions to
+@c make general statements explaining the design principles of the program.
+@c For example:
+3つのセミコロン@samp{;;;}で始まるコメントは、左端に揃えること。
+そのようなコメントは、関数定義の外側で使い、
+プログラムの設計原理を説明する一般的な表明である。
+たとえばつぎのとおり。
+
+@smallexample
+@group
+;;; This Lisp code is run in Emacs
+;;; when it is to operate as a server
+;;; for other processes.
+@end group
+@end smallexample
+
+@c Another use for triple-semicolon comments is for commenting out lines
+@c within a function.  We use triple-semicolons for this precisely so that
+@c they remain at the left margin.
+3つのセミコロンで始まるコメントの別の使い方は、
+関数内の行をコメントにする場合である。
+そのような行が左端に留まるように3つのセミコロンを使うのである。
+
+@smallexample
+(defun foo (a)
+;;; This is no longer necessary.
+;;;  (force-mode-line-update)
+  (message "Finished with %s" a))
+@end smallexample
+
+@item ;;;;
+@c Comments that start with four semicolons, @samp{;;;;}, should be aligned
+@c to the left margin and are used for headings of major sections of a
+@c program.  For example:
+4つのセミコロン@samp{;;;;}で始まるコメントは、
+左端に揃えて、プログラムの主要な部分のヘッダに使う。
+たとえばつぎのとおり。
+
+@smallexample
+;;;; The kill ring
+@end smallexample
+@end table
+
+@noindent
+@c The indentation commands of the Lisp modes in Emacs, such as @kbd{M-;}
+@c (@code{indent-for-comment}) and @key{TAB} (@code{lisp-indent-line}),
+@c automatically indent comments according to these conventions,
+@c depending on the number of semicolons.  @xref{Comments,,
+@c Manipulating Comments, emacs, The GNU Emacs Manual}.
+@kbd{M-;}（@code{indent-for-comment}）や
+@key{TAB}（@code{lisp-indent-line}）などの
+Emacsのlispモードの字下げコマンドは、
+これらの慣習にしたがって自動的にコメントを字下げします。
+@xref{Comments,, コメントの操作, emacs, GNU Emacs マニュアル}。
+
+@node Library Headers
+@c @section Conventional Headers for Emacs Libraries
+@section Emacsライブラリのヘッダの慣習
+@c @cindex header comments
+@c @cindex library header comments
+@cindex ヘッダコメント
+@cindex ライブラリヘッダコメント
+
+@c   Emacs has conventions for using special comments in Lisp libraries
+@c to divide them into sections and give information such as who wrote
+@c them.  This section explains these conventions.  First, an example:
+Emacsには、コメントをいくつかの部分に分けて作者などの情報を与えるために、
+Lispライブラリの特別なコメントに対する慣習があります。
+本節ではそれらの慣習について述べます。
+まず、例を示します。
+
+@smallexample
+@group
+;;; lisp-mnt.el --- minor mode for Emacs Lisp maintainers
+
+;; Copyright (C) 1992 Free Software Foundation, Inc.
+@end group
+
+;; Author: Eric S. Raymond <esr@@snark.thyrsus.com>
+;; Maintainer: Eric S. Raymond <esr@@snark.thyrsus.com>
+;; Created: 14 Jul 1992
+;; Version: 1.2
+@group
+;; Keywords: docs
+
+;; This file is part of GNU Emacs.
+@dots{}
+;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+;; Boston, MA 02111-1307, USA.
+@end group
+@end smallexample
+
+@c   The very first line should have this format:
+最初の行はつぎの形式であるべきです。
+
+@example
+;;; @var{filename} --- @var{description}
+@end example
+
+@noindent
+@c The description should be complete in one line.
+この記述は1行で完全になるようにします。
+
+@c   After the copyright notice come several @dfn{header comment} lines,
+@c each beginning with @samp{;; @var{header-name}:}.  Here is a table of
+@c the conventional possibilities for @var{header-name}:
+著作権表示のあとには、@samp{;; @var{header-name}:}で始まる
+いくつかの@dfn{ヘッダコメント}（header comment）行が続きます。
+@var{header-name}に使う可能性のある慣習の一覧を以下に示します。
+
+@table @samp
+@item Author
+@c This line states the name and net address of at least the principal
+@c author of the library.
+この行では、少なくともライブラリの主作者の
+氏名とネットワークアドレスを明記する。
+
+@c If there are multiple authors, you can list them on continuation lines
+@c led by @code{;;} and a tab character, like this:
+複数の作者がいる場合には、以下のように、
+@code{;;}とタブ文字で始めた継続行に
+その人達を列挙する。
+
+@smallexample
+@group
+;; Author: Ashwin Ram <Ram-Ashwin@@cs.yale.edu>
+;;      Dave Sill <de5@@ornl.gov>
+;;      Dave Brennan <brennan@@hal.com>
+;;      Eric Raymond <esr@@snark.thyrsus.com>
+@end group
+@end smallexample
+
+@item Maintainer
+@c This line should contain a single name/address as in the Author line, or
+@c an address only, or the string @samp{FSF}.  If there is no maintainer
+@c line, the person(s) in the Author field are presumed to be the
+@c maintainers.  The example above is mildly bogus because the maintainer
+@c line is redundant.
+この行には、作者行（@samp{Author}）のように1人の氏名とアドレス、
+アドレスのみ、文字列@samp{FSF}のいずれかを書く。
+保守者行（@samp{Maintainer}）がない場合には、
+作者行の人達が保守していると仮定する。
+上の例は、保守者行が冗長であり、少々いんちきである。
+
+@c The idea behind the @samp{Author} and @samp{Maintainer} lines is to make
+@c possible a Lisp function to ``send mail to the maintainer'' without
+@c having to mine the name out by hand.
+作者行（@samp{Author}）と保守者行（@samp{Maintainer}）の考えは、
+手作業で名前を探さずに『保守者にメイルを送る』ようなLisp関数を
+作れるようにするためである。
+
+@c Be sure to surround the network address with @samp{<@dots{}>} if
+@c you include the person's full name as well as the network address.
+ネットワークアドレスに加えて人の氏名も書く場合には、
+ネットワークアドレスを@samp{<@dots{}>}で必ず囲むこと。
+
+@item Created
+@c This optional line gives the original creation date of the
+@c file.  For historical interest only.
+この行は省略できるが、ファイルの作成日時を書く。
+歴史的な意味だけである。
+
+@item Version
+@c If you wish to record version numbers for the individual Lisp program, put
+@c them in this line.
+各Lispプログラムの版番号を記録しておきたい場合に、
+この行に版番号を書く。
+
+@item Adapted-By
+@c In this header line, place the name of the person who adapted the
+@c library for installation (to make it fit the style conventions, for
+@c example).
+このヘッダ行では、（たとえば、スタイルの慣習に適合するように変更したなどの）
+インストールのためにライブラリを受理した人の名前を書く。
+
+@item Keywords
+@c This line lists keywords for the @code{finder-by-keyword} help command.
+@c Please use that command to see a list of the meaningful keywords.
+この行には、ヘルプコマンド@code{finder-by-keyword}向けの
+キーワードを書く。
+意味のあるキーワードを理解するためにこのコマンドを試してほしい。
+
+@c This field is important; it's how people will find your package when
+@c they're looking for things by topic area.  To separate the keywords, you
+@c can use spaces, commas, or both.
+この部分は重要である。
+人々が特定の話題で探して読者のパッケージをみつけるであろう。
+キーワードは空白やカンマで区切る。
+@end table
+
+@c   Just about every Lisp library ought to have the @samp{Author} and
+@c @samp{Keywords} header comment lines.  Use the others if they are
+@c appropriate.  You can also put in header lines with other header
+@c names---they have no standard meanings, so they can't do any harm.
+ほとんどのLispライブラリには、
+@samp{Author}と@samp{Keywords}のヘッダコメント行が必要です。
+残りのものは必要に応じて使います。
+別の名前のヘッダ行があってもかまいません。
+それらには標準的な意味はありませんが、害になることもありません。
+
+@c   We use additional stylized comments to subdivide the contents of the
+@c library file.  Here is a table of them:
+ライブラリファイルの内容を分割するために形式を定めたコメントも使います。
+それらを以下に示します。
+
+@table @samp
+@item ;;; Commentary:
+@c This begins introductory comments that explain how the library works.
+@c It should come right after the copying permissions, terminated by a
+@c @samp{Change Log}, @samp{History} or @samp{Code} comment line.  This
+@c text is used by the Finder package, so it should make sense in that
+@c context.
+ライブラリの動作を説明する入門的なコメントを始める。
+著作権表示の直後にきて、
+@samp{Change Log}、@samp{History}、@samp{Code}のいずれかのコメント行で終る。
+このテキストはパッケージfinderが使うので、
+その文脈で意味があるようにすること。
+
+@item ;;; Documentation
+@c This has been used in some files in place of @samp{;;; Commentary:},
+@c but @samp{;;; Commentary:} is preferred.
+@samp{;;; Commentary:}のかわりに使っているファイルもあるが、
+@samp{;;; Commentary:}のほうが好ましい。
+
+@item ;;; Change Log:
+@c This begins change log information stored in the library file (if you
+@c store the change history there).  For most of the Lisp
+@c files distributed with Emacs, the change history is kept in the file
+@c @file{ChangeLog} and not in the source file at all; these files do
+@c not have a @samp{;;; Change Log:} line.
+（変更履歴をライブラリに収める場合の）
+ライブラリファイルに収めた変更記録情報を始める。
+Emacsで配布されるほとんどのLispファイルでは、
+変更履歴はファイル@file{ChangeLog}に収めてあり、
+ソースファイルには収めない。
+それらのファイルには@samp{;;; Change Log:}行はない。
+
+@item ;;; Code:
+@c This begins the actual code of the program.
+プログラムの実際のコードを始める。
+
+@item ;;; @var{filename} ends here
+@c This is the @dfn{footer line}; it appears at the very end of the file.
+@c Its purpose is to enable people to detect truncated versions of the file
+@c from the lack of a footer line.
+これは@dfn{最終行}（footer line）であり、ファイルの末尾に現れる。
+その目的は、最終行が欠如していることでファイルが切り詰められていることが
+わかるようにするのである。
+@end table

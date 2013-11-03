@@ -1,0 +1,1781 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/functions
+@node Functions, Macros, Variables, Top
+@c @chapter Functions
+@chapter 関数
+
+@c   A Lisp program is composed mainly of Lisp functions.  This chapter
+@c explains what functions are, how they accept arguments, and how to
+@c define them.
+Lispプログラムは、主にLisp関数から構成されます。
+本章では、関数とはなにか、引数をどのように受け取るのか、
+どのように関数を定義するのかを説明します。
+
+@menu
+* What Is a Function::    Lisp functions vs. primitives; terminology.
+* Lambda Expressions::    How functions are expressed as Lisp objects.
+* Function Names::        A symbol can serve as the name of a function.
+* Defining Functions::    Lisp expressions for defining functions.
+* Calling Functions::     How to use an existing function.
+* Mapping Functions::     Applying a function to each element of a list, etc.
+* Anonymous Functions::   Lambda expressions are functions with no names.    
+* Function Cells::        Accessing or setting the function definition
+                            of a symbol.
+* Inline Functions::	  Defining functions that the compiler will open code.
+* Related Topics::        Cross-references to specific Lisp primitives
+                            that have a special bearing on how functions work.
+@end menu
+
+@node What Is a Function
+@c @section What Is a Function?
+@section 関数とはなにか
+
+@c   In a general sense, a function is a rule for carrying on a computation
+@c given several values called @dfn{arguments}.  The result of the
+@c computation is called the value of the function.  The computation can
+@c also have side effects: lasting changes in the values of variables or
+@c the contents of data structures.
+一般的には、関数とは、@dfn{引数}（arguments）と呼ばれる値を与えられ、
+計算を行うための規則です。
+この計算結果を関数の値と呼びます。
+計算では副作用、つまり、変数の値やデータ構造の内容に継続する変更
+を伴うこともできます。
+
+@c   Here are important terms for functions in Emacs Lisp and for other
+@c function-like objects.
+Emacs Lispの関数や関数のようなオブジェクトに関する重要な用語をあげておきます。
+
+@table @dfn
+@c @item function
+@item 関数
+@c @cindex function
+@cindex 関数
+@c In Emacs Lisp, a @dfn{function} is anything that can be applied to
+@c arguments in a Lisp program.  In some cases, we use it more
+@c specifically to mean a function written in Lisp.  Special forms and
+@c macros are not functions.
+Emacs Lispでは、Lispプログラムにおいて引数に適用可能ものは
+なんであれ@dfn{関数}（function）である。
+Lispで書いた関数を意味する場合もある。
+スペシャルフォームやマクロは関数ではない。
+
+@c @item primitive
+@item 基本関数
+@c @cindex primitive
+@cindex 基本関数
+@cindex subr
+@c @cindex built-in function
+@cindex 組み込み関数
+@c A @dfn{primitive} is a function callable from Lisp that is written in C,
+@c such as @code{car} or @code{append}.  These functions are also called
+@c @dfn{built-in} functions or @dfn{subrs}.  (Special forms are also
+@c considered primitives.)
+@dfn{基本関数}（primitive）は、@code{car}や@code{append}などのCで書いた
+Lispから呼び出し可能な関数である。
+これらの関数は、@dfn{組み込み}関数とか@dfn{subrs}とも呼ぶ。
+（スペシャルフォームは基本関数とも考えられる。）
+
+@c Usually the reason we implement a function as a primitive is either
+@c because it is fundamental, because it provides a low-level interface to
+@c operating system services, or because it needs to run fast.  Primitives
+@c can be modified or added only by changing the C sources and recompiling
+@c the editor.  See @ref{Writing Emacs Primitives}.
+関数を基本関数として実装する理由は、
+それが基本的なものである、
+それがオペレーティングシステムの機能に対する
+低レベルのインターフェイスを提供する、
+あるいは、高速に動作する必要があるからである。
+基本関数を変更したり追加する唯一の方法は、
+Cソースを変更してエディタを再コンパイルすることである。
+@pxref{Writing Emacs Primitives}。
+
+@c @item lambda expression
+@item ラムダ式
+@c A @dfn{lambda expression} is a function written in Lisp.
+@c These are described in the following section.
+@dfn{ラムダ式}（lambda expression）は、Lispで書いた関数である。
+これらについては以下の節で説明する。
+@ifinfo
+@c @xref{Lambda Expressions}.
+@xref{Lambda Expressions}。
+@end ifinfo
+
+@c @item special form
+@item スペシャルフォーム
+@c A @dfn{special form} is a primitive that is like a function but does not
+@c evaluate all of its arguments in the usual way.  It may evaluate only
+@c some of the arguments, or may evaluate them in an unusual order, or
+@c several times.  Many special forms are described in @ref{Control
+@c Structures}.
+@dfn{スペシャルフォーム}（special form）は関数に似た基本関数であるが、
+その引数すべてを普通のようには評価しない。
+引数の一部を評価したり、普通とは異なる順序で評価したり、
+複数回評価したりする。
+多くのスペシャルフォームについては、
+@ref{Control Structures}で説明してある。
+
+@c @item macro
+@item マクロ
+@c @cindex macro
+@cindex マクロ
+@c A @dfn{macro} is a construct defined in Lisp by the programmer.  It
+@c differs from a function in that it translates a Lisp expression that you
+@c write into an equivalent expression to be evaluated instead of the
+@c original expression.  Macros enable Lisp programmers to do the sorts of
+@c things that special forms can do.  @xref{Macros}, for how to define and
+@c use macros.
+@dfn{マクロ}（macro）は、プログラマがLispで定義した構文である。
+マクロと関数との違いは、マクロは、
+読者が書いたLisp式をもとの式のかわりに評価される等価な式に変換する。
+マクロは、スペシャルフォームでできる種類のことを
+Lispプログラマに提供する。
+マクロの定義方法と使い方については、@pxref{Macros}。
+
+@c @item command
+@item コマンド
+@c @cindex command
+@cindex コマンド
+@c A @dfn{command} is an object that @code{command-execute} can invoke; it
+@c is a possible definition for a key sequence.  Some functions are
+@c commands; a function written in Lisp is a command if it contains an
+@c interactive declaration (@pxref{Defining Commands}).  Such a function
+@c can be called from Lisp expressions like other functions; in this case,
+@c the fact that the function is a command makes no difference.
+@dfn{コマンド}（command）とは、
+@code{command-execute}が起動できるオブジェクトであり、
+キー列に対して定義できる。
+いくつかの関数はコマンドである。
+Lispで書いた関数に対話宣言（@pxref{Defining Commands}）が含まれているとき、
+その関数はコマンドである。
+そのような関数は、他の関数と同様にLisp式から呼び出すことができる。
+その場合、関数がコマンドであるという事実は関係ない。
+
+@c Keyboard macros (strings and vectors) are commands also, even though
+@c they are not functions.  A symbol is a command if its function
+@c definition is a command; such symbols can be invoked with @kbd{M-x}.
+@c The symbol is a function as well if the definition is a function.
+@c @xref{Command Overview}.
+キーボードマクロ（文字列かベクトル）もコマンドであるが、
+それらは関数ではない。
+シンボルの関数定義がコマンドであれば、シンボルはコマンドである。
+そのようなシンボルは、@kbd{M-x}で起動できる。
+シンボルの定義が関数であれば、シンボルは関数でもある。
+
+@c @item keystroke command
+@item 打鍵コマンド
+@c @cindex keystroke command
+@cindex 打鍵コマンド
+@c A @dfn{keystroke command} is a command that is bound to a key sequence
+@c (typically one to three keystrokes).  The distinction is made here
+@c merely to avoid confusion with the meaning of ``command'' in non-Emacs
+@c editors; for Lisp programs, the distinction is normally unimportant.
+@dfn{打鍵コマンド}（keystroke command）とは、
+キー列（典型的には1から3打鍵）にバインドされたコマンドである。
+ここでの区別は、Emacs以外のエディタの『コマンド』の意味との
+混乱を防ぐためであるが、
+Lispプログラムにとっては、この区別は普通は重要ではない。
+
+@c @item byte-code function
+@item バイトコード関数
+@c A @dfn{byte-code function} is a function that has been compiled by the
+@c byte compiler.  @xref{Byte-Code Type}.
+@dfn{バイトコード関数}（byte-code function）とは、
+バイトコンパイラでコンパイルした関数である。
+@pxref{Byte-Code Type}。
+@end table
+
+@defun functionp object
+@tindex functionp
+@c This function returns @code{t} if @var{object} is any kind of function,
+@c or a special form or macro.
+この関数は、@var{object}が、なんらかの関数、スペシャルフォーム、
+マクロであれば、@code{t}を返す。
+@end defun
+
+@defun subrp object
+@c This function returns @code{t} if @var{object} is a built-in function
+@c (i.e., a Lisp primitive).
+この関数は、@var{object}が組み込み関数（つまり、Lisp基本関数）であれば
+@code{t}を返す。
+
+@example
+@group
+@c (subrp 'message)            ; @r{@code{message} is a symbol,}
+@c      @result{} nil                 ;   @r{not a subr object.}
+(subrp 'message)            ; @r{@code{message}はシンボルであり、}
+     @result{} nil                 ;   @r{subrオブジェクトではない}
+@end group
+@group
+(subrp (symbol-function 'message))
+     @result{} t
+@end group
+@end example
+@end defun
+
+@defun byte-code-function-p object
+@c This function returns @code{t} if @var{object} is a byte-code
+@c function.  For example:
+この関数は、@var{object}がバイトコード関数であれば@code{t}を返す。
+たとえば、つぎのとおり。
+
+@example
+@group
+(byte-code-function-p (symbol-function 'next-line))
+     @result{} t
+@end group
+@end example
+@end defun
+
+@node Lambda Expressions
+@c @section Lambda Expressions
+@section ラムダ式
+@c @cindex lambda expression
+@cindex ラムダ式
+
+@c   A function written in Lisp is a list that looks like this:
+Lispで書いた関数はつぎのようなリストです。
+
+@example
+(lambda (@var{arg-variables}@dots{})
+  @r{[}@var{documentation-string}@r{]}
+  @r{[}@var{interactive-declaration}@r{]}
+  @var{body-forms}@dots{})
+@end example
+
+@noindent
+@c Such a list is called a @dfn{lambda expression}.  In Emacs Lisp, it
+@c actually is valid as an expression---it evaluates to itself.  In some
+@c other Lisp dialects, a lambda expression is not a valid expression at
+@c all.  In either case, its main use is not to be evaluated as an
+@c expression, but to be called as a function.
+このようなリストを@dfn{ラムダ式}（lambda expression）と呼びます。
+Emacs Lispでは、これは式として正しいもので、
+それ自身に評価されます。
+Lispの他の方言では、ラムダ式は正しい式ではありません。
+いずれの場合でも、その主な用途は式として評価することではなく、
+関数として呼び出すことです。
+
+@menu
+* Lambda Components::       The parts of a lambda expression.
+* Simple Lambda::           A simple example.
+* Argument List::           Details and special features of argument lists.
+* Function Documentation::  How to put documentation in a function.
+@end menu
+
+@node Lambda Components
+@c @subsection Components of a Lambda Expression
+@subsection ラムダ式の構成要素
+
+@ifinfo
+
+@c   A function written in Lisp (a ``lambda expression'') is a list that
+@c looks like this:
+Lispで書いた関数（『ラムダ式』）はつぎのようなリストです。
+
+@example
+(lambda (@var{arg-variables}@dots{})
+  [@var{documentation-string}]
+  [@var{interactive-declaration}]
+  @var{body-forms}@dots{})
+@end example
+@end ifinfo
+
+@c @cindex lambda list
+@cindex ラムダリスト
+@c   The first element of a lambda expression is always the symbol
+@c @code{lambda}.  This indicates that the list represents a function.  The
+@c reason functions are defined to start with @code{lambda} is so that
+@c other lists, intended for other uses, will not accidentally be valid as
+@c functions.
+ラムダ式の先頭要素は、つねにシンボル@code{lambda}です。
+このシンボルは、リストが関数を表すことを示します。
+関数は@code{lambda}で始まると定義してあるのは、
+他の目的向けの他のリストが誤って正しい関数とならないようにするためです。
+
+@c   The second element is a list of symbols---the argument variable names.
+@c This is called the @dfn{lambda list}.  When a Lisp function is called,
+@c the argument values are matched up against the variables in the lambda
+@c list, which are given local bindings with the values provided.
+@c @xref{Local Variables}.
+第2要素は、シンボルのリスト、つまり、引数変数名です。
+これを@dfn{ラムダリスト}（lambda list）と呼びます。
+Lisp関数が呼ばれると、引数値をラムダリストの変数に対応させ、
+指定した値を持つローカル束縛になります。
+@xref{Local Variables}。
+
+@c   The documentation string is a Lisp string object placed within the
+@c function definition to describe the function for the Emacs help
+@c facilities.  @xref{Function Documentation}.
+説明文字列は、関数定義の内側にあるLisp文字列オブジェクトであり、
+Emacsのヘルプ機能に対して関数を記述します。
+@xref{Function Documentation}。
+
+@c   The interactive declaration is a list of the form @code{(interactive
+@c @var{code-string})}.  This declares how to provide arguments if the
+@c function is used interactively.  Functions with this declaration are called
+@c @dfn{commands}; they can be called using @kbd{M-x} or bound to a key.
+@c Functions not intended to be called in this way should not have interactive
+@c declarations.  @xref{Defining Commands}, for how to write an interactive
+@c declaration.
+対話宣言は、@code{(interactive @var{code-string})}の形式のリストです。
+この宣言は、関数が対話的に使われたときに、
+どのように引数を与えるかを指定します。
+この宣言を有する関数を@dfn{コマンド}（commands）と呼びます。
+コマンドは、@kbd{M-x}で呼び出したり、キーにバインドできます。
+このように呼ばれることを意図していない関数には、
+対話宣言を付けてはいけません。
+対話宣言の書き方については、@xref{Defining Commands}。
+
+@c @cindex body of function
+@cindex 関数本体
+@c   The rest of the elements are the @dfn{body} of the function: the Lisp
+@c code to do the work of the function (or, as a Lisp programmer would say,
+@c ``a list of Lisp forms to evaluate'').  The value returned by the
+@c function is the value returned by the last element of the body.
+残りの要素は、関数の@dfn{本体}（body）です。
+関数の動作を行うLispコードです
+（Lispプログラマとしては、『評価するべきLispフォームのリスト』という）。
+関数が返す値は、本体の最後の要素が返す値です。
+
+@node Simple Lambda
+@c @subsection A Simple Lambda-Expression Example
+@subsection 簡単なラムダ式の例
+
+@c   Consider for example the following function:
+つぎの関数を考えてみましょう。
+
+@example
+(lambda (a b c) (+ a b c))
+@end example
+
+@noindent
+@c We can call this function by writing it as the @sc{car} of an
+@c expression, like this:
+この関数を呼び出すには、つぎのように式の@sc{car}にこの関数を書きます。
+
+@example
+@group
+((lambda (a b c) (+ a b c))
+ 1 2 3)
+@end group
+@end example
+
+@noindent
+@c This call evaluates the body of the lambda expression  with the variable
+@c @code{a} bound to 1, @code{b} bound to 2, and @code{c} bound to 3.
+@c Evaluation of the body adds these three numbers, producing the result 6;
+@c therefore, this call to the function returns the value 6.
+この呼び出しは、変数@code{a}には1、変数@code{b}には2、
+変数@code{c}には3を束縛し、ラムダ式の本体を評価します。
+本体の評価ではこれらを加算し、結果6を生じます。
+したがって、この関数呼び出しは6を返します。
+
+@c   Note that the arguments can be the results of other function calls, as in
+@c this example:
+つぎの例のように、他の関数呼び出しの結果が引数になることもあります。
+
+@example
+@group
+((lambda (a b c) (+ a b c))
+ 1 (* 2 3) (- 5 4))
+@end group
+@end example
+
+@noindent
+@c This evaluates the arguments @code{1}, @code{(* 2 3)}, and @code{(- 5
+@c 4)} from left to right.  Then it applies the lambda expression to the
+@c argument values 1, 6 and 1 to produce the value 8.
+これは、引数、@code{1}、@code{(* 2 3)}、@code{(- 5 4)}を
+左から右へ順に評価します。
+そして、引数値、1、6、1にラムダ式を適用し、値8を生じます。
+
+@c   It is not often useful to write a lambda expression as the @sc{car} of
+@c a form in this way.  You can get the same result, of making local
+@c variables and giving them values, using the special form @code{let}
+@c (@pxref{Local Variables}).  And @code{let} is clearer and easier to use.
+@c In practice, lambda expressions are either stored as the function
+@c definitions of symbols, to produce named functions, or passed as
+@c arguments to other functions (@pxref{Anonymous Functions}).
+このようにフォームの@sc{car}としてラムダ式を書くのは、
+あまり便利ではありません。
+スペシャルフォーム@code{let}（@pxref{Local Variables}）を使って、
+ローカル変数を作ってそれらに値を与えても、同じ結果を得られます。
+さらに、@code{let}は見通しがよく使いやすいです。
+実用上、ラムダ式は、シンボルの関数定義として格納して名前付き関数を作るか、
+他の関数に引数として渡します（@pxref{Anonymous Functions}）。
+
+@c   However, calls to explicit lambda expressions were very useful in the
+@c old days of Lisp, before the special form @code{let} was invented.  At
+@c that time, they were the only way to bind and initialize local
+@c variables.
+しかしながら、スペシャルフォーム@code{let}がなかった初期のLispでは、
+ラムダ式を明示的に呼び出すことはとても便利でした。
+その頃では、ラムダ式はローカル変数を束縛し初期化する唯一の方法でした。
+
+@node Argument List
+@c @subsection Other Features of Argument Lists
+@subsection 引数リストのその他の機能
+@kindex wrong-number-of-arguments
+@c @cindex argument binding
+@c @cindex binding arguments
+@cindex 引数束縛
+@cindex 引数を束縛する
+
+@c   Our simple sample function, @code{(lambda (a b c) (+ a b c))},
+@c specifies three argument variables, so it must be called with three
+@c arguments: if you try to call it with only two arguments or four
+@c arguments, you get a @code{wrong-number-of-arguments} error.
+単純な関数の例@code{(lambda (a b c) (+ a b c))}では、
+3つの引数変数を指定しているので、これは3引数で呼び出す必要があります。
+2引数や4引数で呼び出そうとすると、
+エラー@code{wrong-number-of-arguments}になります。
+
+@c   It is often convenient to write a function that allows certain
+@c arguments to be omitted.  For example, the function @code{substring}
+@c accepts three arguments---a string, the start index and the end
+@c index---but the third argument defaults to the @var{length} of the
+@c string if you omit it.  It is also convenient for certain functions to
+@c accept an indefinite number of arguments, as the functions @code{list}
+@c and @code{+} do.
+特定の引数を省略できる関数を書けると便利なことがしばしばあります。
+たとえば、関数@code{substring}は3つの引数、つまり、
+文字列、開始と終了の添字を取りますが、
+第3引数を省略するとデフォルトは文字列の@var{length}になります。
+@code{list}や@code{+}のように、
+特定の関数では任意個数の引数を受け付けると便利なこともあります。
+
+@c @cindex optional arguments
+@c @cindex rest arguments
+@cindex optional引数
+@cindex rest引数
+@kindex &optional
+@kindex &rest
+@c   To specify optional arguments that may be omitted when a function
+@c is called, simply include the keyword @code{&optional} before the optional
+@c arguments.  To specify a list of zero or more extra arguments, include the
+@c keyword @code{&rest} before one final argument.
+関数呼び出し時に省略してもよい引数を指定するには、
+省略可能な引数のまえにキーワード@code{&optional}を含めるだけです。
+0個以上の引数のリストを指定するには、
+最後の引数のまえにキーワード@code{&rest}を含めます。
+
+@c   Thus, the complete syntax for an argument list is as follows:
+したがって、引数リストの完全な構文はつぎのようになります。
+
+@example
+@group
+(@var{required-vars}@dots{}
+               ; @r{必須の引数}
+ @r{[}&optional @var{optional-vars}@dots{}@r{]}
+               ; @r{省略可能な引数}
+ @r{[}&rest @var{rest-var}@r{]})
+               ; @r{残りの引数}
+@end group
+@end example
+
+@noindent
+@c The square brackets indicate that the @code{&optional} and @code{&rest}
+@c clauses, and the variables that follow them, are optional.
+角括弧は、@code{&optional}や@code{&rest}の節や
+それに続く変数は省略できることを示します。
+
+@c   A call to the function requires one actual argument for each of the
+@c @var{required-vars}.  There may be actual arguments for zero or more of
+@c the @var{optional-vars}, and there cannot be any actual arguments beyond
+@c that unless the lambda list uses @code{&rest}.  In that case, there may
+@c be any number of extra actual arguments.
+関数呼び出し時には、各@var{required-vars}に1つの実引数が必要です。
+0個以上の@var{optional-vars}にも実引数が必要ですが、
+ラムダリストに@code{&rest}がない限り、
+@var{optional-vars}の個数を超える実引数は指定できません。
+@code{&rest}があれば、任意個の余分な実引数を指定できます。
+
+@c   If actual arguments for the optional and rest variables are omitted,
+@c then they always default to @code{nil}.  There is no way for the
+@c function to distinguish between an explicit argument of @code{nil} and
+@c an omitted argument.  However, the body of the function is free to
+@c consider @code{nil} an abbreviation for some other meaningful value.
+@c This is what @code{substring} does; @code{nil} as the third argument to
+@c @code{substring} means to use the length of the string supplied.
+@code{&optional}や@code{&rest}に対応する実引数を省略すると、
+それらのデフォルトは@code{nil}です。
+関数では、@code{nil}を明示した引数と省略した引数とを区別する方法はありません。
+しかしながら、関数本体で@code{nil}を適切な意味ある値の省略と
+みなすことは自由です。
+@code{substring}はそのようにしています。
+@code{substring}の第3引数が@code{nil}であると、
+指定した文字列の長さを使うことを意味します。
+
+@c @cindex CL note---default optional arg
+@cindex CLに関した注意−−省略可能引数のデフォルト
+@quotation
+@c @b{Common Lisp note:} Common Lisp allows the function to specify what
+@c default value to use when an optional argument is omitted; Emacs Lisp
+@c always uses @code{nil}.  Emacs Lisp does not support ``supplied-p''
+@c variables that tell you whether an argument was explicitly passed.
+@b{Common Lispに関した注意：}@code{ }
+Common Lispでは、省略可能引数を省略したときのデフォルト値を関数で指定できる。
+Emacs Lispではつねに@code{nil}を使う。
+Emacs Lispには、明示的に引数を指定したかどうか調べる
+『supplied-p』変数はない。
+@end quotation
+
+@c   For example, an argument list that looks like this:
+たとえば、引数リストはつぎのようになります。
+
+@example
+(a b &optional c d &rest e)
+@end example
+
+@noindent
+@c binds @code{a} and @code{b} to the first two actual arguments, which are
+@c required.  If one or two more arguments are provided, @code{c} and
+@c @code{d} are bound to them respectively; any arguments after the first
+@c four are collected into a list and @code{e} is bound to that list.  If
+@c there are only two arguments, @code{c} is @code{nil}; if two or three
+@c arguments, @code{d} is @code{nil}; if four arguments or fewer, @code{e}
+@c is @code{nil}.
+これは、@code{a}と@code{b}に最初の2つの実引数を束縛し、これらは必須です。
+さらに1個か2個の引数を指定すると、
+それらは、それぞれ@code{c}と@code{d}に束縛します。
+最初の4個よりあとの引数はリストにまとめ、
+@code{e}にそのリストを束縛します。
+引数が2個だけであると、@code{c}は@code{nil}です。
+引数が2個か3個だけであると、@code{d}は@code{nil}です。
+引数が4個以下であると、@code{e}は@code{nil}です。
+
+@c   There is no way to have required arguments following optional
+@c ones---it would not make sense.  To see why this must be so, suppose
+@c that @code{c} in the example were optional and @code{d} were required.
+@c Suppose three actual arguments are given; which variable would the third
+@c argument be for?  Similarly, it makes no sense to have any more
+@c arguments (either required or optional) after a @code{&rest} argument.
+省略可能な引数のあとに必須引数を指定する方法はありませんし、
+それには意味がありません。
+なぜそうなのかを理解するために、上の例で、
+@code{c}は省略可能であり、@code{d}は必須であるとしましょう。
+3つの実引数を指定したとき、どの引数を3番目と考えるのでしょう？@code{ }
+同様に、@code{&rest}のうしろに余分に（必須、もしくは省略可能な）引数が
+あっても意味がありません。
+
+@c   Here are some examples of argument lists and proper calls:
+引数リストと正しい呼び出しの例をあげます。
+
+@smallexample
+@c ((lambda (n) (1+ n))                ; @r{One required:}
+@c  1)                                 ; @r{requires exactly one argument.}
+((lambda (n) (1+ n))                ; @r{1個が必須}
+ 1)                                 ; @r{引数は1個だけ}
+     @result{} 2
+@c ((lambda (n &optional n1)           ; @r{One required and one optional:}
+@c          (if n1 (+ n n1) (1+ n)))   ; @r{1 or 2 arguments.}
+((lambda (n &optional n1)           ; @r{1個は必須、1個は省略可}
+         (if n1 (+ n n1) (1+ n)))   ; @r{引数は1個か2個}
+ 1 2)
+     @result{} 3
+@c ((lambda (n &rest ns)               ; @r{One required and one rest:}
+@c          (+ n (apply '+ ns)))       ; @r{1 or more arguments.}
+((lambda (n &rest ns)               ; @r{1個は必須、あとは残り全部}
+         (+ n (apply '+ ns)))       ; @r{引数は1個以上いくつでもよい}
+ 1 2 3 4 5)
+     @result{} 15
+@end smallexample
+
+@node Function Documentation
+@c @subsection Documentation Strings of Functions
+@subsection 関数の説明文字列
+@c @cindex documentation of function
+@cindex 関数の説明文字列
+@cindex 説明文字列、関数
+
+@c   A lambda expression may optionally have a @dfn{documentation string} just
+@c after the lambda list.  This string does not affect execution of the
+@c function; it is a kind of comment, but a systematized comment which
+@c actually appears inside the Lisp world and can be used by the Emacs help
+@c facilities.  @xref{Documentation}, for how the @var{documentation-string} is
+@c accessed.
+ラムダ式には、ラムダリストの直後に
+@dfn{説明文字列}（documentation string）があってもかまいません。
+この文字列は関数の実行には影響しません。
+コメントのようなものですが、Lisp内部に現れる系統的なコメントであり、
+Emacsのヘルプ機能が使用します。
+@var{documentation-string}の参照方法については、@xref{Documentation}。
+
+@c   It is a good idea to provide documentation strings for all the
+@c functions in your program, even those that are called only from within
+@c your program.  Documentation strings are like comments, except that they
+@c are easier to access.
+読者のプログラムの関数すべてに、
+たとえ内部的に使用されるものであっても説明文字列を与えることはよいことです。
+説明文字列はコメントに似ていますが、参照するのはもっと簡単です。
+
+@c   The first line of the documentation string should stand on its own,
+@c because @code{apropos} displays just this first line.  It should consist
+@c of one or two complete sentences that summarize the function's purpose.
+説明文字列の先頭行は、その1行で完結しているべきです。
+というのは、@code{apropos}は先頭行だけを表示するからです。
+関数の機能をまとめた1つか2つの文にしましょう。
+
+@c   The start of the documentation string is usually indented in the source file,
+@c but since these spaces come before the starting double-quote, they are not part of
+@c the string.  Some people make a practice of indenting any additional
+@c lines of the string so that the text lines up in the program source.
+@c @emph{This is a mistake.}  The indentation of the following lines is
+@c inside the string; what looks nice in the source code will look ugly
+@c when displayed by the help commands.
+説明文字列の先頭は、ソースファイル上では普通字下げしてあるでしょうが、
+それらの空白は文字列を始めるダブルクォートのまえにありますから、
+それらは文字列の一部ではありません。
+説明文字列の残りの行を字下げして、
+プログラムソース上でテキスト行が揃うようにする人もいます。
+しかし、@emph{それはまちがいです}。
+後続の行の字下げは文字列の内側にあります。
+ソースファイルで綺麗に見えても、
+ヘルプコマンドの表示では不恰好になります。
+
+@c   You may wonder how the documentation string could be optional, since
+@c there are required components of the function that follow it (the body).
+@c Since evaluation of a string returns that string, without any side effects,
+@c it has no effect if it is not the last form in the body.  Thus, in
+@c practice, there is no confusion between the first form of the body and the
+@c documentation string; if the only body form is a string then it serves both
+@c as the return value and as the documentation.
+関数の必須の構成要素（本体）があとに続くのに、
+説明文字列を省略できるのを不思議に思うかもしれません。
+文字列を評価すると、副作用なしに、その文字列を返すので、
+それが本体の最後のフォームでなければ、なんの効果もありません。
+したがって、実用上、本体の最初のフォームと
+説明文字列を混同することはありません。
+本体のフォームが文字列だけであると、
+それは戻り値でもあり説明文字列でもあります。
+
+@node Function Names
+@c @section Naming a Function
+@section 関数を命名する
+@c @cindex function definition
+@c @cindex named function
+@c @cindex function name
+@cindex 関数定義
+@cindex 名前付き関数
+@cindex 関数名
+
+@c   In most computer languages, every function has a name; the idea of a
+@c function without a name is nonsensical.  In Lisp, a function in the
+@c strictest sense has no name.  It is simply a list whose first element is
+@c @code{lambda}, a byte-code function object, or a primitive subr-object.
+ほとんどの計算機言語では、各関数には名前があります。
+名前のない関数という考えは本質的ではありません。
+Lispでは、もっとも厳密にいえば、関数には名前はありません。
+関数は、先頭要素が単に@code{lambda}であるリスト、
+バイトコード関数オブジェクト、あるいは、基本関数のsubrオブジェクトです。
+
+@c   However, a symbol can serve as the name of a function.  This happens
+@c when you put the function in the symbol's @dfn{function cell}
+@c (@pxref{Symbol Components}).  Then the symbol itself becomes a valid,
+@c callable function, equivalent to the list or subr-object that its
+@c function cell refers to.  The contents of the function cell are also
+@c called the symbol's @dfn{function definition}.  The procedure of using a
+@c symbol's function definition in place of the symbol is called
+@c @dfn{symbol function indirection}; see @ref{Function Indirection}.
+しかしながら、シンボルは関数の名前として働きます。
+シンボルの@dfn{関数セル}（function cell、@pxref{Symbol Components}）に
+関数を入れると、このようになります。
+そうすると、シンボルそのものは正当な呼び出し可能な関数となり、
+関数セルが参照するリストやsubrオブジェクトと等価になります。
+関数セルの内容をシンボルの@dfn{関数定義}（function definition）とも呼びます。
+シンボルのかわりにシンボルの関数定義を使う処理を
+@dfn{シンボルの関数間接}（symbol function indirection）と呼びます。
+@xref{Function Indirection}。
+
+@c   In practice, nearly all functions are given names in this way and
+@c referred to through their names.  For example, the symbol @code{car} works
+@c as a function and does what it does because the primitive subr-object
+@c @code{#<subr car>} is stored in its function cell.
+実用上、ほとんどすべての関数には、このようにして名前が付いていて、
+その名前で参照します。
+たとえば、シンボル@code{car}は、
+その関数セルに基本関数のsubrオブジェクト@code{#<subr car>}が格納してあるので、
+その動作を行う関数として動作します。
+
+@c   We give functions names because it is convenient to refer to them by
+@c their names in Lisp expressions.  For primitive subr-objects such as
+@c @code{#<subr car>}, names are the only way you can refer to them: there
+@c is no read syntax for such objects.  For functions written in Lisp, the
+@c name is more convenient to use in a call than an explicit lambda
+@c expression.  Also, a function with a name can refer to itself---it can
+@c be recursive.  Writing the function's name in its own definition is much
+@c more convenient than making the function definition point to itself
+@c (something that is not impossible but that has various disadvantages in
+@c practice).
+関数に名前を与えるのは、Lisp式からその名前で参照できると便利だからです。
+@code{#<subr car>}のような基本関数のsubrオブジェクトでは、
+名前はそれらを参照する唯一の方法です。
+そのようなオブジェクトには入力構文はありません。
+Lispで書いた関数では、明示的なラムダ式より名前を使うほうがより便利です。
+また、関数に名前があればそれを参照できます。
+つまり、再帰呼び出しができます。
+関数の名前をその定義そのものに書くことは、
+関数定義がそれ自身を指すようにする
+（これは不可能ではないにしても、実用上はさまざまな欠点がある）よりは、
+とても便利です。
+
+@c   We often identify functions with the symbols used to name them.  For
+@c example, we often speak of ``the function @code{car}'', not
+@c distinguishing between the symbol @code{car} and the primitive
+@c subr-object that is its function definition.  For most purposes, there
+@c is no need to distinguish.
+関数を指名するシンボルで関数をしばしば識別します。
+たとえば、しばしば『関数@code{car}』といって、
+シンボル@code{car}と関数定義である基本関数のsubrオブジェクトとを区別しません。
+ほとんどの目的には、区別する必要はありません。
+
+@c   Even so, keep in mind that a function need not have a unique name.  While
+@c a given function object @emph{usually} appears in the function cell of only
+@c one symbol, this is just a matter of convenience.  It is easy to store
+@c it in several symbols using @code{fset}; then each of the symbols is
+@c equally well a name for the same function.
+たとえそうであっても、関数に一意な名前は必要ないことを
+心に留めておいてください。
+関数オブジェクトは@emph{普通}1つのシンボルの関数セルだけに現れますが、
+これは単なる便法です。
+@code{fset}を使って、複数のシンボルに格納するのは簡単です。
+そうすると、各シンボルは同じ関数を同等に指名します。
+
+@c   A symbol used as a function name may also be used as a variable; these
+@c two uses of a symbol are independent and do not conflict.  (Some Lisp
+@c dialects, such as Scheme, do not distinguish between a symbol's value
+@c and its function definition; a symbol's value as a variable is also its
+@c function definition.)  If you have not given a symbol a function
+@c definition, you cannot use it as a function; whether the symbol has a
+@c value as a variable makes no difference to this.
+関数名として使うシンボルは、変数としても使えます。
+シンボルのこれら2つの使い方は独立していて衝突しません。
+（SchemeなどのLispの方言のなかには、
+シンボルの値とその関数定義を区別しないものもある。
+変数としてのシンボルの値は、その関数定義でもある。）
+シンボルに関数定義を与えていないと、そのシンボルを関数としては使えません。
+これは、シンボルに変数としての値があるかどうかには関係しません。
+
+@node Defining Functions
+@c @section Defining Functions
+@section 関数を定義する
+@c @cindex defining a function
+@cindex 関数を定義する
+
+@c   We usually give a name to a function when it is first created.  This
+@c is called @dfn{defining a function}, and it is done with the
+@c @code{defun} special form.
+関数を作成するときには、普通、関数に名前を与えます。
+これを@dfn{関数を定義する}と呼び、
+スペシャルフォーム@code{defun}で行います。
+
+@defspec defun name argument-list body-forms
+@c @code{defun} is the usual way to define new Lisp functions.  It
+@c defines the symbol @var{name} as a function that looks like this:
+@code{defun}は、新たにLisp関数を定義する普通の方法である。
+これは、シンボル@var{name}をつぎのような関数として定義する。
+
+@example
+(lambda @var{argument-list} . @var{body-forms})
+@end example
+
+@c @code{defun} stores this lambda expression in the function cell of
+@c @var{name}.  It returns the value @var{name}, but usually we ignore this
+@c value.
+@code{defun}は、このラムダ式を@var{name}の関数セルに格納する。
+値@var{name}を返すが、普通、これは無視する。
+
+@c As described previously (@pxref{Lambda Expressions}),
+@c @var{argument-list} is a list of argument names and may include the
+@c keywords @code{&optional} and @code{&rest}.  Also, the first two of the
+@c @var{body-forms} may be a documentation string and an interactive
+@c declaration.
+前述（@pxref{Lambda Expressions}）のように、
+@var{argument-list}は引数名のリストであり、
+キーワード@code{&optional}や@code{&rest}が入っていてもよい。
+また、@var{body-forms}の最初の2つは、説明文字列と対話宣言でもよい。
+
+@c There is no conflict if the same symbol @var{name} is also used as a
+@c variable, since the symbol's value cell is independent of the function
+@c cell.  @xref{Symbol Components}.
+同一のシンボル@var{name}を変数として使っていても衝突はない。
+というのは、シンボルの値セルは関数セルとは独立だからである。
+@pxref{Symbol Components}。
+
+@c Here are some examples:
+例を示そう。
+
+@example
+@group
+(defun foo () 5)
+     @result{} foo
+@end group
+@group
+(foo)
+     @result{} 5
+@end group
+
+@group
+(defun bar (a &optional b &rest c)
+    (list a b c))
+     @result{} bar
+@end group
+@group
+(bar 1 2 3 4 5)
+     @result{} (1 2 (3 4 5))
+@end group
+@group
+(bar 1)
+     @result{} (1 nil nil)
+@end group
+@group
+(bar)
+@error{} Wrong number of arguments.
+@end group
+
+@group
+(defun capitalize-backwards ()
+  "Upcase the last letter of a word."
+  (interactive)
+  (backward-word 1)
+  (forward-word 1)
+  (backward-char 1)
+  (capitalize-word 1))
+     @result{} capitalize-backwards
+@end group
+@end example
+
+@c Be careful not to redefine existing functions unintentionally.
+@c @code{defun} redefines even primitive functions such as @code{car}
+@c without any hesitation or notification.  Redefining a function already
+@c defined is often done deliberately, and there is no way to distinguish
+@c deliberate redefinition from unintentional redefinition.
+既存の関数を意図せずに再定義しないように注意すること。
+@code{defun}は、たとえ@code{car}などの基本関数であっても、
+なんの躊躇も注意もせずに再定義してしまう。
+既存関数の再定義は注意深く行うが、
+不本意な再定義と熟考した再定義を区別する方法はない。
+@end defspec
+
+@defun defalias name definition
+@c This special form defines the symbol @var{name} as a function, with
+@c definition @var{definition} (which can be any valid Lisp function).
+このスペシャルフォームは、
+シンボル@var{name}を定義@var{definition}（任意の正しいLisp関数）とする
+関数として定義する。
+
+@c The proper place to use @code{defalias} is where a specific function
+@c name is being defined---especially where that name appears explicitly in
+@c the source file being loaded.  This is because @code{defalias} records
+@c which file defined the function, just like @code{defun}
+@c (@pxref{Unloading}).
+@code{defalias}を使う正しい場所は、
+特定の関数名が定義されている場所である。
+特に、ロード中のソースファイルで明示的に名前が現れている場所である。
+というのは、@code{defalias}は、@code{defun}と同様に、
+関数が定義されたファイルを記録するからである（@pxref{Unloading}）。
+
+@c By contrast, in programs that manipulate function definitions for other
+@c purposes, it is better to use @code{fset}, which does not keep such
+@c records.
+一方、他の目的で関数定義を操作するプログラムでは、
+そのような記録を保持しない@code{fset}を使うのがよい。
+@end defun
+
+@c   See also @code{defsubst}, which defines a function like @code{defun}
+@c and tells the Lisp compiler to open-code it.  @xref{Inline Functions}.
+@code{defun}のように関数を定義し、かつ、
+Lispコンパイラに関数定義を展開するように指示する
+@code{defsubst}も参照してください。
+@xref{Inline Functions}。
+
+@node Calling Functions
+@c @section Calling Functions
+@section 関数呼び出し
+@c @cindex function invocation
+@c @cindex calling a function
+@cindex 関数の起動
+@cindex 関数呼び出し
+
+@c   Defining functions is only half the battle.  Functions don't do
+@c anything until you @dfn{call} them, i.e., tell them to run.  Calling a
+@c function is also known as @dfn{invocation}.
+関数を定義することは、全体の半分でしかありません。
+関数を@dfn{呼ぶ}までは、つまり、実行を命じなければ、関数はなにもしません。
+関数呼び出しは@dfn{起動}（invocation）ともいいます。
+
+@c   The most common way of invoking a function is by evaluating a list.
+@c For example, evaluating the list @code{(concat "a" "b")} calls the
+@c function @code{concat} with arguments @code{"a"} and @code{"b"}.
+@c @xref{Evaluation}, for a description of evaluation.
+関数を起動するもっとも一般的な方法は、リストを評価することです。
+たとえば、リスト@code{(concat "a" "b")}を評価すると、
+関数@code{concat}を引数@code{"a"}と@code{"b"}で呼び出します。
+評価については@xref{Evaluation}。
+
+@c   When you write a list as an expression in your program, the function
+@c name it calls is written in your program.  This means that you choose
+@c which function to call, and how many arguments to give it, when you
+@c write the program.  Usually that's just what you want.  Occasionally you
+@c need to compute at run time which function to call.  To do that, use the
+@c function @code{funcall}.  When you also need to determine at run time
+@c how many arguments to pass, use @code{apply}.
+読者のプログラムで式としてリストを書くときには、
+呼び出す関数名を読者のプログラムに書きます。
+つまり、プログラムを書くときに、
+どの関数をどれだけの引数で呼び出すかを指定できることを意味します。
+これが、普通にしたいことでしょう。
+呼び出す関数を実行時に計算する必要がある場合もあるでしょう。
+それには、関数@code{funcall}を使います。
+渡す引数の個数を実行時に決定する必要があるときには、
+@code{apply}を使います。
+
+@defun funcall function &rest arguments
+@c @code{funcall} calls @var{function} with @var{arguments}, and returns
+@c whatever @var{function} returns.
+@code{funcall}は、@var{function}を@var{arguments}で呼び出し、
+@var{function}がなにを返そうともそれを返す。
+
+@c Since @code{funcall} is a function, all of its arguments, including
+@c @var{function}, are evaluated before @code{funcall} is called.  This
+@c means that you can use any expression to obtain the function to be
+@c called.  It also means that @code{funcall} does not see the expressions
+@c you write for the @var{arguments}, only their values.  These values are
+@c @emph{not} evaluated a second time in the act of calling @var{function};
+@c @code{funcall} enters the normal procedure for calling a function at the
+@c place where the arguments have already been evaluated.
+@code{funcall}は関数なので、@var{function}の呼び出しを評価するまえに
+@var{function}を含めた引数すべてを評価する。
+つまり、呼び出す関数を得るためのどんな式でも使えることを意味する。
+また、@code{funcall}は、読者が@var{arguments}に書いた式を見ることはなく、
+それらの値だけを見ることになる。
+これらの値は、@var{function}を呼び出す操作において、
+2回目の評価を行うことは@emph{ない}。
+@code{funcall}は、通常の関数呼び出し処理において、
+引数を評価し終えたところから始める。
+
+@c The argument @var{function} must be either a Lisp function or a
+@c primitive function.  Special forms and macros are not allowed, because
+@c they make sense only when given the ``unevaluated'' argument
+@c expressions.  @code{funcall} cannot provide these because, as we saw
+@c above, it never knows them in the first place.
+引数@var{function}は、Lisp関数か基本関数である必要がある。
+スペシャルフォームやマクロは許されない。
+それらには、『未評価』の引数式を与えたときだけ意味があるからである。
+@code{funcall}ではそのようにできない。
+なぜなら、上の説明でわかるように、
+未評価の引数をまったく知らないからである。
+
+@example
+@group
+(setq f 'list)
+     @result{} list
+@end group
+@group
+(funcall f 'x 'y 'z)
+     @result{} (x y z)
+@end group
+@group
+(funcall f 'x 'y '(z))
+     @result{} (x y (z))
+@end group
+@group
+(funcall 'and t nil)
+@error{} Invalid function: #<subr and>
+@end group
+@end example
+
+@c Compare these example with the examples of @code{apply}.
+これらの例を@code{apply}の例と比較してほしい。
+@end defun
+
+@defun apply function &rest arguments
+@c @code{apply} calls @var{function} with @var{arguments}, just like
+@c @code{funcall} but with one difference: the last of @var{arguments} is a
+@c list of objects, which are passed to @var{function} as separate
+@c arguments, rather than a single list.  We say that @code{apply}
+@c @dfn{spreads} this list so that each individual element becomes an
+@c argument.
+@code{apply}は、@code{funcall}のように、
+@var{function}を@var{arguments}で呼び出すが、1点だけ異なる。
+@var{arguments}の最後はオブジェクトのリストであり、
+@var{function}にはこれを、単一のリストではなく、個々の引数として渡す。
+これを、@code{apply}は、
+このリストの個々の要素が引数となるように@dfn{分配する}という。
+
+@c @code{apply} returns the result of calling @var{function}.  As with
+@c @code{funcall}, @var{function} must either be a Lisp function or a
+@c primitive function; special forms and macros do not make sense in
+@c @code{apply}.
+@code{apply}は、@var{function}の呼び出し結果を返す。
+@code{funcall}と同様に、@var{function}はLisp関数か基本関数である必要がある。
+スペシャルフォームやマクロは、@code{apply}では意味がない。
+
+@example
+@group
+(setq f 'list)
+     @result{} list
+@end group
+@group
+(apply f 'x 'y 'z)
+@error{} Wrong type argument: listp, z
+@end group
+@group
+(apply '+ 1 2 '(3 4))
+     @result{} 10
+@end group
+@group
+(apply '+ '(1 2 3 4))
+     @result{} 10
+@end group
+
+@group
+(apply 'append '((a b c) nil (x y z) nil))
+     @result{} (a b c x y z)
+@end group
+@end example
+
+@c For an interesting example of using @code{apply}, see the description of
+@c @code{mapcar}, in @ref{Mapping Functions}.
+@code{apply}を使った興味深い例として、
+@ref{Mapping Functions}の@code{mapcar}の説明を見てほしい。
+@end defun
+
+@c @cindex functionals
+@cindex ファンクショナル
+@c   It is common for Lisp functions to accept functions as arguments or
+@c find them in data structures (especially in hook variables and property
+@c lists) and call them using @code{funcall} or @code{apply}.  Functions
+@c that accept function arguments are often called @dfn{functionals}.
+Lisp関数にとっては、引数として関数を受け取ったり、
+データ構造（特に、フック変数や属性リスト）内の関数を探して
+@code{funcall}や@code{apply}を使ってそれを呼び出すことは一般的です。
+関数引数を受け付ける関数を
+しばしば@dfn{ファンクショナル}（functionals）と呼びます。
+
+@c   Sometimes, when you call a functional, it is useful to supply a no-op
+@c function as the argument.  Here are two different kinds of no-op
+@c function:
+場合によっては、ファンクショナルを呼び出すときには、
+引数としてなにもしない関数（no-op）を指定できると有用です。
+つぎのものは、2種類のなにもしない関数です。
+
+@defun identity arg
+@c This function returns @var{arg} and has no side effects.
+この関数は@var{arg}を返し、副作用を持たない。
+@end defun
+
+@defun ignore &rest args
+@c This function ignores any arguments and returns @code{nil}.
+この関数は引数を無視し、@code{nil}を返す。
+@end defun
+
+@node Mapping Functions
+@c @section Mapping Functions
+@section マップ関数
+@c @cindex mapping functions
+@cindex マップ関数
+
+@c   A @dfn{mapping function} applies a given function to each element of a
+@c list or other collection.  Emacs Lisp has several such functions;
+@c @code{mapcar} and @code{mapconcat}, which scan a list, are described
+@c here.  @xref{Creating Symbols}, for the function @code{mapatoms} which
+@c maps over the symbols in an obarray.
+@dfn{マップ関数}（mapping function）は、
+リストや他の集まりの各要素に指定した関数を適用します。
+Emacs Lispにはそのような関数がいくつかあります。
+@code{mapcar}と@code{mapconcat}はリストを走査するもので、ここで説明します。
+オブジェクト配列obarray内のシンボルについて
+マップする関数@code{mapatoms}については、
+@xref{Creating Symbols}。
+
+@c   These mapping functions do not allow char-tables because a char-table
+@c is a sparse array whose nominal range of indices is very large.  To map
+@c over a char-table in a way that deals properly with its sparse nature,
+@c use the function @code{map-char-table} (@pxref{Char-Tables}).
+これらのマップ関数では、文字テーブルは扱えません。
+というのは、文字テーブルは疎な配列であり、その添字範囲も非常に大きいからです。
+文字テーブルの疎な性質を考慮して文字テーブルについてマップするには、
+関数@code{map-char-table}（@pxref{Char-Tables}）を使います。
+
+@defun mapcar function sequence
+@c @code{mapcar} applies @var{function} to each element of @var{sequence}
+@c in turn, and returns a list of the results.
+@code{mapcar}は、@var{sequence}の各要素に順に@var{function}を適用し、
+結果のリストを返す。
+
+@c The argument @var{sequence} can be any kind of sequence except a
+@c char-table; that is, a list, a vector, a bool-vector, or a string.  The
+@c result is always a list.  The length of the result is the same as the
+@c length of @var{sequence}.
+引数@var{sequence}は文字テーブル以外の任意の種類のシーケンスでよい。
+つまり、リスト、ベクトル、ブールベクトル、あるいは、文字列である。
+結果はつねにリストである。
+結果の長さは@var{sequence}の長さと同じである。
+
+@smallexample
+@group
+@c @exdent @r{For example:}
+@exdent @r{たとえば、つぎのとおり。}
+
+(mapcar 'car '((a b) (c d) (e f)))
+     @result{} (a c e)
+(mapcar '1+ [1 2 3])
+     @result{} (2 3 4)
+(mapcar 'char-to-string "abc")
+     @result{} ("a" "b" "c")
+@end group
+
+@group
+@c ;; @r{Call each function in @code{my-hooks}.}
+;; @r{@code{my-hooks}の各関数を呼び出す}
+(mapcar 'funcall my-hooks)
+@end group
+
+@group
+(defun mapcar* (function &rest args)
+  "Apply FUNCTION to successive cars of all ARGS.
+Return the list of results."
+@c   ;; @r{If no list is exhausted,}
+  ;; @r{リストをつくしていなければ}
+  (if (not (memq 'nil args))              
+@c       ;; @r{apply function to @sc{car}s.}
+      ;; @r{@sc{car}に関数を適用する}
+      (cons (apply function (mapcar 'car args))  
+            (apply 'mapcar* function             
+                   ;; @r{Recurse for rest of elements.}
+                   (mapcar 'cdr args)))))
+@end group
+
+@group
+(mapcar* 'cons '(a b c) '(1 2 3 4))
+     @result{} ((a . 1) (b . 2) (c . 3))
+@end group
+@end smallexample
+@end defun
+
+@defun mapconcat function sequence separator
+@c @code{mapconcat} applies @var{function} to each element of
+@c @var{sequence}: the results, which must be strings, are concatenated.
+@c Between each pair of result strings, @code{mapconcat} inserts the string
+@c @var{separator}.  Usually @var{separator} contains a space or comma or
+@c other suitable punctuation.
+@code{mapconcat}は、@var{sequence}の各要素に@var{function}を適用する。
+それらの結果は、文字列である必要があり、連結される。
+@code{mapconcat}は、結果の文字列のあいだに文字列@var{separator}を挿入する。
+普通、@var{separator}は、空白やコンマ、その他の句読点を含む。
+
+@c The argument @var{function} must be a function that can take one
+@c argument and return a string.  The argument @var{sequence} can be any
+@c kind of sequence except a char-table; that is, a list, a vector, a
+@c bool-vector, or a string.
+引数@var{function}は、引数を1つ取る関数であり、
+文字列を返す必要がある。
+引数@var{sequence}は、文字テーブル以外の任意の種類のシーケンスでよい。
+つまり、リスト、ベクトル、ブールベクトル、あるいは、文字列である。
+  
+@smallexample
+@group
+(mapconcat 'symbol-name
+           '(The cat in the hat)
+           " ")
+     @result{} "The cat in the hat"
+@end group
+
+@group
+(mapconcat (function (lambda (x) (format "%c" (1+ x))))
+           "HAL-8000"
+           "")
+     @result{} "IBM.9111"
+@end group
+@end smallexample
+@end defun
+
+@node Anonymous Functions
+@c @section Anonymous Functions
+@section 無名関数
+@c @cindex anonymous function
+@cindex 無名関数
+
+@c   In Lisp, a function is a list that starts with @code{lambda}, a
+@c byte-code function compiled from such a list, or alternatively a
+@c primitive subr-object; names are ``extra''.  Although usually functions
+@c are defined with @code{defun} and given names at the same time, it is
+@c occasionally more concise to use an explicit lambda expression---an
+@c anonymous function.  Such a list is valid wherever a function name is.
+Lispでは、関数とは、@code{lambda}で始まるリスト、
+そのようなリストをコンパイルしたバイトコード関数、
+あるいは、基本関数のsubrオブジェクトです。
+名前は『余分』なのです。
+普通の関数は@code{defun}で定義し、そのとき名前を与えますが、
+明示的なラムダ式、つまり、無名関数を使ったほうがより簡素な場合もあります。
+そのようなリストは、関数名を使える場面ならば、どこでも使えます。
+
+@c   Any method of creating such a list makes a valid function.  Even this:
+そのようなリストをどんな方法で作っても、正しい関数となります。
+つぎのようにしてもかまわないのです。
+
+@smallexample
+@group
+(setq silly (append '(lambda (x)) (list (list '+ (* 3 4) 'x))))
+@result{} (lambda (x) (+ 12 x))
+@end group
+@end smallexample
+
+@noindent
+@c This computes a list that looks like @code{(lambda (x) (+ 12 x))} and
+@c makes it the value (@emph{not} the function definition!) of
+@c @code{silly}.
+これは、@code{(lambda (x) (+ 12 x))}のようなリストを計算し、
+その値を@code{silly}の値（関数定義では@emph{ない}！）とします。
+
+@c   Here is how we might call this function:
+この関数はつぎのように呼び出せます。
+
+@example
+@group
+(funcall silly 1)
+@result{} 13
+@end group
+@end example
+
+@noindent
+@c (It does @emph{not} work to write @code{(silly 1)}, because this function
+@c is not the @emph{function definition} of @code{silly}.  We have not given
+@c @code{silly} any function definition, just a value as a variable.)
+（@code{(silly 1)}と書いても動作@emph{しない}。
+なぜなら、この関数は、@code{silly}の@emph{関数定義}ではないからである。
+@code{silly}には関数定義を与えてなく、
+変数としての値を与えただけである。）
+
+@c   Most of the time, anonymous functions are constants that appear in
+@c your program.  For example, you might want to pass one as an argument to
+@c the function @code{mapcar}, which applies any given function to each
+@c element of a list.
+ほとんどの場合、無名関数は読者のプログラムに現れる定数です。
+たとえば、関数@code{mapcar}の引数の1つに渡したいときなどです。
+@code{mapcar}は、リストの各要素に指定した関数を適用します。
+
+@c   Here we define a function @code{change-property} which 
+@c uses a function as its third argument:
+第3引数に関数を取る関数@code{change-property}を定義します。
+
+@example
+@group
+(defun change-property (symbol prop function)
+  (let ((value (get symbol prop)))
+    (put symbol prop (funcall function value))))
+@end group
+@end example
+
+@noindent
+@c Here we define a function that uses @code{change-property},
+@c passing it a function to double a number:
+ここで、数を2倍する関数を渡して@code{change-property}を使う
+関数を定義します。
+
+@example
+@group
+(defun double-property (symbol prop)
+  (change-property symbol prop '(lambda (x) (* 2 x))))
+@end group
+@end example
+
+@noindent
+@c In such cases, we usually use the special form @code{function} instead
+@c of simple quotation to quote the anonymous function, like this:
+このような場合、つぎのように、無名関数をクォートするには、
+単純なクォートのかわりにスペシャルフォーム@code{function}を使います。
+
+@example
+@group
+(defun double-property (symbol prop)
+  (change-property symbol prop
+                   (function (lambda (x) (* 2 x)))))
+@end group
+@end example
+
+@c Using @code{function} instead of @code{quote} makes a difference if you
+@c compile the function @code{double-property}.  For example, if you
+@c compile the second definition of @code{double-property}, the anonymous
+@c function is compiled as well.  By contrast, if you compile the first
+@c definition which uses ordinary @code{quote}, the argument passed to
+@c @code{change-property} is the precise list shown:
+@code{quote}のかわりに@code{function}を使った場合に違いがでるのは、
+関数@code{double-property}をコンパイルしたときです。
+たとえば、@code{double-property}の2番目の定義をコンパイルすると、
+無名関数もコンパイルされます。
+一方、普通の@code{quote}を使った最初の定義をコンパイルすると、
+@code{change-property}へ渡す引数は、書いたとおりのリストです。
+
+@example
+(lambda (x) (* x 2))
+@end example
+
+@noindent
+@c The Lisp compiler cannot assume this list is a function, even though it
+@c looks like one, since it does not know what @code{change-property} will
+@c do with the list.  Perhaps it will check whether the @sc{car} of the third
+@c element is the symbol @code{*}!  Using @code{function} tells the
+@c compiler it is safe to go ahead and compile the constant function.
+Lispコンパイラは、このリストが関数に見えたとしても、
+このリストを関数とはみなしません。
+というのは、コンパイラには@code{change-property}がリストになにを行うか
+わからないからです。
+たぶん、第3要素の@sc{car}がシンボル@code{*}か
+どうか調べればよいのでしょう！@code{ }
+@code{function}を使うと、コンパイラに対して先へ進んで
+定数の関数をコンパイルしても安全であることを伝えます。
+
+@c   We sometimes write @code{function} instead of @code{quote} when
+@c quoting the name of a function, but this usage is just a sort of
+@c comment:
+関数名をクォートするときに@code{quote}のかわりに@code{function}を
+書くこともありますが、この用法はコメントのようなものです。
+
+@example
+(function @var{symbol}) @equiv{} (quote @var{symbol}) @equiv{} '@var{symbol}
+@end example
+
+@c   The read syntax @code{#'} is a short-hand for using @code{function}.
+@c For example, 
+入力構文@code{#'}は、@code{function}の省略形です。
+たとえば、
+
+@example
+#'(lambda (x) (* x x))
+@end example
+
+@noindent
+@c is equivalent to
+は、つぎと等価です。
+
+@example
+(function (lambda (x) (* x x)))
+@end example
+
+@defspec function function-object
+@c @cindex function quoting
+@cindex 関数をクォートする
+@c This special form returns @var{function-object} without evaluating it.
+@c In this, it is equivalent to @code{quote}.  However, it serves as a
+@c note to the Emacs Lisp compiler that @var{function-object} is intended
+@c to be used only as a function, and therefore can safely be compiled.
+@c Contrast this with @code{quote}, in @ref{Quoting}.
+このスペシャルフォームは、@var{function-object}を評価せずに
+@var{function-object}を返す。
+この意味では@code{quote}に等価である。
+しかし、これは、Emacs Lispコンパイラに対しては注意書きとして働き、
+@var{function-object}を関数としてのみ使う意図があり、
+したがって、コンパイルしても安全であることを意味する。
+@ref{Quoting}の@code{quote}と比較してほしい。
+@end defspec
+
+@c   See @code{documentation} in @ref{Accessing Documentation}, for a
+@c realistic example using @code{function} and an anonymous function.
+@code{function}と無名関数を用いた実際的な例は、
+@ref{Accessing Documentation}の@code{documentation}を参照してください。
+
+@node Function Cells
+@c @section Accessing Function Cell Contents
+@section 関数セルの内容の参照
+
+@c   The @dfn{function definition} of a symbol is the object stored in the
+@c function cell of the symbol.  The functions described here access, test,
+@c and set the function cell of symbols.
+シンボルの@dfn{関数定義}（function definition）とは、
+シンボルの関数セルに格納されたオブジェクトです。
+ここで説明する関数は、シンボルの関数セルを参照したり、調べたり、
+設定したりします。
+
+@c   See also the function @code{indirect-function} in @ref{Function
+@c Indirection}.
+@ref{Function Indirection}の関数@code{indirect-function}も参照してください。
+
+@defun symbol-function symbol
+@kindex void-function
+@c This returns the object in the function cell of @var{symbol}.  If the
+@c symbol's function cell is void, a @code{void-function} error is
+@c signaled.
+これは、@var{symbol}の関数セルのオブジェクトを返す。
+シンボルの関数セルが空であると、エラー@code{void-function}を通知する。
+
+@c This function does not check that the returned object is a legitimate
+@c function.
+この関数は、返すオブジェクトが正しい関数であるかどうか検査しない。
+
+@example
+@group
+(defun bar (n) (+ n 2))
+     @result{} bar
+@end group
+@group
+(symbol-function 'bar)
+     @result{} (lambda (n) (+ n 2))
+@end group
+@group
+(fset 'baz 'bar)
+     @result{} bar
+@end group
+@group
+(symbol-function 'baz)
+     @result{} bar
+@end group
+@end example
+@end defun
+
+@c @cindex void function cell
+@cindex 空の関数セル
+@c   If you have never given a symbol any function definition, we say that
+@c that symbol's function cell is @dfn{void}.  In other words, the function
+@c cell does not have any Lisp object in it.  If you try to call such a symbol
+@c as a function, it signals a @code{void-function} error.
+シンボルに一度も関数定義を与えていないと、
+そのシンボルの関数セルは@dfn{空}（void）であるといいます。
+いいかえれば、関数セルにはどんなLispオブジェクトも入っていません。
+そのようなシンボルを関数として呼び出そうとすると、
+エラー@code{void-function}を通知します。
+
+@c   Note that void is not the same as @code{nil} or the symbol
+@c @code{void}.  The symbols @code{nil} and @code{void} are Lisp objects,
+@c and can be stored into a function cell just as any other object can be
+@c (and they can be valid functions if you define them in turn with
+@c @code{defun}).  A void function cell contains no object whatsoever.
+空（void）は、@code{nil}やシンボル@code{void}と違うことに注意してください。
+シンボル@code{nil}も@code{void}もLispオブジェクトであり、
+それらは他のオブジェクトと同様に関数セルに格納できます
+（そして、それらを@code{defun}で定義しておけば、正しい関数である）。
+空の関数セルには、どんなオブジェクトも含まれていません。
+
+@c   You can test the voidness of a symbol's function definition with
+@c @code{fboundp}.  After you have given a symbol a function definition, you
+@c can make it void once more using @code{fmakunbound}.
+シンボルの関数定義が空かどうかは@code{fboundp}で調べることができます。
+シンボルに関数定義を与えたあとでも、
+@code{fmakunbound}を使ってふたたび空にできます。
+
+@defun fboundp symbol
+@c This function returns @code{t} if the symbol has an object in its
+@c function cell, @code{nil} otherwise.  It does not check that the object
+@c is a legitimate function.
+この関数は、シンボルの関数セルにオブジェクトが入っていれば@code{t}を返し、
+さもなければ@code{nil}を返す。
+オブジェクトが正しい関数であるかどうか検査しない。
+@end defun
+
+@defun fmakunbound symbol
+@c This function makes @var{symbol}'s function cell void, so that a
+@c subsequent attempt to access this cell will cause a @code{void-function}
+@c error.  (See also @code{makunbound}, in @ref{Void Variables}.)
+この関数は@var{symbol}の関数セルを空にする。
+これ以降にこのセルを参照しようとすると、
+エラー@code{void-function}を引き起こす。
+（@ref{Void Variables}の@code{makunbound}も参照）。
+
+@example
+@group
+(defun foo (x) x)
+     @result{} foo
+@end group
+@group
+(foo 1)
+     @result{}1
+@end group
+@group
+(fmakunbound 'foo)
+     @result{} foo
+@end group
+@group
+(foo 1)
+@error{} Symbol's function definition is void: foo
+@end group
+@end example
+@end defun
+
+@defun fset symbol definition
+@c This function stores @var{definition} in the function cell of
+@c @var{symbol}.  The result is @var{definition}.  Normally
+@c @var{definition} should be a function or the name of a function, but
+@c this is not checked.  The argument @var{symbol} is an ordinary evaluated
+@c argument.
+この関数は、@var{symbol}の関数セルに@var{definition}を格納する。
+結果は@var{definition}である。
+通常、@var{definition}は関数か関数名であるべきだが、
+そうであるかどうか検査しない。
+引数@var{symbol}は通常どおり評価される引数である。
+
+@c There are three normal uses of this function:
+この関数の普通の3つの使い方はつぎのとおり。
+
+@itemize @bullet
+@item
+@c Copying one symbol's function definition to another---in other words,
+@c making an alternate name for a function.  (If you think of this as the
+@c definition of the new name, you should use @code{defalias} instead of
+@c @code{fset}; see @ref{Defining Functions}.)
+あるシンボルの関数定義を別のものにコピーする。
+いいかえれば、関数の別名を作る。
+（これを新たな名前の定義と考えるならば、
+@code{fset}のかわりに@code{defalias}を使うべきである。
+@pxref{Defining Functions}。）
+
+@item
+@c Giving a symbol a function definition that is not a list and therefore
+@c cannot be made with @code{defun}.  For example, you can use @code{fset}
+@c to give a symbol @code{s1} a function definition which is another symbol
+@c @code{s2}; then @code{s1} serves as an alias for whatever definition
+@c @code{s2} presently has.  (Once again use @code{defalias} instead of
+@c @code{fset} if you think of this as the definition of @code{s1}.)
+リストではない関数定義をシンボルに与える。
+これは、@code{defun}ではできない。
+たとえば、@code{fset}を使って、@code{s1}に関数定義として
+別のシンボル@code{s2}を与えることができる。
+すると、@code{s1}は、@code{s2}の現在の定義の別名として働く。
+（これを@code{s1}の定義と考えるのであれば、
+やはり、@code{fset}のかわりに@code{defalias}を使う。）
+
+@item
+@c In constructs for defining or altering functions.  If @code{defun}
+@c were not a primitive, it could be written in Lisp (as a macro) using
+@c @code{fset}.
+関数を定義したり変更したりする構文で使う。
+@code{defun}が基本関数でなかったならば、
+@code{fset}を使って（マクロとして）Lispで@code{defun}を書くことができる。
+@end itemize
+
+@c Here are examples of these uses:
+これらの使用例を示す。
+
+@example
+@group
+@c ;; @r{Save @code{foo}'s definition in @code{old-foo}.}
+;; @r{@code{foo}の定義を@code{old-foo}に保存する}
+(fset 'old-foo (symbol-function 'foo))
+@end group
+
+@group
+@c ;; @r{Make the symbol @code{car} the function definition of @code{xfirst}.}
+@c ;; @r{(Most likely, @code{defalias} would be better than @code{fset} here.)}
+;; @r{シンボル@code{car}を@code{xfirst}の関数定義にする}
+;; @r{（これには、@code{fset}より@code{defalias}のほうがよい）}
+(fset 'xfirst 'car)
+     @result{} car
+@end group
+@group
+(xfirst '(1 2 3))
+     @result{} 1
+@end group
+@group
+(symbol-function 'xfirst)
+     @result{} car
+@end group
+@group
+(symbol-function (symbol-function 'xfirst))
+     @result{} #<subr car>
+@end group
+
+@group
+@c ;; @r{Define a named keyboard macro.}
+;; @r{名前付きのキーボードマクロを定義する}
+(fset 'kill-two-lines "\^u2\^k")
+     @result{} "\^u2\^k"
+@end group
+
+@group
+@c ;; @r{Here is a function that alters other functions.}
+;; @r{他の関数を変更する関数}
+(defun copy-function-definition (new old)
+  "Define NEW with the same function definition as OLD."
+  (fset new (symbol-function old)))
+@end group
+@end example
+@end defun
+
+@c   When writing a function that extends a previously defined function,
+@c the following idiom is sometimes used:
+既存の関数定義を拡張する関数を書くときには、
+つぎのような常套句を使うこともあります。
+
+@example
+(fset 'old-foo (symbol-function 'foo))
+(defun foo ()
+  "Just like old-foo, except more so."
+@group
+  (old-foo)
+  (more-so))
+@end group
+@end example
+
+@noindent
+@c This does not work properly if @code{foo} has been defined to autoload.
+@c In such a case, when @code{foo} calls @code{old-foo}, Lisp attempts
+@c to define @code{old-foo} by loading a file.  Since this presumably
+@c defines @code{foo} rather than @code{old-foo}, it does not produce the
+@c proper results.  The only way to avoid this problem is to make sure the
+@c file is loaded before moving aside the old definition of @code{foo}.
+@code{foo}が自動ロードと定義されていると、これは正しく動作しません。
+そのような場合には、@code{foo}が@code{old-foo}を呼び出すと、
+Lispはファイルをロードして@code{old-foo}を定義しようとします。
+しかし、これは@code{old-foo}ではなく@code{foo}を定義するので、
+正しい結果を得られません。
+この問題を回避する唯一の方法は、
+@code{foo}の古い定義を移すまえに、確実にファイルをロードしておくことです。
+
+@c   But it is unmodular and unclean, in any case, for a Lisp file to
+@c redefine a function defined elsewhere.  It is cleaner to use the advice
+@c facility (@pxref{Advising Functions}).
+しかし、別の箇所で定義された関数を再定義するLispファイルに対しては、
+いずれにしても、これではモジュール化も見通しもよくありません。
+アドバイズ機能（@pxref{Advising Functions}）を使えば、見通しがよくなります。
+
+@node Inline Functions
+@c @section Inline Functions
+@section インライン関数
+@c @cindex inline functions
+@cindex インライン関数
+
+@findex defsubst
+@c You can define an @dfn{inline function} by using @code{defsubst} instead
+@c of @code{defun}.  An inline function works just like an ordinary
+@c function except for one thing: when you compile a call to the function,
+@c the function's definition is open-coded into the caller.
+@code{defun}のかわりに@code{defsubst}を使うことで、
+@dfn{インライン関数}（inline function）を定義できます。
+インライン関数は、1つの点を除いて、普通の関数と同様に動作します。
+そのような関数の呼び出しをコンパイルすると、
+関数定義は呼び出し側で展開されます。
+
+@c Making a function inline makes explicit calls run faster.  But it also
+@c has disadvantages.  For one thing, it reduces flexibility; if you change
+@c the definition of the function, calls already inlined still use the old
+@c definition until you recompile them.  Since the flexibility of
+@c redefining functions is an important feature of Emacs, you should not
+@c make a function inline unless its speed is really crucial.
+関数を展開すると明示的な呼び出しが高速になります。
+しかし、それには欠点もあります。
+その1つは、柔軟性を減らすことです。
+関数の定義を変更しても、コンパイルし直すまでは、
+すでに展開された呼び出しは古い定義を使い続けます。
+関数を再定義できる柔軟性はEmacsでは重要な機能ですから、
+速度が本当に重要でなければ、関数を展開すべきではありません。
+
+@c Another disadvantage is that making a large function inline can increase
+@c the size of compiled code both in files and in memory.  Since the speed
+@c advantage of inline functions is greatest for small functions, you
+@c generally should not make large functions inline.
+別の欠点は、大きな関数を展開すると、コンパイルした関数のサイズが
+ファイル内でもメモリ上でも増加します。
+インライン関数のスピードの利点は、小さな関数でもっとも大きいので、
+一般には大きな関数を展開すべきではありません。
+
+@c It's possible to define a macro to expand into the same code that an
+@c inline function would execute.  (@xref{Macros}.)  But the macro would be
+@c limited to direct use in expressions---a macro cannot be called with
+@c @code{apply}, @code{mapcar} and so on.  Also, it takes some work to
+@c convert an ordinary function into a macro.  To convert it into an inline
+@c function is very easy; simply replace @code{defun} with @code{defsubst}.
+@c Since each argument of an inline function is evaluated exactly once, you
+@c needn't worry about how many times the body uses the arguments, as you
+@c do for macros.  (@xref{Argument Evaluation}.)
+インライン関数が実行するのと同じコードに展開するようにマクロを定義する
+ことも可能です。
+（@pxref{Macros}。）
+しかし、マクロは式で直接使った場合に制限されます。
+マクロは、@code{apply}や@code{mapcar}などで呼び出せません。
+さらに、普通の関数をマクロに変換するには、多少の作業が必要です。
+普通の関数をインライン関数に変換するのはとても簡単です。
+単に、@code{defun}を@code{defsubst}で置き換えるだけです。
+インライン関数の各引数は、ちょうど1回だけ評価されるので、
+マクロのように本体で引数を何回使うかを考慮する必要はありません。
+（@pxref{Argument Evaluation}。）
+
+@c Inline functions can be used and open-coded later on in the same file,
+@c following the definition, just like macros.
+インライン関数は、マクロと同様に、
+同じファイル内の定義位置よりうしろで使われ展開されます。
+
+@c Emacs versions prior to 19 did not have inline functions.
+
+@node Related Topics
+@c @section Other Topics Related to Functions
+@section 関数に関連したその他の話題
+
+@c   Here is a table of several functions that do things related to
+@c function calling and function definitions.  They are documented
+@c elsewhere, but we provide cross references here.
+関数呼び出しと関数定義に関連したいくつかの関数の一覧をあげておきます。
+これらは別の場所で説明してありますが、相互参照をあげておきます。
+
+@table @code
+@item apply
+@c See @ref{Calling Functions}.
+@pxref{Calling Functions}。
+
+@item autoload
+@c See @ref{Autoload}.
+@pxref{Autoload}。
+
+@item call-interactively
+@c See @ref{Interactive Call}.
+@pxref{Interactive Call}。
+
+@item commandp
+@c See @ref{Interactive Call}.
+@pxref{Interactive Call}。
+
+@item documentation
+@c See @ref{Accessing Documentation}.
+@pxref{Accessing Documentation}。
+
+@item eval
+@c See @ref{Eval}.
+@pxref{Eval}。
+
+@item funcall
+@c See @ref{Calling Functions}.
+@pxref{Calling Functions}。
+
+@item function
+@c See @ref{Anonymous Functions}.
+@pxref{Anonymous Functions}。
+
+@item ignore
+@c See @ref{Calling Functions}.
+@pxref{Calling Functions}。
+
+@item indirect-function
+@c See @ref{Function Indirection}.
+@pxref{Function Indirection}。
+
+@item interactive
+@c See @ref{Using Interactive}.
+@pxref{Using Interactive}。
+
+@item interactive-p
+@c See @ref{Interactive Call}.
+@pxref{Interactive Call}。
+
+@item mapatoms
+@c See @ref{Creating Symbols}.
+@pxref{Creating Symbols}。
+
+@item mapcar
+@c See @ref{Mapping Functions}.
+@pxref{Mapping Functions}。
+
+@item map-char-table
+@c See @ref{Char-Tables}.
+@pxref{Char-Tables}。
+
+@item mapconcat
+@c See @ref{Mapping Functions}.
+@pxref{Mapping Functions}。
+
+@item undefined
+@c See @ref{Key Lookup}.
+@pxref{Key Lookup}。
+@end table
+

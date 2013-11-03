@@ -1,0 +1,892 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/markers
+@node Markers, Text, Positions, Top
+@c @chapter Markers
+@chapter マーカ
+@c @cindex markers
+@cindex マーカ
+
+@c   A @dfn{marker} is a Lisp object used to specify a position in a buffer
+@c relative to the surrounding text.  A marker changes its offset from the
+@c beginning of the buffer automatically whenever text is inserted or
+@c deleted, so that it stays with the two characters on either side of it.
+@dfn{マーカ}（marker）とは、バッファ内位置をそれを取り巻くテキストを
+基準に指定するために使われるLispオブジェクトです。
+テキストが挿入されたり削除されると、
+バッファの先頭からマーカまでの距離は自動的に変更され、
+マーカは同じ前後の文字のあいだに留まります。
+
+@menu
+* Overview of Markers::      The components of a marker, and how it relocates.
+* Predicates on Markers::    Testing whether an object is a marker.
+* Creating Markers::         Making empty markers or markers at certain places.
+* Information from Markers:: Finding the marker's buffer or character position.
+* Marker Insertion Types::   Two ways a marker can relocate when you
+                               insert where it points.
+* Moving Markers::           Moving the marker to a new buffer or position.
+* The Mark::                 How ``the mark'' is implemented with a marker.
+* The Region::               How to access ``the region''.
+@end menu
+
+@node Overview of Markers
+@c @section Overview of Markers
+@section マーカの概要
+
+@c   A marker specifies a buffer and a position in that buffer.  The marker
+@c can be used to represent a position in the functions that require one,
+@c just as an integer could be used.  @xref{Positions}, for a complete
+@c description of positions.
+マーカは、バッファとそのバッファ内での位置を指定します。
+マーカは、位置を必要とする関数に対して位置を表すものとして使えます。
+バッファ内の位置について詳しくは@xref{Positions}。
+
+@c   A marker has two attributes: the marker position, and the marker
+@c buffer.  The marker position is an integer that is equivalent (at a
+@c given time) to the marker as a position in that buffer.  But the
+@c marker's position value can change often during the life of the marker.
+@c Insertion and deletion of text in the buffer relocate the marker.  The
+@c idea is that a marker positioned between two characters remains between
+@c those two characters despite insertion and deletion elsewhere in the
+@c buffer.  Relocation changes the integer equivalent of the marker.
+マーカには2つの属性、つまり、マーカ位置とマーカバッファがあります。
+マーカ位置は、当該バッファ内の位置としてのマーカに
+（その時点で）等価な整数です。
+しかし、マーカの生存期間中、マーカ位置の値はしばしば変化します。
+バッファにテキストを挿入したり削除すると、マーカは再配置されます。
+これは、バッファの任意の箇所で挿入したり削除したとしても、
+2つの文字のあいだに置かれたマーカが
+同じ文字のあいだに留まるようにするためです。
+再配置によって、マーカに等価な整数は変わります。
+
+@c @cindex marker relocation
+@cindex マーカの再配置
+@c   Deleting text around a marker's position leaves the marker between the
+@c characters immediately before and after the deleted text.  Inserting
+@c text at the position of a marker normally leaves the marker either in
+@c front of or after the new text, depending on the marker's @dfn{insertion
+@c type} (@pxref{Marker Insertion Types})---unless the insertion is done
+@c with @code{insert-before-markers} (@pxref{Insertion}).
+マーカ位置の周りのテキストを削除すると、
+削除されたテキストの前後の文字のあいだにマーカは留まります。
+マーカの位置にテキストを挿入すると、
+@code{insert-before-markers}（@pxref{Insertion}）で挿入しない限り、
+マーカの@dfn{挿入型}（insertion type）（@pxref{Marker Insertion Types}）に
+依存して、マーカは挿入されたテキストのまえかうしろに留まります。
+
+@c @cindex marker garbage collection
+@cindex マーカのガベッジコレクション
+@c   Insertion and deletion in a buffer must check all the markers and
+@c relocate them if necessary.  This slows processing in a buffer with a
+@c large number of markers.  For this reason, it is a good idea to make a
+@c marker point nowhere if you are sure you don't need it any more.
+@c Unreferenced markers are garbage collected eventually, but until then
+@c will continue to use time if they do point somewhere.
+バッファに対する挿入や削除では、
+すべてのマーカを検査し、必要ならばマーカを再配置する必要があります。
+マーカを多数抱えるバッファでは、このために処理が遅くなります。
+そのため、マーカが不要であると確信したときには、
+マーカがどこも指さないようにしておくのがよいです。
+参照されていないマーカは最終的には（ガベッジコレクションで）回収されますが、
+それまでは、マーカがどこかを指していると処理時間を浪費します。
+
+@c @cindex markers as numbers
+@cindex 数としてのマーカ
+@cindex マーカ、数
+@c   Because it is common to perform arithmetic operations on a marker
+@c position, most of the arithmetic operations (including @code{+} and
+@c @code{-}) accept markers as arguments.  In such cases, the marker
+@c stands for its current position.
+マーカ位置にはよく算術演算を施すので、
+（@code{+}や@code{-}を含む）ほとんどの算術演算は
+引数としてマーカを受け付けます。
+そのような場合、マーカはその現在位置を表します。
+
+@c Here are examples of creating markers, setting markers, and moving point
+@c to markers:
+マーカを作って位置を設定し、ポイントをマーカへ移動する例を示します。
+
+@example
+@group
+@c ;; @r{Make a new marker that initially does not point anywhere:}
+;; @r{どこも指していない新しいマーカを作る}
+(setq m1 (make-marker))
+     @result{} #<marker in no buffer>
+@end group
+
+@group
+@c ;; @r{Set @code{m1} to point between the 99th and 100th characters}
+@c ;;   @r{in the current buffer:}
+;; @r{マーカm1の位置をカレントバッファの}
+;; @r{99番目と100番目の文字のあいだにする}
+(set-marker m1 100)
+     @result{} #<marker at 100 in markers.texi>
+@end group
+
+@group
+@c ;; @r{Now insert one character at the beginning of the buffer:}
+;; @r{バッファの先頭に1文字挿入する}
+(goto-char (point-min))
+     @result{} 1
+(insert "Q")
+     @result{} nil
+@end group
+
+@group
+@c ;; @r{@code{m1} is updated appropriately.}
+;; @r{それにしたがって@code{m1}が更新される}
+m1
+     @result{} #<marker at 101 in markers.texi>
+@end group
+
+@group
+@c ;; @r{Two markers that point to the same position}
+@c ;;   @r{are not @code{eq}, but they are @code{equal}.}
+;; @r{同じ位置を指す2つのマーカは@code{eq}ではないが}
+;; @r{@code{equal}である}
+(setq m2 (copy-marker m1))
+     @result{} #<marker at 101 in markers.texi>
+(eq m1 m2)
+     @result{} nil
+(equal m1 m2)
+     @result{} t
+@end group
+
+@group
+@c ;; @r{When you are finished using a marker, make it point nowhere.}
+;; @r{マーカを使い終ったら、どこも指していないようにする}
+(set-marker m1 nil)
+     @result{} #<marker in no buffer>
+@end group
+@end example
+
+@node Predicates on Markers
+@c @section Predicates on Markers
+@section マーカ向けの述語
+
+@c   You can test an object to see whether it is a marker, or whether it is
+@c either an integer or a marker.  The latter test is useful in connection
+@c with the arithmetic functions that work with both markers and integers.
+オブジェクトがマーカであるかどうかや、
+オブジェクトが整数かマーカであるかどうかを検査できます。
+マーカと整数の両者を扱う算術関数に関連して、
+後者の検査は有用です。
+
+@defun markerp object
+@c This function returns @code{t} if @var{object} is a marker, @code{nil}
+@c otherwise.  Note that integers are not markers, even though many
+@c functions will accept either a marker or an integer.
+この関数は、@var{object}がマーカであれば@code{t}を返し、
+さもなければ@code{nil}を返す。
+多くの関数がマーカや整数を受け付けるが、
+整数はマーカではないことに注意すること。
+@end defun
+
+@defun integer-or-marker-p object
+@c This function returns @code{t} if @var{object} is an integer or a marker,
+@c @code{nil} otherwise.
+この関数は、@var{object}が整数かマーカであると@code{t}を返し、
+さもなければ@code{nil}を返す。
+@end defun
+
+@defun number-or-marker-p object
+@c This function returns @code{t} if @var{object} is a number (either
+@c integer or floating point) or a marker, @code{nil} otherwise.
+この関数は、@var{object}が数（整数か浮動小数点数）かマーカであると
+@code{t}を返し、さもなければ@code{nil}を返す。
+@end defun
+
+@node Creating Markers
+@c @section Functions That Create Markers
+@section マーカ作成関数
+
+@c   When you create a new marker, you can make it point nowhere, or point
+@c to the present position of point, or to the beginning or end of the
+@c accessible portion of the buffer, or to the same place as another given
+@c marker.
+新たにマーカを作成するときには、そのマーカが、
+どこも指していない、現在のポイント位置を指している、
+バッファの参照可能部分の先頭や末尾を指している、
+別のマーカと同じ箇所を指しているのいずれかにできます。
+
+@defun make-marker
+@c This function returns a newly created marker that does not point
+@c anywhere.
+この関数は、どこも指していない新たに作成したマーカを返す。
+
+@example
+@group
+(make-marker)
+     @result{} #<marker in no buffer>
+@end group
+@end example
+@end defun
+
+@defun point-marker
+@c This function returns a new marker that points to the present position
+@c of point in the current buffer.  @xref{Point}.  For an example, see
+@c @code{copy-marker}, below.
+この関数は、カレントバッファの現在のポイント位置を
+指す新たに作成したマーカを返す。
+@pxref{Point}。
+例については、下記の@code{copy-marker}を参照。
+@end defun
+
+@defun point-min-marker
+@c This function returns a new marker that points to the beginning of the
+@c accessible portion of the buffer.  This will be the beginning of the
+@c buffer unless narrowing is in effect.  @xref{Narrowing}.
+この関数は、バッファの参照可能部分の先頭を指す新たに作成したマーカを返す。
+ナロイングしていなければ、これはバッファの先頭である。
+@pxref{Narrowing}。
+@end defun
+
+@defun point-max-marker
+@c @cindex end of buffer marker
+@cindex バッファの末尾のマーカ
+@c This function returns a new marker that points to the end of the
+@c accessible portion of the buffer.  This will be the end of the buffer
+@c unless narrowing is in effect.  @xref{Narrowing}.
+この関数は、バッファの参照可能部分の末尾を指す新たに作成したマーカを返す。
+ナロイングしていなければ、これはバッファの末尾である。
+@pxref{Narrowing}。
+
+@c Here are examples of this function and @code{point-min-marker}, shown in
+@c a buffer containing a version of the source file for the text of this
+@c chapter.
+本章のソースファイル（の原文）を入れたバッファでの
+この関数と@code{point-min-marker}の例を示す。
+
+@example
+@group
+(point-min-marker)
+     @result{} #<marker at 1 in markers.texi>
+(point-max-marker)
+     @result{} #<marker at 15573 in markers.texi>
+@end group
+
+@group
+(narrow-to-region 100 200)
+     @result{} nil
+@end group
+@group
+(point-min-marker)
+     @result{} #<marker at 100 in markers.texi>
+@end group
+@group
+(point-max-marker)
+     @result{} #<marker at 200 in markers.texi>
+@end group
+@end example
+@end defun
+
+@c @defun copy-marker marker-or-integer insertion-type
+@c = 誤植                              ^ &optional
+@defun copy-marker marker-or-integer &optional insertion-type
+@c If passed a marker as its argument, @code{copy-marker} returns a
+@c new marker that points to the same place and the same buffer as does
+@c @var{marker-or-integer}.  If passed an integer as its argument,
+@c @code{copy-marker} returns a new marker that points to position
+@c @var{marker-or-integer} in the current buffer.
+引数としてマーカを渡されると、@code{copy-marker}は、
+@var{marker-or-integer}が指すのと同じ
+バッファとバッファ内位置を指す新たなマーカを返す。
+引数として整数を渡されると、@code{copy-marker}は、
+カレントバッファで位置@var{marker-or-integer}を指す新たなマーカを返す。
+
+@c The new marker's insertion type is specified by the argument
+@c @var{insertion-type}.  @xref{Marker Insertion Types}.
+新たなマーカの挿入型は引数@var{insertion-type}で指定する。
+@pxref{Marker Insertion Types}。
+
+@c If passed an integer argument less than 1, @code{copy-marker} returns a
+@c new marker that points to the beginning of the current buffer.  If
+@c passed an integer argument greater than the length of the buffer,
+@c @code{copy-marker} returns a new marker that points to the end of the
+@c buffer.
+渡された整数引数が1未満であると、@code{copy-marker}は、
+カレントバッファでバッファの先頭を指す新たなマーカを返す。
+渡された整数引数がバッファの長さより大きいと、@code{copy-marker}は、
+バッファの末尾を指す新たなマーカを返す。
+
+@example
+@group
+(copy-marker 0)
+     @result{} #<marker at 1 in markers.texi>
+@end group
+
+@group
+(copy-marker 20000)
+     @result{} #<marker at 7572 in markers.texi>
+@end group
+@end example
+
+@c An error is signaled if @var{marker} is neither a marker nor an
+@c = 誤植                  @var{marker-or-integer}
+@c integer.
+@var{marker-or-integer}がマーカでも整数でもないと、エラーを通知する。
+@end defun
+
+@c   Two distinct markers are considered @code{equal} (even though not
+@c @code{eq}) to each other if they have the same position and buffer, or
+@c if they both point nowhere.
+2つの異なるマーカが、同じバッファの同じバッファ内位置であるか、
+どちらもどこも指していないときには、
+両者を（@code{eq}ではないが）@code{equal}とみなします。
+
+@example
+@group
+(setq p (point-marker))
+     @result{} #<marker at 2139 in markers.texi>
+@end group
+
+@group
+(setq q (copy-marker p))
+     @result{} #<marker at 2139 in markers.texi>
+@end group
+
+@group
+(eq p q)
+     @result{} nil
+@end group
+
+@group
+(equal p q)
+     @result{} t
+@end group
+@end example
+
+@node Information from Markers
+@c @section Information from Markers
+@section マーカの情報
+
+@c   This section describes the functions for accessing the components of a
+@c marker object.
+本節では、マーカオブジェクトの構成要素を参照する関数について述べます。
+
+@defun marker-position marker
+@c This function returns the position that @var{marker} points to, or
+@c @code{nil} if it points nowhere.
+この関数は、@var{marker}が指す位置を返す。
+あるいは、@var{marker}がどこも指していなければ@code{nil}を返す。
+@end defun
+
+@defun marker-buffer marker
+@c This function returns the buffer that @var{marker} points into, or
+@c @code{nil} if it points nowhere.
+この関数は、@var{marker}が指すバッファを返す。
+あるいは、@var{marker}がどこも指していなければ@code{nil}を返す。
+
+@example
+@group
+(setq m (make-marker))
+     @result{} #<marker in no buffer>
+@end group
+@group
+(marker-position m)
+     @result{} nil
+@end group
+@group
+(marker-buffer m)
+     @result{} nil
+@end group
+
+@group
+(set-marker m 3770 (current-buffer))
+     @result{} #<marker at 3770 in markers.texi>
+@end group
+@group
+(marker-buffer m)
+     @result{} #<buffer markers.texi>
+@end group
+@group
+(marker-position m)
+     @result{} 3770
+@end group
+@end example
+@end defun
+
+@node Marker Insertion Types
+@c @section Marker Insertion Types
+@section マーカの挿入型
+
+@c @cindex insertion type of a marker
+@cindex マーカの挿入型
+@c   When you insert text directly at the place where a marker points,
+@c there are two possible ways to relocate that marker: it can point before
+@c the inserted text, or point after it.  You can specify which one a given
+@c marker should do by setting its @dfn{insertion type}.  Note that use of
+@c @code{insert-before-markers} ignores markers' insertion types, always
+@c relocating a marker to point after the inserted text.
+マーカが指す箇所に直接テキストを挿入すると、
+マーカの再配置方法には2つの可能性、つまり、
+挿入したテキストのまえに留まるか、あとにくるかのどちらかです。
+マーカの@dfn{挿入型}（insertion type）を設定することで、
+あるマーカではどちらを選ぶか指定できます。
+@code{insert-before-markers}を使うとマーカの挿入型は無視され、
+マーカは挿入したテキストのうしろにつねに再配置されることに注意してください。
+
+@defun set-marker-insertion-type marker type
+@tindex set-marker-insertion-type
+@c This function sets the insertion type of marker @var{marker} to
+@c @var{type}.  If @var{type} is @code{t}, @var{marker} will advance when
+@c text is inserted at its position.  If @var{type} is @code{nil},
+@c @var{marker} does not advance when text is inserted there.
+この関数は、マーカ@var{marker}の挿入型を@var{type}とする。
+@var{type}が@code{t}であると、
+テキストが挿入されると@var{marker}はその位置へ進む。
+@var{type}が@code{nil}であると、
+テキストが挿入されても@var{marker}はその位置へ進まない。
+@end defun
+
+@defun marker-insertion-type marker
+@tindex marker-insertion-type
+@c This function reports the current insertion type of @var{marker}.
+この関数は、@var{marker}の現在の挿入型を報告する。
+@end defun
+
+@node Moving Markers
+@c @section Moving Marker Positions
+@section マーカ位置の移動
+
+@c   This section describes how to change the position of an existing
+@c marker.  When you do this, be sure you know whether the marker is used
+@c outside of your program, and, if so, what effects will result from
+@c moving it---otherwise, confusing things may happen in other parts of
+@c Emacs.
+本節では、既存のマーカの位置を変更する方法について述べます。
+これを行うときには、読者のプログラムの外側で
+当該マーカが使われているかどうか、
+使われているときには移動による効果はなにかを確実に理解してください。
+さもないと、Emacsの別の部分で混乱を生じるかもしれません。
+
+@defun set-marker marker position &optional buffer
+@c This function moves @var{marker} to @var{position}
+@c in @var{buffer}.  If @var{buffer} is not provided, it defaults to
+@c the current buffer.
+この関数は、@var{buffer}において@var{marker}を@var{position}へ移動する。
+@var{buffer}を与えないと、デフォルトはカレントバッファである。
+
+@c If @var{position} is less than 1, @code{set-marker} moves @var{marker}
+@c to the beginning of the buffer.  If @var{position} is greater than the
+@c size of the buffer, @code{set-marker} moves marker to the end of the
+@c buffer.  If @var{position} is @code{nil} or a marker that points
+@c nowhere, then @var{marker} is set to point nowhere.
+@var{position}が1未満であると、
+@code{set-marker}は@var{marker}をバッファの先頭へ移動する。
+@var{position}がバッファのサイズよりも大きいと、
+@code{set-marker}は@var{marker}をバッファの末尾へ移動する。
+@var{position}が@code{nil}であったりどこも指していないマーカであると、
+@var{marker}はどこも指さないようにする。
+
+@c The value returned is @var{marker}.
+戻り値は@var{marker}である。
+
+@example
+@group
+(setq m (point-marker))
+     @result{} #<marker at 4714 in markers.texi>
+@end group
+@group
+(set-marker m 55)
+     @result{} #<marker at 55 in markers.texi>
+@end group
+@group
+(setq b (get-buffer "foo"))
+     @result{} #<buffer foo>
+@end group
+@group
+(set-marker m 0 b)
+     @result{} #<marker at 1 in foo>
+@end group
+@end example
+@end defun
+
+@defun move-marker marker position &optional buffer
+@c This is another name for @code{set-marker}.
+これは@code{set-marker}の別名である。
+@end defun
+
+@node The Mark
+@c @section The Mark
+@section マーク
+@c @cindex mark, the
+@c @cindex mark ring
+@cindex マーク
+@cindex マークリング
+
+@c   One special marker in each buffer is designated @dfn{the mark}.  It
+@c records a position for the user for the sake of commands such as
+@c @code{kill-region} and @code{indent-rigidly}.  Lisp programs should set
+@c the mark only to values that have a potential use to the user, and never
+@c for their own internal purposes.  For example, the @code{replace-regexp}
+@c command sets the mark to the value of point before doing any
+@c replacements, because this enables the user to move back there
+@c conveniently after the replace is finished.
+各バッファの1つの特別なマーカを@dfn{マーク}（mark）として区別します。
+これは、@code{kill-region}や@code{indent-rigidly}などのコマンド向けに
+ユーザーのために位置を記録するものです。
+Lispプログラムでは、ユーザーが使う可能性のある値だけをマークに設定し、
+プログラムの内部向けにはけっしてマークを使いません。
+たとえば、コマンド@code{replace-regexp}は、
+置換を行うまえのポイント値をマークに設定します。
+置換を完了したあとに、ユーザーが手軽にまえの位置に戻れるようにするためです。
+
+@c   Many commands are designed so that when called interactively they
+@c operate on the text between point and the mark.  If you are writing such
+@c a command, don't examine the mark directly; instead, use
+@c @code{interactive} with the @samp{r} specification.  This provides the
+@c values of point and the mark as arguments to the command in an
+@c interactive call, but permits other Lisp programs to specify arguments
+@c explicitly.  @xref{Interactive Codes}.
+多くのコマンドは、対話的に呼ばれるとポイントとマークのあいだの
+テキストに作用するように設計されています。
+読者がそのようなコマンドを書くときには、
+マークを直接検査しないでください。
+そのかわりに、@samp{r}を指定した@code{interactive}を使います。
+こうすると、
+対話的に呼ばれるとポイントとマークの値がコマンドの引数に与えられますが、
+別のLispプログラムからは引数を明示できます。
+@xref{Interactive Codes}。
+
+@c   Each buffer has its own value of the mark that is independent of the
+@c value of the mark in other buffers.  When a buffer is created, the mark
+@c exists but does not point anywhere.  We consider this state as ``the
+@c absence of a mark in that buffer.''
+各バッファには、他のバッファのマークの値とは独立な
+独自のマークの値があります。
+バッファが作成されると、マークは存在しますがどこも指さない状態です。
+これを『バッファのマークは欠如している』状態とみなします。
+
+@c   Once the mark ``exists'' in a buffer, it normally never ceases to
+@c exist.  However, it may become @dfn{inactive}, if Transient Mark mode is
+@c enabled.  The variable @code{mark-active}, which is always buffer-local
+@c in all buffers, indicates whether the mark is active: non-@code{nil}
+@c means yes.  A command can request deactivation of the mark upon return
+@c to the editor command loop by setting @code{deactivate-mark} to a
+@c non-@code{nil} value (but this causes deactivation only if Transient
+@c Mark mode is enabled).
+バッファでいったんマークが『存在』するようになれば、
+マークが存在しなくなることは普通はありません。
+しかし、暫定マーク（transient-mark）モードをオンにすると、
+マークが@dfn{不活性}になることはあります。
+すべてのバッファでつねにバッファローカルな変数@code{mark-active}が
+マークが活性かどうかを表します。
+その値が@code{nil}以外であるとマークは活性です。
+コマンドで@code{deactivate-mark}に@code{nil}以外の値を設定すると、
+エディタコマンドループに戻ったときにマークを不活性にするようにできます
+（ただし、暫定マーク（transient-mark）モードがオンの場合に限る）。
+
+@c   The main motivation for using Transient Mark mode is that this mode
+@c also enables highlighting of the region when the mark is active.
+@c @xref{Display}.
+暫定マーク（transient-mark）モードを使う主な目的は、
+マークが活性であるとこのモードはリージョンを強調表示するからです。
+@xref{Display}。
+
+@c   In addition to the mark, each buffer has a @dfn{mark ring} which is a
+@c list of markers containing previous values of the mark.  When editing
+@c commands change the mark, they should normally save the old value of the
+@c mark on the mark ring.  The variable @code{mark-ring-max} specifies the
+@c maximum number of entries in the mark ring; once the list becomes this
+@c long, adding a new element deletes the last element.
+マークに加えて、各バッファには@dfn{マークリング}（mark ring）、
+つまり、マークの以前の値を保持したリストがあります。
+編集コマンドがマークを変更すると、
+通常、編集コマンドはマークの古い値をマークリングに保存します。
+変数@code{mark-ring-max}で、マークリングに収める要素の最大個数を指定します。
+リストがこの長さに達すると、新たな要素を加えるたびに古い要素を削除します。
+
+@defun mark &optional force
+@c @cindex current buffer mark
+@cindex カレントバッファのマーク
+@c This function returns the current buffer's mark position as an integer.
+この関数は、カレントバッファのマーク位置を整数で返す。
+
+@c If the mark is inactive, @code{mark} normally signals an error.
+@c However, if @var{force} is non-@code{nil}, then @code{mark} returns the
+@c mark position anyway---or @code{nil}, if the mark is not yet set for
+@c this buffer.
+マークが不活性であると、通常、@code{mark}はエラーを通知する。
+しかし、@var{force}が@code{nil}以外であると@code{mark}はマーク位置を返すが、
+当該バッファでマークが設定されたことがなければ@code{nil}を返す。
+@end defun
+
+@defun mark-marker
+@c This function returns the current buffer's mark.  This is the very marker
+@c that records the mark location inside Emacs, not a copy.  Therefore,
+@c changing this marker's position will directly affect the position of the mark.
+@c Don't do it unless that is the effect you want.
+この関数は、カレントバッファのマークを返す。
+これは、Emacs内部のマーク位置を記録したマーカそのものであり、コピーではない。
+したがって、このマーカの位置を変更すると、マークの位置に直接影響する。
+この効果を望まない限り、そのようにしないこと。
+
+@example
+@group
+(setq m (mark-marker))
+     @result{} #<marker at 3420 in markers.texi>
+@end group
+@group
+(set-marker m 100)
+     @result{} #<marker at 100 in markers.texi>
+@end group
+@group
+(mark-marker)
+     @result{} #<marker at 100 in markers.texi>
+@end group
+@end example
+
+@c Like any marker, this marker can be set to point at any buffer you like.
+@c We don't recommend that you make it point at any buffer other than the
+@c one of which it is the mark.  If you do, it will yield perfectly
+@c consistent, but rather odd, results.
+他のマーカと同様に、このマーカは任意のバッファでポイントを指すようにできる。
+マークが指しているバッファ以外のバッファ内位置を指すことは勧めない。
+そのようにすると、一貫性はあるが妙な結果を生じる。
+@end defun
+
+@ignore
+@c @deffn Command set-mark-command jump
+@deffn コマンド set-mark-command jump
+If @var{jump} is @code{nil}, this command sets the mark to the value
+of point and pushes the previous value of the mark on the mark ring.  The
+message @samp{Mark set} is also displayed in the echo area.
+
+If @var{jump} is not @code{nil}, this command sets point to the value
+of the mark, and sets the mark to the previous saved mark value, which
+is popped off the mark ring.
+
+This function is @emph{only} intended for interactive use.
+@end deffn
+@end ignore
+
+@defun set-mark position
+@c This function sets the mark to @var{position}, and activates the mark.
+@c The old value of the mark is @emph{not} pushed onto the mark ring.
+この関数は、位置@var{position}にマークを設定し、マークを活性にする。
+マークの古い値はマークリングに保存し@emph{ない}。
+
+@c @strong{Please note:} Use this function only if you want the user to
+@c see that the mark has moved, and you want the previous mark position to
+@c be lost.  Normally, when a new mark is set, the old one should go on the
+@c @code{mark-ring}.  For this reason, most applications should use
+@c @code{push-mark} and @code{pop-mark}, not @code{set-mark}.
+@strong{注意：}@code{ }ユーザーにマークが移動したことを示し、かつ、
+まえのマーク位置を破棄したい場合にのみこの関数を使うこと。
+通常、新たにマークを設定したときには、
+古いマークを@code{mark-ring}に入れるべきである。
+この理由から、ほとんどのアプリケーションでは、
+@code{set-mark}ではなく@code{push-mark}と@code{pop-mark}を使うべきである。
+
+@c Novice Emacs Lisp programmers often try to use the mark for the wrong
+@c purposes.  The mark saves a location for the user's convenience.  An
+@c editing command should not alter the mark unless altering the mark is
+@c part of the user-level functionality of the command.  (And, in that
+@c case, this effect should be documented.)  To remember a location for
+@c internal use in the Lisp program, store it in a Lisp variable.  For
+@c example:
+Emacs Lispの初心者プログラマは、誤った目的にマークを使いがちである。
+マークはユーザーの便宜のための位置を保存する。
+編集コマンドは、
+コマンドのユーザーレベルの機能の一部としてマークを変更する以外には、
+マークを変更してはならない。
+（変更する場合には、その効果を明文化しておくべきである。）
+Lispプログラムの内部で使う位置を記録するには、Lisp変数に保存する。
+たとえばつぎのようにする。
+
+@example
+@group
+(let ((beg (point)))
+  (forward-line 1)
+  (delete-region beg (point))).
+@end group
+@end example
+@end defun
+
+@c for interactive use only
+@ignore
+@deffn Command exchange-point-and-mark
+This function exchanges the positions of point and the mark.
+It is intended for interactive use.
+@end deffn
+@end ignore
+
+@defun push-mark &optional position nomsg activate
+@c This function sets the current buffer's mark to @var{position}, and
+@c pushes a copy of the previous mark onto @code{mark-ring}.  If
+@c @var{position} is @code{nil}, then the value of point is used.
+@c @code{push-mark} returns @code{nil}.
+この関数は、カレントバッファのマークを@var{position}とし、
+以前のマークのコピーを@code{mark-ring}へ入れる。
+@var{position}が@code{nil}であると、ポイントの値を使う。
+@code{push-mark}は@code{nil}を返す。
+
+@c The function @code{push-mark} normally @emph{does not} activate the
+@c mark.  To do that, specify @code{t} for the argument @var{activate}.
+関数@code{push-mark}は、通常、マークを活性に@emph{しない}。
+活性にするには引数@var{activate}に@code{t}を指定する。
+
+@c A @samp{Mark set} message is displayed unless @var{nomsg} is
+@c non-@code{nil}.
+@var{nomsg}が@code{nil}であると、メッセージ@samp{Mark set}を表示する。
+@end defun
+
+@defun pop-mark
+@c This function pops off the top element of @code{mark-ring} and makes
+@c that mark become the buffer's actual mark.  This does not move point in
+@c the buffer, and it does nothing if @code{mark-ring} is empty.  It
+@c deactivates the mark.
+この関数は、@code{mark-ring}から先頭要素を取り出し、
+そのマークをカレントバッファの実際のマークとする。
+バッファのポイントは移動しない。
+また、@code{mark-ring}が空であるとなにもしない。
+マークを不活性にする。
+
+@c The return value is not meaningful.
+戻り値に意味はない。
+@end defun
+
+@defopt transient-mark-mode
+@c @cindex Transient Mark mode
+@cindex 暫定マーク（transient-mark）モード
+@c This variable if non-@code{nil} enables Transient Mark mode, in which
+@c every buffer-modifying primitive sets @code{deactivate-mark}.  The
+@c consequence of this is that commands that modify the buffer normally
+@c make the mark inactive.
+この変数が@code{nil}以外であると
+暫定マーク（transient-mark）モードがオンであるが、
+バッファを変更する各基本関数は@code{deactivate-mark}に設定する。
+つまり、バッファを変更するコマンドは、通常、マークを不活性にする。
+@end defopt
+
+@defopt mark-even-if-inactive
+@c If this is non-@code{nil}, Lisp programs and the Emacs user can use the
+@c mark even when it is inactive.  This option affects the behavior of
+@c Transient Mark mode.  When the option is non-@code{nil}, deactivation of
+@c the mark turns off region highlighting, but commands that use the mark
+@c behave as if the mark were still active.
+これが@code{nil}以外であると、
+LispプログラムやEmacsユーザーは、マークが不活性であってもマークを使える。
+このオプションは、暫定マーク（transient-mark）モードのふるまいに影響する。
+このオプションが@code{nil}以外であると、
+マークが不活性になるとリージョンの強調表示を止めるが、
+マークを使うコマンドはマークが活性であるものとして動作する。
+@end defopt
+
+@defvar deactivate-mark
+@c If an editor command sets this variable non-@code{nil}, then the editor
+@c command loop deactivates the mark after the command returns (if
+@c Transient Mark mode is enabled).  All the primitives that change the
+@c buffer set @code{deactivate-mark}, to deactivate the mark when the
+@c command is finished.
+編集コマンドがこの変数に@code{nil}以外を設定すると、
+エディタコマンドループは（暫定マーク（transient-mark）モードがオンであると）
+コマンドから戻るとマークを不活性にする。
+コマンドが終了したらマークを不活性にするために、
+バッファを変更するすべての基本関数は@code{deactivate-mark}に設定する。
+@end defvar
+
+@defun deactivate-mark
+@c This function deactivates the mark, if Transient Mark mode is enabled.
+@c Otherwise it does nothing.
+この関数は、暫定マーク（transient-mark）モードが
+オンであるとマークを不活性にする。
+さもなければなにもしない。
+@end defun
+
+@defvar mark-active
+@c The mark is active when this variable is non-@code{nil}.  This variable
+@c is always buffer-local in each buffer.
+この変数が@code{nil}以外であると、マークは活性である。
+この変数は各バッファにおいてつねにバッファローカルである。
+@end defvar
+
+@defvar activate-mark-hook
+@defvarx deactivate-mark-hook
+@c These normal hooks are run, respectively, when the mark becomes active
+@c and when it becomes inactive.  The hook @code{activate-mark-hook} is
+@c also run at the end of a command if the mark is active and it is
+@c possible that the region may have changed.
+これらのノーマルフックは、それぞれ、
+マークが活性になったとき、不活性になったときに実行される。
+マークが活性でありリージョンが変更されたときには、
+フック@code{activate-mark-hook}はコマンドの終りでも実行される。
+@end defvar
+
+@defvar mark-ring
+@c The value of this buffer-local variable is the list of saved former
+@c marks of the current buffer, most recent first.
+このバッファローカルな変数の値は、
+カレントバッファで保存したマークを最新のものから順に並べたリストである。
+
+@example
+@group
+mark-ring
+@result{} (#<marker at 11050 in markers.texi> 
+    #<marker at 10832 in markers.texi>
+    @dots{})
+@end group
+@end example
+@end defvar
+
+@defopt mark-ring-max
+@c The value of this variable is the maximum size of @code{mark-ring}.  If
+@c more marks than this are pushed onto the @code{mark-ring},
+@c @code{push-mark} discards an old mark when it adds a new one.
+この変数の値は、@code{mark-ring}の最大の大きさである。
+これより多くのマークを@code{mark-ring}に積むと、
+@code{push-mark}は新しいものを追加するときに古いものを削除する。
+@end defopt
+
+@node The Region
+@c @section The Region
+@section リージョン
+@c @cindex region, the
+@cindex リージョン
+
+@c   The text between point and the mark is known as @dfn{the region}.
+@c Various functions operate on text delimited by point and the mark, but
+@c only those functions specifically related to the region itself are
+@c described here.
+ポイントとマークのあいだのテキストを@dfn{リージョン}（region）といいます。
+さまざまな関数がポイントとマークで区切られたテキストに作用しますが、
+リージョンそのものに特に関連した関数だけについてここで述べます。
+
+@defun region-beginning
+@c This function returns the position of the beginning of the region (as
+@c an integer).  This is the position of either point or the mark,
+@c whichever is smaller.
+この関数は、リージョンの先頭の位置を（整数で）返す。
+これは、ポイントかマークの小さいほうの位置である。
+
+@c If the mark does not point anywhere, an error is signaled.
+マークがどこも指していなければ、エラーを通知する。
+@end defun
+
+@defun region-end
+@c This function returns the position of the end of the region (as an
+@c integer).  This is the position of either point or the mark, whichever is
+@c larger.
+この関数は、リージョンの末尾の位置を（整数で）返す。
+これは、ポイントかマークの大きいほうの位置である。
+
+@c If the mark does not point anywhere, an error is signaled.
+マークがどこも指していなければ、エラーを通知する。
+@end defun
+
+@c   Few programs need to use the @code{region-beginning} and
+@c @code{region-end} functions.  A command designed to operate on a region
+@c should normally use @code{interactive} with the @samp{r} specification
+@c to find the beginning and end of the region.  This lets other Lisp
+@c programs specify the bounds explicitly as arguments.  (@xref{Interactive
+@c Codes}.)
+関数@code{region-beginning}や@code{region-end}を使う必要がある
+プログラムはほとんどないはずです。
+リージョンに作用するように設計されたコマンドは、
+普通、@samp{r}を指定した@code{interactive}を使って
+リージョンの先頭と末尾をみつけます。
+これにより、Lispプログラムからは引数として境界を明示的に指定できます。
+（@xref{Interactive Codes}。）

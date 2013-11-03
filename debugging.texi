@@ -1,0 +1,1247 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/debugging
+@node Debugging, Read and Print, Advising Functions, Top
+@c @chapter Debugging Lisp Programs
+@chapter Lispプログラムのデバッグ
+
+@c   There are three ways to investigate a problem in an Emacs Lisp program,
+@c depending on what you are doing with the program when the problem appears.
+Emacs Lispプログラムの問題点を調べるには、
+問題が発生したときにどのようにプログラムを使っているかに依存して、
+3つの方法があります。
+
+@itemize @bullet
+@item
+@c If the problem occurs when you run the program, you can use a Lisp
+@c debugger to investigate what is happening during execution.  In addition
+@c to the ordinary debugger, Emacs comes with a source level debugger,
+@c Edebug.  This chapter describes both of them.
+プログラムを実行したときに問題が発生した場合には、
+実行中に何が起こっているかを調べるためにLispデバッガを使える。
+通常のデバッガに加えて、Emacsにはソースレベルデバッガedebugもある。
+本章では両者について述べる。
+
+@item
+@c If the problem is syntactic, so that Lisp cannot even read the program,
+@c you can use the Emacs facilities for editing Lisp to localize it.
+構文的な問題があるためにLispがプログラムを読み取れないときには、
+EmacsのLisp編集機能を使ってその場所を特定する。
+
+@item
+@c If the problem occurs when trying to compile the program with the byte
+@c compiler, you need to know how to examine the compiler's input buffer.
+プログラムをバイトコンパイラでコンパイルするときに問題が発生するときには、
+コンパイラの入力バッファの調べ方を知る必要がある。
+@end itemize
+
+@menu
+* Debugger::            How the Emacs Lisp debugger is implemented.
+* Edebug::		A source-level Emacs Lisp debugger.
+* Syntax Errors::       How to find syntax errors.
+* Compilation Errors::  How to find errors that show up in byte compilation.
+@end menu
+
+@c   Another useful debugging tool is the dribble file.  When a dribble
+@c file is open, Emacs copies all keyboard input characters to that file.
+@c Afterward, you can examine the file to find out what input was used.
+@c @xref{Terminal Input}.
+他の有用なデバッグツールは、ドリブルファイルです。
+ドリブルファイルをオープンしてあると、
+Emacsはすべてのキーボード入力をこのファイルにコピーします。
+あとでこのファイルを調べれば、どんな入力があったかわかります。
+@xref{Terminal Input}。
+
+@c   For debugging problems in terminal descriptions, the
+@c @code{open-termscript} function can be useful.  @xref{Terminal Output}.
+端末設定に関した問題を解決するには、
+関数@code{open-termscript}が有用です。
+@xref{Terminal Output}。
+
+@node Debugger
+@c @section The Lisp Debugger
+@section Lispデバッガ
+@c @cindex debugger
+@c @cindex Lisp debugger
+@c @cindex break
+@cindex デバッガ
+@cindex Lispデバッガ
+@cindex ブレーク
+
+@c   The ordinary @dfn{Lisp debugger} provides the ability to suspend
+@c evaluation of a form.  While evaluation is suspended (a state that is
+@c commonly known as a @dfn{break}), you may examine the run time stack,
+@c examine the values of local or global variables, or change those values.
+@c Since a break is a recursive edit, all the usual editing facilities of
+@c Emacs are available; you can even run programs that will enter the
+@c debugger recursively.  @xref{Recursive Editing}.
+通常の@dfn{Lispデバッガ}は、フォームの評価を一時停止する機能を提供します。
+評価を一時停止しているあいだ（@dfn{ブレーク}（break）と呼ばれる状態）は、
+実行時スタックを調べたり、ローカルやグローバル変数の値を調べたり、
+それらの値を変更できます。
+ブレークは再帰編集なので、Emacsの通常の編集機能すべてを使えます。
+デバッガを再帰的に起動するようなプログラムを実行することさえできます。
+@xref{Recursive Editing}。
+
+@menu
+* Error Debugging::       Entering the debugger when an error happens.
+* Infinite Loops::	  Stopping and debugging a program that doesn't exit.
+* Function Debugging::    Entering it when a certain function is called.
+* Explicit Debug::        Entering it at a certain point in the program.
+* Using Debugger::        What the debugger does; what you see while in it.
+* Debugger Commands::     Commands used while in the debugger.
+* Invoking the Debugger:: How to call the function @code{debug}.
+* Internals of Debugger:: Subroutines of the debugger, and global variables.
+@end menu
+
+@node Error Debugging
+@c @subsection Entering the Debugger on an Error
+@subsection エラーによるデバッガの起動
+@c @cindex error debugging
+@c @cindex debugging errors
+@cindex エラーのデバッグ
+@cindex デバッグ、エラー
+
+@c   The most important time to enter the debugger is when a Lisp error
+@c happens.  This allows you to investigate the immediate causes of the
+@c error.
+デバッガへ入るもっとも重要な時期は、Lispエラーが発生したときです。
+これにより、エラーの直接原因を調べることができます。
+
+@c   However, entry to the debugger is not a normal consequence of an
+@c error.  Many commands frequently cause Lisp errors when invoked
+@c inappropriately (such as @kbd{C-f} at the end of the buffer), and during
+@c ordinary editing it would be very inconvenient to enter the debugger
+@c each time this happens.  So if you want errors to enter the debugger, set
+@c the variable @code{debug-on-error} to non-@code{nil}.  (The command
+@c @code{toggle-debug-on-error} provides an easy way to do this.)
+しかし、デバッガに入るのは、エラーの通常の帰結ではありません。
+多くのコマンドは
+（バッファの末尾で@kbd{C-f}を使うなどの）不適切に起動されると
+しばしばLispエラーを生じますが、
+通常の編集ではそのたびにデバッガに入ったのではとても不便です。
+そのため、エラーによってデバッガに入りたい場合には、
+変数@code{debug-on-error}に@code{nil}以外を設定します。
+（コマンド@code{toggle-debug-on-error}はこれを簡単に行う。）
+
+@defopt debug-on-error
+@c This variable determines whether the debugger is called when an error is
+@c signaled and not handled.  If @code{debug-on-error} is @code{t}, all
+@c kinds of errors call the debugger (except those listed in
+@c @code{debug-ignored-errors}).  If it is @code{nil}, none call the
+@c debugger.
+この変数は、エラーが通知され処理されないときに
+デバッガを呼び出すかどうか決定する。
+@code{debug-on-error}が@code{t}であると、
+すべての種類のエラー（@code{debug-ignored-errors}に指定したものを除く）
+はデバッガを呼び出す。
+@code{nil}であるとデバッガを呼び出さない。
+
+@c The value can also be a list of error conditions that should call the
+@c debugger.  For example, if you set it to the list
+@c @code{(void-variable)}, then only errors about a variable that has no
+@c value invoke the debugger.
+その値はデバッガを呼び出すエラー条件のリストでもよい。
+たとえば、リスト@code{(void-variable)}にすると、
+「値を持たない変数に関したエラー」のみがデバッガを起動する。
+
+@c When this variable is non-@code{nil}, Emacs does not create an error
+@c handler around process filter functions and sentinels.  Therefore,
+@c errors in these functions also invoke the debugger.  @xref{Processes}.
+この変数が@code{nil}以外であると、
+Emacsはプロセスのフィルタ関数や番兵に対してエラーハンドラを作成しない。
+したがって、これらの関数でのエラーもデバッガを起動する。
+@pxref{Processes}。
+@end defopt
+
+@defopt debug-ignored-errors
+@c This variable specifies certain kinds of errors that should not enter
+@c the debugger.  Its value is a list of error condition symbols and/or
+@c regular expressions.  If the error has any of those condition symbols,
+@c or if the error message matches any of the regular expressions, then
+@c that error does not enter the debugger, regardless of the value of
+@c @code{debug-on-error}.
+この変数は、デバッガに入らないエラーの種類を指定する。
+その値はエラー条件シンボルや正規表現のリストである。
+エラーにこれらの条件シンボルが含まれるか
+エラーメッセージが正規表現の1つに一致する場合には、
+@code{debug-on-error}の値に関わらず
+当該エラーではデバッガに入らない。
+
+@c The normal value of this variable lists several errors that happen often
+@c during editing but rarely result from bugs in Lisp programs.  However,
+@c ``rarely'' is not ``never''; if your program fails with an error that
+@c matches this list, you will need to change this list in order to debug
+@c the error.  The easiest way is usually to set
+@c @code{debug-ignored-errors} to @code{nil}.
+この変数の通常の値は、
+編集ではしばしば発生するが、Lispプログラムのバグではほとんど発生しないような
+エラー群のリストである。
+しかし、『ほとんど』は『けっして』ではない。
+このリストに一致するようなエラーで読者のプログラムが失敗する場合、
+エラーをデバッグするにはこのリストを変更する必要がある。
+もっとも簡単な方法は、@code{debug-ignored-errors}に@code{nil}を
+設定することである。
+@end defopt
+
+@defopt debug-on-signal
+@c Normally, errors that are caught by @code{condition-case} never run the
+@c debugger, even if @code{debug-on-error} is non-@code{nil}.  In other
+@c words, @code{condition-case} gets a chance to handle the error before
+@c the debugger gets a chance.
+通常、@code{condition-case}で捕捉したエラーは、
+たとえ@code{debug-on-error}が@code{nil}以外であっても、
+けっしてデバッガを起動しない。
+いいかえれば、デバッガを起動するまえに、
+@code{condition-case}はエラー処理の機会を得るのである。
+
+@c If you set @code{debug-on-signal} to a non-@code{nil} value, then the
+@c debugger gets the first chance at every error; an error will invoke the
+@c debugger regardless of any @code{condition-case}, if it fits the
+@c criteria specified by the values of @code{debug-on-error} and
+@c @code{debug-ignored-errors}.
+@code{debug-on-signal}に@code{nil}以外の値を設定すると、
+各エラーごとにデバッガがまず機会を得る。
+@code{debug-on-error}と@code{debug-ignored-errors}の値で指定される
+条件に一致すれば、@code{condition-case}に関わらず
+エラーはデバッガを起動する。
+
+@c @strong{Warning:} This variable is strong medicine!  Various parts of
+@c Emacs handle errors in the normal course of affairs, and you may not
+@c even realize that errors happen there.  If you set
+@c @code{debug-on-signal} to a non-@code{nil} value, those errors will
+@c enter the debugger.
+@strong{警告：}@code{ }
+この変数は強力な処方である！@code{ }
+Emacsのさまざまな部分では通常の動作としてエラーを処理し、
+読者にはエラーが発生したことさえわからない。
+@code{debug-on-signal}に@code{nil}以外の値を設定すると
+それらのエラーでデバッガに入る。
+
+@c @strong{Warning:} @code{debug-on-signal} has no effect when
+@c @code{debug-on-error} is @code{nil}.
+@strong{警告：}@code{ }
+@code{debug-on-error}が@code{nil}であると、
+@code{debug-on-signal}は意味を持たない。
+@end defopt
+
+@c   To debug an error that happens during loading of the @file{.emacs}
+@c file, use the option @samp{--debug-init}, which binds
+@c @code{debug-on-error} to @code{t} while loading @file{.emacs}, and
+@c bypasses the @code{condition-case} which normally catches errors in the
+@c init file.
+ファイル@file{.emacs}をロード中に発生するエラーをデバッグするには、
+オプション@samp{--debug-init}を使います。
+これにより、@file{.emacs}のロード中は@code{debug-on-error}を@code{t}に束縛し、
+初期化ファイルでのエラーを捕捉する@code{condition-case}を迂回します。
+
+@c   If your @file{.emacs} file sets @code{debug-on-error}, the effect may
+@c not last past the end of loading @file{.emacs}.  (This is an undesirable
+@c byproduct of the code that implements the @samp{--debug-init} command
+@c line option.)  The best way to make @file{.emacs} set
+@c @code{debug-on-error} permanently is with @code{after-init-hook}, like
+@c this:
+読者のファイル@file{.emacs}で@code{debug-on-error}を設定しても、
+その効果は@file{.emacs}のロードを終ると持続しません。
+（これはコマンド行オプション@samp{--debug-init}の実装における
+好ましくない特性である。）
+@file{.emacs}で@code{debug-on-error}を恒久的に設定する最良の方法は、
+つぎのように、@code{after-init-hook}を用いることです。
+
+@example
+(add-hook 'after-init-hook
+          '(lambda () (setq debug-on-error t)))
+@end example
+
+@node Infinite Loops
+@c @subsection Debugging Infinite Loops
+@subsection 無限ループのデバッグ
+@c @cindex infinite loops
+@c @cindex loops, infinite
+@c @cindex quitting from infinite loop
+@c @cindex stopping an infinite loop
+@cindex 無限ループ
+@cindex ループ、無限
+@cindex 無限ループの中断
+@cindex 中断、無限ループ
+@cindex 無限ループの停止
+@cindex 停止、無限ループ
+
+@c   When a program loops infinitely and fails to return, your first
+@c problem is to stop the loop.  On most operating systems, you can do this
+@c with @kbd{C-g}, which causes quit.
+プログラムが無限にループし戻ってこないときには、
+まず、ループを停止する必要があります。
+ほとんどのオペレーティングシステムでは、
+中断を意味する@kbd{C-g}を使います。
+
+@c   Ordinary quitting gives no information about why the program was
+@c looping.  To get more information, you can set the variable
+@c @code{debug-on-quit} to non-@code{nil}.  Quitting with @kbd{C-g} is not
+@c considered an error, and @code{debug-on-error} has no effect on the
+@c handling of @kbd{C-g}.  Likewise, @code{debug-on-quit} has no effect on
+@c errors.
+普通に中断したのでは、
+プログラムが無限ループした理由に関する情報は得られません。
+より詳しい情報を得るには、
+変数@code{debug-on-quit}に@code{nil}以外を設定します。
+@kbd{C-g}による中断はエラーとは扱わないため、
+@kbd{C-g}の処理に関して@code{debug-on-error}はなんの効果もありません。
+同様に、@code{debug-on-quit}はエラーに関してなんの効果もありません。
+
+@c   Once you have the debugger running in the middle of the infinite loop,
+@c you can proceed from the debugger using the stepping commands.  If you
+@c step through the entire loop, you will probably get enough information
+@c to solve the problem.
+無限ループの途中でデバッガを起動できれば、
+デバッガでステップ実行コマンドを使って先へ進めます。
+ループひとまわりをステップ実行すれば、
+問題を解決するに十分な情報を得られるはずです。
+
+@defopt debug-on-quit
+@c This variable determines whether the debugger is called when @code{quit}
+@c is signaled and not handled.  If @code{debug-on-quit} is non-@code{nil},
+@c then the debugger is called whenever you quit (that is, type @kbd{C-g}).
+@c If @code{debug-on-quit} is @code{nil}, then the debugger is not called
+@c when you quit.  @xref{Quitting}.
+この変数は、@code{quit}が通知され処理されなかった場合に、
+デバッガを呼び出すかどうかを決定する。
+@code{debug-on-quit}が@code{nil}以外である場合、
+（@kbd{C-g}を打って）中断するとデバッガを呼び出す。
+@code{debug-on-quit}が@code{nil}であると、
+中断してもデバッガを呼び出さない。
+@pxref{Quitting}。
+@end defopt
+
+@node Function Debugging
+@c @subsection Entering the Debugger on a Function Call
+@subsection 関数呼び出し時のデバッガの起動
+@c @cindex function call debugging
+@c @cindex debugging specific functions
+@cindex 関数呼び出しのデバッグ
+@cindex デバッグ、関数呼び出し
+@cindex 特定の関数のデバッグ
+@cindex デバッグ、特定の関数
+
+@c   To investigate a problem that happens in the middle of a program, one
+@c useful technique is to enter the debugger whenever a certain function is
+@c called.  You can do this to the function in which the problem occurs,
+@c and then step through the function, or you can do this to a function
+@c called shortly before the problem, step quickly over the call to that
+@c function, and then step through its caller.
+プログラムの途中で発生する問題点を調べるための1つの有用な技法は、
+ある関数を呼び出すたびにデバッガに入ることです。
+問題を生じる関数に対してこのようにしておき、
+当該関数をステップ実行するか、あるいは、
+問題が発生する直前に呼ばれる関数に対してこのようにしておき、
+その関数の呼び出しを終えてから、呼び出し側をステップ実行します。
+
+@c @deffn Command debug-on-entry function-name
+@deffn コマンド debug-on-entry function-name
+@c This function requests @var{function-name} to invoke the debugger each time
+@c it is called.  It works by inserting the form @code{(debug 'debug)} into
+@c the function definition as the first form.
+この関数は、@var{function-name}が呼び出されるたびに
+デバッガを起動するようにする。
+当該関数の定義の最初のフォームとして
+フォーム@code{(debug 'debug)}を挿入することでこれを行う。
+
+@c Any function defined as Lisp code may be set to break on entry,
+@c regardless of whether it is interpreted code or compiled code.  If the
+@c function is a command, it will enter the debugger when called from Lisp
+@c and when called interactively (after the reading of the arguments).  You
+@c can't debug primitive functions (i.e., those written in C) this way.
+Lispコードで定義した任意の関数は、
+解釈実行コードであろうとコンパイル済みのコードであろうと、
+関数に入るときにブレークするようにできる。
+関数がコマンドであると、Lispから呼ばれたときや
+対話的に呼ばれたときに（引数を読み取ってから）デバッガに入る。
+（Cで書いた）基本関数は、この方法ではデバッグできない。
+
+@c When @code{debug-on-entry} is called interactively, it prompts for
+@c @var{function-name} in the minibuffer.  If the function is already set
+@c up to invoke the debugger on entry, @code{debug-on-entry} does nothing.
+@c @code{debug-on-entry} always returns @var{function-name}.
+@code{debug-on-entry}を対話的に呼び出すと、
+ミニバッファで@var{function-name}を問い合わせる。
+その関数がすでに呼び出し時にデバッガを起動するようになっていると、
+@code{debug-on-entry}はなにもしない。
+@code{debug-on-entry}はつねに@var{function-name}を返す。
+
+@c @strong{Note:} if you redefine a function after using
+@c @code{debug-on-entry} on it, the code to enter the debugger is discarded
+@c by the redefinition.  In effect, redefining the function cancels
+@c the break-on-entry feature for that function.
+@strong{注意：}@code{ }
+@code{debug-on-entry}を使ったあとに当該関数を再定義すると、
+デバッガに入るためのコードがなくなる。
+実質的には、関数を再定義すると呼び出し時にブレークする機能を
+取り消すことになる。
+
+@example
+@group
+(defun fact (n)
+  (if (zerop n) 1
+      (* n (fact (1- n)))))
+     @result{} fact
+@end group
+@group
+(debug-on-entry 'fact)
+     @result{} fact
+@end group
+@group
+(fact 3)
+@end group
+
+@group
+------ Buffer: *Backtrace* ------
+Entering:
+* fact(3)
+  eval-region(4870 4878 t)
+  byte-code("...")
+  eval-last-sexp(nil)
+  (let ...)
+  eval-insert-last-sexp(nil)
+* call-interactively(eval-insert-last-sexp)
+------ Buffer: *Backtrace* ------
+@end group
+
+@group
+(symbol-function 'fact)
+     @result{} (lambda (n)
+          (debug (quote debug))
+          (if (zerop n) 1 (* n (fact (1- n)))))
+@end group
+@end example
+@end deffn
+
+@c @deffn Command cancel-debug-on-entry function-name
+@deffn コマンド cancel-debug-on-entry function-name
+@c This function undoes the effect of @code{debug-on-entry} on
+@c @var{function-name}.  When called interactively, it prompts for
+@c @var{function-name} in the minibuffer.  If @var{function-name} is
+@c @code{nil} or the empty string, it cancels break-on-entry for all
+@c functions.
+この関数は、@var{function-name}に対する@code{debug-on-entry}の効果
+（呼び出し時にブレークする）を取り消す。
+対話的に呼び出すと、
+ミニバッファで@var{function-name}を問い合わせる。
+@var{function-name}が@code{nil}であったり空文字列であると、
+すべての関数について、呼び出し時にブレークすることを取り消す。
+
+@c Calling @code{cancel-debug-on-entry} does nothing to a function which is
+@c not currently set up to break on entry.  It always returns
+@c @var{function-name}.
+呼び出し時にブレークする設定をしていない関数に対して
+@code{cancel-debug-on-entry}を呼び出してもなにもしない。
+つねに@var{function-name}を返す。
+@end deffn
+
+@node Explicit Debug
+@c @subsection Explicit Entry to the Debugger
+@subsection デバッガの明示的な起動
+
+@c   You can cause the debugger to be called at a certain point in your
+@c program by writing the expression @code{(debug)} at that point.  To do
+@c this, visit the source file, insert the text @samp{(debug)} at the
+@c proper place, and type @kbd{C-M-x}.  @strong{Warning:} if you do this
+@c for temporary debugging purposes, be sure to undo this insertion before
+@c you save the file!
+読者のプログラムに式@code{(debug)}を書くと、
+その箇所でデバッガを呼び出すことができます。
+つまり、ソースファイルを訪問して適当な箇所にテキスト@samp{(debug)}を挿入し、
+@kbd{C-M-x}と打ちます。
+@strong{警告：}@code{ }
+一時的なデバッグ目的でこれを行う場合には、
+ファイルを保存するまえにこの挿入箇所をもとに戻すこと！
+
+@c   The place where you insert @samp{(debug)} must be a place where an
+@c additional form can be evaluated and its value ignored.  (If the value
+@c of @code{(debug)} isn't ignored, it will alter the execution of the
+@c program!)  The most common suitable places are inside a @code{progn} or
+@c an implicit @code{progn} (@pxref{Sequencing}).
+@samp{(debug)}を挿入する箇所は、
+余分なフォームを評価してもその値を無視できる場所でなければなりません。
+（@code{(debug)}の値が無視されないと、
+プログラムの実行を変えてしまう！）
+もっとも適した一般的な場所は@code{progn}や暗黙の@code{progn}の内側です
+（@pxref{Sequencing}）。
+
+@node Using Debugger
+@c @subsection Using the Debugger
+@subsection デバッガの使い方
+
+@c   When the debugger is entered, it displays the previously selected
+@c buffer in one window and a buffer named @samp{*Backtrace*} in another
+@c window.  The backtrace buffer contains one line for each level of Lisp
+@c function execution currently going on.  At the beginning of this buffer
+@c is a message describing the reason that the debugger was invoked (such
+@c as the error message and associated data, if it was invoked due to an
+@c error).
+デバッガに入ると、それまで選択していたバッファをあるウィンドウに、
+@samp{*Backtrace*}という名前のバッファを別のウィンドウに表示します。
+バックトレースバッファでは、各行は現在実行中のLisp関数の各レベルです。
+このバッファの先頭には、デバッガを起動するに至った理由
+（エラーで起動されたときにはエラーメッセージと関連データ）
+を表すメッセージがあります。
+
+@c   The backtrace buffer is read-only and uses a special major mode,
+@c Debugger mode, in which letters are defined as debugger commands.  The
+@c usual Emacs editing commands are available; thus, you can switch windows
+@c to examine the buffer that was being edited at the time of the error,
+@c switch buffers, visit files, or do any other sort of editing.  However,
+@c the debugger is a recursive editing level (@pxref{Recursive Editing})
+@c and it is wise to go back to the backtrace buffer and exit the debugger
+@c (with the @kbd{q} command) when you are finished with it.  Exiting
+@c the debugger gets out of the recursive edit and kills the backtrace
+@c buffer.
+バックトレースバッファは読み出し専用であり、
+各文字をデバッガコマンドであると定義した
+特別なメジャーモード、debuggerモードを使います。
+Emacsの通常の編集コマンドも使えます。
+したがって、エラー発生時に編集していたバッファを調べるためにウィンドウを
+切り替えたり、バッファを切り替えたり、ファイルを訪れたり、
+その他のどんな編集でもできます。
+しかし、デバッガは再帰編集レベル（@pxref{Recursive Editing}）であるので、
+デバッグを終えるときには、バックトレースバッファに戻ってから
+デバッガを（コマンド@kbd{q}で）終了するのが賢い方法です。
+デバッガを終了すると、再帰編集から抜けバックトレースバッファを削除します。
+
+@c @cindex current stack frame
+@cindex カレントスタックフレーム
+@c   The backtrace buffer shows you the functions that are executing and
+@c their argument values.  It also allows you to specify a stack frame by
+@c moving point to the line describing that frame.  (A stack frame is the
+@c place where the Lisp interpreter records information about a particular
+@c invocation of a function.)  The frame whose line point is on is
+@c considered the @dfn{current frame}.  Some of the debugger commands
+@c operate on the current frame.
+バックトレースバッファでは、実行中の関数とその引数の値を表示します。
+また、スタックフレームを記述する行へポイントを移動することで
+スタックフレームを指定できます。
+（スタックフレームとは、Lispインタープリタが関数の起動に関する情報を
+記録しておく場所である。）
+ポイントがある行に対応するフレームを@dfn{カレントフレーム}（current frame）と
+呼びます。
+デバッガのある種のコマンドはカレントフレームに作用します。
+
+@c   The debugger itself must be run byte-compiled, since it makes
+@c assumptions about how many stack frames are used for the debugger
+@c itself.  These assumptions are false if the debugger is running
+@c interpreted.
+デバッガ自身はバイトコンパイルしたものを実行する必要があります。
+というのは、デバッガ自身が使用するスタックフレームのサイズを
+仮定しているからです。
+解釈実行だとこの仮定が成り立ちません。
+
+@need 3000
+
+@node Debugger Commands
+@c @subsection Debugger Commands
+@subsection デバッガコマンド
+@c @cindex debugger command list
+@cindex デバッガコマンド一覧
+
+@c   Inside the debugger (in Debugger mode), these special commands are
+@c available in addition to the usual cursor motion commands.  (Keep in
+@c mind that all the usual facilities of Emacs, such as switching windows
+@c or buffers, are still available.)
+デバッガ内（debuggerモード）では、
+通常のカーソル移動コマンドに加えて以下の特別なコマンドを使えます。
+（ウィンドウやバッファの切り替えなどのEmacsの通常の機能も使えることに留意。）
+
+@c   The most important use of debugger commands is for stepping through
+@c code, so that you can see how control flows.  The debugger can step
+@c through the control structures of an interpreted function, but cannot do
+@c so in a byte-compiled function.  If you would like to step through a
+@c byte-compiled function, replace it with an interpreted definition of the
+@c same function.  (To do this, visit the source for the function and type
+@c @kbd{C-M-x} on its definition.)
+デバッガコマンドのもっとも重要な使い方はステップ実行であり、
+これにより制御の流れを調べることです。
+デバッガは、解釈実行版の関数の制御構造をステップ実行できますが、
+バイトコンパイルした関数ではできません。
+バイトコンパイルした関数をステップ実行したい場合には、
+同じ関数を解釈実行版の定義に置き換える必要があります。
+（これには、関数のソースを訪れて、その定義内で@kbd{C-M-x}と打つ。）
+
+@c   Here is a list of Debugger mode commands:
+debuggerモードのコマンド一覧を以下に示します。
+
+@table @kbd
+@item c
+@c Exit the debugger and continue execution.  When continuing is possible,
+@c it resumes execution of the program as if the debugger had never been
+@c entered (aside from any side-effects that you caused by changing
+@c variable values or data structures while inside the debugger).
+デバッガを終了し実行を継続する。
+継続可能であれば、
+（デバッガ内で行った変数値やデータ構造に対する変更などの副作用を除いて）
+デバッガを起動しなかったかのようにプログラムの実行を再開する。
+
+@c Continuing is possible after entry to the debugger due to function entry
+@c or exit, explicit invocation, or quitting.  You cannot continue if the
+@c debugger was entered because of an error.
+継続が可能なのは、
+関数呼び出し時や終了時、明示的な起動、中断によりデバッガに入った場合である。
+エラーが原因でデバッガが起動されたときには継続できない。
+
+@item d
+@c Continue execution, but enter the debugger the next time any Lisp
+@c function is called.  This allows you to step through the
+@c subexpressions of an expression, seeing what values the subexpressions
+@c compute, and what else they do.
+実行を継続するが、任意のLisp関数を呼び出すとデバッガに入る。
+これにより、式の部分式をステップ実行して
+部分式が計算する値やその動作を調べることができる。
+
+@c The stack frame made for the function call which enters the debugger in
+@c this way will be flagged automatically so that the debugger will be
+@c called again when the frame is exited.  You can use the @kbd{u} command
+@c to cancel this flag.
+このようにしてデバッガを起動した関数呼び出しのスタックフレームには
+自動的に印が付き、そのスタックから抜けるとデバッガがふたたび呼び出される。
+この印を消すにはコマンド@kbd{u}を使う。
+
+@item b
+@c Flag the current frame so that the debugger will be entered when the
+@c frame is exited.  Frames flagged in this way are marked with stars
+@c in the backtrace buffer.
+フレームから抜けるとデバッガに入るようにカレントフレームに印を付ける。
+このように印を付けたフレームには、バックトレースバッファでは星印が付く。
+
+@item u
+@c Don't enter the debugger when the current frame is exited.  This
+@c cancels a @kbd{b} command on that frame.  The visible effect is to
+@c remove the star from the line in the backtrace buffer.
+カレントフレームから抜けるときにデバッガに入らない。
+これは、当該フレームに対するコマンド@kbd{b}を取り消す。
+視覚的にはバックトレースバッファの当該行から星印が取られる。
+
+@item e
+@c Read a Lisp expression in the minibuffer, evaluate it, and print the
+@c value in the echo area.  The debugger alters certain important
+@c variables, and the current buffer, as part of its operation; @kbd{e}
+@c temporarily restores their values from outside the debugger, so you can
+@c examine and change them.  This makes the debugger more transparent.  By
+@c contrast, @kbd{M-:} does nothing special in the debugger; it shows you
+@c the variable values within the debugger.
+ミニバッファでLisp式を読み取り、それを評価し、その値をエコー領域に表示する。
+この操作の一環として、デバッガは重要なある種の変数や
+カレントバッファを変更する。
+@kbd{e}はそれらの値をデバッガの外側の値に一時的に復元するので、
+それらを調べたり変更したりできる。
+これによりデバッガは透過的になる。
+対照的に、@kbd{M-:}はデバッガ内で特別なことは行わない。
+デバッガ内での変数値を表示する。
+
+@item R
+@c Like @kbd{e}, but also save the result of evaluation in the
+@c buffer @samp{*Debugger-record*}.
+@kbd{e}と同様であるが、
+バッファ@samp{*Debugger-record*}での評価結果も保存する。
+
+@item q
+@c Terminate the program being debugged; return to top-level Emacs
+@c command execution.
+デバッグ中のプログラムを終了する。
+Emacsのトップレベルのコマンド実行へ戻る。
+
+@c If the debugger was entered due to a @kbd{C-g} but you really want
+@c to quit, and not debug, use the @kbd{q} command.
+@kbd{C-g}でデバッガへ入ったが、
+実際には中断したいのであってデバッグはしたくない場合には
+コマンド@kbd{q}を使う。
+
+@item r
+@c Return a value from the debugger.  The value is computed by reading an
+@c expression with the minibuffer and evaluating it.
+デバッガから値を指定して戻る。
+その値は、ミニバッファで式を読み取り、それを評価して得る。
+
+@c The @kbd{r} command is useful when the debugger was invoked due to exit
+@c from a Lisp call frame (as requested with @kbd{b} or by entering the
+@c frame with @kbd{d}); then the value specified in the @kbd{r} command is
+@c used as the value of that frame.  It is also useful if you call
+@c @code{debug} and use its return value.  Otherwise, @kbd{r} has the same
+@c effect as @kbd{c}, and the specified return value does not matter.
+（@kbd{b}で指定したり@kbd{d}でフレームに入ることで）
+Lispの呼び出しフレームから抜けでたためにデバッガが起動された場合に、
+コマンド@kbd{r}は有用である。
+コマンド@kbd{r}で指定した値は、当該フレームの値として使われる。
+このコマンドは、@code{debug}を呼び出してその戻り値を使う場合にも有用である。
+さもなければ、@kbd{r}は@kbd{c}と同じ効果であり、指定した戻り値は関係ない。
+
+@c You can't use @kbd{r} when the debugger was entered due to an error.
+エラーでデバッガに入った場合には@kbd{r}は使えない。
+@end table
+
+@node Invoking the Debugger
+@c @subsection Invoking the Debugger
+@subsection デバッガの起動
+
+@c   Here we describe in full detail the function @code{debug} that is used
+@c to invoke the debugger.
+ここでは、デバッガを起動するために使われる関数@code{debug}の詳細を述べます。
+
+@defun debug &rest debugger-args
+@c This function enters the debugger.  It switches buffers to a buffer
+@c named @samp{*Backtrace*} (or @samp{*Backtrace*<2>} if it is the second
+@c recursive entry to the debugger, etc.), and fills it with information
+@c about the stack of Lisp function calls.  It then enters a recursive
+@c edit, showing the backtrace buffer in Debugger mode.
+この関数はデバッガに入る。
+@samp{*Backtrace*}（あるいはデバッガの第2レベルに再帰的に入ると
+@samp{*Backtrace*<2>}など）という名前のバッファに切り替え、
+Lisp関数の呼び出しスタックに関する情報でこのバッファを満たす。
+そして再帰編集に入りdebuggerモードのバックトレースバッファを表示する。
+
+@c The Debugger mode @kbd{c} and @kbd{r} commands exit the recursive edit;
+@c then @code{debug} switches back to the previous buffer and returns to
+@c whatever called @code{debug}.  This is the only way the function
+@c @code{debug} can return to its caller.
+debuggerモードのコマンド@kbd{c}や@kbd{r}で再帰編集から抜けだし、
+@code{debug}はそれ以前のバッファに切り替え
+@code{debug}を呼び出したところへ戻る。
+これは、関数@code{debug}が呼び出し側へ戻る唯一の手段である。
+
+@c The use of the @var{debugger-args} is that @code{debug} displays the
+@c rest of its arguments at the top of the @samp{*Backtrace*} buffer, so
+@c that the user can see them.  Except as described below, this is the
+@c @emph{only} way these arguments are used.
+@var{debugger-args}の使い途は、
+@code{debug}が引数の残りをバッファ@samp{*Backtrace*}の先頭に表示し、
+ユーザーが読めるようにすることである。
+以下に述べる場合を除いて、これがこれらの引数の@emph{唯一}の用途である。
+
+@c However, certain values for first argument to @code{debug} have a
+@c special significance.  (Normally, these values are used only by the
+@c internals of Emacs, and not by programmers calling @code{debug}.)  Here
+@c is a table of these special values:
+@code{debug}の第1引数が特定の値を持つ場合、特別な意味がある。
+（通常、これらの値はEmacs内部で用いるだけであり、
+プログラマが@code{debug}を呼ぶときには使わない。）
+以下にこれらの特別な値を示す。
+
+@table @code
+@item lambda
+@c @cindex @code{lambda} in debug
+@cindex デバッグの@code{lambda}
+@cindex @code{lambda}、デバッグ
+@c A first argument of @code{lambda} means @code{debug} was called because
+@c of entry to a function when @code{debug-on-next-call} was
+@c non-@code{nil}.  The debugger displays @samp{Entering:} as a line of
+@c text at the top of the buffer.
+第1引数が@code{lambda}であると、
+@code{debug-on-next-call}が@code{nil}以外であるために
+関数に入るときに@code{debug}を呼び出したことを意味する。
+デバッガはバッファの先頭にテキスト行@samp{Entering:}を表示する。
+
+@item debug
+@c @code{debug} as first argument indicates a call to @code{debug} because
+@c of entry to a function that was set to debug on entry.  The debugger
+@c displays @samp{Entering:}, just as in the @code{lambda} case.  It also
+@c marks the stack frame for that function so that it will invoke the
+@c debugger when exited.
+第1引数が@code{debug}であると、
+関数に入るときにデバッガを起動するようになっていたために
+@code{debug}を呼び出したことを示す。
+デバッガは、@code{lambda}の場合と同様に、@samp{Entering:}を表示する。
+さらに、当該関数のスタックフレームに関数から
+戻るときにデバッガを起動するように印を付ける。
+
+@item t
+@c When the first argument is @code{t}, this indicates a call to
+@c @code{debug} due to evaluation of a list form when
+@c @code{debug-on-next-call} is non-@code{nil}.  The debugger displays the
+@c following as the top line in the buffer:
+第1引数が@code{t}であると、
+@code{debug-on-next-call}が@code{nil}以外であるときに
+フォームの並びを評価したために
+@code{debug}を呼び出したことを示す。
+デバッガはバッファの先頭行につぎの行を表示する。
+
+@smallexample
+Beginning evaluation of function call form:
+@end smallexample
+
+@item exit
+@c When the first argument is @code{exit}, it indicates the exit of a stack
+@c frame previously marked to invoke the debugger on exit.  The second
+@c argument given to @code{debug} in this case is the value being returned
+@c from the frame.  The debugger displays @samp{Return value:} in the top
+@c line of the buffer, followed by the value being returned.
+第1引数が@code{exit}であると、
+スタックフレームから抜けるときにデバッガを呼び出すように印を
+付けたスタックフレームから抜けたことを示す。
+この場合、@code{debug}の第2引数はフレームからの戻り値である。
+デバッガはバッファの先頭行に@samp{Return value:}に続けて戻り値を表示する。
+
+@item error
+@c @cindex @code{error} in debug
+@cindex デバッグの@code{error}
+@cindex @code{error}、デバッグ
+@c When the first argument is @code{error}, the debugger indicates that
+@c it is being entered because an error or @code{quit} was signaled and not
+@c handled, by displaying @samp{Signaling:} followed by the error signaled
+@c and any arguments to @code{signal}.  For example,
+第1引数が@code{error}であると、
+エラーや@code{quit}が通知されたが処理されないためにデバッガに入ったことを示し、
+@samp{Signaling:}に続けて通知されたエラーと@code{signal}の引数を表示する。
+たとえばつぎのとおり。
+
+@example
+@group
+(let ((debug-on-error t))
+  (/ 1 0))
+@end group
+
+@group
+------ Buffer: *Backtrace* ------
+Signaling: (arith-error)
+  /(1 0)
+...
+------ Buffer: *Backtrace* ------
+@end group
+@end example
+
+@c If an error was signaled, presumably the variable
+@c @code{debug-on-error} is non-@code{nil}.  If @code{quit} was signaled,
+@c then presumably the variable @code{debug-on-quit} is non-@code{nil}.
+エラーが通知されたときには、
+変数@code{debug-on-error}は@code{nil}以外であるはずである。
+@code{quit}が通知されたときには、
+変数@code{debug-on-quit}は@code{nil}以外であるはずである。
+
+@item nil
+@c Use @code{nil} as the first of the @var{debugger-args} when you want
+@c to enter the debugger explicitly.  The rest of the @var{debugger-args}
+@c are printed on the top line of the buffer.  You can use this feature to
+@c display messages---for example, to remind yourself of the conditions
+@c under which @code{debug} is called.
+明示的にデバッガに入るときには、
+@var{debugger-args}の先頭として@code{nil}を使う。
+@var{debugger-args}の残りはバッファの先頭行に表示される。
+この機能を用いてメッセージを表示でき、
+たとえば、@code{debug}を呼び出した条件の覚え書きにする。
+@end table
+@end defun
+
+@node Internals of Debugger
+@c @subsection Internals of the Debugger
+@subsection デバッガの内部
+
+@c   This section describes functions and variables used internally by the
+@c debugger.
+本節では、デバッガが内部的に使用する関数や変数について述べます。
+
+@defvar debugger
+@c The value of this variable is the function to call to invoke the
+@c debugger.  Its value must be a function of any number of arguments (or,
+@c more typically, the name of a function).  Presumably this function will
+@c enter some kind of debugger.  The default value of the variable is
+@c @code{debug}.
+この変数の値は、デバッガを起動するために呼び出す関数である。
+その値は、可変個数の引数を取る関数（あるいは典型的には関数名）であること。
+その関数でなんらかのデバッガに入ると仮定する。
+この変数のデフォルト値は@code{debug}。
+
+@c The first argument that Lisp hands to the function indicates why it
+@c was called.  The convention for arguments is detailed in the description
+@c of @code{debug}.
+Lispが関数に渡す最初の引数で、呼び出した理由を表す。
+引数の規約は@code{debug}に記述してある。
+@end defvar
+
+@c @deffn Command backtrace
+@deffn コマンド backtrace
+@c @cindex run time stack
+@c @cindex call stack
+@cindex 実行時スタック
+@cindex 呼び出しスタック
+@c This function prints a trace of Lisp function calls currently active.
+@c This is the function used by @code{debug} to fill up the
+@c @samp{*Backtrace*} buffer.  It is written in C, since it must have access
+@c to the stack to determine which function calls are active.  The return
+@c value is always @code{nil}.
+この関数は、現在活性なLisp関数呼び出しのトレースを表示する。
+これは、@code{debug}がバッファ@samp{*Backtrace*}を
+満たすために用いる関数である。
+どの関数呼び出しが活性であるかを
+判断するためにスタックを参照する必要があるためCで書いてある。
+戻り値はつねに@code{nil}。
+
+@c In the following example, a Lisp expression calls @code{backtrace}
+@c explicitly.  This prints the backtrace to the stream
+@c @code{standard-output}: in this case, to the buffer
+@c @samp{backtrace-output}.  Each line of the backtrace represents one
+@c function call.  The line shows the values of the function's arguments if
+@c they are all known.  If they are still being computed, the line says so.
+@c The arguments of special forms are elided.
+以下の例では、Lisp式で明示的に@code{backtrace}を呼び出す。
+これにより、バックトレースをストリーム@code{standard-output}に出力する。
+ここではバッファ@samp{backtrace-output}に出力する。
+バックトレースの各行は、1つの関数呼び出しを表す。
+関数の引数値すべてが判ればそれらを行に表示する。
+それらが計算途中であれば、その旨を行に表示する。
+スペシャルフォームの引数は省略する。
+
+@smallexample
+@group
+(with-output-to-temp-buffer "backtrace-output"
+  (let ((var 1))
+    (save-excursion
+      (setq var (eval '(progn
+                         (1+ var)
+                         (list 'testing (backtrace))))))))
+
+     @result{} nil
+@end group
+
+@group
+----------- Buffer: backtrace-output ------------
+  backtrace()
+  (list ...computing arguments...)
+@end group
+  (progn ...)
+  eval((progn (1+ var) (list (quote testing) (backtrace))))
+  (setq ...)
+  (save-excursion ...)
+  (let ...)
+  (with-output-to-temp-buffer ...)
+  eval-region(1973 2142 #<buffer *scratch*>)
+  byte-code("...  for eval-print-last-sexp ...")
+@group
+  eval-print-last-sexp(nil)
+* call-interactively(eval-print-last-sexp)
+----------- Buffer: backtrace-output ------------
+@end group
+@end smallexample
+
+@c The character @samp{*} indicates a frame whose debug-on-exit flag is
+@c set.
+文字@samp{*}は、
+抜け出るときにデバッガを起動する印が付いているフレームを表す。
+@end deffn
+
+@ignore @c Not worth mentioning
+@defopt stack-trace-on-error
+@cindex stack trace
+This variable controls whether Lisp automatically displays a
+backtrace buffer after every error that is not handled.  A quit signal
+counts as an error for this variable.  If it is non-@code{nil} then a
+backtrace is shown in a pop-up buffer named @samp{*Backtrace*} on every
+error.  If it is @code{nil}, then a backtrace is not shown.
+
+When a backtrace is shown, that buffer is not selected.  If either
+@code{debug-on-quit} or @code{debug-on-error} is also non-@code{nil}, then
+a backtrace is shown in one buffer, and the debugger is popped up in
+another buffer with its own backtrace.
+
+We consider this feature to be obsolete and superseded by the debugger
+itself.
+@end defopt
+@end ignore
+
+@defvar debug-on-next-call
+@c @cindex @code{eval}, and debugging
+@c @cindex @code{apply}, and debugging
+@c @cindex @code{funcall}, and debugging
+@cindex @code{eval}とデバッグ
+@cindex @code{apply}とデバッグ
+@cindex @code{funcall}とデバッグ
+@c If this variable is non-@code{nil}, it says to call the debugger before
+@c the next @code{eval}, @code{apply} or @code{funcall}.  Entering the
+@c debugger sets @code{debug-on-next-call} to @code{nil}.
+この変数が@code{nil}以外であると、
+つぎに@code{eval}、@code{apply}、@code{funcall}を呼び出すまえに
+デバッガを呼び出すことを指定する。
+デバッガに入ると@code{debug-on-next-call}を@code{nil}に設定する。
+
+@c The @kbd{d} command in the debugger works by setting this variable.
+デバッガのコマンド@kbd{d}は、この変数を設定することで動作する。
+@end defvar
+
+@defun backtrace-debug level flag
+@c This function sets the debug-on-exit flag of the stack frame @var{level}
+@c levels down the stack, giving it the value @var{flag}.  If @var{flag} is
+@c non-@code{nil}, this will cause the debugger to be entered when that
+@c frame later exits.  Even a nonlocal exit through that frame will enter
+@c the debugger.
+この関数は、@var{level}の深さのスタックフレームに
+値@var{flag}に応じてフレームから抜け出るときのデバッガ呼び出しの印を付ける。
+@var{flag}が@code{nil}以外であると、
+のちに当該フレームから抜けるとデバッガに入る。
+非ローカルな脱出で当該フレームから抜けるときにもデバッガに入る。
+
+@c This function is used only by the debugger.
+この関数はデバッガのみが使用する。
+@end defun
+
+@defvar command-debug-status
+@c This variable records the debugging status of the current interactive
+@c command.  Each time a command is called interactively, this variable is
+@c bound to @code{nil}.  The debugger can set this variable to leave
+@c information for future debugger invocations during the same command
+@c invocation.
+この変数は、現在の対話的コマンドのデバッグ状況を記録する。
+コマンドが対話的に呼び出されるたびに、
+この変数は@code{nil}に束縛される。
+デバッガはこの変数に設定することで、
+同じコマンドの起動中にデバッガが将来起動された場合に備えて
+情報を残すことができる。
+
+@c The advantage, for the debugger, of using this variable rather than an
+@c ordinary global variable is that the data will never carry over to a
+@c subsequent command invocation.
+デバッガにとっては、通常のグローバル変数ではなくこの変数を使う利点は、
+以降のコマンド起動にデータが繰り越さないことである。
+@end defvar
+
+@defun backtrace-frame frame-number
+@c The function @code{backtrace-frame} is intended for use in Lisp
+@c debuggers.  It returns information about what computation is happening
+@c in the stack frame @var{frame-number} levels down.
+関数@code{backtrace-frame}は、Lispデバッガで使うことを意図している。
+深さ@var{frame-number}のスタックフレームで進行中の計算に関する情報を返す。
+
+@c If that frame has not evaluated the arguments yet (or is a special
+@c form), the value is @code{(nil @var{function} @var{arg-forms}@dots{})}.
+当該フレームで引数の評価を完了していなければ（あるいはスペシャルフォーム）、
+値は@code{(nil @var{function} @var{arg-forms}@dots{})}。
+
+@c If that frame has evaluated its arguments and called its function
+@c already, the value is @code{(t @var{function}
+@c @var{arg-values}@dots{})}.
+当該フレームで引数の評価を完了し関数を呼び出していれば、
+値は@code{(t @var{function} @var{arg-values}@dots{})}。
+
+@c In the return value, @var{function} is whatever was supplied as the
+@c @sc{car} of the evaluated list, or a @code{lambda} expression in the
+@c case of a macro call.  If the function has a @code{&rest} argument, that
+@c is represented as the tail of the list @var{arg-values}.
+戻り値において、@var{function}は評価したリストの@sc{car}であるか、
+マクロ呼び出しでは@code{lambda}式である。
+関数に引数@code{&rest}があれば、リスト@var{arg-values}の残りで表現される。
+
+@c If @var{frame-number} is out of range, @code{backtrace-frame} returns
+@c @code{nil}.
+@var{frame-number}が範囲外であると、@code{backtrace-frame}は@code{nil}を返す。
+@end defun
+
+@include edebug.texi
+
+@node Syntax Errors
+@c @section Debugging Invalid Lisp Syntax
+@section 不正なLisp構文のデバッグ
+
+@c   The Lisp reader reports invalid syntax, but cannot say where the real
+@c problem is.  For example, the error ``End of file during parsing'' in
+@c evaluating an expression indicates an excess of open parentheses (or
+@c square brackets).  The reader detects this imbalance at the end of the
+@c file, but it cannot figure out where the close parenthesis should have
+@c been.  Likewise, ``Invalid read syntax: ")"'' indicates an excess close
+@c parenthesis or missing open parenthesis, but does not say where the
+@c missing parenthesis belongs.  How, then, to find what to change?
+Lispリーダは不正な構文を報告しますが、どこに問題があるかは報告できません。
+たとえば、式を評価中のエラー『End of file during parsing』
+（構文解析中にファイルの終り）は、開き括弧（あるいは開き角括弧）が
+多すぎることを表します。
+Lispリーダは括弧が対応していないことをファイルの末尾で検出しますが、
+どこに閉じ括弧があるべきかは判断できません。
+同様に、『Invalid read syntax: ")"』（不正な構文：")"）は
+閉じ括弧が多すぎるか開き括弧が足りないことを表しますが、
+どこに括弧が足りないかは判断できません。
+それでは、どこを変更すべきかどのように調べるのでしょう？
+
+@c   If the problem is not simply an imbalance of parentheses, a useful
+@c technique is to try @kbd{C-M-e} at the beginning of each defun, and see
+@c if it goes to the place where that defun appears to end.  If it does
+@c not, there is a problem in that defun.
+問題が単純な括弧の非対応でなければ、
+各関数定義の先頭で@kbd{C-M-e}を試し、
+関数定義の末尾に移動するかどうかをみるのは有用な技法です。
+正しく移動しなければ、その関数に問題があります。
+
+@c   However, unmatched parentheses are the most common syntax errors in
+@c Lisp, and we can give further advice for those cases.  (In addition,
+@c just moving point through the code with Show Paren mode enabled might
+@c find the mismatch.)
+Lispによくある構文エラーは括弧の非対応なので、
+これらの場面について詳しい助言を述べておきます。
+（さらに、対応括弧表示モードをオンにしてポイントを移動すると非対応を
+探しやすい。）
+
+@menu
+* Excess Open::     How to find a spurious open paren or missing close.
+* Excess Close::    How to find a spurious close paren or missing open.
+@end menu
+
+@node Excess Open
+@c @subsection Excess Open Parentheses
+@subsection 開き括弧の過剰
+
+@c   The first step is to find the defun that is unbalanced.  If there is
+@c an excess open parenthesis, the way to do this is to insert a
+@c close parenthesis at the end of the file and type @kbd{C-M-b}
+@c (@code{backward-sexp}).  This will move you to the beginning of the
+@c defun that is unbalanced.  (Then type @kbd{C-@key{SPC} C-_ C-u
+@c C-@key{SPC}} to set the mark there, undo the insertion of the
+@c close parenthesis, and finally return to the mark.)
+最初の手順は、括弧が対応していない関数定義を探すことです。
+開き括弧が過剰であれば、ファイルの末尾に閉じ括弧を挿入し
+@kbd{C-M-b}（@code{backward-sexp}）を打ちます。
+こうすると、括弧が対応していない関数定義の先頭へ移動します。
+（そうしたら、@kbd{C-@key{SPC} C-_ C-u C-@key{SPC}}と打って、
+当該箇所にマークを設定してから閉じ括弧の挿入を取り消し、
+最終的にマークへ戻る。）
+
+@c   The next step is to determine precisely what is wrong.  There is no
+@c way to be sure of this except by studying the program, but often the
+@c existing indentation is a clue to where the parentheses should have
+@c been.  The easiest way to use this clue is to reindent with @kbd{C-M-q}
+@c and see what moves.  @strong{But don't do this yet!}  Keep reading,
+@c first.
+つぎの手順は、なにが悪いか正確に判断することです。
+プログラムを調べる以外にこれを確実に行う方法はありませんが、
+しばしば、既存の字下げが括弧のありかたを予想する鍵になります。
+これを利用するもっとも簡単な方法は@kbd{C-M-q}で字下げし直し、
+どのようになるか見ることです。
+@strong{まだやらないでください！}@code{ }
+まず読み進んてください。
+
+@c   Before you do this, make sure the defun has enough close parentheses.
+@c Otherwise, @kbd{C-M-q} will get an error, or will reindent all the rest
+@c of the file until the end.  So move to the end of the defun and insert a
+@c close parenthesis there.  Don't use @kbd{C-M-e} to move there, since
+@c that too will fail to work until the defun is balanced.
+これを行うまえに、関数定義に充分な数の閉じ括弧があることを確認してください。
+さもないと、@kbd{C-M-q}がエラーになったり、
+ファイルの末尾までを字下げし直してしまいます。
+ですから、関数定義の末尾へ移動して閉じ括弧を挿入しておきます。
+@kbd{C-M-e}を使って移動しないでください。
+というのは、関数定義の括弧の対応が取れていないと失敗するからです。
+
+@c   Now you can go to the beginning of the defun and type @kbd{C-M-q}.
+@c Usually all the lines from a certain point to the end of the function
+@c will shift to the right.  There is probably a missing close parenthesis,
+@c or a superfluous open parenthesis, near that point.  (However, don't
+@c assume this is true; study the code to make sure.)  Once you have found
+@c the discrepancy, undo the @kbd{C-M-q} with @kbd{C-_}, since the old
+@c indentation is probably appropriate to the intended parentheses.
+関数定義の先頭へ移動して@kbd{C-M-q}を打ちます。
+通常、ある場所から関数の末尾までの行が右へずれます。
+その場所の近くで、閉じ括弧が足りなかったり開き括弧が多すぎるのです。
+（しかし、これが正しいと仮定してはならない。
+コードを調べて確認すること。）
+不具合箇所がみつかったならば、
+意図した括弧に対しては古い字下げが適しているでしょうから
+@kbd{C-_}で@kbd{C-M-q}をアンドゥします。
+
+@c   After you think you have fixed the problem, use @kbd{C-M-q} again.  If
+@c the old indentation actually fit the intended nesting of parentheses,
+@c and you have put back those parentheses, @kbd{C-M-q} should not change
+@c anything.
+問題を解決できたと思ったら、再度@kbd{C-M-q}を使います。
+古い字下げが意図した括弧の入れ子に対応していて、
+必要な括弧を挿入できているならば、
+@kbd{C-M-q}はなにも変えないはずです。
+
+@node Excess Close
+@c @subsection Excess Close Parentheses
+@subsection 閉じ括弧の過剰
+
+@c   To deal with an excess close parenthesis, first insert an open
+@c parenthesis at the beginning of the file, back up over it, and type
+@c @kbd{C-M-f} to find the end of the unbalanced defun.  (Then type
+@c @kbd{C-@key{SPC} C-_ C-u C-@key{SPC}} to set the mark there, undo the
+@c insertion of the open parenthesis, and finally return to the mark.)
+過剰な閉じ括弧に対処するには、まず、ファイルの先頭に開き括弧を挿入し、
+その括弧のまえで@kbd{C-M-f}を打って、
+括弧が対応していない関数定義の末尾を探します。
+（そして、@kbd{C-@key{SPC} C-_ C-u C-@key{SPC}}と打って、
+当該箇所にマークを設定して開き括弧の挿入をアンドゥし、
+最終的にマークへ戻る。）
+
+@c   Then find the actual matching close parenthesis by typing @kbd{C-M-f}
+@c at the beginning of that defun.  This will leave you somewhere short of
+@c the place where the defun ought to end.  It is possible that you will
+@c find a spurious close parenthesis in that vicinity.
+その関数定義の先頭で@kbd{C-M-f}と打って、
+実際に対応している閉じ括弧を探します。
+これにより、関数定義が終るべき場所より手前の箇所に移動するはずです。
+この付近に余分な閉じ括弧がみつかることもあるでしょう。
+
+@c   If you don't see a problem at that point, the next thing to do is to
+@c type @kbd{C-M-q} at the beginning of the defun.  A range of lines will
+@c probably shift left; if so, the missing open parenthesis or spurious
+@c close parenthesis is probably near the first of those lines.  (However,
+@c don't assume this is true; study the code to make sure.)  Once you have
+@c found the discrepancy, undo the @kbd{C-M-q} with @kbd{C-_}, since the
+@c old indentation is probably appropriate to the intended parentheses.
+その場所に問題がなければ、つぎにすべきことは、
+関数定義の先頭で@kbd{C-M-q}と打つことです。
+ある範囲の行が左にずれるでしょう。
+もしそうならば、開き括弧が足りないか余分な閉じ括弧は、
+そのような行の先頭付近にあるでしょう。
+（しかし、これが正しいと仮定してはならない。
+コードを調べて確認すること。）
+不具合箇所がみつかったならば、
+意図した括弧に対しては古い字下げが適しているでしょうから
+@kbd{C-_}で@kbd{C-M-q}をアンドゥします。
+
+@c   After you think you have fixed the problem, use @kbd{C-M-q} again.  If
+@c the old indentation actually fit the intended nesting of parentheses,
+@c and you have put back those parentheses, @kbd{C-M-q} should not change
+@c anything.
+問題を解決できたと思ったら、再度@kbd{C-M-q}を使います。
+古い字下げが意図した括弧の入れ子に対応していて、
+必要な括弧を挿入できているならば、
+@kbd{C-M-q}はなにも変えないはずです。
+
+@node Compilation Errors
+@c @section Debugging Problems in Compilation
+@section コンパイル時の問題のデバッグ
+
+@c   When an error happens during byte compilation, it is normally due to
+@c invalid syntax in the program you are compiling.  The compiler prints a
+@c suitable error message in the @samp{*Compile-Log*} buffer, and then
+@c stops.  The message may state a function name in which the error was
+@c found, or it may not.  Either way, here is how to find out where in the
+@c file the error occurred.
+バイトコンパイル時にエラーが発生したときは、
+通常、読者がコンパイルしているプログラムの不正な構文に原因があります。
+コンパイラはバッファ@samp{*Compile-Log*}に適切なエラーメッセージを
+表示してから停止します。
+メッセージにはエラーとなった関数の名前があったりなかったりします。
+いずれにしても、つぎのようにしてファイルのどこでエラーが生じたかを調べます。
+
+@c   What you should do is switch to the buffer @w{@samp{ *Compiler Input*}}.
+@c (Note that the buffer name starts with a space, so it does not show
+@c up in @kbd{M-x list-buffers}.)  This buffer contains the program being
+@c compiled, and point shows how far the byte compiler was able to read.
+まず、バッファ@samp{ *Compiler Input*}に切り替えます。
+（バッファ名が空白で始まり、そのため、
+@kbd{M-x list-buffers}では表示されないことに注意。）
+このバッファにはコンパイルしたプログラムが入っていて、
+ポイント位置はバイトコンパイラがどこまで読み取ったかを表します。
+
+@c   If the error was due to invalid Lisp syntax, point shows exactly where
+@c the invalid syntax was @emph{detected}.  The cause of the error is not
+@c necessarily near by!  Use the techniques in the previous section to find
+@c the error.
+エラーの原因が不正なLisp構文であるならば、
+ポイント位置が不正構文を@emph{検出した}箇所を正確に表します。
+エラー原因が近くにあるとは限りません！@code{ }
+エラーを探すために前節の方法を使ってください。
+
+@c   If the error was detected while compiling a form that had been read
+@c successfully, then point is located at the end of the form.  In this
+@c case, this technique can't localize the error precisely, but can still
+@c show you which function to check.
+正しく読み取ったフォームのコンパイル中にエラーを検出したときには、
+ポイントはそのフォームの末尾に位置しています。
+この場合、この方法ではエラー箇所を正確に判別できませんが、
+どの関数を確認すべきかを示しています。

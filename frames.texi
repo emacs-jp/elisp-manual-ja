@@ -1,0 +1,2561 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/frames
+@node Frames, Positions, Windows, Top
+@c @chapter Frames
+@chapter フレーム
+@c @cindex frame
+@cindex フレーム
+
+@c   A @dfn{frame} is a rectangle on the screen that contains one or more
+@c Emacs windows.  A frame initially contains a single main window (plus
+@c perhaps a minibuffer window), which you can subdivide vertically or
+@c horizontally into smaller windows.
+@dfn{フレーム}（frame）とは、1つかそれ以上のEmacsのウィンドウを
+収めているスクリーン上の矩形です。
+フレームには最初は1つのウィンドウ（およびミニバッファ用ウィンドウ）が
+ありますが、それを上下や左右に小さなウィンドウに分割できます。
+
+@c @cindex terminal frame
+@cindex 端末フレーム
+@c   When Emacs runs on a text-only terminal, it starts with one
+@c @dfn{terminal frame}.  If you create additional ones, Emacs displays
+@c one and only one at any given time---on the terminal screen, of course.
+Emacsを文字端末で実行すると、
+1つの@dfn{端末フレーム}（terminal frame）を使います。
+別のフレームを作成すると、もちろん端末画面上では、
+Emacsは一度に1つのフレームしか表示しません。
+
+@c @cindex window frame
+@cindex ウィンドウフレーム
+@c   When Emacs communicates directly with a supported window system, such
+@c as X Windows, it does not have a terminal frame; instead, it starts with
+@c a single @dfn{window frame}, but you can create more, and Emacs can
+@c display several such frames at once as is usual for window systems.
+EmacsがXウィンドウのような対応しているウィンドウシステムと
+直接通信しているときには、端末フレームは使いません。
+そのかわりに、1つの@dfn{ウィンドウフレーム}（window frame）で始まりますが、
+いくつでもフレームを作れますし、ウィンドウシステムでは普通のことですが、
+Emacsはそのようなフレームを同時に複数表示できます。
+
+@defun framep object
+@c This predicate returns @code{t} if @var{object} is a frame, and
+@c @code{nil} otherwise.
+この関数は、@var{object}がフレームならば@code{t}を返し、
+さもなければ@code{nil}を返す。
+@end defun
+
+@menu
+* Creating Frames::		Creating additional frames.
+* Multiple Displays::           Creating frames on other displays.
+* Frame Parameters::		Controlling frame size, position, font, etc.
+* Frame Titles::                Automatic updating of frame titles.
+* Deleting Frames::		Frames last until explicitly deleted.
+* Finding All Frames::		How to examine all existing frames.
+* Frames and Windows::		A frame contains windows;
+				  display of text always works through windows.
+* Minibuffers and Frames::	How a frame finds the minibuffer to use.
+* Input Focus::			Specifying the selected frame.
+* Visibility of Frames::	Frames may be visible or invisible, or icons.
+* Raising and Lowering::	Raising a frame makes it hide other windows;
+				  lowering it makes the others hide them.
+* Frame Configurations::	Saving the state of all frames.
+* Mouse Tracking::		Getting events that say when the mouse moves.
+* Mouse Position::		Asking where the mouse is, or moving it.
+* Pop-Up Menus::		Displaying a menu for the user to select from.
+* Dialog Boxes::                Displaying a box to ask yes or no.
+* Pointer Shapes::              Specifying the shape of the mouse pointer.
+* Window System Selections::    Transferring text to and from other X clients.
+* Font Names::                  Looking up font names.
+* Fontsets::                    A fontset is a collection of fonts
+                                  for displaying various character sets.
+* Color Names::	                Getting the definitions of color names.
+* Resources::		        Getting resource values from the server.
+* Server Data::		        Getting info about the X server.
+@end menu
+
+@c   @xref{Display}, for information about the related topic of 
+@c controlling Emacs redisplay.
+Emacsの再表示の制御に関連する情報については@xref{Display}。
+
+@node Creating Frames
+@c @section Creating Frames
+@section フレームの作成
+
+@c To create a new frame, call the function @code{make-frame}.
+新たなフレームを作成するには、関数@code{make-frame}を呼び出します。
+
+@defun make-frame &optional alist
+@c This function creates a new frame.  If you are using a supported window
+@c system, it makes a window frame; otherwise, it makes a terminal frame.
+この関数は新たなフレームを作成する。
+対応しているウィンドウシステムを使っていれば、ウィンドウフレームを作る。
+さもなければ端末フレームを作る。
+
+@c The argument is an alist specifying frame parameters.  Any parameters
+@c not mentioned in @var{alist} default according to the value of the
+@c variable @code{default-frame-alist}; parameters not specified even there
+@c default from the standard X resources or whatever is used instead on
+@c your system.
+引数@var{alist}はフレームパラメータを指定する連想リストである。
+@var{alist}で指定していないパラメータは、
+変数@code{default-frame-alist}の値に従って決まる。
+それでも決まらないパラメータは、
+標準のXリソースやそれにかわる読者のシステムの設定を使う。
+
+@c The set of possible parameters depends in principle on what kind of
+@c window system Emacs uses to display its frames.  @xref{Window Frame
+@c Parameters}, for documentation of individual parameters you can specify.
+指定可能なパラメータは、Emacsがフレームの表示に使う
+ウィンドウシステムの種類に原理的には依存します。
+指定可能な各パラメータの説明は、@pxref{Window Frame Parameters}。
+@end defun
+
+@defvar before-make-frame-hook
+@tindex before-make-frame-hook
+@c A normal hook run by @code{make-frame} before it actually creates the
+@c frame.
+@code{make-frame}がフレームを実際に作成する直前に実行するノーマルフック。
+@end defvar
+
+@defvar after-make-frame-hook
+@tindex after-make-frame-hook
+@c An abnormal hook run by @code{make-frame} after it creates the frame.
+@c Each function in @code{after-make-frame-hook} receives one argument, the
+@c frame just created.
+@code{make-frame}がフレームを作成後に実行するアブノーマルフック。
+@code{after-make-frame-hook}の各関数は、1つの引数、
+つまり、作成したばかりのフレームを受け取る。
+@end defvar
+
+@node Multiple Displays
+@c @section Multiple Displays
+@section 複数ディスプレイ
+@c @cindex multiple X displays
+@c @cindex displays, multiple
+@cindex 複数のXディスプレイ
+@cindex ディスプレイ、複数
+
+@c   A single Emacs can talk to more than one X display.
+@c Initially, Emacs uses just one display---the one chosen with the
+@c @code{DISPLAY} environment variable or with the @samp{--display} option
+@c (@pxref{Initial Options,,, emacs, The GNU Emacs Manual}).  To connect to
+@c another display, use the command @code{make-frame-on-display} or specify
+@c the @code{display} frame parameter when you create the frame.
+1つのEmacsは複数のXディスプレイと通信できます。
+Emacsは始めは1つのディスプレイ、つまり、
+環境変数@code{DISPLAY}かオプション@samp{--display}
+（@pxref{Initial Options,, 初期化オプション, emacs,
+GNU Emacs マニュアル}）で決まる
+ものを使います。
+別のディスプレイに接続するには、
+コマンド@code{make-frame-on-display}を使うか、
+フレームを作るときにフレームパラメータ@code{display}を指定します。
+
+@c   Emacs treats each X server as a separate terminal, giving each one its
+@c own selected frame and its own minibuffer windows.
+Emacsは各Xサーバーを別々の端末として扱い、
+それらのおのおのには選択されているフレームと
+ミニバッファ用ウィンドウがあります。
+
+@c   A few Lisp variables are @dfn{terminal-local}; that is, they have a
+@c separate binding for each terminal.  The binding in effect at any time
+@c is the one for the terminal that the currently selected frame belongs
+@c to.  These variables include @code{default-minibuffer-frame},
+@c @code{defining-kbd-macro}, @code{last-kbd-macro}, and
+@c @code{system-key-alist}.  They are always terminal-local, and can never
+@c be buffer-local (@pxref{Buffer-Local Variables}) or frame-local.
+少数のLisp変数は@dfn{端末にローカル}（terminal-local）です。
+つまり、各端末ごとに別々の束縛があります。
+ある時点で有効な束縛は、選択されているフレームが属する端末のものです。
+このような変数には、@code{default-minibuffer-frame}、
+@code{defining-kbd-macro}、@code{last-kbd-macro}、
+@code{system-key-alist}があります。
+これらはつねに端末にローカルであり、
+バッファローカル（@pxref{Buffer-Local Variables}）や
+フレームローカルにはけっしてなりません。
+
+@c   A single X server can handle more than one screen.  A display name
+@c @samp{@var{host}:@var{server}.@var{screen}} has three parts; the last
+@c part specifies the screen number for a given server.  When you use two
+@c screens belonging to one server, Emacs knows by the similarity in their
+@c names that they share a single keyboard, and it treats them as a single
+@c terminal.
+1つのXサーバーは複数のスクリーンを扱えます。
+ディスプレイ名@samp{@var{host}:@var{server}.@var{screen}}には3つの部分があり、
+最後の部分で指定したサーバーのスクリーン番号を指定します。
+1つのサーバーに属する2つのスクリーンを使うと、
+Emacsはそれらの名前の類似性からそれらが1つのキーボードを共有していると判断し、
+それらのスクリーンを1つの端末として扱います。
+
+@c @deffn Command make-frame-on-display display &optional parameters
+@deffn コマンド make-frame-on-display display &optional parameters
+@c This creates a new frame on display @var{display}, taking the other
+@c frame parameters from @var{parameters}.  Aside from the @var{display}
+@c argument, it is like @code{make-frame} (@pxref{Creating Frames}).
+新たなフレームをディスプレイ@var{display}上に作成する。
+他のフレームパラメータは@var{parameters}から得る。
+引数@var{display}を除けば@code{make-frame}（@pxref{Creating Frames}）と
+同様である。
+@end deffn
+
+@defun x-display-list
+@c This returns a list that indicates which X displays Emacs has a
+@c connection to.  The elements of the list are strings, and each one is
+@c a display name.
+Emacsが接続しているXディスプレイを表すリストを返す。
+リストの要素は文字列であり、それぞれはディスプレイ名である。
+@end defun
+
+@defun x-open-connection display &optional xrm-string
+@c This function opens a connection to the X display @var{display}.  It
+@c does not create a frame on that display, but it permits you to check
+@c that communication can be established with that display.
+この関数はXディスプレイ@var{display}との接続を開く。
+当該ディスプレイ上にフレームは作らないが、
+これにより当該ディスプレイと通信可能かどうか検査できる。
+
+@c The optional argument @var{xrm-string}, if not @code{nil}, is a
+@c string of resource names and values, in the same format used in the
+@c @file{.Xresources} file.  The values you specify override the resource
+@c values recorded in the X server itself; they apply to all Emacs frames
+@c created on this display.  Here's an example of what this string might
+@c look like:
+省略可能な引数@var{xrm-string}が@code{nil}でなければ、
+ファイル@file{.Xresources}で使われ書式と同じ
+リソース名と値を表す文字列である。
+これに指定した値は、Xサーバー自体に記録されているリソースの値に優先し、
+Emacsが当該ディスプレイ上に作成するすべてのフレームに適用される。
+この文字列の例を以下に示す。
+
+@example
+"*BorderWidth: 3\n*InternalBorder: 2\n"
+@end example
+
+@c @xref{Resources}.
+@pxref{Resources}。
+@end defun
+
+@defun x-close-connection display
+@c This function closes the connection to display @var{display}.  Before
+@c you can do this, you must first delete all the frames that were open on
+@c that display (@pxref{Deleting Frames}).
+この関数はディスプレイ@var{display}との接続を閉じる。
+これを行うまえに、
+まず当該ディスプレイ上に作ったフレームをすべて削除しておくこと。
+@end defun
+
+@node Frame Parameters
+@c @section Frame Parameters
+@section フレームパラメータ
+
+@c A frame has many parameters that control its appearance and behavior.
+@c Just what parameters a frame has depends on what display mechanism it
+@c uses.
+フレームには、その見ためやふるまいを制御する多くのパラメータがあります。
+フレームのパラメータの種類は、使用する表示機構に依存します。
+
+@c Frame parameters exist for the sake of window systems.  A terminal frame
+@c has a few parameters, mostly for compatibility's sake; only the @code{height},
+@c @code{width}, @code{name}, @code{title}, @code{buffer-list} and
+@c @code{buffer-predicate} parameters do something special.
+フレームパラメータはウィンドウシステム向けです。
+端末フレームにはごく少数のパラメータがありますが、
+そのほとんどは互換性のためであり、
+@code{height}、@code{width}、@code{name}、@code{title}、
+@code{buffer-list}、@code{buffer-predicate}のパラメータだけが意味を持ちます。
+
+@menu
+* Parameter Access::       How to change a frame's parameters.
+* Initial Parameters::	   Specifying frame parameters when you make a frame.
+* Window Frame Parameters:: List of frame parameters for window systems.
+* Size and Position::      Changing the size and position of a frame.
+@end menu
+
+@node Parameter Access
+@c @subsection Access to Frame Parameters
+@subsection フレームパラメータの参照
+
+@c These functions let you read and change the parameter values of a
+@c frame.
+これらの関数は、フレームのパラメータの値を読んだり変更するためのものです。
+
+@defun frame-parameters frame
+@c The function @code{frame-parameters} returns an alist listing all the
+@c parameters of @var{frame} and their values.
+関数@code{frame-parameters}は、
+@var{frame}のすべてのパラメータとそれらの値から成る連想リストを返す。
+@end defun
+
+@defun modify-frame-parameters frame alist
+@c This function alters the parameters of frame @var{frame} based on the
+@c elements of @var{alist}.  Each element of @var{alist} has the form
+@c @code{(@var{parm} . @var{value})}, where @var{parm} is a symbol naming a
+@c parameter.  If you don't mention a parameter in @var{alist}, its value
+@c doesn't change.
+この関数は、@var{alist}の要素に基づいてフレーム@var{frame}の
+パラメータを変更する。
+@var{alist}の各要素は@code{(@var{parm} . @var{value})}の形であり、
+@var{parm}はパラメータを表すシンボルである。
+@var{alist}に指定しないパラメータの値は変更されない。
+@end defun
+
+@node Initial Parameters
+@c @subsection Initial Frame Parameters
+@subsection 初期フレームのパラメータ
+
+@c You can specify the parameters for the initial startup frame
+@c by setting @code{initial-frame-alist} in your @file{.emacs} file.
+読者のファイル@file{.emacs}で@code{initial-frame-alist}に設定すれば、
+起動時の初期フレームのパラメータを指定できます。
+
+@defvar initial-frame-alist
+@c This variable's value is an alist of parameter values used when creating
+@c the initial window frame.  You can set this variable to specify the
+@c appearance of the initial frame without altering subsequent frames.
+@c Each element has the form:
+この変数の値は、初期フレームを作るときに
+使用するパラメータの値から成る連想リストである。
+この変数を指定すれば初期フレームの見ためを指定できるが、
+それ以降に作成するフレームには影響しない。
+各要素はつぎの形である。
+
+@example
+(@var{parameter} . @var{value})
+@end example
+
+@c Emacs creates the initial frame before it reads your @file{~/.emacs}
+@c file.  After reading that file, Emacs checks @code{initial-frame-alist},
+@c and applies the parameter settings in the altered value to the already
+@c created initial frame.
+Emacsは読者のファイル@file{~/.emacs}を読むまえに初期フレームを作る。
+このファイルを読んだあとに、Emacsは@code{initial-frame-alist}を検査し
+異なる値が設定されているパラメータをすでに作成した初期フレームに適用する。
+
+@c If these settings affect the frame geometry and appearance, you'll see
+@c the frame appear with the wrong ones and then change to the specified
+@c ones.  If that bothers you, you can specify the same geometry and
+@c appearance with X resources; those do take affect before the frame is
+@c created.  @xref{Resources X,, X Resources, emacs, The GNU Emacs Manual}.
+これらの設定がフレームの大きさと位置や見ために関するものであると、
+指定とは違うフレームが現れてから指定したものに変わるのを目にする。
+これがわずらわしい場合には、Xリソースにも同じ大きさと位置や見ためを指定する。
+Xリソースはフレームを作成するまえに適用される。
+@pxref{Resources X,, Xリソース, emacs, GNU Emacs マニュアル}。
+
+@c X resource settings typically apply to all frames.  If you want to
+@c specify some X resources solely for the sake of the initial frame, and
+@c you don't want them to apply to subsequent frames, here's how to achieve
+@c this.  Specify parameters in @code{default-frame-alist} to override the
+@c X resources for subsequent frames; then, to prevent these from affecting
+@c the initial frame, specify the same parameters in
+@c @code{initial-frame-alist} with values that match the X resources.
+Xリソースの設定は、典型的にはすべてのフレームに適用される。
+初期フレームだけに特定のXリソースを指定し、
+それ以降のフレームに適用したくない場合には、つぎのようにする。
+パラメータを@code{default-frame-alist}で指定し、
+以降のフレーム向けのXリソースを無効にする。
+そしてそれらが初期フレームに影響しないように、
+@code{initial-frame-alist}のパラメータでXリソースに一致する値を指定する。
+@end defvar
+
+@c If these parameters specify a separate minibuffer-only frame with
+@c @code{(minibuffer . nil)}, and you have not created one, Emacs creates
+@c one for you.
+これらのパラメータにミニバッファ専用のフレームを作る
+@code{(minibuffer . nil)}を指定しているのに
+ミニバッファ専用フレームを作っていないと、Emacsがそれを作成します。
+
+@defvar minibuffer-frame-alist
+@c This variable's value is an alist of parameter values used when creating
+@c an initial minibuffer-only frame---if such a frame is needed, according
+@c to the parameters for the main initial frame.
+この変数の値は、初期のミニバッファ専用フレームを作るときに使用する
+パラメータの連想リストである。
+初期フレームのパラメータからミニバッファ専用フレームが
+必要であると判断するとそれを作る。
+@end defvar
+
+@defvar default-frame-alist
+@c This is an alist specifying default values of frame parameters for all
+@c Emacs frames---the first frame, and subsequent frames.  When using the X
+@c Window System, you can get the same results by means of X resources
+@c in many cases.
+これは、Emacsのすべてのフレーム、つまり、
+初期フレームとそれ以降のフレームのフレームパラメータのデフォルト値を
+指定する連想リストである。
+Xウィンドウシステムを使っているときには、多くの場合、
+Xリソースによっても同じ結果を得られる。
+@end defvar
+
+@c See also @code{special-display-frame-alist}, in @ref{Choosing Window}.
+@ref{Choosing Window}の@code{special-display-frame-alist}も
+参照してください。
+
+@c If you use options that specify window appearance when you invoke Emacs,
+@c they take effect by adding elements to @code{default-frame-alist}.  One
+@c exception is @samp{-geometry}, which adds the specified position to
+@c @code{initial-frame-alist} instead.  @xref{Command Arguments,,, emacs,
+@c The GNU Emacs Manual}.
+Emacsを起動するときにウィンドウの見ためを指定するオプションを使うと、
+それらは@code{default-frame-alist}に要素を追加することで効果を発揮します。
+1つの例外は@samp{-geometry}で、指定位置は@code{initial-frame-alist}に
+追加されます。
+@xref{Command Arguments,, コマンド行引数, emacs, GNU Emacs マニュアル}。
+
+@node Window Frame Parameters
+@c @subsection Window Frame Parameters
+@subsection ウィンドウフレームのパラメータ
+
+@c Just what parameters a frame has depends on what display mechanism it
+@c uses.  Here is a table of the parameters that have special meanings in a
+@c window frame; of these, @code{name}, @code{title}, @code{height},
+@c @code{width}, @code{buffer-list} and @code{buffer-predicate} provide
+@c meaningful information in terminal frames.
+フレームのパラメータの種類は、使用する表示機構に依存します。
+ウィンドウフレームにおいて特別な意味を持つパラメータの一覧をつぎに示します。
+これらのうち、@code{name}、@code{title}、@code{height}、
+@code{width}、@code{buffer-list}、@code{buffer-predicate}は
+端末フレームでも意味を持ちます。
+
+@table @code
+@item display
+@c The display on which to open this frame.  It should be a string of the
+@c form @code{"@var{host}:@var{dpy}.@var{screen}"}, just like the
+@c @code{DISPLAY} environment variable.
+このフレームを開くディスプレイ。
+環境変数@code{DISPLAY}と同様に、
+@code{"@var{host}:@var{dpy}.@var{screen}"}の形の文字列であること。
+
+@item title
+@c If a frame has a non-@code{nil} title, it appears in the window system's
+@c border for the frame, and also in the mode line of windows in that frame
+@c if @code{mode-line-frame-identification} uses @samp{%F}
+@c (@pxref{%-Constructs}).  This is normally the case when Emacs is not
+@c using a window system, and can only display one frame at a time.
+@c @xref{Frame Titles}.
+フレームのタイトル@code{title}が@code{nil}以外であると、
+フレーム向けのウィンドウシステムの枠にタイトルが現れる。
+また、@code{mode-line-frame-identification}に@samp{%F}
+（@pxref{%-Constructs}）を使っていれば、
+当該フレームのモード行にもタイトルが現れる。
+Emacsがウィンドウシステムを使っていない場合には、
+これは普通はモード行に表示され一度に1つのフレームだけを表示できる。
+@pxref{Frame Titles}。
+
+@item name
+@c The name of the frame.  The frame name serves as a default for the frame
+@c title, if the @code{title} parameter is unspecified or @code{nil}.  If
+@c you don't specify a name, Emacs sets the frame name automatically
+@c (@pxref{Frame Titles}).
+フレームの名前。
+パラメータ@code{title}を指定しないか@code{nil}であると、
+フレーム名はフレームタイトルのデフォルトになる。
+@code{name}を指定しないと、Emacsが自動的にフレーム名を設定する
+（@pxref{Frame Titles}）。
+
+@c If you specify the frame name explicitly when you create the frame, the
+@c name is also used (instead of the name of the Emacs executable) when
+@c looking up X resources for the frame.
+フレームを作るときにフレーム名を明示的に指定すると、
+その名前は（Emacsの実行形式ファイルの名前のかわりに）
+フレーム向けのXリソースを探すためにも使われる。
+
+@item left
+@c The screen position of the left edge, in pixels, with respect to the
+@c left edge of the screen.  The value may be a positive number @var{pos},
+@c or a list of the form @code{(+ @var{pos})} which permits specifying a
+@c negative @var{pos} value.
+スクリーンの左端を基準にしたピクセル単位の左端位置。
+この値は正の数@var{pos}であるか、
+負の@var{pos}の値を指定できる@code{(+ @var{pos})}の形のリストである。
+
+@c A negative number @minus{}@var{pos}, or a list of the form @code{(-
+@c @var{pos})}, actually specifies the position of the right edge of the
+@c window with respect to the right edge of the screen.  A positive value
+@c of @var{pos} counts toward the left.  @strong{Reminder:} if the
+@c parameter is a negative integer @minus{}@var{pos}, then @var{pos} is
+@c positive.
+負の数@minus{}@var{pos}や@code{(- @var{pos})}の形のリストは、
+実際には、スクリーンの右端を基準にしたウィンドウの右端位置を指定する。
+@var{pos}の正の値は左へ向けて数える。
+@strong{注意：}@code{ }パラメータが負の整数@minus{}@var{pos}であると、
+@var{pos}は正である。
+
+@c Some window managers ignore program-specified positions.  If you want to
+@c be sure the position you specify is not ignored, specify a
+@c non-@code{nil} value for the @code{user-position} parameter as well.
+プログラムが指定した位置を無視するウィンドウマネージャもある。
+指定した位置が無視されないように保証したい場合には、
+パラメータ@code{user-position}にも@code{nil}以外の値を指定する。
+
+@item top
+@c The screen position of the top edge, in pixels, with respect to the
+@c top edge of the screen.  The value may be a positive number @var{pos},
+@c or a list of the form @code{(+ @var{pos})} which permits specifying a
+@c negative @var{pos} value.
+スクリーンの上端を基準にしたピクセル単位の上端位置。
+この値は正の数@var{pos}であるか、
+負の@var{pos}の値を指定できる@code{(+ @var{pos})}の形のリストである。
+
+@c A negative number @minus{}@var{pos}, or a list of the form @code{(-
+@c @var{pos})}, actually specifies the position of the bottom edge of the
+@c window with respect to the bottom edge of the screen.  A positive value
+@c of @var{pos} counts toward the top.  @strong{Reminder:} if the
+@c parameter is a negative integer @minus{}@var{pos}, then @var{pos} is
+@c positive.
+負の数@minus{}@var{pos}や@code{(- @var{pos})}の形のリストは、
+実際には、スクリーンの下端を基準にしたウィンドウの下端位置を指定する。
+@var{pos}の正の値は上へ向けて数える。
+@strong{注意：}@code{ }パラメータが負の整数@minus{}@var{pos}であると、
+@var{pos}は正である。
+
+@c Some window managers ignore program-specified positions.  If you want to
+@c be sure the position you specify is not ignored, specify a
+@c non-@code{nil} value for the @code{user-position} parameter as well.
+プログラムが指定した位置を無視するウィンドウマネージャもある。
+指定した位置が無視されないように保証したい場合には、
+パラメータ@code{user-position}にも@code{nil}以外の値を指定する。
+
+@item icon-left
+@c The screen position of the left edge @emph{of the frame's icon}, in
+@c pixels, counting from the left edge of the screen.  This takes effect if
+@c and when the frame is iconified.
+スクリーンの左端を基準にした
+@emph{フレームのアイコン}のピクセル単位の左端位置。
+フレームをアイコンにしたときに効果を発揮する。
+
+@item icon-top
+@c The screen position of the top edge @emph{of the frame's icon}, in
+@c pixels, counting from the top edge of the screen.  This takes effect if
+@c and when the frame is iconified.
+スクリーンの上端を基準にした
+@emph{フレームのアイコン}のピクセル単位の上端位置。
+フレームをアイコンにしたときに効果を発揮する。
+
+@item user-position
+@c When you create a frame and specify its screen position with the
+@c @code{left} and @code{top} parameters, use this parameter to say whether
+@c the specified position was user-specified (explicitly requested in some
+@c way by a human user) or merely program-specified (chosen by a program).
+@c A non-@code{nil} value says the position was user-specified.
+パラメータ@code{left}と@code{top}でスクリーン上の位置を指定して
+フレームを作るときに、このパラメータは指定位置が、
+（利用者がなんらかの方法で与えた）ユーザー指定のものなのか、
+（プログラムが選んだ）プログラム指定のものなのかを指定する。
+@code{nil}以外の値であるとユーザー指定の位置であることを意味する。
+
+@c Window managers generally heed user-specified positions, and some heed
+@c program-specified positions too.  But many ignore program-specified
+@c positions, placing the window in a default fashion or letting the user
+@c place it with the mouse.  Some window managers, including @code{twm},
+@c let the user specify whether to obey program-specified positions or
+@c ignore them.
+ウィンドウマネージャはユーザー指定の位置を一般に尊重し、
+プログラム指定の位置も尊重するものもある。
+しかしその多くはプログラム指定の位置を無視し、
+デフォルトに基づいてウィンドウを配置したり、
+マウスでユーザーに配置させる。
+@code{twm}を含むウィンドウマネージャには、
+プログラム指定の位置に従うかそれらを無視するかを
+ユーザーが指定できるものもある。
+
+@c When you call @code{make-frame}, you should specify a non-@code{nil}
+@c value for this parameter if the values of the @code{left} and @code{top}
+@c parameters represent the user's stated preference; otherwise, use
+@c @code{nil}.
+@code{make-frame}を呼び出すときには、
+パラメータ@code{left}と@code{top}の値がユーザーの希望を表す場合には
+このパラメータの値には@code{nil}以外を指定すること。
+さもなければ@code{nil}を指定する。
+
+@item height
+@c The height of the frame contents, in characters.  (To get the height in
+@c pixels, call @code{frame-pixel-height}; see @ref{Size and Position}.)
+フレームの内側の文字単位の高さ。
+（ピクセル単位の高さを得るには@code{frame-pixel-height}を呼び出す。
+@ref{Size and Position}を参照。）
+
+@item width
+@c The width of the frame contents, in characters.  (To get the height in
+@c = 誤植                                                       width
+@c pixels, call @code{frame-pixel-width}; see @ref{Size and Position}.)
+フレームの内側の文字単位の幅。
+（ピクセル単位の幅を得るには@code{frame-pixel-width}を呼び出す。
+@ref{Size and Position}を参照。）
+
+@item window-id
+@c The number of the window-system window used by the frame.
+フレームとして使うウィンドウシステムのウィンドウ番号。
+
+@item minibuffer
+@c Whether this frame has its own minibuffer.  The value @code{t} means
+@c yes, @code{nil} means no, @code{only} means this frame is just a
+@c minibuffer.  If the value is a minibuffer window (in some other frame),
+@c the new frame uses that minibuffer.
+このフレームに独自のミニバッファがあるかどうかを表す。
+値@code{t}はあることを表し、@code{nil}はないことを表す。
+@code{only}は、このフレームがミニバッファだけであることを表す。
+（別のフレームの）値がミニバッファだけであると、
+新たなフレームはそのミニバッファを使う。
+
+@item buffer-predicate
+@c The buffer-predicate function for this frame.  The function
+@c @code{other-buffer} uses this predicate (from the selected frame) to
+@c decide which buffers it should consider, if the predicate is not
+@c @code{nil}.  It calls the predicate with one argument, a buffer, once for
+@c each buffer; if the predicate returns a non-@code{nil} value, it
+@c considers that buffer.
+このフレーム向けのバッファ述語関数。
+これが@code{nil}でなければ、
+関数@code{other-buffer}が（選択されているフレームから）この述語を使用して、
+どのバッファにするかを決定する。
+@code{other-buffer}は各バッファごとにバッファを引数としてこの述語を呼び出す。
+この述語が@code{nil}以外を返すと当該バッファを選ぶ。
+
+@item buffer-list
+@c A list of buffers that have been selected in this frame,
+@c ordered most-recently-selected first.
+このフレームで選択されたバッファを
+もっとも最近に選択されたものから順に並べたリスト。
+
+@item font
+@c The name of the font for displaying text in the frame.  This is a
+@c string, either a valid font name for your system or the name of an Emacs
+@c fontset (@pxref{Fontsets}).
+フレーム内でテキストの表示に使うフォントの名前。
+これは、読者のシステムにおいて正しいフォントの名前であるか
+Emacsのフォントセット（@pxref{Fontsets}）の名前を表す文字列である。
+
+@item auto-raise
+@c Whether selecting the frame raises it (non-@code{nil} means yes).
+フレームを選択したときにフレームを手前に移動するかどうかを表す
+（@code{nil}以外であるとそのようにする）。
+
+@item auto-lower
+@c Whether deselecting the frame lowers it (non-@code{nil} means yes).
+フレームの選択を止めたときにフレームを奥へ移動するかどうかを表す
+（@code{nil}以外であるとそのようにする）。
+
+@item vertical-scroll-bars
+@c Whether the frame has scroll bars for vertical scrolling, and which side
+@c of the frame they should be on.  The possible values are @code{left},
+@c @code{right}, and @code{nil} for no scroll bars.
+フレームに垂直スクロール用のスクロールバーを付けるかどうか、
+どちら側に付けるかを表す。
+指定できる値は、@code{left}、@code{right}、あるいは
+スクロールバーなしを意味する@code{nil}。
+
+@item horizontal-scroll-bars
+@c Whether the frame has scroll bars for horizontal scrolling
+@c (non-@code{nil} means yes).  (Horizontal scroll bars are not currently
+@c implemented.)
+水平スクロール用のスクロールバーを付けるかどうかを表す
+（@code{nil}以外だと付ける）。
+（水平スクロールバーはいまのところ実装してない。）
+
+@item scroll-bar-width
+@c The width of the vertical scroll bar, in pixels.
+垂直スクロールバーのピクセル単位の幅。
+
+@item icon-type
+@c The type of icon to use for this frame when it is iconified.  If the
+@c value is a string, that specifies a file containing a bitmap to use.
+@c Any other non-@code{nil} value specifies the default bitmap icon (a
+@c picture of a gnu); @code{nil} specifies a text icon.
+このフレームをアイコンにしたときに使うアイコンの種類。
+値が文字列であると、使用するビットマップを収めたファイルを指定する。
+それ以外の@code{nil}以外の値はデフォルトのビットマップアイコン
+（gnuの絵）を指定する。
+@code{nil}はテキストのアイコンを指定する。
+
+@item icon-name
+@c The name to use in the icon for this frame, when and if the icon
+@c appears.  If this is @code{nil}, the frame's title is used.
+このフレーム向けのアイコンを表示するときに使用するアイコンの名前。
+これが@code{nil}であると、フレームのタイトルを使う。
+
+@item foreground-color
+@c The color to use for the image of a character.  This is a string; the
+@c window system defines the meaningful color names.
+文字の描画に使う表示色。
+これは文字列である。
+ウィンドウシステムが妥当な表示色の名称を定義する。
+
+@c If you set the @code{foreground-color} frame parameter, you should
+@c call @code{frame-update-face-colors} to update faces accordingly.
+フレームパラメータ@code{foreground-color}に設定したときには、
+それに対応してフェイスを更新するために
+@code{frame-update-face-colors}を呼び出すこと。
+
+@item background-color
+@c The color to use for the background of characters.
+文字の背景に使う表示色。
+
+@c If you set the @code{background-color} frame parameter, you should
+@c call @code{frame-update-face-colors} to update faces accordingly.
+@c @xref{Face Functions}.
+フレームパラメータ@code{background-color}に設定したときには、
+それに対応してフェイスを更新するために
+@code{frame-update-face-colors}を呼び出すこと。
+@pxref{Face Functions}。
+
+@item background-mode
+@c This parameter is either @code{dark} or @code{light}, according
+@c to whether the background color is a light one or a dark one.
+背景色が明るいか暗いかにしたがって、
+このパラメータは@code{dark}か@code{light}である。
+
+@item mouse-color
+@c The color for the mouse pointer.
+マウスポインタの表示色。
+
+@item cursor-color
+@c The color for the cursor that shows point.
+ポイントを表すカーソルの表示色。
+
+@item border-color
+@c The color for the border of the frame.
+フレームの枠の表示色。
+
+@item display-type
+@c This parameter describes the range of possible colors that can be used
+@c in this frame.  Its value is @code{color}, @code{grayscale} or
+@c @code{mono}.
+このパラメータはこのフレームで使用可能な表示色の範囲を表す。
+値は、@code{color}、@code{grayscale}、@code{mono}のいずれかである。
+
+@item cursor-type
+@c The way to display the cursor.  The legitimate values are @code{bar},
+@c @code{box}, and @code{(bar . @var{width})}.  The symbol @code{box}
+@c specifies an ordinary black box overlaying the character after point;
+@c that is the default.  The symbol @code{bar} specifies a vertical bar
+@c between characters as the cursor.  @code{(bar . @var{width})} specifies
+@c a bar @var{width} pixels wide.
+カーソルの表示方法。
+正しい値は、@code{bar}、@code{box}、
+@code{(bar . @var{width})}のいずれかである。
+シンボル@code{box}は、ポイント直後の文字に重なる通常の黒い箱型の
+カーソルを指定し、これがデフォルトである。
+シンボル@code{bar}は、カーソルとして文字のあいだに縦棒を置く指定である。
+@code{(bar . @var{width})}は、ピクセル幅@var{width}の縦棒を指定する。
+
+@item border-width
+@c The width in pixels of the window border.
+ウィンドウ枠のピクセル単位の幅。
+
+@item internal-border-width
+@c The distance in pixels between text and border.
+枠とテキストのあいだのピクセル単位の間隔。
+
+@item unsplittable
+@c If non-@code{nil}, this frame's window is never split automatically.
+@code{nil}以外であると、このフレームのウィンドウをけっして自動的に分割しない。
+
+@item visibility
+@c The state of visibility of the frame.  There are three possibilities:
+@c @code{nil} for invisible, @code{t} for visible, and @code{icon} for
+@c iconified.  @xref{Visibility of Frames}.
+フレームの可視性。
+不可視を表す@code{nil}、可視を表す@code{t}、
+アイコンになっていることを表す@code{icon}の3の可能性がある。
+@pxref{Visibility of Frames}。
+
+@item menu-bar-lines
+@c The number of lines to allocate at the top of the frame for a menu bar.
+@c The default is 1.  @xref{Menu Bar}.  (In Emacs versions that use the X
+@c toolkit, there is only one menu bar line; all that matters about the
+@c number you specify is whether it is greater than zero.)
+フレームの上端に割り当てるメニューバー向けの行の個数。
+デフォルトは1である。
+@pxref{Menu Bar}。
+（Xツールキットを使うEmacsでは、メニューバーは1行だけである。
+この場合、0より大きな数を指定したかどうかに意味がある。）
+
+@ignore
+@item parent-id
+@c ??? Not yet working.
+The X window number of the window that should be the parent of this one.
+Specifying this lets you create an Emacs window inside some other
+application's window.  (It is not certain this will be implemented; try
+it and see if it works.)
+@end ignore
+@end table
+
+@node Size and Position
+@c @subsection Frame Size And Position
+@subsection フレームのサイズと位置
+@c @cindex size of frame
+@c @cindex screen size
+@c @cindex frame size
+@c @cindex resize frame
+@cindex フレームサイズ
+@cindex サイズ、フレーム
+@cindex スクリーンサイズ
+@cindex サイズ、スクリーン
+@cindex フレームのリサイズ
+@cindex リサイズ、フレーム
+
+@c   You can read or change the size and position of a frame using the
+@c frame parameters @code{left}, @code{top}, @code{height}, and
+@c @code{width}.  Whatever geometry parameters you don't specify are chosen
+@c by the window manager in its usual fashion.
+フレームパラメータ@code{left}、@code{top}、@code{height}、@code{width}を
+使って、フレームのサイズや位置を読み取ったり変更できます。
+指定しなかった大きさと位置のパラメータは、
+ウィンドウマネージャが通常どおりに選びます。
+
+@c   Here are some special features for working with sizes and positions:
+以下はサイズや位置を操作する特別な機能です。
+
+@defun set-frame-position frame left top
+@c This function sets the position of the top left corner of @var{frame} to
+@c @var{left} and @var{top}.  These arguments are measured in pixels, and
+@c normally count from the top left corner of the screen.
+この関数は、フレーム@var{frame}の左上隅の位置を
+@var{left}（左端）と@var{top}（上端）にする。
+これらの引数は、スクリーンの左上隅からピクセル単位で数える。
+
+@c Negative parameter values position the bottom edge of the window up from
+@c the bottom edge of the screen, or the right window edge to the left of
+@c the right edge of the screen.  It would probably be better if the values
+@c were always counted from the left and top, so that negative arguments
+@c would position the frame partly off the top or left edge of the screen,
+@c but it seems inadvisable to change that now.
+パラメータ値が負であると、スクリーンの下端から測ってウィンドウの下端を
+位置決めしたり、スクリーンの右端から測ってウィンドウの右端を位置決めする。
+つねに左端や上端から測った値にして、負の値はフレームを
+スクリーンの上端や左端から部分的にはみ出して位置決めする
+意味にするほうがよいかもしれないが、
+現状ではそのように変えるのは不適当と思われる。
+@end defun
+
+@defun frame-height &optional frame
+@defunx frame-width &optional frame
+@c These functions return the height and width of @var{frame}, measured in
+@c lines and columns.  If you don't supply @var{frame}, they use the
+@c selected frame.
+この関数は、フレーム@var{frame}の高さや幅を行単位やコラム単位で返す。
+@var{frame}を指定しないと、選択されているフレームを使う。
+@end defun
+
+@defun screen-height
+@defunx screen-width
+@c These functions are old aliases for @code{frame-height} and
+@c @code{frame-width}.  When you are using a non-window terminal, the size
+@c of the frame is normally the same as the size of the terminal screen.
+これらの関数は@code{frame-height}や@code{frame-width}の古い別名である。
+文字端末を使っている場合、通常、フレームの大きさは
+端末スクリーンの大きさと同じである。
+@end defun
+
+@defun frame-pixel-height &optional frame
+@defunx frame-pixel-width &optional frame
+@c These functions return the height and width of @var{frame}, measured in
+@c pixels.  If you don't supply @var{frame}, they use the selected frame.
+これらの関数は、フレーム@var{frame}の高さや幅をピクセル単位で返す。
+@var{frame}を指定しないと、選択されているフレームを使う。
+@end defun
+
+@defun frame-char-height &optional frame
+@defunx frame-char-width &optional frame
+@c These functions return the height and width of a character in
+@c @var{frame}, measured in pixels.  The values depend on the choice of
+@c font.  If you don't supply @var{frame}, these functions use the selected
+@c frame.
+これらの関数は、フレーム内の文字の高さや幅をピクセル単位で返す。
+@var{frame}を指定しないと、選択されているフレームを使う。
+@end defun
+
+@defun set-frame-size frame cols rows
+@c This function sets the size of @var{frame}, measured in characters;
+@c @var{cols} and @var{rows} specify the new width and height.
+この関数は、フレーム@var{frame}の大きさを文字単位で指定する。
+@var{cols}と@var{rows}は、新たな幅と高さを指定する。
+
+@c To set the size based on values measured in pixels, use
+@c @code{frame-char-height} and @code{frame-char-width} to convert
+@c them to units of characters.
+ピクセル単位で大きさを指定するには、
+@code{frame-char-height}と@code{frame-char-width}で
+ピクセル単位の値を文字単位に変換する。
+@end defun
+
+@defun set-frame-height frame lines &optional pretend
+@c This function resizes @var{frame} to a height of @var{lines} lines.  The
+@c sizes of existing windows in @var{frame} are altered proportionally to
+@c fit.
+この関数は、フレーム@var{frame}の高さを@var{lines}行に変える。
+それに合わせて@var{frame}内の既存のウィンドウの大きさは比例して変わる。
+
+@c If @var{pretend} is non-@code{nil}, then Emacs displays @var{lines}
+@c lines of output in @var{frame}, but does not change its value for the
+@c actual height of the frame.  This is only useful for a terminal frame.
+@c Using a smaller height than the terminal actually implements may be
+@c useful to reproduce behavior observed on a smaller screen, or if the
+@c terminal malfunctions when using its whole screen.  Setting the frame
+@c height ``for real'' does not always work, because knowing the correct
+@c actual size may be necessary for correct cursor positioning on a
+@c terminal frame.
+@var{pretend}が@code{nil}以外であると、
+Emacsは@var{frame}の@var{lines}だけを表示するが、
+フレームの実際の高さは変更しない。
+これは端末フレームでのみ有用である。
+実際の端末より小さな高さを使うと、小さなスクリーンでの動作を再現したり、
+スクリーン全体を使うと端末が誤動作するような場合に有用である。
+フレームの『実際』の高さを指定してもつねにそうなるとは限らない。
+端末フレーム上で正しくカーソルを位置決めするには、
+実サイズを知る必要がある場合もあるからである。
+@end defun
+
+@defun set-frame-width frame width &optional pretend
+@c This function sets the width of @var{frame}, measured in characters.
+@c The argument @var{pretend} has the same meaning as in
+@c @code{set-frame-height}.
+この関数は、フレーム@var{frame}の幅を設定する。
+引数@var{pretend}は@code{set-frame-height}と同じ意味を持つ。
+@end defun
+
+@findex set-screen-height
+@findex set-screen-width
+@c   The older functions @code{set-screen-height} and
+@c @code{set-screen-width} were used to specify the height and width of the
+@c screen, in Emacs versions that did not support multiple frames.  They
+@c are semi-obsolete, but still work; they apply to the selected frame.
+@code{set-screen-height}と@code{set-screen-width}の古い関数は、
+複数フレームを扱えないEmacsの版でスクリーンの高さや幅を
+指定するために使われていました。
+これらはほぼ廃れていますが、まだ動作します。
+これらは選択されているフレームに適用されます。
+
+@defun x-parse-geometry geom
+@c @cindex geometry specification
+@cindex ジオメトリ指定
+@c The function @code{x-parse-geometry} converts a standard X window
+@c geometry string to an alist that you can use as part of the argument to
+@c @code{make-frame}.
+関数@code{x-parse-geometry}は、Xウィンドウの標準のジオメトリ文字列を
+@code{make-frame}の引数の一部に使えるように連想リストに変換する。
+
+@c The alist describes which parameters were specified in @var{geom}, and
+@c gives the values specified for them.  Each element looks like
+@c @code{(@var{parameter} . @var{value})}.  The possible @var{parameter}
+@c values are @code{left}, @code{top}, @code{width}, and @code{height}.
+この連想リストは、@var{geom}で指定されているパラメータとその値を記述する。
+各要素は@code{(@var{parameter} . @var{value})}の形である。
+@var{parameter}の可能な値は、
+@code{left}、@code{top}、@code{width}、@code{height}である。
+
+@c For the size parameters, the value must be an integer.  The position
+@c parameter names @code{left} and @code{top} are not totally accurate,
+@c because some values indicate the position of the right or bottom edges
+@c instead.  These are the @var{value} possibilities for the position
+@c parameters:
+大きさを表すパラメータでは、その値は整数であること。
+位置を表すパラメータでは、右端や下端の位置を表す値もあるので、
+@code{left}や@code{top}というパラメータ名は必ずしも正確ではない。
+位置を表すパラメータの可能な@var{value}はつぎのとおりである。
+
+@table @asis
+@c @item an integer
+@item 整数
+@c A positive integer relates the left edge or top edge of the window to
+@c the left or top edge of the screen.  A negative integer relates the
+@c right or bottom edge of the window to the right or bottom edge of the
+@c screen.
+正の整数は、ウィンドウの左端や上端をスクリーンの左端や上端に関連付ける。
+負の整数は、ウィンドウの右端や下端をスクリーンの右端や下端に関連付ける。
+
+@item @code{(+ @var{position})}
+@c This specifies the position of the left or top edge of the window
+@c relative to the left or top edge of the screen.  The integer
+@c @var{position} may be positive or negative; a negative value specifies a
+@c position outside the screen.
+スクリーンの左端や上端を基準にしたウィンドウの左端や上端の位置を指定する。
+整数@var{position}は正でも負でもよいが、
+負の値はスクリーンからはみ出した位置を指定する。
+
+@item @code{(- @var{position})}
+@c This specifies the position of the right or bottom edge of the window
+@c relative to the right or bottom edge of the screen.  The integer
+@c @var{position} may be positive or negative; a negative value specifies a
+@c position outside the screen.
+スクリーンの右端や下端を基準にしたウィンドウの右端や下端の位置を指定する。
+整数@var{position}は正でも負でもよいが、
+負の値はスクリーンからはみ出した位置を指定する。
+@end table
+
+@c Here is an example:
+例を示す。
+
+@example
+(x-parse-geometry "35x70+0-0")
+     @result{} ((height . 70) (width . 35)
+         (top - 0) (left . 0))
+@end example
+@end defun
+
+@node Frame Titles
+@c @section Frame Titles
+@section フレームタイトル
+
+@c   Every frame has a @code{name} parameter; this serves as the default
+@c for the frame title which window systems typically display at the top of
+@c the frame.  You can specify a name explicitly by setting the @code{name}
+@c frame property.
+各フレームにはパラメータ@code{name}があります。
+これは、典型的にはウィンドウシステムがフレームの先頭に表示する
+フレームタイトルのデフォルトにもなります。
+フレーム属性@code{name}に設定することで明示的に名前を指定できます。
+
+@c   Normally you don't specify the name explicitly, and Emacs computes the
+@c frame name automatically based on a template stored in the variable
+@c @code{frame-title-format}.  Emacs recomputes the name each time the
+@c frame is redisplayed.
+通常は名前を明示的に指定しないでしょうから、
+変数@code{frame-title-format}に保持してある雛型から
+Emacsが自動的にフレーム名を計算します。
+Emacsは、フレームを再表示するたびに名前を再計算します。
+
+@defvar frame-title-format
+@c This variable specifies how to compute a name for a frame when you have
+@c not explicitly specified one.  The variable's value is actually a mode
+@c line construct, just like @code{mode-line-format}.  @xref{Mode Line
+@c Data}.
+この変数は、読者がフレーム名を明示的に指定しなかったときの
+フレーム向けの名前の計算方法を指定する。
+変数の値は実際には、@code{mode-line-format}のようなモード行構成である。
+@pxref{Mode Line Data}。
+@end defvar
+
+@defvar icon-title-format
+@c This variable specifies how to compute the name for an iconified frame,
+@c when you have not explicitly specified the frame title.  This title
+@c appears in the icon itself.
+この変数は、フレームタイトルを明示的に指定しなかったときの
+アイコンにしたフレーム向けの名前の計算方法を指定する。
+これはアイコンそのものに現れる。
+@end defvar
+
+@defvar multiple-frames
+@c This variable is set automatically by Emacs.  Its value is @code{t} when
+@c there are two or more frames (not counting minibuffer-only frames or
+@c invisible frames).  The default value of @code{frame-title-format} uses
+@c @code{multiple-frames} so as to put the buffer name in the frame title
+@c only when there is more than one frame.
+この変数はEmacsが自動的に設定する。
+（ミニバッファ専用のフレームや不可視フレームを数えずに）
+複数個のフレームがあるとこの値が@code{t}である。
+@code{frame-title-format}のデフォルト値では@code{multiple-frames}を使っており、
+複数のフレームがあるときに限りフレームタイトルにバッファ名が入るようにする。
+@end defvar
+
+@node Deleting Frames
+@c @section Deleting Frames
+@section フレームの削除
+@c @cindex deletion of frames
+@cindex フレームの削除
+@cindex 削除、フレーム
+
+@c Frames remain potentially visible until you explicitly @dfn{delete}
+@c them.  A deleted frame cannot appear on the screen, but continues to
+@c exist as a Lisp object until there are no references to it.  There is no
+@c way to cancel the deletion of a frame aside from restoring a saved frame
+@c configuration (@pxref{Frame Configurations}); this is similar to the
+@c way windows behave.
+フレームを明示的に@dfn{削除}（delete）しない限り、
+フレームは見える可能性があります。
+フレームを削除するとスクリーンに表示できなくなりますが、
+それを参照するものがなくならない限りLispオブジェクトとしては存在し続けます。
+保存したフレーム構成（@pxref{Frame Configurations}）を復元する以外には、
+フレームの削除を取り消すことはできません。
+これはウィンドウと同様です。
+
+@c @deffn Command delete-frame &optional frame
+@deffn コマンド delete-frame &optional frame
+@c This function deletes the frame @var{frame}.  By default, @var{frame} is
+@c the selected frame.
+この関数はフレーム@var{frame}を削除する。
+デフォルトでは、@var{frame}は選択されているフレームである。
+@end deffn
+
+@defun frame-live-p frame
+@c The function @code{frame-live-p} returns non-@code{nil} if the frame
+@c @var{frame} has not been deleted.
+関数@code{frame-live-p}は、フレーム@var{frame}が削除されていなければ
+@code{nil}以外を返す。
+@end defun
+
+@c   Some window managers provide a command to delete a window.  These work
+@c by sending a special message to the program that operates the window.
+@c When Emacs gets one of these commands, it generates a
+@c @code{delete-frame} event, whose normal definition is a command that
+@c calls the function @code{delete-frame}.  @xref{Misc Events}.
+ウィンドウを削除するコマンドを与えるウィンドウマネージャもあります。
+それらは、ウィンドウを操作しているプログラムに特別なメッセージを
+送ることで動作します。
+Emacsがそのようなコマンドを受け取ると、
+イベント@code{delete-frame}を生成します。
+このイベントの普通の定義は、関数@code{delete-frame}を呼び出すコマンドです。
+@xref{Misc Events}。
+
+@node Finding All Frames
+@c @section Finding All Frames
+@section すべてのフレームを探す
+
+@defun frame-list
+@c The function @code{frame-list} returns a list of all the frames that
+@c have not been deleted.  It is analogous to @code{buffer-list} for
+@c buffers.  The list that you get is newly created, so modifying the list
+@c doesn't have any effect on the internals of Emacs.
+関数@code{frame-list}は、削除されていないすべてのフレームから成るリストを返す。
+これは、バッファに対する@code{buffer-list}に相当する。
+得られるリストは新たに作成したものであり、
+このリストを変更してもEmacs内部にはなんの効果もない。
+@end defun
+
+@defun visible-frame-list
+@c This function returns a list of just the currently visible frames.
+@c @xref{Visibility of Frames}.  (Terminal frames always count as
+@c ``visible'', even though only the selected one is actually displayed.)
+この関数は、現在可視のフレームだけのリストを返す。
+@pxref{Visibility of Frames}。
+（選択されているフレームだけが実際に表示されている場合でも、
+端末フレームはすべてつねに『可視』とみなす。）
+@end defun
+
+@defun next-frame &optional frame minibuf
+@c The function @code{next-frame} lets you cycle conveniently through all
+@c the frames from an arbitrary starting point.  It returns the ``next''
+@c frame after @var{frame} in the cycle.  If @var{frame} is omitted or
+@c @code{nil}, it defaults to the selected frame.
+関数@code{next-frame}により、
+任意の位置から始めてすべてのフレームを便利に巡回できる。
+巡回順の中で@var{frame}の『つぎ』のフレームを返す。
+@var{frame}を省略したり@code{nil}であると、
+デフォルトでは選択されているフレームを使う。
+
+@c The second argument, @var{minibuf}, says which frames to consider:
+第2引数@var{minibuf}は、対象とするフレームを指定する。
+
+@table @asis
+@item @code{nil}
+@c Exclude minibuffer-only frames.
+ミニバッファ専用のフレームを除外する。
+@item @code{visible}
+@c Consider all visible frames.
+すべての可視なフレームを対象にする。
+@item 0
+@c Consider all visible or iconified frames.
+すべての可視なフレームやアイコンにしたフレームを対象にする。
+@c @item a window
+@item ウィンドウ
+@c Consider only the frames using that particular window as their
+@c minibuffer.
+ミニバッファとして特定のウィンドウを使っているフレームのみを対象にする。
+@c @item anything else
+@item その他
+@c Consider all frames.
+すべてのフレームを対象にする。
+@end table
+@end defun
+
+@defun previous-frame &optional frame minibuf
+@c Like @code{next-frame}, but cycles through all frames in the opposite
+@c direction.
+@code{next-frame}と同様であるが、すべてのフレームを逆方向に巡回する。
+@end defun
+
+@c   See also @code{next-window} and @code{previous-window}, in @ref{Cyclic
+@c Window Ordering}.
+@ref{Cyclic Window Ordering}の@code{next-window}と@code{previous-window}も
+参照してください。
+
+@node Frames and Windows
+@c @section Frames and Windows
+@section フレームとウィンドウ
+
+@c   Each window is part of one and only one frame; you can get the frame
+@c with @code{window-frame}.
+各ウィンドウはある1つのフレームだけの一部であり、
+@code{window-frame}で当該フレームを得られます。
+
+@defun window-frame window
+@c This function returns the frame that @var{window} is on.
+この関数は、@var{window}が属するフレームを返す。
+@end defun
+
+@c   All the non-minibuffer windows in a frame are arranged in a cyclic
+@c order.  The order runs from the frame's top window, which is at the
+@c upper left corner, down and to the right, until it reaches the window at
+@c the lower right corner (always the minibuffer window, if the frame has
+@c one), and then it moves back to the top.  @xref{Cyclic Window Ordering}.
+フレーム内のミニバッファ用以外のすべてウィンドウには、
+巡回順序がついています。
+その順序は、フレームの左上隅の先頭のウィンドウから始まって、
+右下隅のウィンドウ（フレームにミニバッファがあれば、
+これはつねにミニバッファ用ウィンドウ）に達するまで下向き右向きに進み、
+そして先頭へ戻ります。
+
+@defun frame-top-window frame
+@c This returns the topmost, leftmost window of frame @var{frame}.
+この関数は、フレーム@var{frame}のもっとも上端のもっとも左端の
+先頭のウィンドウを返す。
+@end defun
+
+@c At any time, exactly one window on any frame is @dfn{selected within the
+@c frame}.  The significance of this designation is that selecting the
+@c frame also selects this window.  You can get the frame's current
+@c selected window with @code{frame-selected-window}.
+ある時点では、各フレームではたった1つのフレームが
+@dfn{当該フレームで選択されている}のです。
+このような区別の意味は、
+フレームを選択するとそのようなウィンドウも選択されるということです。
+フレームで現在選択されているフレームは
+@code{frame-selected-window}で得られます。
+
+@defun frame-selected-window frame
+@c This function returns the window on @var{frame} that is selected within
+@c @var{frame}.
+この関数は、フレーム@var{frame}で選択されている
+@var{frame}内のウィンドウを返す。
+@end defun
+
+@c   Conversely, selecting a window for Emacs with @code{select-window} also
+@c makes that window selected within its frame.  @xref{Selecting Windows}.
+逆に、@code{select-window}でEmacsのウィンドウを選ぶと、
+それがそのフレームで選択されているウィンドウになります。
+@pxref{Selecting Windows}。
+
+@c   Another function that (usually) returns one of the windows in a given
+@c frame is @code{minibuffer-window}.  @xref{Minibuffer Misc}.
+指定したフレームのウィンドウの1つを返す別の関数は
+@code{minibuffer-window}です。
+@xref{Minibuffer Misc}。
+
+@node Minibuffers and Frames
+@c @section Minibuffers and Frames
+@section ミニバッファとフレーム
+
+@c Normally, each frame has its own minibuffer window at the bottom, which
+@c is used whenever that frame is selected.  If the frame has a minibuffer,
+@c you can get it with @code{minibuffer-window} (@pxref{Minibuffer Misc}).
+通常、各フレームにはそれ独自のミニバッファ用ウィンドウが底にあり、
+フレームが選択されているときにはいつもそれが使われます。
+フレームにミニバッファがあれば、@code{minibuffer-window}
+（@pxref{Minibuffer Misc}）でそれを得られます。
+
+@c However, you can also create a frame with no minibuffer.  Such a frame
+@c must use the minibuffer window of some other frame.  When you create the
+@c frame, you can specify explicitly the minibuffer window to use (in some
+@c other frame).  If you don't, then the minibuffer is found in the frame
+@c which is the value of the variable @code{default-minibuffer-frame}.  Its
+@c value should be a frame that does have a minibuffer.
+しかし、ミニバッファのないフレームを作ることもできます。
+そのようなフレームでは、別のフレームのミニバッファ用ウィンドウを
+使う必要があります。
+そのようなフレームを作成するときには、
+使用する（他のフレームの）ミニバッファを明示的に指定できます。
+そうしないと、変数@code{default-minibuffer-frame}の値で指定される
+フレームのミニバッファを使います。
+その値は、ミニバッファを有したフレームである必要があります。
+
+@c If you use a minibuffer-only frame, you might want that frame to raise
+@c when you enter the minibuffer.  If so, set the variable
+@c @code{minibuffer-auto-raise} to @code{t}.  @xref{Raising and Lowering}.
+ミニバッファ専用のフレームを使うときは、
+ミニバッファで入力するときにそのフレームが
+自動的に手前にくるようにしたいでしょう。
+そうしたい場合には、変数@code{minibuffer-auto-raise}に@code{t}に設定します。
+@xref{Raising and Lowering}。
+
+@defvar default-minibuffer-frame
+@c This variable specifies the frame to use for the minibuffer window, by
+@c default.  It is always local to the current terminal and cannot be
+@c buffer-local.  @xref{Multiple Displays}.
+この変数は、デフォルトで使うミニバッファ用ウィンドウのフレームを指定する。
+この変数は現在の端末につねにローカルであり、
+バッファローカルにはなりえない。
+@pxref{Multiple Displays}。
+@end defvar
+
+@node Input Focus
+@c @section Input Focus
+@section 入力フォーカス
+@c @cindex input focus
+@c @cindex selected frame
+@cindex 入力フォーカス
+@cindex 選択されているフレーム
+
+@c At any time, one frame in Emacs is the @dfn{selected frame}.  The selected
+@c window always resides on the selected frame.
+ある時点では、Emacsの1つのフレームが@dfn{選択されているフレーム}
+（selected frame）です。
+選択されているウィンドウは選択されているフレームの中につねにあります。
+
+@defun selected-frame
+@c This function returns the selected frame.
+この関数は選択されているフレームを返す。
+@end defun
+
+@c Some window systems and window managers direct keyboard input to the
+@c window object that the mouse is in; others require explicit clicks or
+@c commands to @dfn{shift the focus} to various window objects.  Either
+@c way, Emacs automatically keeps track of which frame has the focus.
+マウスが入っているウィンドウにキーボード入力を振り向ける
+ウィンドウシステムやウィンドウマネージャがあります。
+ウィンドウに@dfn{フォーカスを置くために}、
+明示的にクリックしたりコマンドを必要とするものもあります。
+いずれであっても、Emacsはどのフレームにフォーカスがあるかを
+自動的に追跡します。
+
+@c Lisp programs can also switch frames ``temporarily'' by calling the
+@c function @code{select-frame}.  This does not alter the window system's
+@c concept of focus; rather, it escapes from the window manager's control
+@c until that control is somehow reasserted.
+Lispプログラムからは、関数@code{select-frame}を呼ぶことで、
+『一時的に』フレームを切り替えることもできます。
+これは、ウィンドウシステムのフォーカスは変えません。
+というよりは、プログラムで指定するまで
+ウィンドウシステムの制御を回避します。
+
+@c When using a text-only terminal, only the selected terminal frame is
+@c actually displayed on the terminal.  @code{switch-frame} is the only way
+@c to switch frames, and the change lasts until overridden by a subsequent
+@c call to @code{switch-frame}.  Each terminal screen except for the
+@c initial one has a number, and the number of the selected frame appears
+@c in the mode line before the buffer name (@pxref{Mode Line Variables}).
+文字端末を使っているときには、
+選択されているフレームのみが端末に実際に表示されます。
+フレームを切り替える唯一の方法は@code{switch-frame}であり、
+それ以降に@code{switch-frame}を呼び出すまで切り替えた効果は持続します。
+初期フレーム以外の各端末フレームには番号が付いていて、
+選択されているフレームの番号がモード行内のバッファ名のまえに現れます
+（@pxref{Mode Line Variables}）。
+
+@c ??? This is not yet implemented properly.
+@defun select-frame frame
+@c This function selects frame @var{frame}, temporarily disregarding the
+@c focus of the X server if any.  The selection of @var{frame} lasts until
+@c the next time the user does something to select a different frame, or
+@c until the next time this function is called.
+この関数はフレーム@var{frame}を選択し、
+Xサーバーのフォーカスを一時的に無視する。
+@var{frame}を選択している状態は、
+ユーザーが別のフレームを選択する動作を行うか
+再度この関数が呼ばれるまで持続する。
+@end defun
+
+@c Emacs cooperates with the window system by arranging to select frames as
+@c the server and window manager request.  It does so by generating a
+@c special kind of input event, called a @dfn{focus} event, when
+@c appropriate.  The command loop handles a focus event by calling
+@c @code{handle-switch-frame}.  @xref{Focus Events}.
+サーバーやウィンドウマネジャーの要請にしたがって
+フレームを選択するようにして、
+Emacsはウィンドウシステムと協調します。
+必要なときには@dfn{focus}イベントと呼ばれる特別な入力イベントを
+生成することでこのようにします。
+コマンドループは@code{handle-switch-frame}を呼び出すことで
+イベント@dfn{focus}を処理します。
+@xref{Focus Events}。
+
+@c @deffn Command handle-switch-frame frame
+@deffn コマンド handle-switch-frame frame
+@c This function handles a focus event by selecting frame @var{frame}.
+この関数は、フレーム@var{frame}を選択することでフォーカスイベントを
+処理する。
+
+@c Focus events normally do their job by invoking this command.
+@c Don't call it for any other reason.
+フォーカスイベントは、通常、このコマンドを起動することで処理される。
+それ以外の理由ではこれを呼び出さないこと。
+@end deffn
+
+@defun redirect-frame-focus frame focus-frame
+@c This function redirects focus from @var{frame} to @var{focus-frame}.
+@c This means that @var{focus-frame} will receive subsequent keystrokes and
+@c events intended for @var{frame}.  After such an event, the value of
+@c @code{last-event-frame} will be @var{focus-frame}.  Also, switch-frame
+@c events specifying @var{frame} will instead select @var{focus-frame}.
+この関数は、フォーカスを@var{frame}から@var{focus-frame}へ振り向ける。
+つまり、以降の打鍵やイベントは、@var{focus}ではなく、
+@var{focus-frame}が受け取ることになる。
+そのようなイベントのあとでは、
+@code{last-event-frame}の値は@var{focus-frame}になる。
+また、@var{focus}を指定したイベント@code{switch-frame}は、
+@var{focus-frame}を選ぶことになる。
+
+@c If @var{focus-frame} is @code{nil}, that cancels any existing
+@c redirection for @var{frame}, which therefore once again receives its own
+@c events.
+@var{focus-frame}が@code{nil}であると、@var{frame}での振り向けを取り消す。
+つまり、@var{frame}はイベントをふたたび受けるようになる。
+
+@c One use of focus redirection is for frames that don't have minibuffers.
+@c These frames use minibuffers on other frames.  Activating a minibuffer
+@c on another frame redirects focus to that frame.  This puts the focus on
+@c the minibuffer's frame, where it belongs, even though the mouse remains
+@c in the frame that activated the minibuffer.
+フォーカスの振り向けの用途の1つは、
+ミニバッファを持たないフレームのためである。
+これらのフレームでは、別のフレームのミニバッファを使う。
+別のフレームのミニバッファを活性にすると、
+フォーカスを当該フレームへ振り向ける。
+これにより、ミニバッファを活性にしたフレームにマウスが入っていても、
+ミニバッファのフレームにフォーカスを置ける。
+
+@c Selecting a frame can also change focus redirections.  Selecting frame
+@c @code{bar}, when @code{foo} had been selected, changes any redirections
+@c pointing to @code{foo} so that they point to @code{bar} instead.  This
+@c allows focus redirection to work properly when the user switches from
+@c one frame to another using @code{select-window}.
+フレームを選択してもフォーカスの振り向けを変更する。
+フレーム@code{foo}を選択しているときにフレーム@code{bar}を選択すると、
+@code{foo}への振り向けを@code{bar}へ振り向けるように変更する。
+これにより、@code{select-window}を使ってユーザーが
+別のフレームへ切り替えても、フォーカスの振り向けが正しく動作する。
+
+@c This means that a frame whose focus is redirected to itself is treated
+@c differently from a frame whose focus is not redirected.
+@c @code{select-frame} affects the former but not the latter.
+これは、フォーカスを自分自身へ振り向けているフレームは、
+フォーカスを振り向けていないフレームとは異なる扱いを受けることを意味する。
+@code{select-frame}は前者に影響するが後者には影響しない。
+
+@c The redirection lasts until @code{redirect-frame-focus} is called to
+@c change it.
+@code{redirect-frame-focus}で変更するまで、振り向けは持続する。
+@end defun
+
+@defopt focus-follows-mouse
+@tindex focus-follows-mouse
+@c This option is how you inform Emacs whether the window manager transfers
+@c focus when the user moves the mouse.  Non-@code{nil} says that it does.
+@c When this is so, the command @code{other-frame} moves the mouse to a
+@c position consistent with the new selected frame.
+このオプションは、ユーザーがマウスを動かしたときに
+ウィンドウマネージャがフォーカスを移動するかどうかをEmacsに伝える。
+@code{nil}以外であるとフォーカスが移動することを意味する。
+その場合、コマンド@code{other-frame}は、
+新たに選択されたフレームに適合するような位置にマウスを移動する。
+@end defopt
+
+@node Visibility of Frames
+@c @section Visibility of Frames
+@section フレームの可視性
+@c @cindex visible frame
+@c @cindex invisible frame
+@c @cindex iconified frame
+@c @cindex frame visibility
+@cindex 可視なフレーム
+@cindex 不可視なフレーム
+@cindex アイコンにしたフレーム
+@cindex フレームの可視性
+
+@c A window frame may be @dfn{visible}, @dfn{invisible}, or
+@c @dfn{iconified}.  If it is visible, you can see its contents.  If it is
+@c iconified, the frame's contents do not appear on the screen, but an icon
+@c does.  If the frame is invisible, it doesn't show on the screen, not
+@c even as an icon.
+ウィンドウフレームは、@dfn{可視}、
+@dfn{不可視}、@dfn{アイコンになっている}のいずれかです。
+フレームが可視であると、その内容を見ることができます。
+アイコンになっているとフレームの内容はスクリーンで見えませんが、
+アイコンは見えます。
+フレームが不可視であると、それはスクリーン上に見えず
+アイコンでもありません。
+
+@c Visibility is meaningless for terminal frames, since only the selected
+@c one is actually displayed in any case.
+端末フレームは選択されているものだけが表示されるので、
+端末フレームでは可視性は意味がありません。
+
+@c @deffn Command make-frame-visible &optional frame
+@deffn コマンド make-frame-visible &optional frame
+@c This function makes frame @var{frame} visible.  If you omit @var{frame},
+@c it makes the selected frame visible.
+この関数は、フレーム@var{frame}を可視にする。
+@var{frame}を省略すると、選択されているフレームを可視にする。
+@end deffn
+
+@c @deffn Command make-frame-invisible &optional frame
+@deffn コマンド make-frame-invisible &optional frame
+@c This function makes frame @var{frame} invisible.  If you omit
+@c @var{frame}, it makes the selected frame invisible.
+この関数は、フレーム@var{frame}を不可視にする。
+@var{frame}を省略すると、選択されているフレームを不可視にする。
+@end deffn
+
+@c @deffn Command iconify-frame &optional frame
+@deffn コマンド iconify-frame &optional frame
+@c This function iconifies frame @var{frame}.  If you omit @var{frame}, it
+@c iconifies the selected frame.
+この関数は、フレーム@var{frame}をアイコンにする。
+@var{frame}を省略すると、選択されているフレームをアイコンにする。
+@end deffn
+
+@defun frame-visible-p frame
+@c This returns the visibility status of frame @var{frame}.  The value is
+@c @code{t} if @var{frame} is visible, @code{nil} if it is invisible, and
+@c @code{icon} if it is iconified.
+この関数は、フレーム@var{frame}の可視性を返す。
+その値は、@var{frame}が可視ならば@code{t}、
+不可視ならば@code{nil}、アイコンになっていれば@code{icon}である。
+@end defun
+
+@c   The visibility status of a frame is also available as a frame
+@c parameter.  You can read or change it as such.  @xref{Window Frame
+@c Parameters}.
+フレームの可視性は、フレームパラメータとしても得られます。
+フレームパラメータとして読んだり変更できます。
+@xref{Window Frame Parameters}。
+
+@c   The user can iconify and deiconify frames with the window manager.
+@c This happens below the level at which Emacs can exert any control, but
+@c Emacs does provide events that you can use to keep track of such
+@c changes.  @xref{Misc Events}.
+ユーザーは、ウィンドウマネージャを用いて
+フレームをアイコンにしたりアイコンを開けます。
+これは、Emacsが制御できるレベルよりしたで行われますが、
+Emacsはそのような変更を追跡できるようにイベントを提供します。
+@xref{Misc Events}。
+
+@node Raising and Lowering
+@c @section Raising and Lowering Frames
+@section フレームを手前にしたり奥へ置く
+
+@c   Most window systems use a desktop metaphor.  Part of this metaphor is
+@c the idea that windows are stacked in a notional third dimension
+@c perpendicular to the screen surface, and thus ordered from ``highest''
+@c to ``lowest''.  Where two windows overlap, the one higher up covers
+@c the one underneath.  Even a window at the bottom of the stack can be
+@c seen if no other window overlaps it.
+ほとんどのウィンドウシステムでは、机のたとえを使います。
+つまり、スクリーンの面に垂直な方向を概念的な3軸目と考えて、
+ウィンドウは積み重なっていて、
+もっとも手前からもっとも奥に順序がついています。
+2つのウィンドウが重なり合っているところでは、
+手前のものがそのしたのものを隠しています。
+もっとも奥にあるウィンドウであっても、
+それに重なるウィンドウがなければ見ることができます。
+
+@c @cindex raising a frame
+@c @cindex lowering a frame
+@cindex フレームを手前に置く
+@cindex フレームを奥に置く
+@c   A window's place in this ordering is not fixed; in fact, users tend
+@c to change the order frequently.  @dfn{Raising} a window means moving
+@c it ``up'', to the top of the stack.  @dfn{Lowering} a window means
+@c moving it to the bottom of the stack.  This motion is in the notional
+@c third dimension only, and does not change the position of the window
+@c on the screen.
+ウィンドウのこのような順序は固定されていません。
+実際、ユーザーは順序を頻繁に変更します。
+ウィンドウを@dfn{手前に置く}（raising）とは、
+ウィンドウを積み重ねのもっとも上に移動することです。
+ウィンドウを@dfn{奥に置く}（lowering）とは、
+ウィンドウを積み重ねのもっとも下に移動することです。
+この移動は概念的な3軸目に限り、
+スクリーン上でのウィンドウの位置は変えません。
+
+@c   You can raise and lower Emacs frame Windows with these functions:
+Emacsのフレームを表すウィンドウは、つぎの関数で
+手前へ置いたり奥へ置けます。
+
+@c @deffn Command raise-frame &optional frame
+@deffn コマンド raise-frame &optional frame
+@c This function raises frame @var{frame} (default, the selected frame).
+この関数は、フレーム@var{frame}を手前に置く
+（デフォルトは選択されているフレーム）。
+@end deffn
+
+@c @deffn Command lower-frame &optional frame
+@deffn コマンド lower-frame &optional frame
+@c This function lowers frame @var{frame} (default, the selected frame).
+この関数は、フレーム@var{frame}を奥に置く
+（デフォルトは選択されているフレーム）。
+@end deffn
+
+@defopt minibuffer-auto-raise
+@c If this is non-@code{nil}, activation of the minibuffer raises the frame
+@c that the minibuffer window is in.
+これが@code{nil}以外であると、ミニバッファが活性になると
+ミニバッファ用ウィンドウがあるフレームを手前に置く。
+@end defopt
+
+@c You can also enable auto-raise (raising automatically when a frame is
+@c selected) or auto-lower (lowering automatically when it is deselected)
+@c for any frame using frame parameters.  @xref{Window Frame Parameters}.
+フレームパラメータを使うと、フレームが
+選択されると自動的に手前に置いたり（@code{auto-raise}）、
+選択を止めると奥へ置け（@code{auto-lower}）ます。
+@xref{Window Frame Parameters}。
+
+@node Frame Configurations
+@c @section Frame Configurations
+@section フレーム構成
+@c @cindex frame configuration
+@cindex フレーム構成
+
+@c   A @dfn{frame configuration} records the current arrangement of frames,
+@c all their properties, and the window configuration of each one.
+@c (@xref{Window Configurations}.)
+@dfn{フレーム構成}（frame configuration）は、
+現在のフレームの配置、それらのすべての属性、それぞれのウィンドウ構成を
+記録したものです。
+（@pxref{Window Configurations}。）
+
+@defun current-frame-configuration
+@c This function returns a frame configuration list that describes
+@c the current arrangement of frames and their contents.
+この関数は、現在のフレームの配置とそれらの内容を記述した
+フレーム構成のリストを返す。
+@end defun
+
+@defun set-frame-configuration configuration
+@c This function restores the state of frames described in
+@c @var{configuration}.
+この関数は、@var{configuration}で記述されたフレームの状態に復元する。
+@end defun
+
+@node Mouse Tracking
+@c @section Mouse Tracking
+@section マウスの追跡
+@c @cindex mouse tracking
+@c @cindex tracking the mouse
+@cindex マウスの追跡
+@cindex 追跡、マウス
+
+@c Sometimes it is useful to @dfn{track} the mouse, which means to display
+@c something to indicate where the mouse is and move the indicator as the
+@c mouse moves.  For efficient mouse tracking, you need a way to wait until
+@c the mouse actually moves.
+マウスを@dfn{追跡}（track）できると有用なことがあります。
+つまり、マウスがどこにあるかを表す指示子を表示して
+マウスの移動に従って指示子を動かすのです。
+効率よくマウスを追跡するには、マウスが実際に移動するまで待つ手段が必要です。
+
+@c The convenient way to track the mouse is to ask for events to represent
+@c mouse motion.  Then you can wait for motion by waiting for an event.  In
+@c addition, you can easily handle any other sorts of events that may
+@c occur.  That is useful, because normally you don't want to track the
+@c mouse forever---only until some other event, such as the release of a
+@c button.
+マウスを追跡する便利な方法は、マウスの移動を表すイベントを待つことです。
+そうすれば、そのようなイベントを待てばマウスの移動を待てます。
+さらに、発生しうるそれ以外の種類のイベントを扱うのも簡単です。
+普通はマウスを永遠に追跡し続けたいのではなく
+ボタンを離すなどの別のイベントを待ちたいのでしょうから、
+これは有用です。
+
+@defspec track-mouse body@dots{}
+@c This special form executes @var{body}, with generation of mouse motion
+@c events enabled.  Typically @var{body} would use @code{read-event} to
+@c read the motion events and modify the display accordingly.  @xref{Motion
+@c Events}, for the format of mouse motion events.
+このスペシャルフォームは、マウスモーションイベントを生成するようにして
+@var{body}を実行する。
+典型的には@var{body}では@code{read-event}を使って
+モーションイベントを読み、それに従って表示を変更する。
+マウスモーションイベントの形式については、
+@pxref{Motion Events}。
+
+@c The value of @code{track-mouse} is that of the last form in @var{body}.
+@c You should design @var{body} to return when it sees the up-event that
+@c indicates the release of the button, or whatever kind of event means
+@c it is time to stop tracking.
+@code{track-mouse}の値は@var{body}の最後のフォームの値である。
+@var{body}は、ボタンを離したことを表すイベントや
+追跡を終えるべきイベントに出会うと戻るように設計すること。
+@end defspec
+
+@c The usual purpose of tracking mouse motion is to indicate on the screen
+@c the consequences of pushing or releasing a button at the current
+@c position.
+マウスの移動を追跡する普通の目的は、
+現在の位置でボタンを押したり離すとなにが起こるかを
+スクリーン上に示すことです。
+
+@c In many cases, you can avoid the need to track the mouse by using
+@c the @code{mouse-face} text property (@pxref{Special Properties}).
+@c That works at a much lower level and runs more smoothly than
+@c Lisp-level mouse tracking.
+多くの場面では、テキスト属性@code{mouse-face}（@pxref{Special Properties}）
+を使えば、マウスを追跡する必要はなくなります。
+これはとても低いレベルで動作し、
+Lispレベルでマウスを追跡するより滑らかに動作します。
+
+@ignore
+@c These are not implemented yet.
+
+These functions change the screen appearance instantaneously.  The
+effect is transient, only until the next ordinary Emacs redisplay.  That
+is OK for mouse tracking, since it doesn't make sense for mouse tracking
+to change the text, and the body of @code{track-mouse} normally reads
+the events itself and does not do redisplay.
+
+@defun x-contour-region window beg end
+This function draws lines to make a box around the text from @var{beg}
+to @var{end}, in window @var{window}.
+@end defun
+
+@defun x-uncontour-region window beg end
+This function erases the lines that would make a box around the text
+from @var{beg} to @var{end}, in window @var{window}.  Use it to remove
+a contour that you previously made by calling @code{x-contour-region}.
+@end defun
+
+@defun x-draw-rectangle frame left top right bottom
+This function draws a hollow rectangle on frame @var{frame} with the
+specified edge coordinates, all measured in pixels from the inside top
+left corner.  It uses the cursor color, the one used for indicating the
+location of point.
+@end defun
+
+@defun x-erase-rectangle frame left top right bottom
+This function erases a hollow rectangle on frame @var{frame} with the
+specified edge coordinates, all measured in pixels from the inside top
+left corner.  Erasure means redrawing the text and background that
+normally belong in the specified rectangle.
+@end defun
+@end ignore
+
+@node Mouse Position
+@c @section Mouse Position
+@section マウスの位置
+@c @cindex mouse position
+@c @cindex position of mouse
+@cindex マウスの位置
+@cindex 位置、マウス
+
+@c   The functions @code{mouse-position} and @code{set-mouse-position}
+@c give access to the current position of the mouse.
+関数@code{mouse-position}と@code{set-mouse-position}で、
+マウスの現在位置を参照できます。
+
+@defun mouse-position
+@c This function returns a description of the position of the mouse.  The
+@c value looks like @code{(@var{frame} @var{x} . @var{y})}, where @var{x}
+@c and @var{y} are integers giving the position in characters relative to
+@c the top left corner of the inside of @var{frame}.
+この関数は、マウスの位置を表すものを返す。
+その値は@code{(@var{frame} @var{x} . @var{y})}の形であり、
+@var{x}と@var{y}はフレーム@var{frame}の内側の左上隅を基準にした
+文字数で数えた位置を表す整数である。
+@end defun
+
+@defun set-mouse-position frame x y
+@c This function @dfn{warps the mouse} to position @var{x}, @var{y} in
+@c frame @var{frame}.  The arguments @var{x} and @var{y} are integers,
+@c giving the position in characters relative to the top left corner of the
+@c inside of @var{frame}.  If @var{frame} is not visible, this function
+@c does nothing.  The return value is not significant.
+この関数は、フレーム@var{frame}内で@var{x}と@var{y}の位置にマウスを移動する。
+引数@var{x}と@var{y}は整数であり、
+フレーム@var{frame}の内側の左上隅を基準にした文字数で数えた位置である。
+@var{frame}が不可視であると、この関数はなにもしない。
+戻り値には意味はない。
+@end defun
+
+@defun mouse-pixel-position
+@c This function is like @code{mouse-position} except that it returns
+@c coordinates in units of pixels rather than units of characters.
+この関数は@code{mouse-position}に似ているが、
+文字単位ではなくピクセル単位で座標を返す。
+@end defun
+
+@defun set-mouse-pixel-position frame x y
+@c This function warps the mouse like @code{set-mouse-position} except that
+@c @var{x} and @var{y} are in units of pixels rather than units of
+@c characters.  These coordinates are not required to be within the frame.
+この関数は@code{set-mouse-position}のようにマウスを移動するが、
+@var{x}と@var{y}は文字単位でなくピクセル単位である。
+これらの座標はフレームの内側にある必要はない。
+
+@c If @var{frame} is not visible, this function does nothing.  The return
+@c value is not significant.
+@var{frame}が不可視であると、この関数はなにもしない。
+戻り値には意味はない。
+@end defun
+
+@need 3000
+
+@node Pop-Up Menus
+@c @section Pop-Up Menus
+@section ポップアップメニュー
+
+@c   When using a window system, a Lisp program can pop up a menu so that
+@c the user can choose an alternative with the mouse.
+ウィンドウシステムを使っているときには、
+ユーザーがマウスで選択できるように
+Lispプログラムからメニューをポップアップできます。
+
+@defun x-popup-menu position menu
+@c This function displays a pop-up menu and returns an indication of
+@c what selection the user makes.
+この関数はポップアップメニューを表示し、
+ユーザーが行った選択を表す指示子を返す。
+
+@c The argument @var{position} specifies where on the screen to put the
+@c menu.  It can be either a mouse button event (which says to put the menu
+@c where the user actuated the button) or a list of this form:
+引数@var{position}は、スクリーンのどこにメニューを置くかを指定する。
+それはマウスのボタンイベント（ユーザーがボタンを押した場所にメニューを置く）か
+つぎの形のリストでもよい。
+
+@example
+((@var{xoffset} @var{yoffset}) @var{window})
+@end example
+
+@noindent
+@c where @var{xoffset} and @var{yoffset} are coordinates, measured in
+@c pixels, counting from the top left corner of @var{window}'s frame.
+ここで、@var{xoffset}と@var{yoffset}は
+ウィンドウ@var{window}のフレームの左上隅から測ったピクセル単位の座標である。
+
+@c If @var{position} is @code{t}, it means to use the current mouse
+@c position.  If @var{position} is @code{nil}, it means to precompute the
+@c key binding equivalents for the keymaps specified in @var{menu},
+@c without actually displaying or popping up the menu.
+@var{position}が@code{t}であるとマウスの現在位置を使うことを意味する。
+@var{position}が@code{nil}であると、
+メニューを実際には表示せずに、
+@var{menu}に指定してあるキーマップに等価なキーバインディングを
+あらかじめ計算することを意味する。
+
+@c The argument @var{menu} says what to display in the menu.  It can be a
+@c keymap or a list of keymaps (@pxref{Menu Keymaps}).  Alternatively, it
+@c can have the following form:
+引数@var{menu}は、メニューに表示するものを指定する。
+それはキーマップかキーマップのリストである（@pxref{Menu Keymaps}）。
+あるいは、つぎの形でもよい。
+
+@example
+(@var{title} @var{pane1} @var{pane2}...)
+@end example
+
+@noindent
+@c where each pane is a list of form
+ここで、各ペインはつぎの形のリストである。
+
+@example
+(@var{title} (@var{line} . @var{item})...)
+@end example
+
+@c Each @var{line} should be a string, and each @var{item} should be the
+@c value to return if that @var{line} is chosen.
+各@var{line}は文字列であり、
+各@var{item}は対応する@var{line}が選ばれたときに返される値であること。
+@end defun
+
+@c   @strong{Usage note:} Don't use @code{x-popup-menu} to display a menu
+@c if you could do the job with a prefix key defined with a menu keymap.
+@c If you use a menu keymap to implement a menu, @kbd{C-h c} and @kbd{C-h
+@c a} can see the individual items in that menu and provide help for them.
+@c If instead you implement the menu by defining a command that calls
+@c @code{x-popup-menu}, the help facilities cannot know what happens inside
+@c that command, so they cannot give any help for the menu's items.
+@strong{使用上の注意：}@code{ }
+メニューキーマップで定義したプレフィックスキーでできることには、
+メニューを表示するために@code{x-popup-menu}を使わないこと。
+メニューキーマップを使ってメニューを実装すると、
+@kbd{C-h c}や@kbd{C-h a}で当該メニューの個々の項目を見ることができ、
+それらに対するヘルプを提供できる。
+@code{x-popup-menu}を呼び出すコマンドを定義してメニューを実装すると、
+ヘルプ機能には当該コマンドの内側でなにがなされるかわからないので、
+メニューの項目に対するヘルプを提供できない。
+
+@c   The menu bar mechanism, which lets you switch between submenus by
+@c moving the mouse, cannot look within the definition of a command to see
+@c that it calls @code{x-popup-menu}.  Therefore, if you try to implement a
+@c submenu using @code{x-popup-menu}, it cannot work with the menu bar in
+@c an integrated fashion.  This is why all menu bar submenus are
+@c implemented with menu keymaps within the parent menu, and never with
+@c @code{x-popup-menu}.  @xref{Menu Bar},
+マウスの移動でサブメニューを切り替えられるメニューバーの機構では、
+@code{x-popup-menu}を呼び出すコマンドの定義を調べられません。
+したがって、@code{x-popup-menu}を使ってサブメニューを実装すると、
+それらはメニューバーに適応した動作をできません。
+このために、メニューバーのすべてのサブメニューは、
+親メニュー内のメニューキーマップとして実装してあり、
+@code{x-popup-menu}は使っていません。
+@xref{Menu Bar}。
+
+@c   If you want a menu bar submenu to have contents that vary, you should
+@c still use a menu keymap to implement it.  To make the contents vary, add
+@c a hook function to @code{menu-bar-update-hook} to update the contents of
+@c the menu keymap as necessary.
+メニューバーに内容が変化するサブメニューを使いたいときでも、
+メニューキーマップを使って実装するべきです。
+内容を変えるには、必要に応じてメニューキーの内容を更新するために
+@code{menu-bar-update-hook}にフック関数を追加します。
+
+@node Dialog Boxes
+@c @section Dialog Boxes
+@section 対話ボックス
+@c @cindex dialog boxes
+@cindex 対話ボックス
+
+@c   A dialog box is a variant of a pop-up menu---it looks a little
+@c different, it always appears in the center of a frame, and it has just
+@c one level and one pane.  The main use of dialog boxes is for asking
+@c questions that the user can answer with ``yes'', ``no'', and a few other
+@c alternatives.  The functions @code{y-or-n-p} and @code{yes-or-no-p} use
+@c dialog boxes instead of the keyboard, when called from commands invoked
+@c by mouse clicks.
+対話ボックスはポップアップメニューの変形です。
+少々異なって見えますが、フレームの中央につねに現れ、
+たった1つのレベルで1つのペインです。
+対話ボックスの主な用途は、
+ユーザーが『yes』、『no』、および他の少数の選択肢で答えるような
+問い合わせを行うためです。
+関数@code{y-or-n-p}と@code{yes-or-no-p}は、
+マウスクリックで起動されたコマンドから呼ばれると
+キーボードではなく対話ボックスを使います。
+
+@defun x-popup-dialog position contents
+@c This function displays a pop-up dialog box and returns an indication of
+@c what selection the user makes.  The argument @var{contents} specifies
+@c the alternatives to offer; it has this format:
+この関数は、対話ボックスを表示し、
+ユーザーが選んだ選択肢を表す指示子を返す。
+引数@var{contents}は表示する選択肢を指定し、つぎの形である。
+
+@example
+(@var{title} (@var{string} . @var{value})@dots{})
+@end example
+
+@noindent
+@c which looks like the list that specifies a single pane for
+@c @code{x-popup-menu}.
+これは、@code{x-popup-menu}に対して単一のペインを指定するリストに似ている。
+
+@c The return value is @var{value} from the chosen alternative.
+戻り値は、選ばれた選択肢の@var{value}である。
+
+@c An element of the list may be just a string instead of a cons cell
+@c @code{(@var{string} . @var{value})}.  That makes a box that cannot
+@c be selected.
+リストの要素は、@code{(@var{string} . @var{value})}の形の
+コンスセルのかわりに単に文字列でもよい。
+そうすると、対話ボックスでは選択できなくなる。
+
+@c If @code{nil} appears in the list, it separates the left-hand items from
+@c the right-hand items; items that precede the @code{nil} appear on the
+@c left, and items that follow the @code{nil} appear on the right.  If you
+@c don't include a @code{nil} in the list, then approximately half the
+@c items appear on each side.
+リストに@code{nil}が現れると、それは左側の項目と右側の項目を区切る。
+@code{nil}のまえの項目は左側に現れ、
+@code{nil}に続く項目は右側に現れる。
+リストに@code{nil}を含めなければ、項目のほぼ半分がそれぞれの側に現れる。
+
+@c Dialog boxes always appear in the center of a frame; the argument
+@c @var{position} specifies which frame.  The possible values are as in
+@c @code{x-popup-menu}, but the precise coordinates don't matter; only the
+@c frame matters.
+対話ボックスはフレームの中央につねに現れ、
+引数@var{position}はそのフレームを指定する。
+可能な値は@code{x-popup-menu}と同様であるが、
+正確な座標は関係なくフレームだけが意味を持つ。
+
+@c In some configurations, Emacs cannot display a real dialog box; so
+@c instead it displays the same items in a pop-up menu in the center of the
+@c frame.
+場合によっては、Emacsは本当の対話ボックスを表示できない。
+そのときにはフレームの中央にポップアップメニューで同じ項目を表示する。
+@end defun
+
+@node Pointer Shapes
+@c @section Pointer Shapes
+@section ポインタの形状
+@c @cindex pointer shape
+@c @cindex mouse pointer shape
+@cindex ポインタの形状
+@cindex マウスポインタの形状
+
+@c   These variables specify which shape to use for the mouse pointer in
+@c various situations, when using the X Window System:
+これらの変数は、Xウィンドウシステムを使っているときに
+さまざまな場面で使用するマウスポインタの形状を指定します。
+
+@table @code
+@item x-pointer-shape
+@vindex x-pointer-shape
+@c This variable specifies the pointer shape to use ordinarily in the Emacs
+@c frame.
+この変数は、Emacsのフレーム内で普通に使うポインタ形状を指定する。
+
+@item x-sensitive-text-pointer-shape
+@vindex x-sensitive-text-pointer-shape
+@c This variable specifies the pointer shape to use when the mouse
+@c is over mouse-sensitive text.
+この変数は、マウスに反応するテキスト上にマウスがあるときに
+使用するポインタ形状を指定する。
+@end table
+
+@c   These variables affect newly created frames.  They do not normally
+@c affect existing frames; however, if you set the mouse color of a frame,
+@c that also updates its pointer shapes based on the current values of
+@c these variables.  @xref{Window Frame Parameters}.
+これらの変数は、新たに作成したフレームに影響します。
+既存のフレームには通常は影響しません。
+しかし、フレームのマウスの表示色を設定すると、
+これらの変数の現在値に基づいてポインタ形状も更新します。
+@xref{Window Frame Parameters}。
+
+@c   The values you can use, to specify either of these pointer shapes, are
+@c defined in the file @file{lisp/term/x-win.el}.  Use @kbd{M-x apropos
+@c @key{RET} x-pointer @key{RET}} to see a list of them.
+これらのポインタ形状の指定に使える値は、
+ファイル@file{lisp/term/x-win.el}で定義してあります。
+それらの一覧を見るには
+@kbd{M-x apropos @key{RET} x-pointer @key{RET}}を使います。
+
+@node Window System Selections
+@c @section Window System Selections
+@section ウィンドウシステムのセレクション
+@c @cindex selection (for X windows)
+@cindex セレクション（Xウィンドウシステム）
+
+@c The X server records a set of @dfn{selections} which permit transfer of
+@c data between application programs.  The various selections are
+@c distinguished by @dfn{selection types}, represented in Emacs by
+@c symbols.  X clients including Emacs can read or set the selection for
+@c any given type.
+Xサーバーは、アプリケーションプログラムのあいだでデータを
+転送するための@dfn{セレクション}（selection）の集まりを記録します。
+さまざまなセレクションは、Emacsではシンボルで表した
+@dfn{セレクション型}（selection type）で区別されます。
+Emacsを含むXクライアントは、任意の型のセレクションを読んだり設定できます。
+
+@defun x-set-selection type data
+@c This function sets a ``selection'' in the X server.  It takes two
+@c arguments: a selection type @var{type}, and the value to assign to it,
+@c @var{data}.  If @var{data} is @code{nil}, it means to clear out the
+@c selection.  Otherwise, @var{data} may be a string, a symbol, an integer
+@c (or a cons of two integers or list of two integers), an overlay, or a
+@c cons of two markers pointing to the same buffer.  An overlay or a pair
+@c of markers stands for text in the overlay or between the markers.
+この関数は、Xサーバーに『セレクション』を設定する。
+これは2つの引数、セレクション型@var{type}と
+それに割り当てる値@var{data}を取る。
+@var{data}が@code{nil}であると、当該セレクションを削除することを意味する。
+さもなければ@var{data}は、文字列、
+整数（あるいは2つの数のコンスセルかリスト）、
+オーバレイ、同じバッファを指す2つのマーカのコンスセルのいずれかである。
+オーバレイやマーカの対は、
+オーバレイのテキストやマーカのあいだのテキストを表す。
+
+@c The argument @var{data} may also be a vector of valid non-vector
+@c selection values.
+引数@var{data}は、ベクトルではない正しいセレクション値のベクトルでもよい。
+
+@c Each possible @var{type} has its own selection value, which changes
+@c independently.  The usual values of @var{type} are @code{PRIMARY} and
+@c @code{SECONDARY}; these are symbols with upper-case names, in accord
+@c with X Window System conventions.  The default is @code{PRIMARY}.
+可能な各@var{type}には型に依存した独自のセレクション値がある。
+@var{type}の普通の値は@code{PRIMARY}か@code{SECONDARY}である。
+これらのシンボルは、Xウィンドウシステムの慣習に従って
+大文字の名前である。
+デフォルトは@code{PRIMARY}である。
+@end defun
+
+@defun x-get-selection &optional type data-type
+@c This function accesses selections set up by Emacs or by other X
+@c clients.  It takes two optional arguments, @var{type} and
+@c @var{data-type}.  The default for @var{type}, the selection type, is
+@c @code{PRIMARY}.
+この関数は、Emacsや他のXクライアントが設定したセレクションを参照する。
+これは2つの引数、@var{type}と@var{data-type}を取る。
+セレクション型@var{type}のデフォルトは@code{PRIMARY}である。
+
+@c The @var{data-type} argument specifies the form of data conversion to
+@c use, to convert the raw data obtained from another X client into Lisp
+@c data.  Meaningful values include @code{TEXT}, @code{STRING},
+@c @code{TARGETS}, @code{LENGTH}, @code{DELETE}, @code{FILE_NAME},
+@c @code{CHARACTER_POSITION}, @code{LINE_NUMBER}, @code{COLUMN_NUMBER},
+@c @code{OWNER_OS}, @code{HOST_NAME}, @code{USER}, @code{CLASS},
+@c @code{NAME}, @code{ATOM}, and @code{INTEGER}.  (These are symbols with
+@c upper-case names in accord with X conventions.)  The default for
+@c @var{data-type} is @code{STRING}.
+引数@var{data-type}は、他のXクライアントから得た生データを
+Lispデータに変換するために使用するデータ変換の書式を指定する。
+意味のある値は、@code{TEXT}、@code{STRING}、
+@code{CHARACTER_POSITION}、@code{LINE_NUMBER}、@code{COLUMN_NUMBER}、
+@code{OWNER_OS}、@code{HOST_NAME}、@code{USER}、@code{CLASS}、
+@code{NAME}、@code{ATOM}、@code{INTEGER}である。
+（これらのシンボルは、Xウィンドウシステムの慣習に従って
+大文字の名前である。）
+@var{data-type}のデフォルトは@code{STRING}である。
+@end defun
+
+@c @cindex cut buffer
+@cindex カットバッファ
+@c The X server also has a set of numbered @dfn{cut buffers} which can
+@c store text or other data being moved between applications.  Cut buffers
+@c are considered obsolete, but Emacs supports them for the sake of X
+@c clients that still use them.
+Xサーバーには、アプリケーションのあいだで移動するテキストや他のデータを
+保存できる番号付きの@dfn{カットバッファ}（cut buffer）の集まりもあります。
+カットバッファは廃れているとみなされますが、
+それらを使っているXクライアント向けにEmacsはカットバッファを扱えます。
+
+@defun x-get-cut-buffer n
+@c This function returns the contents of cut buffer number @var{n}.
+この関数は、番号@var{n}のカットバッファの内容を返す。
+@end defun
+
+@defun x-set-cut-buffer string
+@c This function stores @var{string} into the first cut buffer (cut buffer
+@c 0), moving the other values down through the series of cut buffers, much
+@c like the way successive kills in Emacs move down the kill ring.
+Emacsが連続したキルをキルリングで順に下向きに移動するのと同様に、
+この関数は一連のカットバッファの値を順に下向きに移動してから
+文字列@var{string}を最初のカットバッファ（番号0）に保存する。
+@end defun
+
+@defvar selection-coding-system
+@tindex selection-coding-system
+@c This variable specifies the coding system to use when reading and
+@c writing a selections, the clipboard, or a cut buffer.  @xref{Coding
+@c Systems}.  The default is @code{compound-text}.
+この変数は、セレクション、クリップボード、カットバッファを
+読み書きするときに使うコーディングシステムを指定する。
+@pxref{Coding Systems}。
+デフォルトは@code{compound-text}である。
+@end defvar
+
+@need 1500
+@node Font Names
+@c @section Looking up Font Names
+@section フォント名の探索
+
+@defun x-list-font pattern &optional face frame maximum
+@c This function returns a list of available font names that match
+@c @var{pattern}.  If the optional arguments @var{face} and @var{frame} are
+@c specified, then the list is limited to fonts that are the same size as
+@c @var{face} currently is on @var{frame}.
+この関数は、パターン@var{pattern}に一致する
+利用可能なフォント名のリストを返す。
+省略可能な引数@var{face}と@var{frame}を指定すると、
+@var{frame}で現在オンになっている@var{face}と同じサイズのフォントに
+リストを制限する。
+
+@c The argument @var{pattern} should be a string, perhaps with wildcard
+@c characters: the @samp{*} character matches any substring, and the
+@c @samp{?} character matches any single character.  Pattern matching
+@c of font names ignores case.
+引数@var{pattern}は文字列であること。
+これはワイルドカード文字を含んでいてもよい。
+@samp{*}は任意の部分文字列に一致し、@samp{?}は任意の1文字に一致する。
+フォント名とパターンの一致を取る際には、大文字小文字を区別しない。
+
+@c If you specify @var{face} and @var{frame}, @var{face} should be a face name
+@c (a symbol) and @var{frame} should be a frame.
+@var{face}と@var{frame}を指定するときには、
+@var{face}はフェイス名（シンボル）であり、@var{frame}はフレームであること。
+
+@c The optional argument @var{maximum} sets a limit on how many fonts to
+@c return.  If this is non-@code{nil}, then the return value is truncated
+@c after the first @var{maximum} matching fonts.  Specifying a small value
+@c for @var{maximum} can make this function much faster, in cases where
+@c many fonts match the pattern.
+省略可能な引数@var{maximum}は、返すフォントの個数を制限する。
+これが@code{nil}以外であると、戻り値は最初の@var{maximum}個の
+一致したフォントに切り詰める。
+@var{maximum}に小さな値を指定すると、
+多くのフォントに一致する場合ではこの関数の動作がだいぶ速くなる。
+@end defun
+
+@node Fontsets
+@c @section Fontsets
+@section フォントセット
+
+@c   A @dfn{fontset} is a list of fonts, each assigned to a range of
+@c character codes.  An individual font cannot display the whole range of
+@c characters that Emacs supports, but a fontset can.  Fontsets have names,
+@c just as fonts do, and you can use a fontset name in place of a font name
+@c when you specify the ``font'' for a frame or a face.  Here is
+@c information about defining a fontset under Lisp program control.
+@dfn{フォントセット}（fontset）は、フォントのリストであって、
+各フォントが文字コードのある範囲に割り付けられています。
+個々のフォントだけでは、Emacsが扱う文字集合の範囲全体を表示できませんが、
+フォントセットならば可能です。
+フォントセットにはフォントと同様に名前があり、
+フレームやフェイス向けに『フォント』を指定するときの
+フォント名のかわりにフォントセット名を使えます。
+ここでは、Lispプログラムの制御のもとにフォントセットを定義することに
+関する情報を述べます。
+
+@defun create-fontset-from-fontset-spec fontset-spec &optional style-variant-p noerror
+@c This function defines a new fontset according to the specification
+@c string @var{fontset-spec}.  The string should have this format:
+この関数は、指定文字列@var{fontset-spec}に従って
+新たなフォントセットを定義する。
+文字列はつぎの形であること。
+
+@smallexample
+@var{fontpattern}, @r{[}@var{charsetname}:@var{fontname}@r{]@dots{}}
+@end smallexample
+
+@noindent
+@c Whitespace characters before and after the commas are ignored.
+コンマの前後の白文字は無視する。
+
+@c The first part of the string, @var{fontpattern}, should have the form of
+@c a standard X font name, except that the last two fields should be
+@c @samp{fontset-@var{alias}}.
+文字列の始めの部分@var{fontpattern}は、
+最後の2つのフィールドが@samp{fontset-@var{alias}}であることを除いて、
+Xの標準フォント名であること。
+
+@c The new fontset has two names, one long and one short.  The long name is
+@c @var{fontpattern} in its entirety.  The short name is
+@c @samp{fontset-@var{alias}}.  You can refer to the fontset by either
+@c name.  If a fontset with the same name already exists, an error is
+@c signaled, unless @var{noerror} is non-@code{nil}, in which case this
+@c function does nothing.
+新たなフォントセットには2つの名前、つまり、長い名前と短い名前がある。
+長い名前は@var{fontpattern}そのものである。
+短い名前は@samp{fontset-@var{alias}}である。
+どちらの名前でもフォントセットを参照できる。
+同じ名前のフォントセットがすでに存在する場合、
+@var{noerror}が@code{nil}であるとエラーを通知し、
+この関数はなにもしない。
+
+@c If optional argument @var{style-variant-p} is non-@code{nil}, that says
+@c to create bold, italic and bold-italic variants of the fontset as well.
+@c These variant fontsets do not have a short name, only a long one, which
+@c is made by altering @var{fontpattern} to indicate the bold or italic
+@c status.
+省略可能な引数@var{style-variant-p}が@code{nil}以外であると、
+フォントセットのbold（太字）、italic（斜体）、bold-italic（太字斜体）の
+各変種も作成することを指示する。
+これらの変種のフォントセットには短い名前はなく、
+var{fontpattern}のboldやitalicを変更して作った長い名前だけである。
+
+@c The specification string also says which fonts to use in the fontset.
+@c See below for the details.
+指定文字列ではフォントセットで使うフォントも指定する。
+詳しくは下記参照。
+@end defun
+
+@c   The construct @samp{@var{charset}:@var{font}} specifies which font to
+@c use (in this fontset) for one particular character set.  Here,
+@c @var{charset} is the name of a character set, and @var{font} is the font
+@c to use for that character set.  You can use this construct any number of
+@c times in the specification string.
+@samp{@var{charset}:@var{font}}という構成は、
+特定の1つの文字集合向けに（このフォントセットで）使うフォントを指定します。
+ここで、@var{charset}は文字集合の名前であり、
+@var{font}はその文字集合に使うフォントです。
+この構成は、指定文字列で何回でも使えます。
+
+@c   For the remaining character sets, those that you don't specify
+@c explicitly, Emacs chooses a font based on @var{fontpattern}: it replaces
+@c @samp{fontset-@var{alias}} with a value that names one character set.
+@c For the @sc{ASCII} character set, @samp{fontset-@var{alias}} is replaced
+@c with @samp{ISO8859-1}.
+明示してない残りの文字集合向けには、
+@var{fontpattern}に基づいてEmacsがフォントを選びます。
+つまり、@samp{fontset-@var{alias}}を1つの文字集合を指名する値で置き換えます。
+@sc{ASCII}文字集合向けには、
+@samp{fontset-@var{alias}}を@samp{ISO8859-1}で置き換えます。
+
+@c   In addition, when several consecutive fields are wildcards, Emacs
+@c collapses them into a single wildcard.  This is to prevent use of
+@c auto-scaled fonts.  Fonts made by scaling larger fonts are not usable
+@c for editing, and scaling a smaller font is not useful because it is
+@c better to use the smaller font in its own size, which Emacs does.
+これに加えて、いくつか連続したフィールドがワイルドカードであるなら、
+Emacsはそれらを1つのワイルドカードにまとめます。
+これは、自動的に拡大縮小したフォントの使用を避けるためです。
+大きめのフォントを縮小したフォントは編集には使えません。
+また、小さめのフォントを拡大したフォントも有用ではありません。
+というのは、Emacsがそうするように、
+もともと小さなフォントを使うほうがよいからです。
+
+@c   Thus if @var{fontpattern} is this,
+したがって、@var{fontpattern}がつぎのようであると、
+
+@example
+-*-fixed-medium-r-normal-*-24-*-*-*-*-*-fontset-24
+@end example
+
+@noindent
+@c the font specification for ASCII characters would be this:
+ASCII文字に対するフォント指定はつぎのようになります。
+
+@example
+-*-fixed-medium-r-normal-*-24-*-ISO8859-1
+@end example
+
+@noindent
+@c and the font specification for Chinese GB2312 characters would be this:
+また、Chinese GB2312文字に対するフォント指定はつぎのようになります。
+
+@example
+-*-fixed-medium-r-normal-*-24-*-gb2312*-*
+@end example
+
+@c   You may not have any Chinese font matching the above font
+@c specification.  Most X distributions include only Chinese fonts that
+@c have @samp{song ti} or @samp{fangsong ti} in the @var{family} field.  In
+@c such a case, @samp{Fontset-@var{n}} can be specified as below:
+上のフォント指定に一致する中国語フォントがないかもしれません。
+多くのXの配布には、@var{family}フィールドが
+@samp{song ti}か@samp{fangsong ti}の中国語フォントだけが含まれています。
+そういった場合、@samp{Fontset-@var{n}}をつぎのように指定します。
+
+@smallexample
+Emacs.Fontset-0: -*-fixed-medium-r-normal-*-24-*-*-*-*-*-fontset-24,\
+        chinese-gb2312:-*-*-medium-r-normal-*-24-*-gb2312*-*
+@end smallexample
+
+@noindent
+@c Then, the font specifications for all but Chinese GB2312 characters have
+@c @samp{fixed} in the @var{family} field, and the font specification for
+@c Chinese GB2312 characters has a wild card @samp{*} in the @var{family}
+@c field.
+そうすると、Chinese GB2312の文字を除くフォント指定では
+@var{family}フィールドが@samp{fixed}となり、
+Chinese GB2312の文字に対するフォント指定では
+@var{family}フィールドが@samp{*}となります。
+
+@node Color Names
+@c @section Color Names
+@section 表示色名
+
+@defun x-color-defined-p color &optional frame
+@c This function reports whether a color name is meaningful.  It returns
+@c @code{t} if so; otherwise, @code{nil}.  The argument @var{frame} says
+@c which frame's display to ask about; if @var{frame} is omitted or
+@c @code{nil}, the selected frame is used.
+この関数は、表示色名が意味のあるものかどうかを報告する。
+意味があれば@code{t}を返し、さもなければ@code{nil}を返す。
+引数@var{frame}は、どのフレームで調べるかを指定する。
+@var{frame}を省略したり@code{nil}であると、選択されているフレームを使う。
+
+@c Note that this does not tell you whether the display you are using
+@c really supports that color.  You can ask for any defined color on any
+@c kind of display, and you will get some result---that is how the X server
+@c works.  Here's an approximate way to test whether your display supports
+@c the color @var{color}:
+この関数では、読者が使用しているディスプレイで
+当該表示色を実際に表示できるかどうかはわからない。
+どんな種類のディスプレイでも定義されていればどんな表示色でも
+問い合わせることができ、なんらかの結果を得られる。
+Xサーバーはこのように動作するのである。
+読者のディスプレイで表示色@var{color}を使えるかどうかを
+検査する近似方法はつぎのとおりである。
+
+@example
+(defun x-color-supported-p (color &optional frame)
+  (and (x-color-defined-p color frame)
+       (or (x-display-color-p frame)
+           (member color '("black" "white"))
+           (and (> (x-display-planes frame) 1)
+                (equal color "gray")))))
+@end example
+@end defun
+
+@defun x-color-values color &optional frame
+@c This function returns a value that describes what @var{color} should
+@c ideally look like.  If @var{color} is defined, the value is a list of
+@c three integers, which give the amount of red, the amount of green, and
+@c the amount of blue.  Each integer ranges in principle from 0 to 65535,
+@c but in practice no value seems to be above 65280.  If @var{color} is not
+@c defined, the value is @code{nil}.
+この関数は、表示色@var{color}が理想的にはどのように見えるかを記述した値を返す。
+@var{color}が定義されていれば、その値は、赤の分量、緑の分量、青の分量を表す
+3つの整数のリストである。
+各整数の範囲は原理的には0から65535であるが、
+実際には65280を超えることはないようである。
+@var{color}が定義されていなければ、値は@code{nil}である。
+
+@example
+(x-color-values "black")
+     @result{} (0 0 0)
+(x-color-values "white")
+     @result{} (65280 65280 65280)
+(x-color-values "red")
+     @result{} (65280 0 0)
+(x-color-values "pink")
+     @result{} (65280 49152 51968)
+(x-color-values "hungry")
+     @result{} nil
+@end example
+
+@c The color values are returned for @var{frame}'s display.  If @var{frame}
+@c is omitted or @code{nil}, the information is returned for the selected
+@c frame's display.
+フレーム@var{frame}のディスプレイに対する表示色の値を返す。
+@var{frame}を省略したり@code{nil}であると、
+選択されているフレームのディスプレイに対する値を返す。
+@end defun
+
+@node Resources
+@c @section X Resources
+@section Xリソース
+
+@defun x-get-resource attribute class &optional component subclass
+@c The function @code{x-get-resource} retrieves a resource value from the X
+@c Windows defaults database.
+関数@code{x-get-resource}は、
+Xウィンドウのデフォルトのデータベースからリソースの値を取り出す。
+
+@c Resources are indexed by a combination of a @dfn{key} and a @dfn{class}.
+@c This function searches using a key of the form
+@c @samp{@var{instance}.@var{attribute}} (where @var{instance} is the name
+@c under which Emacs was invoked), and using @samp{Emacs.@var{class}} as
+@c the class.
+リソースは、@dfn{key}と@dfn{class}の組み合わせで添字付けされる。
+この関数は@samp{@var{instance}.@var{attribute}}の形
+（@var{instance}はEmacsを起動した名前）のキーと
+クラスとして@samp{Emacs.@var{class}}を使って探索する。
+
+@c The optional arguments @var{component} and @var{subclass} add to the key
+@c and the class, respectively.  You must specify both of them or neither.
+@c If you specify them, the key is
+@c @samp{@var{instance}.@var{component}.@var{attribute}}, and the class is
+@c @samp{Emacs.@var{class}.@var{subclass}}.
+省略可能な引数@var{component}と@var{subclass}は、それぞれ、
+キーとクラスに追加される。
+2つを指定するかまったく指定しないこと。
+これらを指定すると、
+キーは@samp{@var{instance}.@var{component}.@var{attribute}}であり、
+クラスは@samp{Emacs.@var{class}.@var{subclass}}である。
+@end defun
+
+@defvar x-resource-class
+@c This variable specifies the application name that @code{x-get-resource}
+@c should look up.  The default value is @code{"Emacs"}.  You can examine X
+@c resources for application names other than ``Emacs'' by binding this
+@c variable to some other string, around a call to @code{x-get-resource}.
+この変数は、@code{x-get-resource}が探すアプリケーション名を指定する。
+デフォルト値は@code{"Emacs"}である。
+@code{x-get-resource}を呼び出す周りでこの変数に別の文字列を束縛すれば、
+『Emacs』以外のアプリケーション名でXリソースを探せる。
+@end defvar
+
+@c   @xref{Resources X,, X Resources, emacs, The GNU Emacs Manual}.
+  @xref{Resources X,, Xリソース, emacs, GNU Emacs マニュアル}。
+
+@node Server Data
+@c @section Data about the X Server
+@section Xサーバーに関するデータ
+
+@c   This section describes functions you can use to get information about
+@c the capabilities and origin of an X display that Emacs is using.  Each
+@c of these functions lets you specify the display you are interested in:
+@c the @var{display} argument can be either a display name, or a frame
+@c (meaning use the display that frame is on).  If you omit the
+@c @var{display} argument, or specify @code{nil}, that means to use the
+@c selected frame's display.
+本節では、Emacsが使っているXディスプレイの能力や製造元に関する情報を
+得るために使う関数について述べます。
+これらの関数のそれぞれには、どのディスプレイを対象にするか
+引数@var{display}で指定できます。
+引数@var{display}は、ディスプレイ名か
+フレーム（が表示されいるディスプレイを意味する）のいずれかです。
+引数@var{display}を省略したり@code{nil}であると、
+選択されているフレームのディスプレイを使うことを意味します。
+
+@defun x-display-screens &optional display
+@c This function returns the number of screens associated with the display.
+この関数は、ディスプレイに対応付けられているスクリーンの個数を返す。
+@end defun
+
+@defun x-server-version &optional display
+@c This function returns the list of version numbers of the X server
+@c running the display.
+この関数は、ディスプレイで動作中のXサーバーの版番号のリストを返す。
+@end defun
+
+@defun x-server-vendor &optional display
+@c This function returns the vendor that provided the X server software.
+この関数は、Xサーバーソフトウェアの提供業者を返す。
+@end defun
+
+@defun x-display-pixel-height &optional display
+@c This function returns the height of the screen in pixels.
+この関数はスクリーンのピクセル単位の高さを返す。
+@end defun
+
+@defun x-display-mm-height &optional display
+@c This function returns the height of the screen in millimeters.
+この関数はスクリーンのミリメートル単位の高さを返す。
+@end defun
+
+@defun x-display-pixel-width &optional display
+@c This function returns the width of the screen in pixels.
+この関数はスクリーンのピクセル単位の幅を返す。
+@end defun
+
+@defun x-display-mm-width &optional display
+@c This function returns the width of the screen in millimeters.
+この関数はスクリーンのミリメートル単位の幅を返す。
+@end defun
+
+@defun x-display-backing-store &optional display
+@c This function returns the backing store capability of the screen.
+@c Values can be the symbols @code{always}, @code{when-mapped}, or
+@c @code{not-useful}.
+この関数は、スクリーンのバッキングストア機能を返す。
+その値は、@code{always}、@code{when-mapped}、@code{not-useful}のシンボルの
+いずれかである。
+@end defun
+
+@defun x-display-save-under &optional display
+@c This function returns non-@code{nil} if the display supports the
+@c SaveUnder feature.
+この関数は、ディスプレイにセーブアンダー機能があれば@code{nil}以外を返す。
+@end defun
+
+@defun x-display-planes &optional display
+@c This function returns the number of planes the display supports.
+この関数は、ディスプレイのプレイン数を返す。
+@end defun
+
+@defun x-display-visual-class &optional display
+@c This function returns the visual class for the screen.  The value is one
+@c of the symbols @code{static-gray}, @code{gray-scale},
+@c @code{static-color}, @code{pseudo-color}, @code{true-color}, and
+@c @code{direct-color}.
+この関数は、スクリーンのビジュアルクラスを返す。
+その値は、@code{static-gray}、@code{gray-scale}、
+@code{static-color}、@code{pseudo-color}、@code{true-color}、
+@code{direct-color}のシンボルのいずれかである。
+@end defun
+
+@defun x-display-grayscale-p &optional display
+@c This function returns @code{t} if the screen can display shades of gray.
+この関数は、スクリーンで白黒の濃淡を表示できると@code{t}を返す。
+@end defun
+
+@defun x-display-color-p &optional display
+@c This function returns @code{t} if the screen is a color screen.
+この関数は、スクリーンがカラースクリーンならば@code{t}を返す。
+@end defun
+
+@defun x-display-color-cells &optional display
+@c This function returns the number of color cells the screen supports.
+この関数はスクリーンで使えるカラーセルの個数を返す。
+@end defun
+
+@ignore
+@defvar x-no-window-manager
+This variable's value is @code{t} if no X window manager is in use.
+@end defvar
+@end ignore
+
+@ignore
+@item
+The functions @code{x-pixel-width} and @code{x-pixel-height} return the
+width and height of an X Window frame, measured in pixels.
+@end ignore

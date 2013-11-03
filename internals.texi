@@ -1,0 +1,1570 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/internals
+@node GNU Emacs Internals, Standard Errors, Tips, Top
+@comment  node-name,  next,  previous,  up
+@c @appendix GNU Emacs Internals
+@appendix GNU Emacsの内部
+
+@c This chapter describes how the runnable Emacs executable is dumped with
+@c the preloaded Lisp libraries in it, how storage is allocated, and some
+@c internal aspects of GNU Emacs that may be of interest to C programmers.
+本章では、Lispライブラリをあらかじめロードした実用的なEmacsの実行形式の
+ダンプ方法、メモリ領域の割り当て方、
+Cプログラマに興味があるようなGNU Emacsの内部について述べます。
+
+@menu
+* Building Emacs::      How to the dumped Emacs is made.
+* Pure Storage::        A kludge to make preloaded Lisp functions sharable.
+* Garbage Collection::  Reclaiming space for Lisp objects no longer used.
+* Memory Usage::        Info about total size of Lisp objects made so far.
+* Writing Emacs Primitives::   Writing C code for Emacs.
+* Object Internals::    Data formats of buffers, windows, processes.
+@end menu
+
+@node Building Emacs
+@c @appendixsec Building Emacs
+@appendixsec Emacsの構築方法
+@c @cindex building Emacs
+@cindex Emacsの構築方法
+@pindex temacs
+
+@c   This section explains the steps involved in building the Emacs
+@c executable.  You don't have to know this material to build and install
+@c Emacs, since the makefiles do all these things automatically.  This
+@c information is pertinent to Emacs maintenance.
+本節では、Emacsの実行形式を構築する手順を説明します。
+メイクファイルが自動的にこれらすべてを行うので、
+Emacsを構築してインストールするために本節のことがらを
+読者が知っている必要はありません。
+本節の内容は、Emacsの保守者向けです。
+
+@c    Compilation of the C source files in the @file{src} directory
+@c produces an executable file called @file{temacs}, also called a
+@c @dfn{bare impure Emacs}.  It contains the Emacs Lisp interpreter and I/O
+@c routines, but not the editing commands.
+ディレクトリ@file{src}のCソースファイル群をコンパイルすると、
+@file{temacs}と呼ばれる実行形式ファイルが作られます。
+これは@dfn{裸のインピュアEmacs}（bare impure Emacs）とも呼びます。
+これには、Emacs Lispインタープリタと入出力ルーティンが含まれますが、
+編集コマンドは入っていません。
+
+@cindex @file{loadup.el}
+@c   The command @w{@samp{temacs -l loadup}} uses @file{temacs} to create
+@c the real runnable Emacs executable.  These arguments direct
+@c @file{temacs} to evaluate the Lisp files specified in the file
+@c @file{loadup.el}.  These files set up the normal Emacs editing
+@c environment, resulting in an Emacs that is still impure but no longer
+@c bare.
+コマンド@w{@samp{temacs -l loadup}}で、
+実用的なEmacsの実行形式を作るために@file{temacs}を使います。
+これらの引数は、@file{temacs}に対して
+ファイル@file{loadup.el}で指定したLispファイル群を評価するように指示します。
+これらのファイルはEmacsの通常の編集環境を作り上げ、
+その結果、Emacsは裸ではありませんがまだインピュアです。
+
+@c   It takes a substantial time to load the standard Lisp files.  Luckily,
+@c you don't have to do this each time you run Emacs; @file{temacs} can
+@c dump out an executable program called @file{emacs} that has these files
+@c preloaded.  @file{emacs} starts more quickly because it does not need to
+@c load the files.  This is the Emacs executable that is normally
+@c installed.
+標準のLispファイル群をロードするにはかなり時間が必要です。
+しかし、読者がEmacsを実行するたびにこれを行う必要はありません。
+@file{temacs}は、必要なファイルをあらかじめロードした@file{emacs}という
+実行形式プログラムとしてダンプできます。
+@file{emacs}はファイル群をロードする必要がないので素早く起動します。
+これが通常インストールされるEmacsの実行形式です。
+
+@c   To create @file{emacs}, use the command @samp{temacs -batch -l loadup
+@c dump}.  The purpose of @samp{-batch} here is to prevent @file{temacs}
+@c from trying to initialize any of its data on the terminal; this ensures
+@c that the tables of terminal information are empty in the dumped Emacs.
+@c The argument @samp{dump} tells @file{loadup.el} to dump a new executable
+@c named @file{emacs}.
+@file{emacs}を作るにはコマンド@samp{temacs -batch -l loadup dump}を使います。
+ここでの@samp{-batch}の目的は、
+@file{temacs}が端末に関するデータを初期化しないようにするためです。
+これにより、ダンプしたEmacsでは端末情報の表が空であることを保証できます。
+引数@samp{dump}は、@file{emacs}という名前の新たな実行形式を
+ダンプするように@file{loadup.el}に指示します。
+
+@c   Some operating systems don't support dumping.  On those systems, you
+@c must start Emacs with the @samp{temacs -l loadup} command each time you
+@c use it.  This takes a substantial time, but since you need to start
+@c Emacs once a day at most---or once a week if you never log out---the
+@c extra time is not too severe a problem.
+ダンプできないオペレーティングシステムもあります。
+そのようなシステムでは、Emacsを使うたびに
+コマンド@samp{temacs -l loadup}でEmacsを起動する必要があります。
+これにはかなり時間がかかりますが、多くても1日に1回、あるいは、
+ログアウトしなのであれば週に1回Emacsを起動する必要があるだけでしょうから、
+余分な時間は重大問題にはならないでしょう。
+
+@cindex @file{site-load.el}
+@c   You can specify additional files to preload by writing a library named
+@c @file{site-load.el} that loads them.  You may need to increase the value
+@c of @code{PURESIZE}, in @file{src/puresize.h}, to make room for the
+@c additional data.  (Try adding increments of 20000 until it is big
+@c enough.)  However, the advantage of preloading additional files
+@c decreases as machines get faster.  On modern machines, it is usually not
+@c advisable.
+あらかじめロードしておく追加のファイルは、
+それらをロードする@file{site-load.el}という名前のライブラリを
+書くことで指定できます。
+追加データのための領域を確保するために
+@file{src/puresize.h}の@code{PURESIZE}の値を増やす必要があるかもしれません。
+（十分な大きさになるまで20000ずつ増やして試すこと。）
+しかし、マシンが速くなればなるほど、あらかじめロードしておくファイルを
+追加することの利点は減少します。
+最近のマシンでは、このようにする必要はないでしょう。
+
+@c   After @file{loadup.el} reads @file{site-load.el}, it finds the
+@c documentation strings for primitive and preloaded functions (and
+@c variables) in the file @file{etc/DOC} where they are stored, by calling
+@c @code{Snarf-documentation} (@pxref{Accessing Documentation}).
+@file{loadup.el}が@file{site-load.el}を読み終えると、
+@code{Snarf-documentation}（@pxref{Accessing Documentation}）を呼び出して、
+基本関数やあらかじめロードした関数（および変数）の説明文字列を
+それらの説明文字列を格納したファイル@file{etc/DOC}から探します。
+
+@cindex @file{site-init.el}
+@c   You can specify other Lisp expressions to execute just before dumping
+@c by putting them in a library named @file{site-init.el}.  This file is
+@c executed after the documentation strings are found.
+ダンプする直前に実行すべきList式を指定するには、
+@file{site-init.el}という名前のライブラリにそれらのLisp式を入れておきます。
+このファイルは、説明文字列を探し終えてから実行されます。
+
+@c   If you want to preload function or variable definitions, there are
+@c three ways you can do this and make their documentation strings
+@c accessible when you subsequently run Emacs:
+関数定義や変数定義をあらかじめロードしたいときには、
+それを行ってあとでEmacsを実行したときにそれらの説明文字列を
+参照できるようにする方法が3つあります。
+
+@itemize @bullet
+@item
+@c Arrange to scan these files when producing the @file{etc/DOC} file,
+@c and load them with @file{site-load.el}.
+ファイル@file{etc/DOC}を作成するときに
+それらのファイルが走査されるようにしておき、
+@file{site-load.el}でそれらのファイルをロードする。
+
+@item
+@c Load the files with @file{site-init.el}, then copy the files into the
+@c installation directory for Lisp files when you install Emacs.
+@file{site-init.el}でファイルをロードし、
+Emacsをインストールするときにそれらのファイルを
+Lispファイル向けのインストールディレクトリへコピーする。
+
+@item
+@c Specify a non-@code{nil} value for
+@c @code{byte-compile-dynamic-docstrings} as a local variable in each these
+@c files, and load them with either @file{site-load.el} or
+@c @file{site-init.el}.  (This method has the drawback that the
+@c documentation strings take up space in Emacs all the time.)
+それらの各ファイルでローカル変数として
+@code{byte-compile-dynamic-docstrings}の値に@code{nil}以外を指定し、
+@file{site-load.el}か@file{site-init.el}でそれらのファイルをロードする。
+（これには、それらの説明文字列がつねにEmacsの領域を占めてしまう
+欠点がある。）
+@end itemize
+
+@c   It is not advisable to put anything in @file{site-load.el} or
+@c @file{site-init.el} that would alter any of the features that users
+@c expect in an ordinary unmodified Emacs.  If you feel you must override
+@c normal features for your site, do it with @file{default.el}, so that
+@c users can override your changes if they wish.  @xref{Start-up Summary}.
+無変更の普通のEmacsにユーザーが期待する機能を変更するようなものを
+@file{site-load.el}や@file{site-init.el}に入れることは勧められません。
+読者のサイトでは普通の機能に優先させるべきであると思うときには、
+@file{default.el}でそれを行います。
+そうすれば、ユーザーは好みに応じて読者が行った変更を無効にできます。
+@xref{Start-up Summary}。
+
+@defun dump-emacs to-file from-file
+@cindex unexec
+@c This function dumps the current state of Emacs into an executable file
+@c @var{to-file}.  It takes symbols from @var{from-file} (this is normally
+@c the executable file @file{temacs}).
+この関数は、Emacsの現在の状態を
+実行形式ファイル@var{to-file}へダンプする。
+@var{from-file}（これは普通は実行形式ファイル@file{temacs}）から
+シンボルを取り出す。
+
+@c If you want to use this function in an Emacs that was already dumped,
+@c you must run Emacs with @samp{-batch}.
+すでにダンプしたEmacsでこの関数を使うときには、
+@samp{-batch}を指定してEmacsを実行すること。
+@end defun
+
+@node Pure Storage
+@c @appendixsec Pure Storage
+@appendixsec ピュアメモリ
+@c @cindex pure storage
+@cindex ピュアメモリ
+
+@c   Emacs Lisp uses two kinds of storage for user-created Lisp objects:
+@c @dfn{normal storage} and @dfn{pure storage}.  Normal storage is where
+@c all the new data created during an Emacs session is kept; see the
+@c following section for information on normal storage.  Pure storage is
+@c used for certain data in the preloaded standard Lisp files---data that
+@c should never change during actual use of Emacs.
+Emacs Lispでは、ユーザーが作成したLispオブジェクト向けに
+2種類のメモリ、@dfn{普通メモリ}（normal storage）と
+@dfn{ピュアメモリ}（pure storage）を使います。
+普通メモリは、Emacsセッション中に新たに作成されるすべてのデータを置く場所です。
+普通メモリに関する情報は以下の節を参照してください。
+ピュアメモリは、あらかじめロードした標準Lispファイル群の特定のデータ、
+つまり、Emacsの実行中にけっして変化しないデータを収めるために使います。
+
+@c   Pure storage is allocated only while @file{temacs} is loading the
+@c standard preloaded Lisp libraries.  In the file @file{emacs}, it is
+@c marked as read-only (on operating systems that permit this), so that
+@c the memory space can be shared by all the Emacs jobs running on the
+@c machine at once.  Pure storage is not expandable; a fixed amount is
+@c allocated when Emacs is compiled, and if that is not sufficient for the
+@c preloaded libraries, @file{temacs} crashes.  If that happens, you must
+@c increase the compilation parameter @code{PURESIZE} in the file
+@c @file{src/puresize.h}.  This normally won't happen unless you try to
+@c preload additional libraries or add features to the standard ones.
+ピュアメモリは、@file{temacs}があらかじめロードする標準Lispライブラリを
+ロードしている最中にのみ割り当てられます。
+ファイル@file{emacs}では読み出し専用
+（これができるオペレーティングシステムでは）と印が付けられ、
+当該マシンで同時に実行されているすべてのEmacsのジョブで
+メモリ領域を共有できるようにします。
+ピュアメモリは拡張できません。
+Emacsをコンパイルしたときに固定サイズが割り当てられ、
+あらかじめロードするライブラリに対して十分な大きさがないと
+@file{temacs}はクラッシュします。
+その場合には、ファイル@file{src/puresize.h}のコンパイルパラメータ
+@code{PURESIZE}を増やす必要があります。
+あらかじめロードするライブラリを追加したり標準機能に機能を追加しなければ、
+そのようなことは普通は起こらないはずです。
+
+@defun purecopy object
+@c This function makes a copy of @var{object} in pure storage and returns
+@c it.  It copies strings by simply making a new string with the same
+@c characters in pure storage.  It recursively copies the contents of
+@c vectors and cons cells.  It does not make copies of other objects such
+@c as symbols, but just returns them unchanged.  It signals an error if
+@c asked to copy markers.
+この関数は、ピュアメモリ内に@var{object}をコピーしそれを返す。
+文字列のコピーでは、ピュアメモリ内に同じ文字の新たな文字列を単純に作る。
+ベクトルやコンスセルの内容は再帰的にコピーする。
+シンボルなどの他のオブジェクトはコピーせずに無変更でそれらを返す。
+マーカをコピーしようとするとエラーを通知する。
+
+@c This function is a no-op except while Emacs is being built and dumped;
+@c it is usually called only in the file @file{emacs/lisp/loaddefs.el}, but
+@c a few packages call it just in case you decide to preload them.
+この関数は、Emacsを構築してダンプするとき以外ではなにもしない。
+普通はファイル@file{emacs/lisp/loaddefs.el}でのみ呼び出されるが、
+あらかじめロードするとこれを呼び出すようなパッケージも少数だがある。
+@end defun
+
+@defvar pure-bytes-used
+@c The value of this variable is the number of bytes of pure storage
+@c allocated so far.  Typically, in a dumped Emacs, this number is very
+@c close to the total amount of pure storage available---if it were not,
+@c we would preallocate less.
+この変数の値は、割り当て済みのピュアメモリのバイト数である。
+典型的には、ダンプしたEmacsでは
+この値は利用可能なピュアメモリの総量にとても近い。
+そうでない場合には、あらかじめロードしたライブラリが少ないのであろう。
+@end defvar
+
+@defvar purify-flag
+@c This variable determines whether @code{defun} should make a copy of the
+@c function definition in pure storage.  If it is non-@code{nil}, then the
+@c function definition is copied into pure storage.
+この変数は、@code{defun}が関数定義をピュアメモリに
+コピーすべきかどうかを決定する。
+@code{nil}以外であると、関数定義をピュアメモリにコピーする。
+
+@c This flag is @code{t} while loading all of the basic functions for
+@c building Emacs initially (allowing those functions to be sharable and
+@c non-collectible).  Dumping Emacs as an executable always writes
+@c @code{nil} in this variable, regardless of the value it actually has
+@c before and after dumping.
+Emacsを構築中の初期段階ですべての基本的な関数をロード中には
+（これらの関数を共有してガベッジコレクションの対象にしないように）、
+このフラグは@code{t}である。
+実行形式としてEmacsをダンプするときには、
+ダンプ前後の実際の値には関係なくこの変数には@code{nil}を書く。
+
+@c You should not change this flag in a running Emacs.
+実行中のEmacsでこのフラグを変更するべきではない。
+@end defvar
+
+@node Garbage Collection
+@c @appendixsec Garbage Collection
+@appendixsec ガベッジコレクション
+@c @cindex garbage collector
+@cindex ガベッジコレクション
+
+@c @cindex memory allocation
+@cindex メモリ割り当て
+@c   When a program creates a list or the user defines a new function (such
+@c as by loading a library), that data is placed in normal storage.  If
+@c normal storage runs low, then Emacs asks the operating system to
+@c allocate more memory in blocks of 1k bytes.  Each block is used for one
+@c type of Lisp object, so symbols, cons cells, markers, etc., are
+@c segregated in distinct blocks in memory.  (Vectors, long strings,
+@c buffers and certain other editing types, which are fairly large, are
+@c allocated in individual blocks, one per object, while small strings are
+@c packed into blocks of 8k bytes.)
+プログラムがリストを作成したり、（ライブラリをロードするなどして）
+ユーザーが新たに関数を定義すると、
+それらのデータは普通メモリへ置かれます。
+普通メモリが足りなくなると、Emacsはオペレーティングシステムに
+1kバイトの倍数のブロックでメモリ割り当てを要求します。
+各ブロックは1つの種類のLispオブジェクトに使いますから、
+シンボル、コンスセル、マーカなどはメモリの異なるブロックに分離されます。
+（ベクトル、長い文字列、バッファ、特定の編集向けデータ型などの
+比較的大きなものは各オブジェクトごとに独立のブロックを割り当てるが、
+短い文字列は8kバイトのブロックに詰め込む。）
+
+@c   It is quite common to use some storage for a while, then release it by
+@c (for example) killing a buffer or deleting the last pointer to an
+@c object.  Emacs provides a @dfn{garbage collector} to reclaim this
+@c abandoned storage.  (This name is traditional, but ``garbage recycler''
+@c might be a more intuitive metaphor for this facility.)
+あるメモリ部分をしばらく使ってから、
+（たとえば）バッファを削除したり
+オブジェクトに対する最後の参照を削除するなどして
+当該メモリを解放することはよくあることです。
+Emacsには、このような放置されたメモリを回収する
+@dfn{ガベッジコレクタ}（garbage collector）があります。
+（この名前は伝統的だが、
+『ガベッジリサイクル』のほうがこの機能を直観的に表すかもしれない。）
+
+@c   The garbage collector operates by finding and marking all Lisp objects
+@c that are still accessible to Lisp programs.  To begin with, it assumes
+@c all the symbols, their values and associated function definitions, and
+@c any data presently on the stack, are accessible.  Any objects that can
+@c be reached indirectly through other accessible objects are also
+@c accessible.
+ガベッジコレクタは、Lispプログラムから現時点で参照可能な
+すべてのLispオブジェクトを探して印を付けることで動作します。
+まず、すべてのシンボル、それらの値、それらに関連付けられた関数定義、
+および、スタック上の任意のデータは参照可能であると仮定します。
+参照可能なオブジェクトから間接的に辿れる任意のオブジェクトも
+参照可能です。
+
+@c   When marking is finished, all objects still unmarked are garbage.  No
+@c matter what the Lisp program or the user does, it is impossible to refer
+@c to them, since there is no longer a way to reach them.  Their space
+@c might as well be reused, since no one will miss them.  The second
+@c (``sweep'') phase of the garbage collector arranges to reuse them.
+印付けが終ったときには、無印であるすべてのオブジェクトは
+ゴミ（ガベッジ）です。
+Lispプログラムやユーザーがなにをしようと、
+無印のオブジェクトに辿り着く方法はないのでそれらを参照することは不可能です。
+無印のオブジェクトを使っているものはいないので、
+それらのメモリ領域は再利用できます。
+ガベッジコレクタの2段目の動作（『掃く』（sweep））は、
+無印のオブジェクトのメモリ領域を再利用できるようにすることです。
+
+@c @cindex free list
+@cindex 自由リスト
+@c   The sweep phase puts unused cons cells onto a @dfn{free list}
+@c for future allocation; likewise for symbols and markers.  It compacts
+@c the accessible strings so they occupy fewer 8k blocks; then it frees the
+@c other 8k blocks.  Vectors, buffers, windows, and other large objects are
+@c individually allocated and freed using @code{malloc} and @code{free}.
+掃き作業では、未使用のコンスセルを@dfn{自由リスト}（free list）に入れて、
+将来の割り当てに備えます。
+シンボルやマーカについても同様です。
+参照可能な文字列は8kバイトのブロックより小さな領域を占めるように詰め込み、
+不要になった8kバイトのブロックは解放します。
+ベクトル、バッファ、ウィンドウ、他の大きなオブジェクトは、
+@code{malloc}や@code{free}を使って個別に割り当てたり解放します。
+
+@c @cindex CL note---allocate more storage
+@cindex CLに関した注意−−メモリ領域の追加
+@quotation
+@c @b{Common Lisp note:} Unlike other Lisps, GNU Emacs Lisp does not
+@c call the garbage collector when the free list is empty.  Instead, it
+@c simply requests the operating system to allocate more storage, and
+@c processing continues until @code{gc-cons-threshold} bytes have been
+@c used.
+@b{Common Lispに関した注意：}@code{ }
+他のLispと異なり、GNU Emacs Lispでは、
+自由リストが空になってもガベッジコレクタを呼び出さない。
+そのかわりに、オペレーティングシステムにメモリ割り当てを単純に要求し、
+@code{gc-cons-threshold}バイトを使い尽くすまでは処理を継続する。
+
+@c This means that you can make sure that the garbage collector will not
+@c run during a certain portion of a Lisp program by calling the garbage
+@c collector explicitly just before it (provided that portion of the
+@c program does not use so much space as to force a second garbage
+@c collection).
+つまり、ガベッジコレクタを明示的に呼び出した直後のLispプログラムの部分では、
+（プログラムのその部分で2度目にガベッジコレクタを呼び出すほど
+多くのメモリを使わないと仮定すれば）
+その部分を実行中にはガベッジコレクタが呼ばれないことを保証できるのである。
+@end quotation
+
+@c @deffn Command garbage-collect
+@deffn コマンド garbage-collect
+@c This command runs a garbage collection, and returns information on
+@c the amount of space in use.  (Garbage collection can also occur
+@c spontaneously if you use more than @code{gc-cons-threshold} bytes of
+@c Lisp data since the previous garbage collection.)
+このコマンドはガベッジコレクタを実行し、
+使用中のメモリ量に関する情報を返す。
+（まえのガベッジコレクタの起動後に
+@code{gc-cons-threshold}バイト以上のLispデータを使うと
+自発的なガベッジコレクタの起動を引き起こす。）
+
+@c @code{garbage-collect} returns a list containing the following
+@c information:
+@code{garbage-collect}が返すリストにはつぎの情報が含まれる。
+
+@example
+@group
+((@var{used-conses} . @var{free-conses})
+ (@var{used-syms} . @var{free-syms})
+@end group
+ (@var{used-miscs} . @var{free-miscs})
+ @var{used-string-chars} 
+ @var{used-vector-slots}
+ (@var{used-floats} . @var{free-floats})
+ (@var{used-intervals} . @var{free-intervals}))
+@end example
+
+@c Here is an example:
+例を示す。
+
+@example
+@group
+(garbage-collect)
+     @result{} ((106886 . 13184) (9769 . 0)
+                (7731 . 4651) 347543 121628
+                (31 . 94) (1273 . 168))
+@end group
+@end example
+
+@c Here is a table explaining each element:
+各要素の意味はつぎのとおりである。
+
+@table @var
+@item used-conses
+@c The number of cons cells in use.
+使用中のコンスセルの個数。
+
+@item free-conses
+@c The number of cons cells for which space has been obtained from the
+@c operating system, but that are not currently being used.
+オペレーティングシステムから得たメモリであるが
+現在未使用なコンスセルの個数。
+
+@item used-syms
+@c The number of symbols in use.
+使用中のシンボルの個数。
+
+@item free-syms
+@c The number of symbols for which space has been obtained from the
+@c operating system, but that are not currently being used.
+オペレーティングシステムから得たメモリであるが
+現在未使用なシンボルの個数。
+
+@item used-miscs
+@c The number of miscellaneous objects in use.  These include markers and
+@c overlays, plus certain objects not visible to users.
+その他の使用中のオブジェクトの個数。
+マーカ、オーバレイ、ユーザーに見えないある種のオブジェクトを含む。
+
+@item free-miscs
+@c The number of miscellaneous objects for which space has been obtained
+@c from the operating system, but that are not currently being used.
+オペレーティングシステムから得たメモリであるが
+現在未使用なその他のオブジェクトの個数。
+
+@item used-string-chars
+@c The total size of all strings, in characters.
+使用中の文字列の総文字数。
+
+@item used-vector-slots
+@c The total number of elements of existing vectors.
+存在するベクトルの要素の総個数。
+
+@item used-floats
+@c @c Emacs 19 feature
+@c The number of floats in use.
+使用中の浮動小数点数の個数。
+
+@item free-floats
+@c @c Emacs 19 feature
+@c The number of floats for which space has been obtained from the
+@c operating system, but that are not currently being used.
+オペレーティングシステムから得たメモリであるが
+現在未使用な浮動小数点数の個数。
+
+@item used-intervals
+@c The number of intervals in use.  Intervals are an internal
+@c data structure used for representing text properties.
+使用中のインターバルの個数。
+インターバルとはテキスト属性を表現するために使う内部データ構造である。
+
+@item free-intervals
+@c The number of intervals for which space has been obtained
+@c from the operating system, but that are not currently being used.
+オペレーティングシステムから得たメモリであるが
+現在未使用なインターバルの個数。
+@end table
+@end deffn
+
+@defopt garbage-collection-messages
+@c If this variable is non-@code{nil}, Emacs displays a message at the
+@c beginning and end of garbage collection.  The default value is
+@c @code{nil}, meaning there are no such messages.
+この変数が@code{nil}以外であると、
+Emacsはガベッジコレクションの始まりと終りにメッセージを表示する。
+デフォルト値は@code{nil}であり、そのようなメッセージを表示しない。
+@end defopt
+
+@defopt gc-cons-threshold
+@c The value of this variable is the number of bytes of storage that must
+@c be allocated for Lisp objects after one garbage collection in order to
+@c trigger another garbage collection.  A cons cell counts as eight bytes,
+@c a string as one byte per character plus a few bytes of overhead, and so
+@c on; space allocated to the contents of buffers does not count.  Note
+@c that the subsequent garbage collection does not happen immediately when
+@c the threshold is exhausted, but only the next time the Lisp evaluator is
+@c called.
+この変数の値は、ガベッジコレクションのあとで
+つぎにガベッジコレクションを起こすまでに
+Lispオブジェクトに割り当てるべきメモリバイト数である。
+コンスセルは8バイト、
+文字列は1文字1バイトと数バイトのオーバヘッドといった具合である。
+バッファの内容に割り当てたメモリ量は数えない。
+この閾値を越えてもただちにつぎのガベッジコレクションは起こらず、
+つぎにLispのエバリュエータが呼ばれときに起きる。
+
+@c The initial threshold value is 400,000.  If you specify a larger
+@c value, garbage collection will happen less often.  This reduces the
+@c amount of time spent garbage collecting, but increases total memory use.
+@c You may want to do this when running a program that creates lots of
+@c Lisp data.
+最初の閾値は400,000である。
+より大きな値を指定すると、ガベッジコレクションの起動回数が少なくなる。
+ガベッジコレクションに費す時間を減少できるが、
+全体のメモリ使用量を増加させる。
+大量のLispデータを作成するようなプログラムを実行するときに設定する。
+
+@c You can make collections more frequent by specifying a smaller value,
+@c down to 10,000.  A value less than 10,000 will remain in effect only
+@c until the subsequent garbage collection, at which time
+@c @code{garbage-collect} will set the threshold back to 10,000.
+10,000までの小さな値を指定すると、
+ガベッジコレクションの回数を増やせる。
+10,000未満の値が意味を持つのはつぎにガベッジコレクションが起きるまでである。
+@code{garbage-collect}は閾値を10,000に戻す。
+@end defopt
+
+@c   The value return by @code{garbage-collect} describes the amount of
+@c memory used by Lisp data, broken down by data type.  By contrast, the
+@c function @code{memory-limit} provides information on the total amount of
+@c memory Emacs is currently using.
+@code{garbage-collect}が返す値は、データ型ごとのLispデータのメモリ使用量です。
+対照的に、関数@code{memory-limit}は、
+Emacsが現在使用中のメモリ総量に関する情報を与えます。
+
+@c Emacs 19 feature
+@defun memory-limit
+@c This function returns the address of the last byte Emacs has allocated,
+@c divided by 1024.  We divide the value by 1024 to make sure it fits in a
+@c Lisp integer.
+この関数は、Emacsが最後に割り当てた最終バイトのアドレスを
+1024で割ったものを返す。
+値を1024で割るのは、Lispの整数に収めるためである。
+
+@c You can use this to get a general idea of how your actions affect the
+@c memory usage.
+読者の操作がメモリ使用量にどのように影響するかを調べるのに使える。
+@end defun
+
+@node Memory Usage
+@c @section Memory Usage
+@section メモリ使用量
+
+@c   These functions and variables give information about the total amount
+@c of memory allocation that Emacs has done, broken down by data type.
+@c Note the difference between these and the values returned by
+@c @code{(garbage-collect)}; those count objects that currently exist, but
+@c these count the number or size of all allocations, including those for
+@c objects that have since been freed.
+これらの変数は、Emacsが割り当てたデータ型ごとのメモリ総量に関する
+情報を与えます。
+これらと@code{(garbage-collect)}が返す値との違いに注意してください。
+@code{(garbage-collect)}の値は現存するオブジェクトを数えますが、
+これらの変数は、すでに解放したオブジェクトを含めて
+割り当てたオブジェクトの個数やサイズを数えます。
+
+@defvar cons-cells-consed
+@c The total number of cons cells that have been allocated so far
+@c in this Emacs session.
+このEmacsセッションでこれまでに割り当てたコンスセルの総数。
+@end defvar
+
+@defvar floats-consed
+@c The total number of floats that have been allocated so far
+@c in this Emacs session.
+このEmacsセッションでこれまでに割り当てた浮動小数点数の総数。
+@end defvar
+
+@defvar vector-cells-consed
+@c The total number of vector cells that have been allocated so far
+@c in this Emacs session.
+このEmacsセッションでこれまでに割り当てたベクトルセルの総数。
+@end defvar
+
+@defvar symbols-consed
+@c The total number of symbols that have been allocated so far
+@c in this Emacs session.
+このEmacsセッションでこれまでに割り当てたシンボルの総数。
+@end defvar
+
+@defvar string-chars-consed
+@c The total number of string characters that have been allocated so far
+@c in this Emacs session.
+このEmacsセッションでこれまでに割り当てた文字列の総文字数。
+@end defvar
+
+@defvar misc-objects-consed
+@c The total number of miscellaneous objects that have been allocated so
+@c far in this Emacs session.  These include markers and overlays, plus
+@c certain objects not visible to users.
+このEmacsセッションでこれまでに割り当てたその他のオブジェクトの総数。
+マーカやオーバレイ、ユーザーに見えないある種のオブジェクトを含む。
+@end defvar
+
+@defvar intervals-consed
+@c The total number of intervals that have been allocated so far
+@c in this Emacs session.
+このEmacsセッションでこれまでに割り当てたインターバルの総数。
+@end defvar
+
+@node Writing Emacs Primitives
+@c @appendixsec Writing Emacs Primitives
+@appendixsec Emacs基本関数の書き方
+@c @cindex primitive function internals
+@cindex 基本関数の内部
+
+@c   Lisp primitives are Lisp functions implemented in C.  The details of
+@c interfacing the C function so that Lisp can call it are handled by a few
+@c C macros.  The only way to really understand how to write new C code is
+@c to read the source, but we can explain some things here.
+Lisp基本関数は、Cで実装したLisp関数です。
+Lispから呼び出すためのCの関数とのインターフェイスの詳細は、
+数個のCのマクロで処理しています。
+新たにCのコードを書く方法をほんとうに理解する唯一の方法は、
+ソースを読むことですが、ここではその一部を説明します。
+
+@c   An example of a special form is the definition of @code{or}, from
+@c @file{eval.c}.  (An ordinary function would have the same general
+@c appearance.)
+スペシャルフォームの例は、@file{eval.c}から引用した@code{or}の定義です。
+（普通の関数も同じように見える。）
+
+@c @cindex garbage collection protection
+@cindex ガベッジコレクションを抑制する
+@smallexample
+@group
+DEFUN ("or", For, Sor, 0, UNEVALLED, 0,
+  "Eval args until one of them yields non-nil; return that value.\n\
+The remaining args are not evalled at all.\n\
+@end group
+@group
+If all args return nil, return nil.")
+  (args)
+     Lisp_Object args;
+@{
+  register Lisp_Object val;
+  Lisp_Object args_left;
+  struct gcpro gcpro1;
+@end group
+
+@group
+  if (NULL (args))
+    return Qnil;
+
+  args_left = args;
+  GCPRO1 (args_left);
+@end group
+
+@group
+  do
+    @{
+      val = Feval (Fcar (args_left));
+      if (!NULL (val))
+        break;
+      args_left = Fcdr (args_left);
+    @}
+  while (!NULL (args_left));
+@end group
+
+@group
+  UNGCPRO;
+  return val;
+@}
+@end group
+@end smallexample
+
+@c   Let's start with a precise explanation of the arguments to the
+@c @code{DEFUN} macro.  Here is a template for them:
+マクロ@code{DEFUN}の引数の詳しい説明から始めます。
+その雛型はつぎのとおりです。
+
+@example
+DEFUN (@var{lname}, @var{fname}, @var{sname}, @var{min}, @var{max}, @var{interactive}, @var{doc})
+@end example
+
+@table @var
+@item lname
+@c This is the name of the Lisp symbol to define as the function name; in
+@c the example above, it is @code{or}.
+関数名として定義するLispシンボルの名前である。
+上の例では、@code{or}である。
+
+@item fname
+@c This is the C function name for this function.  This is
+@c the name that is used in C code for calling the function.  The name is,
+@c by convention, @samp{F} prepended to the Lisp name, with all dashes
+@c (@samp{-}) in the Lisp name changed to underscores.  Thus, to call this
+@c function from C code, call @code{For}.  Remember that the arguments must
+@c be of type @code{Lisp_Object}; various macros and functions for creating
+@c values of type @code{Lisp_Object} are declared in the file
+@c @file{lisp.h}.
+この関数のCの関数としての名前である。
+この関数をCのコードから呼び出すときに使う名前である。
+慣習により、Lispでの名前のまえに@samp{F}を付けるが、
+Lispでの名前のダッシュ（@samp{-}）はすべて下線に置き換える。
+したがって、Cのコードからこの関数を呼び出すには、@code{For}を呼び出す。
+引数は@code{Lisp_Object}型である必要があることに注意してほしい。
+ファイル@file{lisp.h}では、
+@code{Lisp_Object}型の値を作成するためのさまざまなマクロや関数を宣言してある。
+
+@item sname
+@c This is a C variable name to use for a structure that holds the data for
+@c the subr object that represents the function in Lisp.  This structure
+@c conveys the Lisp symbol name to the initialization routine that will
+@c create the symbol and store the subr object as its definition.  By
+@c convention, this name is always @var{fname} with @samp{F} replaced with
+@c @samp{S}.
+これは、Lispでの関数を表現するsubrオブジェクト向けのデータを保持する
+構造体に使うCの変数名である。
+この構造体は、シンボルを作成しその定義としてsubrオブジェクトを保存する
+初期化ルーティンへLispのシンボル名を運ぶ構造体である。
+慣習により、この名前はつねに
+@var{fname}の@samp{F}を@samp{S}に置き換えたものである。
+
+@item min
+@c This is the minimum number of arguments that the function requires.  The
+@c function @code{or} allows a minimum of zero arguments.
+関数が必要とする引数の最小の個数である。
+関数@code{or}は最小0個の引数を許す。
+
+@item max
+@c This is the maximum number of arguments that the function accepts, if
+@c there is a fixed maximum.  Alternatively, it can be @code{UNEVALLED},
+@c indicating a special form that receives unevaluated arguments, or
+@c @code{MANY}, indicating an unlimited number of evaluated arguments (the
+@c equivalent of @code{&rest}).  Both @code{UNEVALLED} and @code{MANY} are
+@c macros.  If @var{max} is a number, it may not be less than @var{min} and
+@c it may not be greater than seven.
+関数が許す引数の最大の個数に制限があるときの引数の最大の個数である。
+あるいは、評価していない引数を受け取るスペシャルフォームであることを
+表す@code{UNEVALLED}、
+評価済みの引数を何個でも受け取ることを表す@code{MANY}
+（@code{&rest}に等価）でもよい。
+@code{UNEVALLED}も@code{MANY}もマクロである。
+@var{max}が数であるときには、
+それは@var{min}より小さくなく、かつ、7より大きくないこと。
+
+@item interactive
+@c This is an interactive specification, a string such as might be used as
+@c the argument of @code{interactive} in a Lisp function.  In the case of
+@c @code{or}, it is 0 (a null pointer), indicating that @code{or} cannot be
+@c called interactively.  A value of @code{""} indicates a function that
+@c should receive no arguments when called interactively.
+この関数の対話指定であり、
+Lisp関数において@code{interactive}の引数に使う文字列である。
+@code{or}の場合には0（空ポインタ）であり、
+@code{or}は対話的に呼び出せないことを表す。
+値@code{""}は、対話的に呼び出されると
+この関数は引数を受け取らないことを表す。
+
+@item doc
+@c This is the documentation string.  It is written just like a
+@c documentation string for a function defined in Lisp, except you must
+@c write @samp{\n\} at the end of each line.  In particular, the first line
+@c should be a single sentence.
+説明文字列である。
+各行末に@samp{\n\}と書く必要があることを除けば、
+Lispで定義する関数の説明文字列のように書く。
+特に、最初の行は1つの文であること。
+@end table
+
+@c   After the call to the @code{DEFUN} macro, you must write the argument
+@c name list that every C function must have, followed by ordinary C
+@c declarations for the arguments.  For a function with a fixed maximum
+@c number of arguments, declare a C argument for each Lisp argument, and
+@c give them all type @code{Lisp_Object}.  When a Lisp function has no
+@c upper limit on the number of arguments, its implementation in C actually
+@c receives exactly two arguments: the first is the number of Lisp
+@c arguments, and the second is the address of a block containing their
+@c values.  They have types @code{int} and @w{@code{Lisp_Object *}}.
+マクロ@code{DEFUN}の呼び出しのあとには、
+Cの関数に必須な引数名の並びを書き、引数に対する普通のCの宣言を続けます。
+引数の最大個数が固定されている関数では、
+各Lisp引数向けにCの引数宣言を書き、
+それらをすべて@code{Lisp_Object}型にします。
+Lisp関数に引数の個数に上限がないとき、
+それを実装するCの関数は実際には2つの引数を受け取ります。
+第1引数はLisp引数の個数であり、
+第2引数はそれらの値を収めたブロックのアドレスです。
+引数の型は@code{int}と@w{@code{Lisp_Object *}}です。
+
+@c   Within the function @code{For} itself, note the use of the macros
+@c @code{GCPRO1} and @code{UNGCPRO}.  @code{GCPRO1} is used to ``protect''
+@c a variable from garbage collection---to inform the garbage collector that
+@c it must look in that variable and regard its contents as an accessible
+@c object.  This is necessary whenever you call @code{Feval} or anything
+@c that can directly or indirectly call @code{Feval}.  At such a time, any
+@c Lisp object that you intend to refer to again must be protected somehow.
+@c @code{UNGCPRO} cancels the protection of the variables that are
+@c protected in the current function.  It is necessary to do this explicitly.
+関数@code{For}自身の内側では、
+マクロ@code{GCPRO1}と@code{UNGCPRO}を使っていることに注意してください。
+@code{GCPRO1}は、ガベッジコレクションから変数を『保護』するために使います。
+つまり、ガベッジコレクタに対してこの変数を調べてその内容を
+参照可能なオブジェクトとみなすように指示します。
+@code{Feval}や@code{Feval}を直接／間接的に呼び出すものを呼ぶときには、
+このようにする必要があります。
+そのような場面では、再度参照する意図がある任意のLispオブジェクトは
+保護する必要があります。
+@code{UNGCPRO}は、この関数での変数の保護を取り消します。
+これは明示的に行う必要があります。
+
+@c   For most data types, it suffices to protect at least one pointer to
+@c the object; as long as the object is not recycled, all pointers to it
+@c remain valid.  This is not so for strings, because the garbage collector
+@c can move them.  When the garbage collector moves a string, it relocates
+@c all the pointers it knows about; any other pointers become invalid.
+@c Therefore, you must protect all pointers to strings across any point
+@c where garbage collection may be possible.
+ほとんどのデータ型では、少なくともそのオブジェクトへの1つのポインタを
+保護すれば十分であり、そのオブジェクトに循環がない限り、
+そのオブジェクトへのすべてのポインタは正しく保たれます。
+文字列にはこれはあてはまりません。
+ガベッジコレクタがそれらを移動するからです。
+ガベッジコレクタが文字列を移動すると、
+それに対する既知のポインタをすべて再配置し、
+それ以外のポインタは不正になります。
+したがって、ガベッジコレクタが動く可能性のある任意の部分では、
+文字列へのすべてのポインタを保護する必要があります。
+
+@c   The macro @code{GCPRO1} protects just one local variable.  If you want
+@c to protect two, use @code{GCPRO2} instead; repeating @code{GCPRO1} will
+@c not work.  Macros @code{GCPRO3} and @code{GCPRO4} also exist.
+マクロ@code{GCPRO1}は1つのローカル変数のみを保護します。
+2つ保護したい場合にはかわりに@code{GCPRO2}を使います。
+@code{GCPRO1}を繰り返しても働きません。
+@code{GCPRO3}や@code{GCPRO4}のマクロもあります。
+
+@c   These macros implicitly use local variables such as @code{gcpro1}; you
+@c must declare these explicitly, with type @code{struct gcpro}.  Thus, if
+@c you use @code{GCPRO2}, you must declare @code{gcpro1} and @code{gcpro2}.
+@c Alas, we can't explain all the tricky details here.
+これらのマクロは@code{gcpro1}などのローカル変数を暗黙のうちに使いますが、
+読者はこれらを型@code{struct gcpro}で明示的に宣言する必要があります。
+したがって、@code{GCPRO2}を使う場合には、
+@code{gcpro1}と@code{gcpro2}を宣言する必要があります。
+残念ですが、ここではすべての詳細は説明しきれません。
+
+@c   You must not use C initializers for static or global variables unless
+@c they are never written once Emacs is dumped.  These variables with
+@c initializers are allocated in an area of memory that becomes read-only
+@c (on certain operating systems) as a result of dumping Emacs.  @xref{Pure
+@c Storage}.
+Emacsをいったんダンプしたあとでも静的やグローバルな変数に書き込むのであれば、
+それらの変数にはCの初期化構文を使ってはいけません。
+初期化構文を伴うそれらの変数は、Emacsをダンプすると
+（オペレーティングシステムによっては）その結果として
+読み出し専用のメモリ領域に割り当てられます。
+@xref{Pure Storage}。
+
+@c   Do not use static variables within functions---place all static
+@c variables at top level in the file.  This is necessary because Emacs on
+@c some operating systems defines the keyword @code{static} as a null
+@c macro.  (This definition is used because those systems put all variables
+@c declared static in a place that becomes read-only after dumping, whether
+@c they have initializers or not.)
+関数の内側では静的変数を使わずに、
+すべての静的変数はファイルのトップレベルに置きます。
+オペレーティングシステムによっては
+Emacsはキーワード@code{static}を空のマクロと定義することもあるので、
+これは必要なことなのです。
+（このような定義を使うのは、そのようなシステムは、
+初期化構文があろうとなかろうと静的と宣言した変数を
+ダンプ後には読み出し専用にしてしまうからである。）
+
+@c   Defining the C function is not enough to make a Lisp primitive
+@c available; you must also create the Lisp symbol for the primitive and
+@c store a suitable subr object in its function cell.  The code looks like
+@c this:
+Cの関数を定義しただけではLisp基本関数としては使えません。
+基本関数に対するLispシンボルを作成し、
+その関数セルに適切なsubrオブジェクトを保存する必要があります。
+そのコードはつぎのようになります。
+
+@example
+defsubr (&@var{subr-structure-name});
+@end example
+
+@noindent
+@c Here @var{subr-structure-name} is the name you used as the third
+@c argument to @code{DEFUN}.
+ここで、@var{subr-structure-name}は@code{DEFUN}の第3引数に使った名前です。
+
+@c   If you add a new primitive to a file that already has Lisp primitives
+@c defined in it, find the function (near the end of the file) named
+@c @code{syms_of_@var{something}}, and add the call to @code{defsubr}
+@c there.  If the file doesn't have this function, or if you create a new
+@c file, add to it a @code{syms_of_@var{filename}} (e.g.,
+@c @code{syms_of_myfile}).  Then find the spot in @file{emacs.c} where all
+@c of these functions are called, and add a call to
+@c @code{syms_of_@var{filename}} there.
+すでにLisp基本関数が定義されているファイルに新たな基本関数を追加するときには、
+（ファイルの末尾近くで）@code{syms_of_@var{something}}という名前の関数を探し、
+それに@code{defsubr}の呼び出しを追加します。
+ファイルにこの関数がなかったり、新たなファイルを作成した場合には、
+@code{syms_of_@var{filename}}（たとえば@code{syms_of_myfile}）を追加します。
+そして、ファイル@file{emacs.c}でこれらの関数を呼び出している箇所を探して、
+そこに@code{syms_of_@var{filename}}の呼び出しを追加します。
+
+@c   The function @code{syms_of_@var{filename}} is also the place to define
+@c any C variables that are to be visible as Lisp variables.
+@c @code{DEFVAR_LISP} makes a C variable of type @code{Lisp_Object} visible
+@c in Lisp.  @code{DEFVAR_INT} makes a C variable of type @code{int}
+@c visible in Lisp with a value that is always an integer.
+@c @code{DEFVAR_BOOL} makes a C variable of type @code{int} visible in Lisp
+@c with a value that is either @code{t} or @code{nil}.
+関数@code{syms_of_@var{filename}}は、
+Lisp変数として見える任意のCの変数を定義する場所でもあります。
+@code{DEFVAR_LISP}は、Lispから見える@code{Lisp_Object}型のCの変数を作ります。
+@code{DEFVAR_INT}は、Lispからはつねに整数を値として見える
+@code{int}型のCの変数を作ります。
+@code{DEFVAR_BOOL}は、Lispからは@code{t}か@code{nil}を値として見える
+@code{int}型のCの変数を作ります。
+
+@c   If you define a file-scope C variable of type @code{Lisp_Object},
+@c you must protect it for garbage-collection by calling @code{staticpro}
+@c in @code{syms_of_@var{filename}}, like this:
+ファイルだけに有効な@code{Lisp_Object}型のCの変数を定義した場合には、
+つぎのようにして、@code{syms_of_@var{filename}}の中で@code{staticpro}を
+呼び出してその変数をガベッジコレクションから保護する必要があります。
+
+@example
+staticpro (&@var{variable});
+@end example
+
+@c   Here is another example function, with more complicated arguments.
+@c This comes from the code in @file{window.c}, and it demonstrates the use
+@c of macros and functions to manipulate Lisp objects.
+つぎは、少々複雑な引数を取る別の関数の例です。
+これは@file{window.c}から取ったもので、
+マクロとLispオブジェクトを操作する関数の使い方を例示します。
+
+@smallexample
+@group
+DEFUN ("coordinates-in-window-p", Fcoordinates_in_window_p,
+  Scoordinates_in_window_p, 2, 2,
+  "xSpecify coordinate pair: \nXExpression which evals to window: ",
+  "Return non-nil if COORDINATES is in WINDOW.\n\  
+COORDINATES is a cons of the form (X . Y), X and Y being distances\n\
+...
+@end group
+@group
+If they are on the border between WINDOW and its right sibling,\n\
+   `vertical-line' is returned.")
+  (coordinates, window)
+     register Lisp_Object coordinates, window;
+@{
+  int x, y;
+@end group
+
+@group
+  CHECK_LIVE_WINDOW (window, 0);
+  CHECK_CONS (coordinates, 1);
+  x = XINT (Fcar (coordinates));
+  y = XINT (Fcdr (coordinates));
+@end group
+
+@group
+  switch (coordinates_in_window (XWINDOW (window), &x, &y))
+    @{
+    case 0:			/* NOT in window at all. */
+      return Qnil;
+@end group
+
+@group
+    case 1:			/* In text part of window. */
+      return Fcons (make_number (x), make_number (y));
+@end group
+
+@group
+    case 2:			/* In mode line of window. */
+      return Qmode_line;
+@end group
+
+@group
+    case 3:			/* On right border of window.  */
+      return Qvertical_line;
+@end group
+
+@group
+    default:
+      abort ();
+    @}
+@}
+@end group
+@end smallexample
+
+@c   Note that C code cannot call functions by name unless they are defined
+@c in C.  The way to call a function written in Lisp is to use
+@c @code{Ffuncall}, which embodies the Lisp function @code{funcall}.  Since
+@c the Lisp function @code{funcall} accepts an unlimited number of
+@c arguments, in C it takes two: the number of Lisp-level arguments, and a
+@c one-dimensional array containing their values.  The first Lisp-level
+@c argument is the Lisp function to call, and the rest are the arguments to
+@c pass to it.  Since @code{Ffuncall} can call the evaluator, you must
+@c protect pointers from garbage collection around the call to
+@c @code{Ffuncall}.
+Cのコードでは、関数がCで定義されていない限り、
+関数をその名前で呼び出せないことに注意してください。
+Lispで書かれた関数を呼び出す方法は、Lispの関数@code{funcall}を
+内蔵する@code{Ffuncall}を使うことです。
+Lisp関数@code{funcall}は任意個数の引数を受け付けるので、
+Cでは2つの引数、Lispレベルの引数の個数と
+それらの値を収めた一次元の配列を受け取ります。
+Lispレベルの最初の引数は呼び出すべきLisp関数であり、
+残りはそれに渡す引数です。
+@code{Ffuncall}はエバリュエータを呼び出すので、
+@code{Ffuncall}を呼び出す周りでは、
+ガベッジコレクションからポインタを保護する必要があります。
+
+@c   The C functions @code{call0}, @code{call1}, @code{call2}, and so on,
+@c provide handy ways to call a Lisp function conveniently with a fixed
+@c number of arguments.  They work by calling @code{Ffuncall}.
+Cの関数、@code{call0}、@code{call1}、@code{call2}などは、
+固定個数の引数を受け取るLisp関数を簡便に呼び出す手軽な方法です。
+これらは@code{Ffuncall}を呼び出して動作します。
+
+@c   @file{eval.c} is a very good file to look through for examples;
+@c @file{lisp.h} contains the definitions for some important macros and
+@c functions.
+@file{eval.c}は例を調べるにはとてもよいファイルです。
+@file{lisp.h}には重要なマクロや関数の定義が入っています。
+
+@node Object Internals
+@c @appendixsec Object Internals
+@appendixsec オブジェクトの内部
+@c @cindex object internals
+@cindex オブジェクトの内部
+
+@c   GNU Emacs Lisp manipulates many different types of data.  The actual
+@c data are stored in a heap and the only access that programs have to it
+@c is through pointers.  Pointers are thirty-two bits wide in most
+@c implementations.  Depending on the operating system and type of machine
+@c for which you compile Emacs, twenty-eight bits are used to address the
+@c object, and the remaining four bits are used for a GC mark bit and the
+@c tag that identifies the object's type.
+GNU Emacs Lispは、さまざまな型のデータを扱います。
+実際のデータはヒープに保存されていて、
+プログラムはポインタを介してそれらを参照します。
+ほとんどの実装では、ポインタは32ビット長です。
+Emacsをコンパイルしたオペレーティングシステムやマシンの種類に依存しますが、
+オブジェクトのアドレスには28ビットを使い、
+残りのビットはガベッジコレクションの印や
+オブジェクトの型を表す識別子であるタグに使います。
+
+@c   Because Lisp objects are represented as tagged pointers, it is always
+@c possible to determine the Lisp data type of any object.  The C data type
+@c @code{Lisp_Object} can hold any Lisp object of any data type.  Ordinary
+@c variables have type @code{Lisp_Object}, which means they can hold any
+@c type of Lisp value; you can determine the actual data type only at run
+@c time.  The same is true for function arguments; if you want a function
+@c to accept only a certain type of argument, you must check the type
+@c explicitly using a suitable predicate (@pxref{Type Predicates}).
+Lispオブジェクトはタグ付ポインタとして表現しますから、
+任意のオブジェクトのLispデータ型を判定することが可能です。
+Cのデータ@code{Lisp_Object}は、任意のデータ型のLispオブジェクトを保持できます。
+普通の変数は@code{Lisp_Object}型ですから、
+Lispの任意の値の任意の型を保持できます。
+実際のデータ型は、実行中にのみ判定できます。
+関数引数についても同じことがいえます。
+特定の型の引数のみを受け付る関数が必要な場合には、
+適切な述語（@pxref{Type Predicates}）
+を使って型を明示的に検査する必要があります。
+@c @cindex type checking internals
+@cindex 型検査の内部
+
+@menu
+* Buffer Internals::    Components of a buffer structure.
+* Window Internals::    Components of a window structure.
+* Process Internals::   Components of a process structure.
+@end menu
+
+@node Buffer Internals
+@c @appendixsubsec Buffer Internals
+@appendixsubsec バッファの内部
+@c @cindex internals, of buffer
+@c @cindex buffer internals
+@cindex 内部、バッファ
+@cindex バッファの内部
+
+@c   Buffers contain fields not directly accessible by the Lisp programmer.
+@c We describe them here, naming them by the names used in the C code.
+@c Many are accessible indirectly in Lisp programs via Lisp primitives.
+バッファには、Lispプログラマが直接には参照できないフィールドがあります。
+それらをCのコードで使っている名前で以下に述べます。
+多くはLisp基本関数を介してLispプログラムから間接的に参照できます。
+
+@table @code
+@item name
+@c The buffer name is a string that names the buffer.  It is guaranteed to
+@c be unique.  @xref{Buffer Names}.
+バッファ名はバッファを指名する文字列である。
+これは一意であることが保証される。
+@pxref{Buffer Names}。
+
+@item save_modified
+@c This field contains the time when the buffer was last saved, as an integer.
+@c @xref{Buffer Modification}.
+このフィールドは、バッファが最後に保存された時刻を整数で保持する。
+@pxref{Buffer Modification}。
+
+@item modtime
+@c This field contains the modification time of the visited file.  It is
+@c set when the file is written or read.  Every time the buffer is written
+@c to the file, this field is compared to the modification time of the
+@c file.  @xref{Buffer Modification}.
+このフィールドは、訪問しているファイルの更新時刻を保持している。
+これはファイルを読み書きしたときに設定される。
+バッファをファイルに書き込むたびに、
+このフィールドとファイルの更新時刻を比較する。
+@pxref{Buffer Modification}。
+
+@item auto_save_modified
+@c This field contains the time when the buffer was last auto-saved.
+このフィールドは、バッファを最後に自動保存した時刻を保持する。
+
+@item last_window_start
+@c This field contains the @code{window-start} position in the buffer as of
+@c the last time the buffer was displayed in a window.
+このフィールドは、バッファをウィンドウに最後に表示したときの
+バッファの@code{window-start}（表示開始）位置を保持する。
+
+@item undo_list
+@c This field points to the buffer's undo list.  @xref{Undo}.
+このフィールドは、バッファのアンドゥリストを保持する。
+@pxref{Undo}。
+
+@item syntax_table_v
+@c This field contains the syntax table for the buffer.  @xref{Syntax Tables}.
+このフィールドは、バッファの構文テーブルを保持する。
+@pxref{Syntax Tables}。
+
+@item downcase_table
+@c This field contains the conversion table for converting text to lower case.
+@c @xref{Case Tables}.
+このフィールドは、テキストを小文字に変換するための変換表を保持する。
+@pxref{Case Tables}。
+
+@item upcase_table
+@c This field contains the conversion table for converting text to upper case.
+@c @xref{Case Tables}.
+このフィールドは、テキストを大文字に変換するための変換表を保持する。
+@pxref{Case Tables}。
+
+@item case_canon_table
+@c This field contains the conversion table for canonicalizing text for
+@c case-folding search.  @xref{Case Tables}.
+このフィールドは、大文字小文字を区別しない探索のために
+テキストを正則にするための変換表を保持する。
+@pxref{Case Tables}。
+
+@item case_eqv_table
+@c This field contains the equivalence table for case-folding search.
+@c @xref{Case Tables}.
+このフィールドは、大文字小文字を区別しない探索のための
+同値テーブルを保持する。
+@pxref{Case Tables}。
+
+@item display_table
+@c This field contains the buffer's display table, or @code{nil} if it doesn't
+@c have one.  @xref{Display Tables}.
+このフィールドは、バッファの表示テーブルを保持する。
+表示テーブルがなければ@code{nil}である。
+@pxref{Display Tables}。
+
+@item markers
+@c This field contains the chain of all markers that currently point into
+@c the buffer.  Deletion of text in the buffer, and motion of the buffer's
+@c gap, must check each of these markers and perhaps update it.
+@c @xref{Markers}.
+このフィールドは、バッファを現在指しているすべてのマーカの連鎖を
+保持している。
+バッファからテキストを削除したり、バッファのギャップが移動すると、
+これらのマーカのおのおのを検査し更新する必要がある。
+@pxref{Markers}。
+
+@item backed_up
+@c This field is a flag that tells whether a backup file has been made
+@c for the visited file of this buffer.
+このフィールドは、このバッファで訪問しているファイルの
+バックアップファイルを作成したかどうかを表すフラグである。
+
+@item mark
+@c This field contains the mark for the buffer.  The mark is a marker,
+@c hence it is also included on the list @code{markers}.  @xref{The Mark}.
+このフィールドは、バッファのマークを保持する。
+マークはマーカであり、そのためリスト@code{markers}にも含まれている。
+@pxref{The Mark}。
+
+@item mark_active
+@c This field is non-@code{nil} if the buffer's mark is active.
+バッファのマークが活性であれば、
+このフィールドは@code{nil}以外である。
+
+@item local_var_alist
+@c This field contains the association list describing the buffer-local
+@c variable bindings of this buffer, not including the built-in
+@c buffer-local bindings that have special slots in the buffer object.
+@c (Those slots are omitted from this table.)  @xref{Buffer-Local
+@c Variables}.
+このフィールドは、このバッファにバッファローカルな変数を記述した
+連想リストを保持している。
+バッファオブジェクトに特別な場所がある組み込みのバッファローカルな変数は
+含まない。
+（それらはこの一覧では省いた。）
+@pxref{Buffer-Local Variables}。
+
+@item base_buffer
+@c This field holds the buffer's base buffer (if it is an indirect buffer),
+@c or @code{nil}.
+このフィールドは、（間接バッファであれば）バッファの基底バッファ、あるいは、
+@code{nil}を保持する。
+
+@item keymap
+@c This field holds the buffer's local keymap.  @xref{Keymaps}.
+このフィールドは、バッファのローカルキーマップを保持する。
+@pxref{Keymaps}。
+
+@item overlay_center
+@c This field holds the current overlay center position.  @xref{Overlays}.
+このフィールドは、現在のオーバレイの中央位置を保持する。
+@pxref{Overlays}。
+
+@item overlays_before
+@c This field holds a list of the overlays in this buffer that end at or
+@c before the current overlay center position.  They are sorted in order of
+@c decreasing end position.
+このフィールドは、バッファの現在のオーバレイの中央位置か
+それよりまえで終るこのバッファのオーバレイのリストを保持している。
+それらは終了位置が減る順に並んでいる。
+
+@item overlays_after
+@c This field holds a list of the overlays in this buffer that end after
+@c the current overlay center position.  They are sorted in order of
+@c increasing beginning position.
+このフィールドは、バッファの現在のオーバレイの中央位置より
+うしろで終るこのバッファのオーバレイのリストを保持している。
+それらは開始位置が増える順に並んでいる。
+
+@item enable_multibyte_characters
+@c This field holds the buffer's local value of
+@c @code{enable-multibyte-characters}---either @code{t} or @code{nil}.
+このフィールドは、@code{enable-multibyte-characters}の
+バッファローカルな値を保持しており、
+@code{t}か@code{nil}である。
+@end table
+
+@node Window Internals
+@c @appendixsubsec Window Internals
+@appendixsubsec ウィンドウの内部
+@c @cindex internals, of window
+@c @cindex window internals
+@cindex 内部、ウィンドウ
+@cindex ウィンドウの内部
+
+@c   Windows have the following accessible fields:
+ウィンドウには以下のような参照可能なフィールドがあります。
+
+@table @code
+@item frame
+@c The frame that this window is on.
+このウィンドウがあるフレーム。
+
+@item mini_p
+@c Non-@code{nil} if this window is a minibuffer window.
+このウィンドウがミニバッファ用ウィンドウであれば@code{nil}以外。
+
+@item buffer
+@c The buffer that the window is displaying.  This may change often during
+@c the life of the window.
+このウィンドウで表示しているバッファ。
+これはウィンドウの生存期間中にしばしば変化する。
+
+@item dedicated
+@c Non-@code{nil} if this window is dedicated to its buffer.
+このウィンドウがそのバッファ専用であると@code{nil}以外である。
+
+@item pointm
+@c @cindex window point internals
+@cindex ウィンドウの内部ポイント
+@c This is the value of point in the current buffer when this window is
+@c selected; when it is not selected, it retains its previous value.
+これは、このウィンドウが選択されていたときの
+カレントバッファのポイント値である。
+選択されていないときには、まえの値が保持される。
+
+@item start
+@c The position in the buffer that is the first character to be displayed
+@c in the window.
+ウィンドウに表示する最初の文字のバッファ内位置である。
+
+@item force_start
+@c If this flag is non-@code{nil}, it says that the window has been
+@c scrolled explicitly by the Lisp program.  This affects what the next
+@c redisplay does if point is off the screen: instead of scrolling the
+@c window to show the text around point, it moves point to a location that
+@c is on the screen.
+このフラグが@code{nil}以外であると、
+Lispプログラムが明示的にウィンドウをスクロールしたことを表す。
+ポイントがスクリーンからはみ出しているとつぎの再表示の動作に影響する。
+ポイントの周りのテキストをウィンドウに表示するようにスクロールするかわりに、
+スクリーン上に位置するようにポイントを移動する。
+
+@item last_modified
+@c The @code{modified} field of the window's buffer, as of the last time
+@c a redisplay completed in this window.
+このウィンドウの最後の再表示が完了した時点での
+ウィンドウのバッファのフィールド@code{modified}である。
+
+@item last_point
+@c The buffer's value of point, as of the last time
+@c a redisplay completed in this window.
+このウィンドウの最後の再表示が完了した時点での
+バッファのポイント値である。
+
+@item left
+@c This is the left-hand edge of the window, measured in columns.  (The
+@c leftmost column on the screen is @w{column 0}.)
+コラム数で数えたウィンドウの左端である。
+（スクリーンの最左端コラムは@w{0}コラム目。）
+
+@item top
+@c This is the top edge of the window, measured in lines.  (The top line on
+@c the screen is @w{line 0}.)
+行数で数えたウィンドウの上端である。
+（スクリーンの最上端行は@w{0}行目。）
+
+@item height
+@c The height of the window, measured in lines.
+行数で数えたウィンドウの高さ。
+
+@item width
+@c The width of the window, measured in columns.
+コラム数で数えたウィンドウの幅。
+
+@item next
+@c This is the window that is the next in the chain of siblings.  It is
+@c @code{nil} in a window that is the rightmost or bottommost of a group of
+@c siblings.
+これは、兄弟関係でつぎのウィンドウである。
+兄弟関係で最右端か最下端であるウィンドウでは@code{nil}である。
+
+@item prev
+@c This is the window that is the previous in the chain of siblings.  It is
+@c @code{nil} in a window that is the leftmost or topmost of a group of
+@c siblings.
+これは、兄弟関係でまえのウィンドウである。
+兄弟関係で最左端か最上端であるウィンドウでは@code{nil}である。
+
+@item parent
+@c Internally, Emacs arranges windows in a tree; each group of siblings has
+@c a parent window whose area includes all the siblings.  This field points
+@c to a window's parent.
+内部的にはEmacsはウィンドウを木に並べている。
+兄弟関係の各グループには親ウィンドウがあり、
+親ウィンドウの領域はその兄弟すべての領域を含む。
+このフィールドはウィンドウの親を指す。
+
+@c Parent windows do not display buffers, and play little role in display
+@c except to shape their child windows.  Emacs Lisp programs usually have
+@c no access to the parent windows; they operate on the windows at the
+@c leaves of the tree, which actually display buffers.
+親ウィンドウはバッファを表示せず、
+その子ウィンドウの形以外には、表示に関してはなんの役割も持たない。
+Emacs Lispプログラムでは親ウィンドウを参照せず、
+バッファを実際に表示する木の葉にあるウィンドウを操作する。
+
+@item hscroll
+@c This is the number of columns that the display in the window is scrolled
+@c horizontally to the left.  Normally, this is 0.
+これは、ウィンドウの表示を水平方向左向きにスクロールしているコラム数。
+これは普通は0である。
+
+@item use_time
+@c This is the last time that the window was selected.  The function
+@c @code{get-lru-window} uses this field.
+これは、このウィンドウが選択されていた最後の時刻。
+関数@code{get-lru-window}がこのフィールドを使う。
+
+@item display_table
+@c The window's display table, or @code{nil} if none is specified for it.
+ウィンドウの表示テーブル。
+指定されていなければ@code{nil}である。
+
+@item update_mode_line
+@c Non-@code{nil} means this window's mode line needs to be updated.
+@code{nil}以外であると、ウィンドウのモード行を更新する必要があることを表す。
+
+@item base_line_number
+@c The line number of a certain position in the buffer, or @code{nil}.
+@c This is used for displaying the line number of point in the mode line.
+バッファの特定の位置の行番号である。
+あるいは@code{nil}。
+これは、モード行にポイント位置の行番号を表示するために使われる。
+
+@item base_line_pos
+@c The position in the buffer for which the line number is known, or
+@c @code{nil} meaning none is known.
+行番号が既知のバッファ内位置。
+既知でなければ@code{nil}である。
+
+@item region_showing
+@c If the region (or part of it) is highlighted in this window, this field
+@c holds the mark position that made one end of that region.  Otherwise,
+@c this field is @code{nil}.
+このウィンドウでリージョン（やその一部）を強調表示しているときには、
+このフィールドは、当該リージョンの一方の端を表すマーク位置を保持している。
+さもなければこのフィールドは@code{nil}である。
+@end table
+
+@node Process Internals
+@c @appendixsubsec Process Internals
+@appendixsubsec プロセスの内部
+@c @cindex internals, of process
+@c @cindex process internals
+@cindex 内部、プロセス
+@cindex プロセスの内部
+
+@c   The fields of a process are:
+プロセスにはつぎのようなフィールドがあります。
+
+@table @code
+@item name
+@c A string, the name of the process.
+プロセスの名前である文字列。
+
+@item command
+@c A list containing the command arguments that were used to start this
+@c process.
+このプロセスを開始するために使用されたコマンド引数から成るリスト。
+
+@item filter
+@c A function used to accept output from the process instead of a buffer,
+@c or @code{nil}.
+バッファのかわりにプロセスからの出力を受け取るために使用する関数。
+あるいは@code{nil}。
+
+@item sentinel
+@c A function called whenever the process receives a signal, or @code{nil}.
+プロセスがシグナルを受け取るたびに呼ばれる関数。
+あるいは@code{nil}。
+
+@item buffer
+@c The associated buffer of the process.
+プロセスに対応付けられたバッファ。
+
+@item pid
+@c An integer, the Unix process @sc{id}.
+UNIXのプロセス@sc{id}である整数。
+
+@item childp
+@c A flag, non-@code{nil} if this is really a child process.
+@c It is @code{nil} for a network connection.
+フラグであり、これが実際に子プロセスであると@code{nil}以外である。
+ネットワーク接続であると@code{nil}以外。
+
+@item mark
+@c A marker indicating the position of the end of the last output from this
+@c process inserted into the buffer.  This is often but not always the end
+@c of the buffer.
+プロセスからの最後の出力をバッファに挿入した箇所の末尾位置を表すマーカ。
+これはしばしばバッファの末尾であるが、つねにではない。
+
+@item kill_without_query
+@c If this is non-@code{nil}, killing Emacs while this process is still
+@c running does not ask for confirmation about killing the process.
+これが@code{nil}以外であると、このプロセスが動作中にEmacsを終了しようとしても
+プロセスをキルすることに関して確認を求めない。
+
+@item raw_status_low
+@itemx raw_status_high
+@c These two fields record 16 bits each of the process status returned by
+@c the @code{wait} system call.
+これらの2つのフィールドは、
+システムコール@code{wait}で返されるプロセス状態の各16ビットを記録する。
+
+@item status
+@c The process status, as @code{process-status} should return it.
+@code{process-status}が返すべきプロセス状態。
+
+@item tick
+@itemx update_tick
+@c If these two fields are not equal, a change in the status of the process
+@c needs to be reported, either by running the sentinel or by inserting a
+@c message in the process buffer.
+この2つのフィールドが等しくないと、
+番兵を実行するかプロセスのバッファにメッセージを挿入するかして、
+プロセスの状態変化を報告する必要がある。
+
+@item pty_flag
+@c Non-@code{nil} if communication with the subprocess uses a @sc{pty};
+@c @code{nil} if it uses a pipe.
+サブプロセスとの通信に@sc{pty}（疑似端末）を
+使用している場合には@code{nil}以外であり、
+パイプを使用している場合には@code{nil}である。
+
+@item infd
+@c The file descriptor for input from the process.
+このプロセスからの入力用ファイル記述子。
+
+@item outfd
+@c The file descriptor for output to the process.
+このプロセスへの出力用ファイル記述子。
+
+@item subtty
+@c The file descriptor for the terminal that the subprocess is using.  (On
+@c some systems, there is no need to record this, so the value is
+@c @code{nil}.)
+サブプロセスが使用している端末のファイル記述子。
+（これを記録する必要のないシステムもあり、その場合には値は@code{nil}である。）
+
+@item tty_name
+@c The name of the terminal that the subprocess is using,
+@c or @code{nil} if it is using pipes.
+サブプロセスが使用している端末の名前。
+パイプを使用しているときには@code{nil}である。
+@end table

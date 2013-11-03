@@ -1,0 +1,245 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/errors
+@node Standard Errors, Standard Buffer-Local Variables, GNU Emacs Internals, Top
+@c @appendix Standard Errors
+@appendix 標準のエラー
+
+@c   Here is the complete list of the error symbols in standard Emacs,
+@c grouped by concept.  The list includes each symbol's message (on the
+@c @code{error-message} property of the symbol) and a cross reference to a
+@c description of how the error can occur.
+以下は、概念ごとにまとめた標準Emacsのエラーシンボルの完全な一覧です。
+一覧には、各シンボルの（シンボルの属性@code{error-message}にある）メッセージと
+そのようなエラーが生起する場面の記述への相互参照を示しました。
+
+@c   Each error symbol has an @code{error-conditions} property that is a
+@c list of symbols.  Normally this list includes the error symbol itself
+@c and the symbol @code{error}.  Occasionally it includes additional
+@c symbols, which are intermediate classifications, narrower than
+@c @code{error} but broader than a single error symbol.  For example, all
+@c the errors in accessing files have the condition @code{file-error}.  If
+@c we do not say here that a certain error symbol has additional error
+@c conditions, that means it has none.
+各エラーシンボルには、属性@code{error-conditions}があり、
+これはシンボルのリストです。
+通常、このリストは、エラーシンボルそのものとシンボル@code{error}を含みます。
+しばしば、追加のシンボルも含みます。
+それらは中間的な分類種別であり、@code{error}より細分化したものですが、
+エラーシンボルそのものよりは大分類です。
+たとえば、ファイル参照に関するすべてのエラーには、
+条件@code{file-error}が入っています。
+以下で、特定のエラーシンボルにおいて追加のシンボルを言及していないときには、
+そのエラーには追加シンボルがないことを意味します。
+
+@c   As a special exception, the error symbol @code{quit} does not have the
+@c condition @code{error}, because quitting is not considered an error.
+特別な例外ですが、エラーシンボル@code{quit}には
+条件@code{error}がありません。
+これは、中断（quit）をエラーとみなさないからです。
+
+@c   @xref{Errors}, for an explanation of how errors are generated and
+@c handled.
+エラーが生起する場面とその処理方法については、@xref{Errors}。
+
+@table @code
+@c @item @var{symbol}
+@item @var{シンボル}
+@c @var{string}; @var{reference}.
+@var{文字列}; @var{参照}。
+
+@item error
+@code{"error"}@*
+@c @xref{Errors}.
+@pxref{Errors}。
+
+@item quit
+@code{"Quit"}@*
+@c @xref{Quitting}.
+@pxref{Quitting}。
+
+@item args-out-of-range
+@code{"Args out of range"}@*
+@c @xref{Sequences Arrays Vectors}.
+@pxref{Sequences Arrays Vectors}。
+
+@item arith-error
+@code{"Arithmetic error"}@*
+@c See @code{/} and @code{%} in @ref{Numbers}.
+@ref{Numbers}の@code{/}と@code{%}を参照。
+
+@item beginning-of-buffer
+@code{"Beginning of buffer"}@*
+@c @xref{Motion}.
+@pxref{Motion}。
+
+@item buffer-read-only
+@code{"Buffer is read-only"}@*
+@c @xref{Read Only Buffers}.
+@pxref{Read Only Buffers}。
+
+@item cyclic-function-indirection
+@code{"Symbol's chain of function indirections\@* contains a loop"}@*
+@c @xref{Function Indirection}.
+@pxref{Function Indirection}。
+
+@item end-of-buffer
+@code{"End of buffer"}@*
+@c @xref{Motion}.
+@pxref{Motion}。
+
+@item end-of-file
+@code{"End of file during parsing"}@*
+@c Note that this is not a @code{file-error}
+@c because it pertains to the Lisp reader, not to file I/O.
+@c @xref{Input Functions}.
+これはファイル入出力ではなくLispリーダに関連することなので、
+@code{file-error}ではないことに注意。@*
+@pxref{Input Functions}。
+
+@item file-already-exists
+@c This is a @code{file-error}.@*
+@c @xref{Writing to Files}.
+これは@code{file-error}。@*
+@pxref{Writing to Files}。
+
+@item file-date-error
+@c This is a subcategory of @code{file-error}.  It occurs when
+@c @code{copy-file} tries and fails to set the last-modification time of
+@c the output file.  @xref{Changing Files}.
+これは@code{file-error}の小分類。
+@code{copy-file}で、
+出力ファイルの最終更新日付の設定に失敗すると生起する。@*
+@pxref{Changing Files}。
+
+@item file-error
+@c This error and its subcategories do not have error-strings, because the
+@c error message is constructed from the data items alone when the error
+@c condition @code{file-error} is present.@*
+@c @xref{Files}.
+このエラーとその小分類にはエラー文字列がない。
+エラー条件@code{file-error}があると、
+データ項目のみからエラーメッセージを作るからである。@*
+@pxref{Files}。
+
+@item file-locked     
+@c This is a @code{file-error}.@*
+@c @xref{File Locks}.
+これは@code{file-error}。@*
+@pxref{File Locks}。
+
+@item file-supersession
+@c This is a @code{file-error}.@*
+@c @xref{Modification Time}.
+これは@code{file-error}。@*
+@pxref{Modification Time}。
+
+@item invalid-function
+@code{"Invalid function"}@*
+@c @xref{Classifying Lists}.
+@pxref{Classifying Lists}。
+
+@item invalid-read-syntax
+@code{"Invalid read syntax"}@*
+@c @xref{Input Functions}.
+@pxref{Input Functions}。
+
+@item invalid-regexp
+@code{"Invalid regexp"}@*
+@c @xref{Regular Expressions}.
+@pxref{Regular Expressions}。
+
+@item mark-inactive
+@code{"Mark inactive"}@*
+@c @xref{The Mark}.
+@pxref{The Mark}。
+
+@item no-catch
+@code{"No catch for tag"}@*
+@c @xref{Catch and Throw}.
+@pxref{Catch and Throw}。
+
+@item scan-error
+@code{"Scan error"}@*
+@c This happens when certain syntax-parsing functions
+@c find invalid syntax or mismatched parentheses.@*
+@c @xref{List Motion}, and @ref{Parsing Expressions}.
+これは、構文解析関数が不正な構文や対応していない括弧を
+みつけると生起する。@*
+@ref{List Motion}、および、@pxref{Parsing Expressions}。
+
+@item search-failed
+@code{"Search failed"}@*
+@c @xref{Searching and Matching}.
+@pxref{Searching and Matching}。
+
+@item setting-constant
+@code{"Attempt to set a constant symbol"}@* 
+@c The values of the symbols @code{nil} and @code{t},
+@c and any symbols that start with @samp{:},
+@c may not be changed.@*
+@c @xref{Constant Variables, , Variables that Never Change}.
+シンボル@code{nil}や@code{t}、および、
+@samp{:}で始まる任意のシンボルは変更できない。@*
+@pxref{Constant Variables, , Variables that Never Change}。
+
+@item undefined-color
+@code{"Undefined color"}@*
+@c @xref{Color Names}.
+@pxref{Color Names}。
+
+@item void-function
+@code{"Symbol's function definition is void"}@*
+@c @xref{Function Cells}.
+@pxref{Function Cells}。
+
+@item void-variable
+@code{"Symbol's value as variable is void"}@*
+@c @xref{Accessing Variables}.
+@pxref{Accessing Variables}。
+
+@item wrong-number-of-arguments
+@code{"Wrong number of arguments"}@*
+@c @xref{Classifying Lists}.
+@pxref{Classifying Lists}。
+
+@item wrong-type-argument
+@code{"Wrong type argument"}@*
+@c @xref{Type Predicates}.
+@pxref{Type Predicates}。
+@end table
+
+@c   These kinds of error, which are classified as special cases of
+@c @code{arith-error}, can occur on certain systems for invalid use of
+@c mathematical functions.
+@code{arith-error}の特別な場合に分類された以下の種類のエラーは、
+数学関数を不正に使ったときに特定のシステムで生起します。
+
+@table @code
+@item domain-error
+@code{"Arithmetic domain error"}@*
+@c @xref{Math Functions}.
+@pxref{Math Functions}。
+
+@item overflow-error
+@code{"Arithmetic overflow error"}@*
+@c @xref{Math Functions}.
+@pxref{Math Functions}。
+
+@item range-error
+@code{"Arithmetic range error"}@*
+@c @xref{Math Functions}.
+@pxref{Math Functions}。
+
+@item singularity-error
+@code{"Arithmetic singularity error"}@*
+@c @xref{Math Functions}.
+@pxref{Math Functions}。
+
+@item underflow-error
+@code{"Arithmetic underflow error"}@*
+@c @xref{Math Functions}.
+@pxref{Math Functions}。
+@end table

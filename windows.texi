@@ -1,0 +1,3082 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc.
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/windows
+@node Windows, Frames, Buffers, Top
+@c @chapter Windows
+@chapter ウィンドウ
+
+@c   This chapter describes most of the functions and variables related to
+@c Emacs windows.  See @ref{Display}, for information on how text is
+@c displayed in windows.
+本章では、Emacsのウィンドウに関したほとんどの関数と変数について述べます。
+ウィンドウにどのようにテキストが表示されるかに関しては、
+@ref{Display}を参照してください。
+
+@menu
+* Basic Windows::           Basic information on using windows.
+* Splitting Windows::       Splitting one window into two windows.
+* Deleting Windows::        Deleting a window gives its space to other windows.
+* Selecting Windows::       The selected window is the one that you edit in.
+* Cyclic Window Ordering::  Moving around the existing windows.
+* Buffers and Windows::     Each window displays the contents of a buffer.
+* Displaying Buffers::      Higher-lever functions for displaying a buffer
+                              and choosing a window for it.
+* Choosing Window::	    How to choose a window for displaying a buffer.
+* Window Point::            Each window has its own location of point.
+* Window Start::            The display-start position controls which text
+                              is on-screen in the window.
+* Vertical Scrolling::      Moving text up and down in the window.
+* Horizontal Scrolling::    Moving text sideways on the window.
+* Size of Window::          Accessing the size of a window.
+* Resizing Windows::        Changing the size of a window.
+* Coordinates and Windows:: Converting coordinates to windows.
+* Window Configurations::   Saving and restoring the state of the screen.
+* Window Hooks::            Hooks for scrolling, window size changes,
+                              redisplay going past a certain point,
+                              or window configuration changes.
+@end menu
+
+@node Basic Windows
+@c @section Basic Concepts of Emacs Windows
+@section Emacsウィンドウの基本概念
+@c @cindex window
+@c @cindex selected window
+@cindex ウィンドウ
+@cindex 選択されているウィンドウ
+
+@c   A @dfn{window} in Emacs is the physical area of the screen in which a
+@c buffer is displayed.  The term is also used to refer to a Lisp object that
+@c represents that screen area in Emacs Lisp.  It should be
+@c clear from the context which is meant.
+Emacsの@dfn{ウィンドウ}（window）は、
+バッファを表示するスクリーン上の物理的な領域のことです。
+この用語は、Emacs Lispにおいて、当該物理領域を表す
+Lispオブジェクトを意味するためにも使います。
+どちらの意味かは文脈から明らかなはずです。
+
+@c   Emacs groups windows into frames.  A frame represents an area of
+@c screen available for Emacs to use.  Each frame always contains at least
+@c one window, but you can subdivide it vertically or horizontally into
+@c multiple nonoverlapping Emacs windows.
+Emacsではウィンドウをフレームにまとめています。
+フレームは、Emacsが使えるスクリーンの領域を表します。
+各フレームには少なくとも1つのウィンドウがつねにありますが、
+フレームは上下や左右に重なり合わない複数のEmacsのウィンドウに分割できます。
+
+@c   In each frame, at any time, one and only one window is designated as
+@c @dfn{selected within the frame}.  The frame's cursor appears in that
+@c window.  At any time, one frame is the selected frame; and the window
+@c selected within that frame is @dfn{the selected window}.  The selected
+@c window's buffer is usually the current buffer (except when
+@c @code{set-buffer} has been used).  @xref{Current Buffer}.
+ある時点では、各フレームには@dfn{フレームの選択されている}ウィンドウと
+区別されるウィンドウがたった1つだけあります。
+フレームのカーソルはそのようなウィンドウに現れます。
+ある時点では、1つのフレームが選択されているフレームであり、
+当該フレームで選択されているウィンドウが@dfn{選択されているウィンドウ}です。
+選択されているウィンドウのバッファが、
+（@code{set-buffer}を使った場合を除いて）普通はカレントバッファです。
+@xref{Current Buffer}。
+
+@c   For practical purposes, a window exists only while it is displayed in
+@c a frame.  Once removed from the frame, the window is effectively deleted
+@c and should not be used, @emph{even though there may still be references
+@c to it} from other Lisp objects.  Restoring a saved window configuration
+@c is the only way for a window no longer on the screen to come back to
+@c life.  (@xref{Deleting Windows}.)
+実用上、ウィンドウは、それがフレームに表示されている期間だけ存在します。
+フレームからいったん取りさると、（ウィンドウへの参照が残っているとしても）
+ウィンドウは実質的には削除され使えません。
+保存したウィンドウ構成を復元する以外に、
+スクリーンから消えたウィンドウを戻す方法はありません。
+（@pxref{Deleting Windows}。）
+
+@c   Each window has the following attributes:
+各ウィンドウにはつぎの属性があります。
+
+@itemize @bullet
+@item
+@c containing frame
+ウィンドウを含んでいるフレーム
+
+@item
+@c window height
+ウィンドウの高さ
+
+@item
+@c window width
+ウィンドウの幅
+
+@item
+@c window edges with respect to the screen or frame
+スクリーンやフレームを基準にしたウィンドウの隅
+
+@item
+@c the buffer it displays
+ウィンドウが表示しているバッファ
+
+@item
+@c position within the buffer at the upper left of the window
+ウィンドウの左上隅に対応するバッファ内の位置
+
+@item
+@c amount of horizontal scrolling, in columns
+コラム単位の水平方向のスクロール量
+
+@item
+@c point
+ポイント
+
+@item
+@c the mark
+マーク
+
+@item
+@c how recently the window was selected
+どの程度最近にウィンドウが選択されたか
+@end itemize
+
+@c @cindex multiple windows
+@cindex 複数のウィンドウ
+@c   Users create multiple windows so they can look at several buffers at
+@c once.  Lisp libraries use multiple windows for a variety of reasons, but
+@c most often to display related information.  In Rmail, for example, you
+@c can move through a summary buffer in one window while the other window
+@c shows messages one at a time as they are reached.
+複数のバッファを同時に見られるようにユーザーは複数のウィンドウを作ります。
+さまざまな理由でLispライブラリは複数のウィンドウを使いますが、
+そのほとんどは、関連する情報を表示するためです。
+たとえば、rmailでは、あるウィンドウのサマリバッファで移動すると、
+別のウィンドウでは対応するメッセージを表示します。
+
+@c   The meaning of ``window'' in Emacs is similar to what it means in the
+@c context of general-purpose window systems such as X, but not identical.
+@c The X Window System places X windows on the screen; Emacs uses one or
+@c more X windows as frames, and subdivides them into
+@c Emacs windows.  When you use Emacs on a character-only terminal, Emacs
+@c treats the whole terminal screen as one frame.
+Emacsにおける『ウィンドウ』の意味は、
+Xのような汎用目的のウィンドウシステムにおける意味に似ていますが、
+同一ではありません。
+Xウィンドウシステムは、スクリーン上にXのウィンドウを配置します。
+Emacsは、1つか複数のXのウィンドウをフレームとして使い、
+それらをEmacsのウィンドウに分割します。
+文字端末でEmacsを使うと、
+Emacsは端末のクリーン全体を1つのフレームとして扱います。
+
+@c @cindex terminal screen
+@c @cindex screen of terminal
+@c @cindex tiled windows
+@cindex 端末スクリーン
+@cindex スクリーン、端末
+@cindex タイル型ウィンドウ
+@c   Most window systems support arbitrarily located overlapping windows.
+@c In contrast, Emacs windows are @dfn{tiled}; they never overlap, and
+@c together they fill the whole screen or frame.  Because of the way in
+@c which Emacs creates new windows and resizes them, not all conceivable
+@c tilings of windows on an Emacs frame are actually possible.
+@c @xref{Splitting Windows}, and @ref{Size of Window}.
+ほとんどのウィンドウシステムは、任意に重ね合わさったウィンドウを扱えます。
+対照的に、Emacsのウィンドウは@dfn{タイル型}です。
+つまり、互いに重なり合うことはなく、
+スクリーンやフレームの全面に敷き詰められます。
+Emacsが新たなウィンドウを作成する方法や
+ウィンドウサイズの変更方法に起因するのですが、
+Emacsのフレームを任意の形にウィンドウで敷き詰めることは、
+実際には必ずしも可能であるとは限りません。
+@ref{Splitting Windows}と@xref{Size of Window}。
+
+@c   @xref{Display}, for information on how the contents of the
+@c window's buffer are displayed in the window.
+ウィンドウのバッファの内容がどのようにウィンドウに表示されるかについては、
+@xref{Display}。
+
+@defun windowp object
+@c This function returns @code{t} if @var{object} is a window.
+この関数は、@var{object}がウィンドウであれば@code{t}を返す。
+@end defun
+
+@node Splitting Windows
+@c @section Splitting Windows
+@section ウィンドウの分割
+@c @cindex splitting windows
+@c @cindex window splitting
+@cindex ウィンドウの分割
+@cindex 分割、ウィンドウ
+
+@c   The functions described here are the primitives used to split a window
+@c into two windows.  Two higher level functions sometimes split a window,
+@c but not always: @code{pop-to-buffer} and @code{display-buffer}
+@c (@pxref{Displaying Buffers}).
+ここで述べる関数は、ウィンドウを2つに分割するための基本関数です。
+上位レベルの2つの関数、@code{pop-to-buffer}と@code{display-buffer}も
+ウィンドウを分割しますが、
+つねに分割するとは限りません（@pxref{Displaying Buffers}）。
+
+@c   The functions described here do not accept a buffer as an argument.
+@c The two ``halves'' of the split window initially display the same buffer
+@c previously visible in the window that was split.
+ここに述べる関数は、引数にはバッファを受け付けません。
+分割されたウィンドウの2つの『部分』には、分割前に表示されていたのと
+同じバッファが始めは表示されます。
+
+@c @deffn Command split-window &optional window size horizontal
+@deffn コマンド split-window &optional window size horizontal
+@c This function splits @var{window} into two windows.  The original
+@c window @var{window} remains the selected window, but occupies only
+@c part of its former screen area.  The rest is occupied by a newly created
+@c window which is returned as the value of this function.
+この関数は@var{window}を2つのウィンドウに分割する。
+もとのウィンドウ@var{window}は、選択されているウィンドウであり続けるが、
+以前のスクリーン領域の一部を占めるだけである。
+残りの部分は新たに作成されたウィンドウが占め、
+そのウィンドウがこの関数の値として返される。
+
+@c   If @var{horizontal} is non-@code{nil}, then @var{window} splits into
+@c two side by side windows.  The original window @var{window} keeps the
+@c leftmost @var{size} columns, and gives the rest of the columns to the
+@c new window.  Otherwise, it splits into windows one above the other, and
+@c @var{window} keeps the upper @var{size} lines and gives the rest of the
+@c lines to the new window.  The original window is therefore the
+@c left-hand or upper of the two, and the new window is the right-hand or
+@c lower.
+@var{horizontal}が@code{nil}以外であると、@var{window}は左右に分かれる。
+もとのウィンドウ@var{window}は左端の@var{size}コラムに留まり、
+残りのコラムは新たなウィンドウに与えられる。
+さもなければ、ウィンドウは上下に分かれ、
+@var{window}は上側の@var{size}行に留まり、
+残りの行は新たなウィンドウに与えられる。
+したがって、もとのウィンドウは左側か上側にあり、
+新たなウィンドウは右側か下側にある。
+
+@c   If @var{window} is omitted or @code{nil}, then the selected window is
+@c split.  If @var{size} is omitted or @code{nil}, then @var{window} is
+@c divided evenly into two parts.  (If there is an odd line, it is
+@c allocated to the new window.)  When @code{split-window} is called
+@c interactively, all its arguments are @code{nil}.
+@var{window}を省略したり@code{nil}であると、
+選択されているウィンドウを分割する。
+@var{size}を省略したり@code{nil}であると、
+@var{window}を均等に分ける。
+（余分な行は新たなウィンドウに与える。）
+@code{split-window}が対話的に呼び出されると、
+すべての引数は@code{nil}である。
+
+@c   The following example starts with one window on a screen that is 50
+@c lines high by 80 columns wide; then the window is split.
+つぎの例では、50行×80コラムのスクリーン上の1つのウィンドウを分割する。
+
+@smallexample
+@group
+(setq w (selected-window))
+     @result{} #<window 8 on windows.texi>
+@c (window-edges)          ; @r{Edges in order:}
+@c      @result{} (0 0 80 50)     ;   @r{left--top--right--bottom}
+(window-edges)          ; @r{順に}
+     @result{} (0 0 80 50)     ;   @r{左端--上端--右端--下端}
+@end group
+
+@group
+@c ;; @r{Returns window created}
+;; @r{作成したウィンドウを返す}
+(setq w2 (split-window w 15))
+     @result{} #<window 28 on windows.texi>
+@end group
+@group
+(window-edges w2)
+@c      @result{} (0 15 80 50)    ; @r{Bottom window;}
+@c                         ;   @r{top is line 15}
+     @result{} (0 15 80 50)    ; @r{下側のウィンドウの上端は15行目}
+@end group
+@group
+(window-edges w)
+@c      @result{} (0 0 80 15)     ; @r{Top window}
+     @result{} (0 0 80 15)     ; @r{上側のウィンドウ}
+@end group
+@end smallexample
+
+@c The screen looks like this:
+スクリーンはつぎのようになる。
+
+@smallexample
+@group
+@c          __________
+@c         |          |  line 0
+@c         |    w     |
+@c         |__________|
+@c         |          |  line 15
+@c         |    w2    |
+@c         |__________|
+@c                       line 50
+@c  column 0   column 80
+　　　┌──────┐
+　　　│　　　　　　│ 0行目
+　　　│　　　ｗ　　│
+　　　│　　　　　　│
+　　　├──────┤
+　　　│　　　　　　│15行目
+　　　│　　　ｗ２　│
+　　　│　　　　　　│
+　　　└──────┘
+　　　　　　　　　　　50行目
+コラム0         コラム80
+@end group
+@end smallexample
+
+@c Next, the top window is split horizontally:
+つぎに上側のウィンドウを左右に分割する。
+
+@smallexample
+@group
+(setq w3 (split-window w 35 t))
+     @result{} #<window 32 on windows.texi>
+@end group
+@group
+(window-edges w3)
+@c      @result{} (35 0 80 15)  ; @r{Left edge at column 35}
+     @result{} (35 0 80 15)  ; @r{左端は35コラム目}
+@end group
+@group
+(window-edges w)
+@c      @result{} (0 0 35 15)   ; @r{Right edge at column 35}
+     @result{} (0 0 35 15)   ; @r{右端は35コラム目}
+@end group
+@group
+(window-edges w2)
+@c      @result{} (0 15 80 50)  ; @r{Bottom window unchanged}
+     @result{} (0 15 80 50)  ; @r{下側のウィンドウは未変更}
+@end group
+@end smallexample
+
+@need 3000
+@c Now, the screen looks like this:
+スクリーンはつぎのようになる。
+
+@smallexample
+@group
+@c      column 35
+@c          __________
+@c         |   |      |  line 0
+@c         | w |  w3  |
+@c         |___|______|
+@c         |          |  line 15
+@c         |    w2    |
+@c         |__________|
+@c                       line 50
+@c  column 0   column 80
+   コラム35
+　　　┌─┬────┐
+　　　│　│　　　　│ 0行目
+　　　│ｗ│　ｗ３　│
+　　　│　│　　　　│
+　　　├─┴────┤
+　　　│　　　　　　│15行目
+　　　│　　　ｗ２　│
+　　　│　　　　　　│
+　　　└──────┘
+　　　　　　　　　　　50行目
+コラム0         コラム80
+@end group
+@end smallexample
+
+@c Normally, Emacs indicates the border between two side-by-side windows
+@c with a scroll bar (@pxref{Window Frame Parameters,Scroll Bars}) or @samp{|}
+@c characters.  The display table can specify alternative border
+@c characters; see @ref{Display Tables}.
+通常、Emacsは左右に並んだウィンドウの境界を
+スクロールバー（@pxref{Window Frame Parameters,Scroll Bars}）か
+文字@samp{|}で表す。
+表示テーブルで境界に別の文字を指定できる。
+@ref{Display Tables}を参照。
+@end deffn
+
+@c @deffn Command split-window-vertically size
+@deffn コマンド split-window-vertically size
+@c This function splits the selected window into two windows, one above the
+@c other, leaving the upper of the two windows selected, with @var{size}
+@c lines.  (If @var{size} is negative, then the lower of the two windows
+@c gets @minus{} @var{size} lines and the upper window gets the rest, but
+@c the upper window is still the one selected.)
+この関数は、選択されているウィンドウを上下に2つに分割する。
+上側が選択されているウィンドウのままで、@var{size}行の大きさになる。
+（@var{size}が負であると、下側のウィンドウが@minus{} @var{size}行になり、
+上側のウィンドウは残りになる。
+しかし、それでも上側が選択されているウィンドウである。）
+
+@c This function is simply an interface to @code{split-window}.
+@c Here is the complete function definition for it:
+この関数は@code{split-window}の単なるインターフェイスである。
+その完全な関数定義はつぎのとおりである。
+
+@smallexample
+@group
+(defun split-window-vertically (&optional arg)
+  "Split current window into two windows, @dots{}"
+  (interactive "P")
+  (split-window nil (and arg (prefix-numeric-value arg))))
+@end group
+@end smallexample
+@end deffn
+
+@c @deffn Command split-window-horizontally size
+@deffn コマンド split-window-horizontally size
+@c This function splits the selected window into two windows
+@c side-by-side, leaving the selected window with @var{size} columns.
+この関数は、選択されているウィンドウを左右に2つに分割し、
+選択されているウィンドウには@var{size}コラム残す。
+
+@c This function is simply an interface to @code{split-window}.  Here is
+@c the complete definition for @code{split-window-horizontally} (except for
+@c part of the documentation string):
+この関数は@code{split-window}の単なるインターフェイスである。
+@code{split-window-horizontally}の完全な関数定義は
+（説明文字列を除けば）つぎのとおりである。
+
+@smallexample
+@group
+(defun split-window-horizontally (&optional arg)
+  "Split selected window into two windows, side by side..."
+  (interactive "P")
+  (split-window nil (and arg (prefix-numeric-value arg)) t))
+@end group
+@end smallexample
+@end deffn
+
+@defun one-window-p &optional no-mini all-frames
+@c This function returns non-@code{nil} if there is only one window.  The
+@c argument @var{no-mini}, if non-@code{nil}, means don't count the
+@c minibuffer even if it is active; otherwise, the minibuffer window is
+@c included, if active, in the total number of windows, which is compared
+@c against one.
+この関数は、ウィンドウがたった1つしかなければ@code{nil}以外を返す。
+引数@var{no-mini}が@code{nil}以外であると、
+ミニバッファが活性であってもそれを数えないことを意味する。
+さもなければ、ミニバッファが活性であればそれも総ウィンドウ個数に数えて
+1と比較する。
+
+@c The argument @var{all-frames} specifies which frames to consider.  Here
+@c are the possible values and their meanings:
+引数@var{all-frames}は、どのフレームを対象にするかを指定する。
+指定できる値とその意味はつぎのとおりである。
+
+@table @asis
+@item @code{nil}
+@c Count the windows in the selected frame, plus the minibuffer used
+@c by that frame even if it lies in some other frame.
+選択されているフレームのウィンドウに加えて、
+ミニバッファがどこに置かれていようと
+当該フレームが使っているミニバッファを数える。
+
+@item @code{t}
+@c Count all windows in all existing frames.
+既存のすべてのフレームのウィンドウを数える。
+
+@item @code{visible}
+@c Count all windows in all visible frames.
+すべての可視フレームのすべてのウィンドウを数える。
+
+@item 0
+@c Count all windows in all visible or iconified frames.
+すべての可視フレームやアイコンになっているフレームの
+すべてのウィンドウを数える。
+
+@c @item anything else
+@item その他
+@c Count precisely the windows in the selected frame, and no others.
+選択されているフレームだけでウィンドウを正確に数える。
+@end table
+@end defun
+
+@node Deleting Windows
+@c @section Deleting Windows
+@section ウィンドウの削除
+@c @cindex deleting windows
+@cindex ウィンドウの削除
+
+@c A window remains visible on its frame unless you @dfn{delete} it by
+@c calling certain functions that delete windows.  A deleted window cannot
+@c appear on the screen, but continues to exist as a Lisp object until
+@c there are no references to it.  There is no way to cancel the deletion
+@c of a window aside from restoring a saved window configuration
+@c (@pxref{Window Configurations}).  Restoring a window configuration also
+@c deletes any windows that aren't part of that configuration.
+ウィンドウを削除するある種の関数を呼び出して
+ウィンドウを@dfn{削除}しない限り、
+ウィンドウはそのフレームに表示され続けます。
+削除されたウィンドウがスクリーンに現れることはありませんが、
+それを参照するものがある限りLispオブジェクトととしては
+存在し続けます。
+保存したウィンドウ構成（@pxref{Window Configurations}）を復元する以外には、
+ウィンドウの削除は取り消せません。
+ウィンドウ構成を復元すると、
+その構成に含まれないウィンドウはすべて削除されます。
+
+@c   When you delete a window, the space it took up is given to one
+@c adjacent sibling.
+ウィンドウを削除すると、それが使っていた場所は
+近接する兄弟ウィンドウの1つに与えられます。
+
+@c Emacs 19 feature
+@defun window-live-p window
+@c This function returns @code{nil} if @var{window} is deleted, and
+@c @code{t} otherwise.
+この関数は、@var{window}が削除されていると@code{nil}を返し、
+さもなければ@code{t}を返す。
+
+@c @strong{Warning:} Erroneous information or fatal errors may result from
+@c using a deleted window as if it were live.
+@strong{警告：}@code{ }
+削除されたウィンドウを正しいものとして使うと、
+誤った情報や重大なエラーを引き起こす。
+@end defun
+
+@c @deffn Command delete-window &optional window
+@deffn コマンド delete-window &optional window
+@c This function removes @var{window} from display, and returns @code{nil}.
+@c If @var{window} is omitted, then the selected window is deleted.  An
+@c error is signaled if there is only one window when @code{delete-window}
+@c is called.
+この関数は、ディスプレイから@var{window}を取りさり、@code{nil}を返す。
+@var{window}を省略すると、選択されているウィンドウを削除する。
+@code{delete-window}を呼び出したときにたった1つのウィンドウしかないと
+エラーを通知する。
+@end deffn
+
+@c @deffn Command delete-other-windows &optional window
+@deffn コマンド delete-other-windows &optional window
+@c This function makes @var{window} the only window on its frame, by
+@c deleting the other windows in that frame.  If @var{window} is omitted or
+@c @code{nil}, then the selected window is used by default.
+この関数は、@var{window}のフレームにある他のウィンドウを削除して
+@var{window}を当該フレームで唯一のウィンドウにする。
+@var{window}を省略したり@code{nil}であると、
+選択されているウィンドウをデフォルトで使う。
+
+@c The return value is @code{nil}.
+これは@code{nil}を返す。
+@end deffn
+
+@c @deffn Command delete-windows-on buffer &optional frame
+@deffn コマンド delete-windows-on buffer &optional frame
+@c This function deletes all windows showing @var{buffer}.  If there are
+@c no windows showing @var{buffer}, it does nothing.
+この関数は、@var{buffer}を表示しているすべてのウィンドウを削除する。
+@var{buffer}を表示しているウィンドウがなければなにもしない。
+
+@c @code{delete-windows-on} operates frame by frame.  If a frame has
+@c several windows showing different buffers, then those showing
+@c @var{buffer} are removed, and the others expand to fill the space.  If
+@c all windows in some frame are showing @var{buffer} (including the case
+@c where there is only one window), then the frame reverts to having a
+@c single window showing another buffer chosen with @code{other-buffer}.
+@c @xref{The Buffer List}.
+@code{delete-windows-on}はフレームを1つ1つ処理する。
+フレームに異なるバッファを表示しているウィンドウが複数ある場合、
+それらのうちで@var{buffer}を表示しているものを削除し、
+他のものは空いた領域を埋めるために拡張される。
+あるフレームのすべてのウィンドウ（たった1つのウィンドウである場合も含む）
+が@var{buffer}を表示している場合、当該フレームは、
+@code{other-buffer}で選ばれる別のバッファを表示する
+1つのウィンドウだけになる。
+@pxref{The Buffer List}。
+
+@c The argument @var{frame} controls which frames to operate on.  This
+@c function does not use it in quite the same way as the other functions
+@c which scan all windows; specifically, the values @code{t} and @code{nil}
+@c have the opposite of their meanings in other functions.  Here are the
+@c full details:
+引数@var{frame}は、どのフレームを対象にするかを指定する。
+この関数は、すべてのウィンドウを走査する他の関数と同じようには
+@var{frame}を使わない。
+特に、@code{t}と@code{nil}の値の意味は他の関数とは逆である。
+以下に詳細を示す。
+
+@itemize @bullet
+@item
+@c If it is @code{nil}, operate on all frames.
+@code{nil}であると、すべてのフレームを対象にする。
+@item
+@c If it is @code{t}, operate on the selected frame.
+@code{t}であると、選択されているフレームを対象にする。
+@item
+@c If it is @code{visible}, operate on all visible frames.
+@code{visible}であると、すべての可視フレームを対象にする。
+@item
+@c If it is 0, operate on all visible or iconified frames.
+0であると、すべての可視フレームやアイコンになっているフレームを対象にする。
+@item
+@c If it is a frame, operate on that frame.
+フレームであると、当該フレームを対象にする。
+@end itemize
+
+@c This function always returns @code{nil}.
+この関数はつねに@code{nil}を返す。
+@end deffn
+
+@node Selecting Windows
+@c @section Selecting Windows
+@section ウィンドウの選択
+@c @cindex selecting windows
+@cindex ウィンドウの選択
+
+@c   When a window is selected, the buffer in the window becomes the current
+@c buffer, and the cursor will appear in it.
+ウィンドウを選択すると、当該ウィンドウのバッファがカレントバッファになり、
+カーソルがそのウィンドウに現れます。
+
+@defun selected-window
+@c This function returns the selected window.  This is the window in
+@c which the cursor appears and to which many commands apply.
+この関数は、選択されているウィンドウを返す。
+カーソルが表示され多くのコマンドが作用するウィンドウがそれである。
+@end defun
+
+@defun select-window window
+@c This function makes @var{window} the selected window.  The cursor then
+@c appears in @var{window} (on redisplay).  The buffer being displayed in
+@c @var{window} is immediately designated the current buffer.
+この関数は、@var{window}を選択されているウィンドウにする。
+すると、カーソルは（再表示すると）@var{window}に現れる。
+@var{window}に表示されているバッファがただちにカレントバッファになる。
+
+@c The return value is @var{window}.
+戻り値は@var{window}である。
+
+@example
+@group
+(setq w (next-window))
+(select-window w)
+     @result{} #<window 65 on windows.texi>
+@end group
+@end example
+@end defun
+
+@defmac save-selected-window forms@dots{}
+@c This macro records the selected window, executes @var{forms}
+@c in sequence, then restores the earlier selected window.
+このマクロは、選択されているウィンドウを記録して、
+@var{forms}を順に実行し、
+もとの選択されているウィンドウに戻す。
+
+@c This macro does not save or restore anything about the sizes, arrangement
+@c or contents of windows; therefore, if the @var{forms} change them,
+@c the change persists.
+このマクロは、ウィンドウサイズ、配置、内容に関して
+いっさいなにも保存したり復元しないので、
+@var{forms}がそれらを変更するとその変更は持続する。
+
+@c Each frame, at any time, has a window selected within the frame.  This
+@c macro saves only @emph{the} selected window; it does not save anything
+@c about other frames.  If the @var{forms} select some other frame and
+@c alter the window selected within it, the change persists.
+ある時点で、各フレームにはフレームの選択されているウィンドウがある。
+このマクロは、選択されているウィンドウ@emph{だけ}を保存し、
+他のフレームについてはなにも保存しない。
+@var{forms}が別のフレームを選択して
+そのフレームの選択されているウィンドウを変更すると、その変更は持続する。
+@end defmac
+
+@c @cindex finding windows
+@cindex ウィンドウを探す
+@c   The following functions choose one of the windows on the screen,
+@c offering various criteria for the choice.
+以下の関数は、さまざま条件でスクリーン上のウィンドウの1つを選びます。
+
+@defun get-lru-window &optional frame
+@c This function returns the window least recently ``used'' (that is,
+@c selected).  The selected window is always the most recently used window.
+この関数は、もっとも昔に『使われた』
+（つまり選択されていた）ウィンドウを返す。
+選択されているウィンドウはつねにもっとも最近に使われたウィンドウである。
+
+@c The selected window can be the least recently used window if it is the
+@c only window.  A newly created window becomes the least recently used
+@c window until it is selected.  A minibuffer window is never a candidate.
+ウィンドウがたった1つであると、
+選択されているウィンドウが
+もっとも昔に使われたウィンドウであることもありうる。
+新たに作成されたウィンドウは、選択されるまではもっとも昔に
+使われたウィンドウになる。
+ミニバッファ用ウィンドウは候補にはならない。
+
+@c The argument @var{frame} controls which windows are considered.
+引数@var{frame}は、どのウィンドウを対象とするかを制御する。
+
+@itemize @bullet
+@item
+@c If it is @code{nil}, consider windows on the selected frame.
+@code{nil}であると、選択されているフレームのウィンドウを対象とする。
+@item
+@c If it is @code{t}, consider windows on all frames.
+@code{t}であると、すべてのフレームのウィンドウを対象とする。
+@item
+@c If it is @code{visible}, consider windows on all visible frames.
+@code{visible}であると、
+すべての可視フレームのウィンドウを対象とする。
+@item
+@c If it is 0, consider windows on all visible or iconified frames.
+0であると、すべての可視フレームやアイコンになっているフレーム
+のウィンドウを対象にする。
+@item
+@c If it is a frame, consider windows on that frame.
+フレームであると、当該フレームのウィンドウを対象にする。
+@end itemize
+@end defun
+
+@defun get-largest-window &optional frame
+@c This function returns the window with the largest area (height times
+@c width).  If there are no side-by-side windows, then this is the window
+@c with the most lines.  A minibuffer window is never a candidate.
+この関数は、もっとも大きな領域（高さ×幅）のウィンドウを返す。
+左右に並んだウィンドウがなければ、
+これがもっとも行数を持つウィンドウである。
+ミニバッファ用ウィンドウは候補にはならない。
+
+@c If there are two windows of the same size, then the function returns
+@c the window that is first in the cyclic ordering of windows (see
+@c following section), starting from the selected window.
+同じ大きさのウィンドウが2つある場合、
+この関数は、選択されているウィンドウから始めて
+ウィンドウの巡回順序（次節参照）で最初のウィンドウを返す。
+
+@c The argument @var{frame} controls which set of windows to
+@c consider.  See @code{get-lru-window}, above.
+引数@var{frame}は、ウィンドウのどのような集まりを対象にするかを指定する。
+うえの@code{get-lru-window}を参照。
+@end defun
+
+@node Cyclic Window Ordering
+@comment  node-name,  next,  previous,  up
+@c @section Cyclic Ordering of Windows
+@section ウィンドウの巡回順序
+@c @cindex cyclic ordering of windows
+@c @cindex ordering of windows, cyclic
+@c @cindex window ordering, cyclic
+@cindex ウィンドウの巡回順序
+@cindex 順序、ウィンドウ
+@cindex 巡回順序、ウィンドウ
+
+@c   When you use the command @kbd{C-x o} (@code{other-window}) to select
+@c the next window, it moves through all the windows on the screen in a
+@c specific cyclic order.  For any given configuration of windows, this
+@c order never varies.  It is called the @dfn{cyclic ordering of windows}.
+つぎのウィンドウを選択するためにコマンド@kbd{C-x o}（@code{other-window}）を
+使うと、スクリーン上のすべてのウィンドウをある巡回順序で巡ります。
+ウィンドウのある構成において、この順序は変わりません。
+これを@dfn{ウィンドウの巡回順序}（cyclic ordering of windows）と呼びます。
+
+@c   This ordering generally goes from top to bottom, and from left to
+@c right.  But it may go down first or go right first, depending on the
+@c order in which the windows were split.
+この順番は一般に上から下、左から右になります。
+しかし、ウィンドウを分割した順番に依存して、
+下や右が最初になることもあります。
+
+@c   If the first split was vertical (into windows one above each other),
+@c and then the subwindows were split horizontally, then the ordering is
+@c left to right in the top of the frame, and then left to right in the
+@c next lower part of the frame, and so on.  If the first split was
+@c horizontal, the ordering is top to bottom in the left part, and so on.
+@c In general, within each set of siblings at any level in the window tree,
+@c the order is left to right, or top to bottom.
+最初に上下に分割してつぎに左右に分割すると、
+順番は、フレームの上側で左から右、フレームのその下では左から右
+といった具合になります。
+最初に左右に分割すると、
+順番は、フレームの左側で上から下といった具合になります。
+一般に、ウィンドウ木のあるレベルで分割された各兄弟の中では、
+順番は、左から右、あるいは、上から下になります。
+
+@defun next-window &optional window minibuf all-frames
+@c @cindex minibuffer window
+@cindex ミニバッファ用ウィンドウ
+@c This function returns the window following @var{window} in the cyclic
+@c ordering of windows.  This is the window that @kbd{C-x o} would select
+@c if typed when @var{window} is selected.  If @var{window} is the only
+@c window visible, then this function returns @var{window}.  If omitted,
+@c @var{window} defaults to the selected window.
+この関数は、ウィンドウの巡回順序において@var{window}のつぎの
+ウィンドウを返す。
+これは、@var{window}が選択されているときに
+@kbd{C-x o}が選択するであろうウィンドウである。
+@var{window}が唯一の可視ウィンドウであると、
+この関数は@var{window}を返す。
+@var{window}を省略すると、デフォルトは選択されているウィンドウである。
+
+@c The value of the argument @var{minibuf} determines whether the
+@c minibuffer is included in the window order.  Normally, when
+@c @var{minibuf} is @code{nil}, the minibuffer is included if it is
+@c currently active; this is the behavior of @kbd{C-x o}.  (The minibuffer
+@c window is active while the minibuffer is in use.  @xref{Minibuffers}.)
+引数@var{minibuf}の値は、ミニバッファを
+ウィンドウの順序に含めるかどうかを決定する。
+@var{minibuf}が@code{nil}であると、
+ミニバッファが活性であるときにはミニバッファを含める。
+これは@kbd{C-x o}のふるまいである。
+（ミニバッファが使われているあいだは、
+ミニバッファ用ウィンドウは活性である。
+@pxref{Minibuffers}。）
+
+@c If @var{minibuf} is @code{t}, then the cyclic ordering includes the
+@c minibuffer window even if it is not active.
+@var{minibuf}が@code{t}であると、
+ミニバッファが活性でなくても巡回順序にミニバッファ用ウィンドウを含める。
+
+@c If @var{minibuf} is neither @code{t} nor @code{nil}, then the minibuffer
+@c window is not included even if it is active.
+@var{minibuf}が@code{t}でも@code{nil}でもないと、
+活性であってもミニバッファ用ウィンドウを含めない。
+
+@c The argument @var{all-frames} specifies which frames to consider.  Here
+@c are the possible values and their meanings:
+引数@var{all-frames}は、どのフレームを対象にするかを指定する。
+可能な値とその意味を以下に示す。
+
+@table @asis
+@item @code{nil}
+@c Consider all the windows in @var{window}'s frame, plus the minibuffer
+@c used by that frame even if it lies in some other frame.
+@var{window}のフレームのすべてのウィンドウに加えて、
+ミニバッファがどこに置かれていようと
+当該フレームが使っているミニバッファを対象にする。
+
+@item @code{t}
+@c Consider all windows in all existing frames.
+既存のすべてのフレームのすべてのウィンドウを対象にする。
+
+@item @code{visible}
+@c Consider all windows in all visible frames.  (To get useful results, you
+@c must ensure @var{window} is in a visible frame.)
+すべての可視フレームのすべてのウィンドウを対象にする。
+（結果が有用であるためには、可視フレームに@var{window}があること）
+
+@item 0
+@c Consider all windows in all visible or iconified frames.
+すべての可視フレームやアイコンになっているフレームの
+すべてのウィンドウを対象にする。
+
+@c @item anything else
+@item その他
+@c Consider precisely the windows in @var{window}'s frame, and no others.
+@var{window}のフレームだけのウィンドウを正確に対象にする。
+@end table
+
+@c This example assumes there are two windows, both displaying the
+@c buffer @samp{windows.texi}:
+つぎの例では、2つのウィンドウがあり、
+どちらもバッファ@samp{windows.texi}を表示していると仮定する。
+
+@example
+@group
+(selected-window)
+     @result{} #<window 56 on windows.texi>
+@end group
+@group
+(next-window (selected-window))
+     @result{} #<window 52 on windows.texi>
+@end group
+@group
+(next-window (next-window (selected-window)))
+     @result{} #<window 56 on windows.texi>
+@end group
+@end example
+@end defun
+
+@defun previous-window &optional window minibuf all-frames
+@c This function returns the window preceding @var{window} in the cyclic
+@c ordering of windows.  The other arguments specify which windows to
+@c include in the cycle, as in @code{next-window}.
+この関数は、ウィンドウの巡回順序において@var{window}のまえの
+ウィンドウを返す。
+他の引数は、@code{next-window}と同様に、
+どのようなウィンドウを巡回に含めるかを指定する。
+@end defun
+
+@c @deffn Command other-window count
+@deffn コマンド other-window count
+@c This function selects the @var{count}th following window in the cyclic
+@c order.  If count is negative, then it moves back @minus{}@var{count}
+@c windows in the cycle, rather than forward.  It returns @code{nil}.
+この関数は、ウィンドウの巡回順序において@var{count}番目うしろの
+ウィンドウを選択する。
+@var{count}が負であると、巡回順序において
+@minus{}@var{count}番目まえのウィンドウに戻る。
+この関数は@code{nil}を返す。
+
+@c In an interactive call, @var{count} is the numeric prefix argument.
+対話的に呼び出すと、@var{count}は数値前置引数である。
+@end deffn
+
+@c Emacs 19 feature
+@defun walk-windows proc &optional minibuf all-frames
+@c This function cycles through all windows, calling @code{proc}
+@c = 誤植？                                          @var{proc}
+@c once for each window with the window as its sole argument.
+この関数は、各ウィンドウごとに当該ウィンドウを唯一の引数として
+@var{proc}を呼び出してすべてのウィンドウを巡る。
+
+@c The optional arguments @var{minibuf} and @var{all-frames} specify the
+@c set of windows to include in the scan.  See @code{next-window}, above,
+@c for details.
+省略可能な引数@var{minibuf}と@var{all-frames}は、
+走査するウィンドウの集まりを指定する。
+詳しくは上記の@code{next-window}を参照。
+@end defun
+
+@node Buffers and Windows
+@c @section Buffers and Windows
+@section バッファとウィンドウ
+@c @cindex examining windows
+@c @cindex windows, controlling precisely
+@c @cindex buffers, controlled in windows
+@cindex ウィンドウを調べる
+@cindex ウィンドウ、正確に制御する
+@cindex バッファ、ウィンドウで制御される
+
+@c   This section describes low-level functions to examine windows or to
+@c display buffers in windows in a precisely controlled fashion.
+本節では、ウィンドウを調べたり、
+正確に制御してウィンドウにバッファを表示する低レベルの関数について述べます。
+使用するウィンドウを探したりそれにバッファを指定する関連する関数については、
+@iftex
+@c See the following section for
+次節を参照してください。
+@end iftex
+@ifinfo
+@c @xref{Displaying Buffers}, for
+@xref{Displaying Buffers}。
+@end ifinfo
+@c related functions that find a window to use and specify a buffer for it.
+@c The functions described there are easier to use than these, but they
+@c employ heuristics in choosing or creating a window; use these functions
+@c when you need complete control.
+そこに述べた関数は本節の関数より簡単に使えますが、
+それらはウィンドウを選んだり作ったりするときに発見的手法を使います。
+完全に制御する必要があるときには、本節の関数を使います。
+
+@defun set-window-buffer window buffer-or-name
+@c This function makes @var{window} display @var{buffer-or-name} as its
+@c contents.  It returns @code{nil}.  This is the fundamental primitive
+@c for changing which buffer is displayed in a window, and all ways
+@c of doing that call this function.
+この関数は、@var{window}の内容として@var{buffer-or-name}を表示するようにする。
+この関数は@code{nil}を返す。
+これは、ウィンドウに表示するバッファを切り替える
+もっとも基本の基本関数であり、
+他の切り替え関数はこの関数を呼び出す。
+
+@example
+@group
+(set-window-buffer (selected-window) "foo")
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@defun window-buffer &optional window
+@c This function returns the buffer that @var{window} is displaying.  If
+@c @var{window} is omitted, this function returns the buffer for the
+@c selected window.
+この関数は、@var{window}に表示しているバッファを返す。
+@var{window}を省略すると、この関数は選択されているウィンドウのバッファを返す。
+
+@example
+@group
+(window-buffer)
+     @result{} #<buffer windows.texi>
+@end group
+@end example
+@end defun
+
+@defun get-buffer-window buffer-or-name &optional all-frames
+@c This function returns a window currently displaying
+@c @var{buffer-or-name}, or @code{nil} if there is none.  If there are
+@c several such windows, then the function returns the first one in the
+@c cyclic ordering of windows, starting from the selected window.
+@c @xref{Cyclic Window Ordering}.
+この関数は、現在@var{buffer-or-name}を表示しているウィンドウを返す。
+そのようなウィンドウがなければ@code{nil}を返す。
+そのようなウィンドウが複数ある場合、
+ウィンドウの巡回順序において選択されているウィンドウから始めて
+最初にみつかったウィンドウを返す。
+@pxref{Cyclic Window Ordering}。
+
+@c The argument @var{all-frames} controls which windows to consider.
+引数@var{all-frames}は、どのウィンドウを対象とするかを制御する。
+
+@itemize @bullet
+@item
+@c If it is @code{nil}, consider windows on the selected frame.
+@code{nil}であると、選択されているフレームのウィンドウを対象とする。
+@item
+@c If it is @code{t}, consider windows on all frames.
+@code{t}であると、すべてのフレームのウィンドウを対象とする。
+@item
+@c If it is @code{visible}, consider windows on all visible frames.
+@code{visible}であると、
+すべての可視フレームのすべてのウィンドウを対象にする。
+@item
+@c If it is 0, consider windows on all visible or iconified frames.
+0であると、すべての可視フレームやアイコンになっているフレーム
+のウィンドウを対象にする。
+@item
+@c If it is a frame, consider windows on that frame.
+フレームであると、当該フレームのウィンドウを対象にする。
+@end itemize
+@end defun
+
+@defun get-buffer-window-list buffer-or-name &optional minibuf all-frames
+@c This function returns a list of all the windows currently displaying
+@c @var{buffer-or-name}.
+この関数は、現在@var{buffer-or-name}を表示している
+すべてのウィンドウのリストを返す。
+
+@c The two optional arguments work like the optional arguments of
+@c @code{next-window} (@pxref{Cyclic Window Ordering}); they are @emph{not}
+@c like the single optional argument of @code{get-buffer-window}.  Perhaps
+@c we should change @code{get-buffer-window} in the future to make it
+@c compatible with the other functions.
+省略可能な2つの引数は、@code{next-window}（@pxref{Cyclic Window Ordering}）の
+省略可能な引数と同様に働き、
+@code{get-buffer-window}の省略可能な単一の引数と同じでは@emph{ない}。
+@code{get-buffer-window}を他の関数と互換性があるように
+将来変更すべきなのであろう。
+
+@c The argument @var{all-frames} controls which windows to consider.
+引数@var{all-frames}は、どのウィンドウを対象とするかを制御する。
+
+@itemize @bullet
+@item
+@c If it is @code{nil}, consider windows on the selected frame.
+@code{nil}であると、選択されているフレームのウィンドウを対象とする。
+@item
+@c If it is @code{t}, consider windows on all frames.
+@code{t}であると、すべてのフレームのウィンドウを対象とする。
+@item
+@c If it is @code{visible}, consider windows on all visible frames.
+@code{visible}であると、
+すべての可視フレームのすべてのウィンドウを対象にする。
+@item
+@c If it is 0, consider windows on all visible or iconified frames.
+0であると、すべての可視フレームやアイコンになっているフレーム
+のウィンドウを対象にする。
+@item
+@c If it is a frame, consider windows on that frame.
+フレームであると、当該フレームのウィンドウを対象にする。
+@end itemize
+@end defun
+
+@defvar buffer-display-time
+@tindex buffer-display-time
+@c This variable records the time at which a buffer was last made visible
+@c in a window.  It is always local in each buffer; each time
+@c @code{set-window-buffer} is called, it sets this variable to
+@c @code{(current-time)} in the specified buffer (@pxref{Time of Day}).
+@c When a buffer is first created, @code{buffer-display-time} starts out
+@c with the value @code{nil}.
+この変数は、バッファがウィンドウで見えるようになった最後の時刻を記録する。
+この変数は各バッファでつねにバッファローカルであり、
+@code{set-window-buffer}は、呼ばれるたびに
+指定されたバッファのこの変数に@code{(current-time)}を設定する
+（@pxref{Time of Day}）。
+バッファが初めて作られると、@code{buffer-display-time}は値@code{nil}で始まる。
+@end defvar
+
+@node Displaying Buffers
+@c @section Displaying Buffers in Windows
+@section ウィンドウへのバッファの表示
+@c @cindex switching to a buffer
+@c @cindex displaying a buffer
+@cindex バッファの切り替え
+@cindex バッファの表示
+
+@c   In this section we describe convenient functions that choose a window
+@c automatically and use it to display a specified buffer.  These functions
+@c can also split an existing window in certain circumstances.  We also
+@c describe variables that parameterize the heuristics used for choosing a
+@c window.
+本節では、ウィンドウを自動的に選びそれに指定したバッファを表示する
+便利な関数について述べます。
+これらの関数は、ある状況では、既存のウィンドウを分割します。
+ウィンドウを選ぶ際の発見的手法を制御する変数についても述べます。
+より正確に制御するための低レベルの関数については、
+@iftex
+@c See the preceding section for
+前節を参照してください。
+@end iftex
+@ifinfo
+@c @xref{Buffers and Windows}, for
+@xref{Buffers and Windows}。
+@end ifinfo
+@c low-level functions that give you more precise control.  All of these
+@c functions work by calling @code{set-window-buffer}.
+これらの関数はすべて@code{set-window-buffer}を呼び出して動作します。
+
+@c   Do not use the functions in this section in order to make a buffer
+@c current so that a Lisp program can access or modify it; they are too
+@c drastic for that purpose, since they change the display of buffers in
+@c windows, which would be gratuitous and surprise the user.  Instead, use
+@c @code{set-buffer} and @code{save-current-buffer} (@pxref{Current
+@c Buffer}), which designate buffers as current for programmed access
+@c without affecting the display of buffers in windows.
+バッファをカレントバッファにしてLispプログラムで参照したり変更できるように
+するためには、本節の関数を使わないでください。
+これらはその目的には強力すぎます。
+ウィンドウのバッファの表示をユーザーにとっては迷惑で驚くようなものに
+変更してしまうからです。
+そのかわりに、ウィンドウのバッファの表示には影響せずに
+バッファをプログラムから参照するためにカレントバッファにする
+@code{set-buffer}と@code{save-current-buffer}（@pxref{Current Buffer}）を
+使います。
+
+@c @deffn Command switch-to-buffer buffer-or-name &optional norecord
+@deffn コマンド switch-to-buffer buffer-or-name &optional norecord
+@c This function makes @var{buffer-or-name} the current buffer, and also
+@c displays the buffer in the selected window.  This means that a human can
+@c see the buffer and subsequent keyboard commands will apply to it.
+@c Contrast this with @code{set-buffer}, which makes @var{buffer-or-name}
+@c the current buffer but does not display it in the selected window.
+@c @xref{Current Buffer}.
+この関数は、@var{buffer-or-name}をカレントバッファにし、
+さらに、選択されているウィンドウに当該バッファを表示する。
+つまり、人間が当該バッファを見ることができるようになり、
+以降のキーボードコマンドは当該バッファに適用される。
+@var{buffer-or-name}をカレントバッファにするが
+選択されているウィンドウには表示しない@code{set-buffer}と比較してほしい。
+@pxref{Current Buffer}。
+
+@c If @var{buffer-or-name} does not identify an existing buffer, then a new
+@c buffer by that name is created.  The major mode for the new buffer is
+@c set according to the variable @code{default-major-mode}.  @xref{Auto
+@c Major Mode}.
+@var{buffer-or-name}が既存のバッファを指定しなければ、
+その名前の新たなバッファが作成される。
+新たなバッファのメジャーモードは変数@code{default-major-mode}に
+従って設定される。
+@pxref{Auto Major Mode}。
+
+@c Normally the specified buffer is put at the front of the buffer list
+@c (both the selected frame's buffer list and the frame-independent buffer
+@c list).  This affects the operation of @code{other-buffer}.  However, if
+@c @var{norecord} is non-@code{nil}, this is not done.  @xref{The Buffer
+@c List}.
+通常、指定したバッファはバッファリスト
+（選択されているフレームのバッファリストとフレーム独立のバッファリストの
+両方）の先頭に置かれる。
+これは、@code{other-buffer}の動作に影響する。
+しかし、@var{norecord}が@code{nil}以外であると、これを行わない。
+@pxref{The Buffer List}。
+
+@c The @code{switch-to-buffer} function is often used interactively, as
+@c the binding of @kbd{C-x b}.  It is also used frequently in programs.  It
+@c always returns @code{nil}.
+関数@code{switch-to-buffer}は、しばしば、
+@kbd{C-x b}にバインドされて対話的に使われる。
+プログラムでも多用される。
+つねに@code{nil}を返す。
+@end deffn
+
+@c @deffn Command switch-to-buffer-other-window buffer-or-name &optional norecord
+@deffn コマンド switch-to-buffer-other-window buffer-or-name &optional norecord
+@c This function makes @var{buffer-or-name} the current buffer and
+@c displays it in a window not currently selected.  It then selects that
+@c window.  The handling of the buffer is the same as in
+@c @code{switch-to-buffer}.
+この関数は、@var{buffer-or-name}をカレントバッファにし、
+現在選択されていないウィンドウに当該バッファを表示する。
+そして当該ウィンドウを選択する。
+バッファの扱い方は@code{switch-to-buffer}と同じである。
+
+@c The currently selected window is absolutely never used to do the job.
+@c If it is the only window, then it is split to make a distinct window for
+@c this purpose.  If the selected window is already displaying the buffer,
+@c then it continues to do so, but another window is nonetheless found to
+@c display it in as well.
+現在選択されているウィンドウは、この処理には絶対に使わない。
+それが唯一のウィンドウである場合には、この目的のために
+ウィンドウを分割して別のウィンドウを作る。
+選択されているウィンドウがすでに当該バッファを表示している場合には、
+当該ウィンドウはそのまま表示し続けるが、それにも関わらず、
+表示するために別のウィンドウを探す。
+
+@c This function updates the buffer list just like @code{switch-to-buffer}
+@c unless @var{norecord} is non-@code{nil}.
+この関数は、@var{norecord}が@code{nil}であると、
+@code{switch-to-buffer}のようにバッファリストを更新する。
+@end deffn
+
+@defun pop-to-buffer buffer-or-name &optional other-window norecord
+@c This function makes @var{buffer-or-name} the current buffer and
+@c switches to it in some window, preferably not the window previously
+@c selected.  The ``popped-to'' window becomes the selected window within
+@c its frame.
+この関数は、@var{buffer-or-name}をカレントバッファにし、
+以前には選択されていない別のウィンドウで当該バッファに切り替える。
+そのウィンドウがそのフレームの選択されているウィンドウになる。
+
+@c If the variable @code{pop-up-frames} is non-@code{nil},
+@c @code{pop-to-buffer} looks for a window in any visible frame already
+@c displaying the buffer; if there is one, it returns that window and makes
+@c it be selected within its frame.  If there is none, it creates a new
+@c frame and displays the buffer in it.
+変数@code{pop-up-frames}が@code{nil}以外であると、
+@code{pop-to-buffer}は、可視フレームから
+当該バッファをすでに表示しているウィンドウを探す。
+そのようなウィンドウがあれば、そのウィンドウを返すとともに、
+そのウィンドウをそのフレームの選択されているウィンドウにする。
+そのようなウィンドウがなければ、新たなフレームを作成し
+それにバッファを表示する。
+
+@c If @code{pop-up-frames} is @code{nil}, then @code{pop-to-buffer}
+@c operates entirely within the selected frame.  (If the selected frame has
+@c just a minibuffer, @code{pop-to-buffer} operates within the most
+@c recently selected frame that was not just a minibuffer.)
+@code{pop-up-frames}が@code{nil}であると、
+@code{pop-to-buffer}は選択されているフレーム内だけで処理を行う。
+（選択されているフレームがミニバッファのみであるときには、
+@code{pop-to-buffer}は、ミニバッファのみでない
+もっとも最近に選択されたフレーム内で処理する。）
+
+@c If the variable @code{pop-up-windows} is non-@code{nil}, windows may
+@c be split to create a new window that is different from the original
+@c window.  For details, see @ref{Choosing Window}.
+変数@code{pop-up-windows}が@code{nil}以外であると、
+もとのウィンドウとは異なる新たなウィンドウを作成するために
+ウィンドウを分割することがある。
+詳しくは、@ref{Choosing Window}を参照。
+
+@c If @var{other-window} is non-@code{nil}, @code{pop-to-buffer} finds or
+@c creates another window even if @var{buffer-or-name} is already visible
+@c in the selected window.  Thus @var{buffer-or-name} could end up
+@c displayed in two windows.  On the other hand, if @var{buffer-or-name} is
+@c already displayed in the selected window and @var{other-window} is
+@c @code{nil}, then the selected window is considered sufficient display
+@c for @var{buffer-or-name}, so that nothing needs to be done.
+@var{other-window}が@code{nil}以外であると、
+選択されているウィンドウに@var{buffer-or-name}がすでに表示されていても、
+@code{pop-to-buffer}は別のウィンドウを探したり作成する。
+そのため、@var{buffer-or-name}は2つのウィンドウに表示されることになる。
+一方で、@var{buffer-or-name}が選択されているウィンドウに
+すでに表示されていて、かつ、@var{other-window}が@code{nil}であると、
+選択されているウィンドウは@var{buffer-or-name}の表示には十分であるとみなし、
+なにも行わない。
+
+@c All the variables that affect @code{display-buffer} affect
+@c @code{pop-to-buffer} as well.  @xref{Choosing Window}.
+@code{display-buffer}に影響するすべての変数は、
+@code{pop-to-buffer}にも影響する。
+@pxref{Choosing Window}。
+
+@c If @var{buffer-or-name} is a string that does not name an existing
+@c buffer, a buffer by that name is created.  The major mode for the new
+@c buffer is set according to the variable @code{default-major-mode}.
+@c @xref{Auto Major Mode}.
+@var{buffer-or-name}が文字列であり既存のバッファを指定しない場合、
+その名前のバッファを作成する。
+新たなバッファのメジャーモードは変数@code{default-major-mode}に
+従って設定される。
+@pxref{Auto Major Mode}。
+
+@c This function updates the buffer list just like @code{switch-to-buffer}
+@c unless @var{norecord} is non-@code{nil}.
+この関数は、@var{norecord}が@code{nil}であると、
+@code{switch-to-buffer}のようにバッファリストを更新する。
+@end defun
+
+@c @deffn Command replace-buffer-in-windows buffer
+@deffn コマンド replace-buffer-in-windows buffer
+@c This function replaces @var{buffer} with some other buffer in all
+@c windows displaying it.  The other buffer used is chosen with
+@c @code{other-buffer}.  In the usual applications of this function, you
+@c don't care which other buffer is used; you just want to make sure that
+@c @var{buffer} is no longer displayed.
+この関数は、@var{buffer}を表示しているすべてのウィンドウにおいて
+@var{buffer}を別のバッファに切り替える。
+別のバッファは@code{other-buffer}で選ぶ。
+この関数の普通の用途は、別のバッファがどれになるか気にしない場合である。
+つまり、@var{buffer}が表示されていないことを保証したい場合である。
+
+@c This function returns @code{nil}.
+この関数は@code{nil}を返す。
+@end deffn
+
+@node Choosing Window
+@c @section Choosing a Window for Display
+@section 表示ウィンドウを選ぶ
+
+@c   This section describes the basic facility that chooses a window to
+@c display a buffer in---@code{display-buffer}.  All the higher-level
+@c functions and commands use this subroutine.  Here we describe how to use
+@c @code{display-buffer} and how to customize it.
+本節では、バッファを表示するためのウィンドウを選ぶための基本的な機能、
+@code{display-buffer}について述べます。
+上位レベルの関数やコマンドはすべてこのサブルーティンを使います。
+ここでは、@code{display-buffer}の使い方とカスタマイズ方法を説明します。
+
+@c @deffn Command display-buffer buffer-or-name &optional not-this-window frame
+@deffn コマンド display-buffer buffer-or-name &optional not-this-window frame
+@c This command makes @var{buffer-or-name} appear in some window, like
+@c @code{pop-to-buffer}, but it does not select that window and does not
+@c make the buffer current.  The identity of the selected window is
+@c unaltered by this function.
+このコマンドは、@code{pop-to-buffer}のように、
+@var{buffer-or-name}をあるウィンドウに表示するが、
+そのウィンドウを選択しないので当該バッファもカレントバッファにならない。
+この関数は、選択されているウィンドウを変えない。
+
+@c If @var{not-this-window} is non-@code{nil}, it means to display the
+@c specified buffer in a window other than the selected one, even if it is
+@c already on display in the selected window.  This can cause the buffer to
+@c appear in two windows at once.  Otherwise, if @var{buffer-or-name} is
+@c already being displayed in any window, that is good enough, so this
+@c function does nothing.
+@var{not-this-window}が@code{nil}以外であると、
+指定したバッファが選択されているウィンドウにすでに表示されていても、
+別のウィンドウに当該バッファを表示することを意味する。
+これにより、当該バッファが同時に2つのウィンドウに表示される。
+さもなければ、@var{buffer-or-name}がウィンドウにすでに表示されていると、
+それで十分とみなしこの関数はなにもしない。
+
+@c @code{display-buffer} returns the window chosen to display
+@c @var{buffer-or-name}.
+@code{display-buffer}は、@var{buffer-or-name}を表示するために
+選んだウィンドウを返す。
+
+@c If the argument @var{frame} is non-@code{nil}, it specifies which frames
+@c to check when deciding whether the buffer is already displayed.  If the
+@c buffer is already displayed in some window on one of these frames,
+@c @code{display-buffer} simply returns that window.  Here are the possible
+@c values of @var{frame}:
+引数@var{frame}が@code{nil}以外であると、
+バッファがすでに表示されているかどうかを検査するときに
+どのフレームを対象とするかを指定する。
+それらのフレームのどれかのウィンドウに当該バッファがすでに表示されていると、
+@code{display-buffer}は単にそのウィンドウを返す。
+@var{frame}の可能な値はつぎのとおりである。
+
+@itemize @bullet
+@item
+@c If it is @code{nil}, consider windows on the selected frame.
+@code{nil}であると、選択されているフレームのウィンドウを対象とする。
+@item
+@c If it is @code{t}, consider windows on all frames.
+@code{t}であると、すべてのフレームのウィンドウを対象とする。
+@item
+@c If it is @code{visible}, consider windows on all visible frames.
+@code{visible}であると、
+すべての可視フレームのすべてのウィンドウを対象にする。
+@item
+@c If it is 0, consider windows on all visible or iconified frames.
+0であると、すべての可視フレームやアイコンになっているフレーム
+のウィンドウを対象にする。
+@item
+@c If it is a frame, consider windows on that frame.
+フレームであると、当該フレームのウィンドウを対象にする。
+@end itemize
+
+@c Precisely how @code{display-buffer} finds or creates a window depends on
+@c the variables described below.
+@code{display-buffer}がウィンドウを作成したり探す詳しい手順は、
+以下に述べる変数に依存する。
+@end deffn
+
+@defopt pop-up-windows
+@c This variable controls whether @code{display-buffer} makes new windows.
+@c If it is non-@code{nil} and there is only one window, then that window
+@c is split.  If it is @code{nil}, then @code{display-buffer} does not
+@c split the single window, but uses it whole.
+この変数は、@code{display-buffer}が新たにウィンドウを作るかどうかを制御する。
+@code{nil}以外であり、かつ、ウィンドウがたった1つである場合、
+そのウィンドウを分割する。
+@code{nil}であると、@code{display-buffer}は
+単一のウィンドウを分割せずにそれ全体を使う。
+@end defopt
+
+@defopt split-height-threshold
+@c This variable determines when @code{display-buffer} may split a window,
+@c if there are multiple windows.  @code{display-buffer} always splits the
+@c largest window if it has at least this many lines.  If the largest
+@c window is not this tall, it is split only if it is the sole window and
+@c @code{pop-up-windows} is non-@code{nil}.
+この変数は、ウィンドウが複数ある場合に
+@code{display-buffer}がどの時点でウィンドウを分割するかを決定する。
+@code{display-buffer}は、最大ウィンドウの行数が
+この変数による指定行数より大きければ、最大ウィンドウをつねに分割する。
+最大ウィンドウがこれだけ大きくない場合には、
+それが唯一のウィンドウであり、かつ、@code{pop-up-windows}が@code{nil}以外
+の場合にのみ最大ウィンドウを分割する。
+@end defopt
+
+@c Emacs 19 feature
+@defopt pop-up-frames
+@c This variable controls whether @code{display-buffer} makes new frames.
+@c If it is non-@code{nil}, @code{display-buffer} looks for an existing
+@c window already displaying the desired buffer, on any visible frame.  If
+@c it finds one, it returns that window.  Otherwise it makes a new frame.
+@c The variables @code{pop-up-windows} and @code{split-height-threshold} do
+@c not matter if @code{pop-up-frames} is non-@code{nil}.
+この変数は、@code{display-buffer}が新たなフレームを作るかどうかを制御する。
+@code{nil}以外であると、@code{display-buffer}は、
+すべての可視フレームから指定されたバッファをすでに表示している
+既存のウィンドウを探す。
+そのようなウィンドウがあれば、そのウィンドウを返す。
+さもなければ、新たなフレームを作る。
+変数@code{pop-up-frames}が@code{nil}以外であると、
+変数@code{pop-up-windows}と@code{split-height-threshold}は影響しない。
+
+@c If @code{pop-up-frames} is @code{nil}, then @code{display-buffer} either
+@c splits a window or reuses one.
+@code{pop-up-frames}が@code{nil}であると、
+@code{display-buffer}はウィンドウを分割するか再利用する。
+
+@c @xref{Frames}, for more information.
+詳しくは、@pxref{Frames}。
+@end defopt
+
+@c Emacs 19 feature
+@defvar pop-up-frame-function
+@c This variable specifies how to make a new frame if @code{pop-up-frames}
+@c is non-@code{nil}.
+この変数は、@code{pop-up-frames}が@code{nil}以外であるときに
+どのように新たなフレームを作るかを指定する。
+
+@c Its value should be a function of no arguments.  When
+@c @code{display-buffer} makes a new frame, it does so by calling that
+@c function, which should return a frame.  The default value of the
+@c variable is a function that creates a frame using parameters from
+@c @code{pop-up-frame-alist}.
+その値は引数なしの関数であること。
+@code{display-buffer}が新たにフレームを作るとき、
+フレームを返すこの関数を呼び出す。
+この変数のデフォルト値は、
+@code{pop-up-frame-alist}のパラメータを使って新たなフレームを作る関数である。
+@end defvar
+
+@defvar pop-up-frame-alist
+@c This variable holds an alist specifying frame parameters used when
+@c @code{display-buffer} makes a new frame.  @xref{Frame Parameters}, for
+@c more information about frame parameters.
+この変数は、@code{display-buffer}が新たにフレームを作るときに
+使用するフレームパラメータを指定する連想リストを保持する。
+フレームパラメータに関して詳しくは、
+@pxref{Frame Parameters}。
+@end defvar
+
+@defopt special-display-buffer-names
+@c A list of buffer names for buffers that should be displayed specially.
+@c If the buffer's name is in this list, @code{display-buffer} handles the
+@c buffer specially.
+特別に表示すべきバッファのバッファ名のリスト。
+バッファ名がこのリストにあると、
+@code{display-buffer}は当該バッファを特別に扱う。
+
+@c By default, special display means to give the buffer a dedicated frame.
+デフォルトでは、特別に表示するとは、
+専用のフレームにバッファを表示することである。
+
+@c If an element is a list, instead of a string, then the @sc{car} of the
+@c list is the buffer name, and the rest of the list says how to create the
+@c frame.  There are two possibilities for the rest of the list.  It can be
+@c an alist, specifying frame parameters, or it can contain a function and
+@c arguments to give to it.  (The function's first argument is always the
+@c buffer to be displayed; the arguments from the list come after that.)
+リストの要素が文字列でなくリストであると、
+リストの@sc{car}がバッファ名であり、
+リストの残りはフレームの作成方法を指定する。
+それは、フレームパラメータを指定する連想リストであるか、
+関数とそれに渡す引数である。
+（関数の第1引数はつねに表示すべきバッファである。
+そのあとにリスト内の引数が続く。）
+@end defopt
+
+@defopt special-display-regexps
+@c A list of regular expressions that specify buffers that should be
+@c displayed specially.  If the buffer's name matches any of the regular
+@c expressions in this list, @code{display-buffer} handles the buffer
+@c specially.
+特別に表示すべきバッファを指定する正規表現のリスト。
+バッファ名がこのリストのいずれかの正規表現に一致すると、
+@code{display-buffer}は当該バッファを特別に扱う。
+
+@c By default, special display means to give the buffer a dedicated frame.
+デフォルトでは、特別に表示するとは、
+専用のフレームにバッファを表示することである。
+
+@c If an element is a list, instead of a string, then the @sc{car} of the
+@c list is the regular expression, and the rest of the list says how to
+@c create the frame.  See above, under @code{special-display-buffer-names}.
+リストの要素が文字列でなくリストであると、
+リストの@sc{car}が正規表現であり、
+リストの残りはフレームの作成方法を指定する。
+上記の@code{special-display-buffer-names}を参照。
+@end defopt
+
+@defvar special-display-function
+@c This variable holds the function to call to display a buffer specially.
+@c It receives the buffer as an argument, and should return the window in
+@c which it is displayed.
+この変数は、バッファを特別に表示するために呼び出す関数を保持する。
+引数としてバッファを受け取り、
+当該バッファを表示したウィンドウを返すこと。
+
+@c The default value of this variable is
+@c @code{special-display-popup-frame}.
+この関数のデフォルト値は@code{special-display-popup-frame}である。
+@end defvar
+
+@defun special-display-popup-frame buffer
+@c This function makes @var{buffer} visible in a frame of its own.  If
+@c @var{buffer} is already displayed in a window in some frame, it makes
+@c the frame visible and raises it, to use that window.  Otherwise, it
+@c creates a frame that will be dedicated to @var{buffer}.
+この関数は、@var{buffer}をそれ専用のフレームに表示する。
+あるフレームのウィンドウに@var{buffer}がすでに表示されている場合、
+当該ウィンドウを使うために当該フレームを可視にし手前に持ってくる。
+さもなければ、@var{buffer}用にフレームを作成する。
+
+@c This function uses an existing window displaying @var{buffer} whether or
+@c not it is in a frame of its own; but if you set up the above variables
+@c in your init file, before @var{buffer} was created, then presumably the
+@c window was previously made by this function.
+この関数は、@var{buffer}を表示している既存のウィンドウのフレームで
+当該バッファだけを表示しているかどうかに関わらず、
+既存の当該ウィンドウを使う。
+しかし、@var{buffer}を作るまえに読者の初期化ファイルで上記の変数に設定
+しているときには、当該ウィンドウは以前にこの関数が作成したものであろう。
+@end defun
+
+@defopt special-display-frame-alist
+@c This variable holds frame parameters for
+@c @code{special-display-popup-frame} to use when it creates a frame.
+この変数は、@code{special-display-popup-frame}がフレームを作るときに
+使用するフレームパラメータを保持する。
+@end defopt
+
+@defopt same-window-buffer-names
+@c A list of buffer names for buffers that should be displayed in the
+@c selected window.  If the buffer's name is in this list,
+@c @code{display-buffer} handles the buffer by switching to it in the
+@c selected window.
+選択されているウィンドウに表示すべきバッファのバッファ名のリスト。
+バッファ名がこのリストにあると、
+@code{display-buffer}は選択されているウィンドウで当該バッファに切り替える。
+@end defopt
+
+@defopt same-window-regexps
+@c A list of regular expressions that specify buffers that should be
+@c displayed in the selected window.  If the buffer's name matches any of
+@c the regular expressions in this list, @code{display-buffer} handles the
+@c buffer by switching to it in the selected window.
+選択されているウィンドウに表示すべきバッファを指定する正規表現のリスト。
+バッファ名がこのリストのいずれかの正規表現に一致すると、
+@code{display-buffer}は選択されているウィンドウで当該バッファに切り替える。
+@end defopt
+
+@c Emacs 19 feature
+@defvar display-buffer-function
+@c This variable is the most flexible way to customize the behavior of
+@c @code{display-buffer}.  If it is non-@code{nil}, it should be a function
+@c that @code{display-buffer} calls to do the work.  The function should
+@c accept two arguments, the same two arguments that @code{display-buffer}
+@c received.  It should choose or create a window, display the specified
+@c buffer, and then return the window.
+この変数は、@code{display-buffer}のふるまいをカスタマイズする
+もっとも柔軟な方法である。
+@code{nil}以外であると、@code{display-buffer}が処理を依頼するために
+呼び出す関数であること。
+その関数は、@code{display-buffer}が受け取るのと同じ2つの引数を受け付けること。
+その関数は、ウィンドウを選ぶか作成し、指定されたバッファを表示し、
+当該ウィンドウを返すこと。
+
+@c This hook takes precedence over all the other options and hooks
+@c described above.
+このフックは、上に述べた他のオプションやフックすべてに優先する。
+@end defvar
+
+@c @c Emacs 19 feature
+@c @cindex dedicated window
+@cindex 専用ウィンドウ
+@c A window can be marked as ``dedicated'' to its buffer.  Then
+@c @code{display-buffer} will not try to use that window to display any
+@c other buffer.
+ウィンドウにはそのバッファ『専用』と印を付けられます。
+そうすると、@code{display-buffer}は他のバッファを表示するために
+当該ウィンドウを使わないようにします。
+
+@defun window-dedicated-p window
+@c This function returns @code{t} if @var{window} is marked as dedicated;
+@c otherwise @code{nil}.
+この関数は、@var{window}に専用と印が付いていれば@code{t}を返し、
+さもなければ@code{nil}を返す。
+@end defun
+
+@defun set-window-dedicated-p window flag
+@c This function marks @var{window} as dedicated if @var{flag} is
+@c non-@code{nil}, and nondedicated otherwise.
+この関数は、@var{flag}が@code{nil}以外であると@var{window}に専用の印を付け、
+さもなければ専用の印を消す。
+@end defun
+
+@node Window Point
+@c @section Windows and Point
+@section ウィンドウとポイント
+@c @cindex window position
+@c @cindex window point
+@c @cindex position in window
+@c @cindex point in window
+@cindex ウィンドウ内位置
+@cindex ウィンドウのポイント
+@cindex 位置、ウィンドウ内
+@cindex ポイント、ウィンドウ
+
+@c   Each window has its own value of point, independent of the value of
+@c point in other windows displaying the same buffer.  This makes it useful
+@c to have multiple windows showing one buffer.
+各ウィンドウには、同じバッファを表示している
+別のウィンドウのポイントの値とは独立な独自のポイントの値があります。
+これにより、あるバッファを複数のウィンドウに表示しても有用なのです。
+
+@itemize @bullet
+@item
+@c The window point is established when a window is first created; it is
+@c initialized from the buffer's point, or from the window point of another
+@c window opened on the buffer if such a window exists.
+ウィンドウのポイントは、ウィンドウを最初に作成したときに確立される。
+バッファのポイントか、バッファをすでに表示しているウィンドウがあれば
+そのウィンドウのポイントで初期化される。
+
+@item
+@c Selecting a window sets the value of point in its buffer from the
+@c window's value of point.  Conversely, deselecting a window sets the
+@c window's value of point from that of the buffer.  Thus, when you switch
+@c between windows that display a given buffer, the point value for the
+@c selected window is in effect in the buffer, while the point values for
+@c the other windows are stored in those windows.
+ウィンドウを選択すると、ウィンドウのポイント値が
+そのバッファのポイント値になる。
+逆に、ウィンドウの選択をやめると、
+バッファのポイント値がウィンドウのポイント値になる。
+したがって、同じバッファを表示している複数のウィンドウのあいだで
+切り替えると、選択されているウィンドウではウィンドウのポイント値が
+当該バッファで有効になり、
+選択されていない他のウィンドウの各ポイント値は、
+それぞれのウィンドウに保持される。
+
+@item
+@c As long as the selected window displays the current buffer, the window's
+@c point and the buffer's point always move together; they remain equal.
+選択されているウィンドウがカレントバッファを表示し続ける限り、
+ウィンドウのポイントとバッファのポイントはともに動いて、
+両者は同じであり続ける。
+
+@item
+@c @xref{Positions}, for more details on buffer positions.
+バッファ内位置について詳しくは、@pxref{Positions}。
+@end itemize
+
+@c   As far as the user is concerned, point is where the cursor is, and
+@c when the user switches to another buffer, the cursor jumps to the
+@c position of point in that buffer.
+ユーザーにとっては、ポイントとはカーソルが置かれた箇所であり、
+別のバッファに切り替えるとそのバッファのポイント位置に
+カーソルが移動します。
+
+@defun window-point window
+@c This function returns the current position of point in @var{window}.
+@c For a nonselected window, this is the value point would have (in that
+@c window's buffer) if that window were selected.
+この関数は、@var{window}の現在のポイント位置を返す。
+選択されていないウィンドウでは、
+当該ウィンドウを選択したときになるであろう
+（ウィンドウのバッファの）ポイント値である。
+
+@c When @var{window} is the selected window and its buffer is also the
+@c current buffer, the value returned is the same as point in that buffer.
+@var{window}が選択されているウィンドウであり、かつ、
+そのバッファがカレントバッファであれば、
+戻り値は当該バッファのポイントと同じである。
+
+@c Strictly speaking, it would be more correct to return the
+@c ``top-level'' value of point, outside of any @code{save-excursion}
+@c forms.  But that value is hard to find.
+厳密にいえば、すべてのフォーム@code{save-excursion}の外側での
+『トップレベル』のポイントの値を返すほうがより正確である。
+しかし、そのような値を探すのは困難である。
+@end defun
+
+@defun set-window-point window position
+@c This function positions point in @var{window} at position
+@c @var{position} in @var{window}'s buffer.
+この関数は、@var{window}のバッファ内の位置@var{position}を
+@var{window}のポイント位置とする。
+@end defun
+
+@node Window Start
+@c @section The Window Start Position
+@section ウィンドウの開始位置
+
+@c   Each window contains a marker used to keep track of a buffer position
+@c that specifies where in the buffer display should start.  This position
+@c is called the @dfn{display-start} position of the window (or just the
+@c @dfn{start}).  The character after this position is the one that appears
+@c at the upper left corner of the window.  It is usually, but not
+@c inevitably, at the beginning of a text line.
+各ウィンドウには、バッファのどの箇所から表示を始めるかを指定する
+バッファ内位置を追跡するために使うマーカがあります。
+この位置をウィンドウの@dfn{表示開始}（display-start）位置
+（あるいは単に@dfn{開始}（start）位置）と呼びます。
+この位置の直後にある文字が、ウィンドウの左上隅に現れます。
+この位置は、通常、テキスト行の先頭にありますが、必須ではありません。
+
+@defun window-start &optional window
+@c @cindex window top line
+@cindex ウィンドウの先頭行
+@c This function returns the display-start position of window
+@c @var{window}.  If @var{window} is @code{nil}, the selected window is
+@c used.  For example,
+この関数は、ウィンドウ@var{window}の表示開始位置を返す。
+@var{window}が@code{nil}であると、
+選択されているウィンドウを使う。
+たとえばつぎのとおりである。
+
+@example
+@group
+(window-start)
+     @result{} 7058
+@end group
+@end example
+
+@c When you create a window, or display a different buffer in it, the
+@c display-start position is set to a display-start position recently used
+@c for the same buffer, or 1 if the buffer doesn't have any.
+新たにウィンドウを作成したり異なるバッファをウィンドウに表示すると、
+表示開始位置は、当該バッファの最近に使われた表示開始位置になるか、
+バッファに表示開始位置がなければ1になる。
+
+@c Redisplay updates the window-start position (if you have not specified
+@c it explicitly since the previous redisplay) so that point appears on the
+@c screen.  Nothing except redisplay automatically changes the window-start
+@c position; if you move point, do not expect the window-start position to
+@c change in response until after the next redisplay.
+再表示するとウィンドウ開始位置は
+（それ以前の再表示で明示的に位置を指定していなければ）、
+ポイントがスクリーンに現れるように更新される。
+再表示以外には、ウィンドウ開始位置を自動的に変更しない。
+ポイントを移動しても、つぎの再表示までは、
+連動してウィンドウ開始位置が変更されると期待しないこと。
+
+@c For a realistic example of using @code{window-start}, see the
+@c description of @code{count-lines} in @ref{Text Lines}.
+@code{window-start}を使った実際的な例は、
+@ref{Text Lines}の@code{count-lines}の記述を参照。
+@end defun
+
+@defun window-end &optional window update
+@c This function returns the position of the end of the display in window
+@c @var{window}.  If @var{window} is @code{nil}, the selected window is
+@c used.
+この関数は、ウィンドウ@var{window}の表示の末尾の位置を返す。
+@var{window}が@code{nil}であると、選択されているウィンドウを使う。
+
+@c Simply changing the buffer text or moving point does not update the
+@c value that @code{window-end} returns.  The value is updated only when
+@c Emacs redisplays and redisplay completes without being preempted.
+バッファのテキストを変更したりポイントを移動しただけでは、
+@code{window-end}が返す値は更新されない。
+この値は、Emacsが再表示を実行し途中で止めることなく
+最後まで終了した場合にのみ更新される。
+
+@c If the last redisplay of @var{window} was preempted, and did not finish,
+@c Emacs does not know the position of the end of display in that window.
+@c In that case, this function returns @code{nil}.
+@var{window}の最後の再表示が途中で止められて完了していないと、
+当該ウィンドウの表示の末尾の位置はEmacsにはわからない。
+
+@c If @var{update} is non-@code{nil}, @code{window-end} always returns
+@c an up-to-date value for where the window ends.  If the saved value is
+@c valid, @code{window-end} returns that; otherwise it computes the correct
+@c value by scanning the buffer text.
+@var{update}が@code{nil}以外であると、
+@code{window-end}はウィンドウの末尾の更新値をつねに返す。
+保存しておいた値が正しければ@code{window-end}はそれを返す。
+さもなければ、バッファのテキストを走査して正しい値を計算する。
+@end defun
+
+@defun set-window-start window position &optional noforce
+@c This function sets the display-start position of @var{window} to
+@c @var{position} in @var{window}'s buffer.  It returns @var{position}.
+この関数は、@var{window}の表示開始位置を
+@var{window}のバッファ内の位置@var{position}とする。
+これは@var{position}を返す。
+
+@c The display routines insist that the position of point be visible when a
+@c buffer is displayed.  Normally, they change the display-start position
+@c (that is, scroll the window) whenever necessary to make point visible.
+@c However, if you specify the start position with this function using
+@c @code{nil} for @var{noforce}, it means you want display to start at
+@c @var{position} even if that would put the location of point off the
+@c screen.  If this does place point off screen, the display routines move
+@c point to the left margin on the middle line in the window.
+表示ルーティンは、バッファを表示するときには
+ポイント位置が可視であることを強要する。
+通常、表示ルーティンは、ポイントを可視にするために必要なときには
+表示開始位置を（つまりウィンドウをスクロールして）変更する。
+しかし、@var{noforce}に@code{nil}を指定してこの関数で開始位置を指定すると、
+ポイント位置がスクリーンからはみ出したとしても、
+表示開始位置を@var{position}とすることを意味する。
+ポイントがスクリーンからはみ出す場合には、
+表示ルーティンはウィンドウの中央行の左端にポイントを移動する。
+
+@c For example, if point @w{is 1} and you set the start of the window @w{to
+@c 2}, then point would be ``above'' the top of the window.  The display
+@c routines will automatically move point if it is still 1 when redisplay
+@c occurs.  Here is an example:
+たとえば、ポイントが@w{1にある}ときに
+ウィンドウの開始位置を@w{2に}したとすると、
+ポイントはウィンドウの上端より『上』になる。
+表示ルーティンは、再表示時にポイントが1のままであると
+自動的にポイントを移動する。
+以下に例を示す。
+
+@example
+@group
+@c ;; @r{Here is what @samp{foo} looks like before executing}
+@c ;;   @r{the @code{set-window-start} expression.}
+;; @r{式@code{set-window-start}を実行するまえの}
+;; @r{@samp{foo}の見え方}
+@end group
+
+@group
+---------- Buffer: foo ----------
+@point{}This is the contents of buffer foo.
+2
+3
+4
+5
+6
+---------- Buffer: foo ----------
+@end group
+
+@group
+(set-window-start
+ (selected-window)
+ (1+ (window-start)))
+@result{} 2
+@end group
+
+@group
+@c ;; @r{Here is what @samp{foo} looks like after executing}
+@c ;;   @r{the @code{set-window-start} expression.}
+;; @r{式@code{set-window-start}を実行したあとの}
+;; @r{@samp{foo}の見え方}
+---------- Buffer: foo ----------
+his is the contents of buffer foo.
+2
+3
+@point{}4
+5
+6
+---------- Buffer: foo ----------
+@end group
+@end example
+
+@c If @var{noforce} is non-@code{nil}, and @var{position} would place point
+@c off screen at the next redisplay, then redisplay computes a new window-start
+@c position that works well with point, and thus @var{position} is not used.
+@var{noforce}が@code{nil}以外であって
+@var{position}にするとつぎの再表示時にポイントがスクリーンからはみ出す
+場合には、再表示ではポイントが収まるように新たなウィンドウ開始位置を
+計算し、@var{position}を使わない。
+@end defun
+
+@defun pos-visible-in-window-p &optional position window
+@c This function returns @code{t} if @var{position} is within the range
+@c of text currently visible on the screen in @var{window}.  It returns
+@c @code{nil} if @var{position} is scrolled vertically out of view.  The
+@c argument @var{position} defaults to the current position of point;
+@c @var{window}, to the selected window.  Here is an example:
+この関数は、@var{window}内の@var{position}がスクリーン上で
+現在可視なテキストの範囲内にあれば@code{t}を返す。
+@var{position}がスクリーンの上下端からはみ出す場合には@code{nil}を返す。
+引数@var{position}のデフォルトはポイントの現在位置であり、
+@var{window}のデフォルトは選択されているウィンドウである。
+例を示す。
+
+@example
+@group
+(or (pos-visible-in-window-p
+     (point) (selected-window))
+    (recenter 0))
+@end group
+@end example
+
+@c The @code{pos-visible-in-window-p} function considers only vertical
+@c scrolling.  If @var{position} is out of view only because @var{window}
+@c has been scrolled horizontally, @code{pos-visible-in-window-p} returns
+@c @code{t}.  @xref{Horizontal Scrolling}.
+関数@code{pos-visible-in-window-p}は、垂直方向のスクロールだけを考慮する。
+@var{window}を水平方向にスクロールしたために
+@var{position}がはみ出している場合には、
+@code{pos-visible-in-window-p}は@code{t}を返す。
+@pxref{Horizontal Scrolling}。
+@end defun
+
+@node Vertical Scrolling
+@c @section Vertical Scrolling
+@section 垂直スクロール
+@c @cindex vertical scrolling
+@c @cindex scrolling vertically
+@cindex 垂直スクロール
+@cindex スクロール、垂直
+
+@c   Vertical scrolling means moving the text up or down in a window.  It
+@c works by changing the value of the window's display-start location.  It
+@c may also change the value of @code{window-point} to keep it on the
+@c screen.
+垂直スクロールとは、ウィンドウ内のテキストを上向きや下向きに動かすことです。
+ウィンドウの表示開始位置の値を変更することで動作します。
+ポイントがスクリーン内に留まるように@code{window-point}の
+値を変更することもあります。
+
+@c   In the commands @code{scroll-up} and @code{scroll-down}, the directions
+@c ``up'' and ``down'' refer to the motion of the text in the buffer at which
+@c you are looking through the window.  Imagine that the text is
+@c written on a long roll of paper and that the scrolling commands move the
+@c paper up and down.  Thus, if you are looking at text in the middle of a
+@c buffer and repeatedly call @code{scroll-down}, you will eventually see
+@c the beginning of the buffer.
+コマンド@code{scroll-up}や@code{scroll-down}の
+方向を示す『up』（上向き）と『down』（下向き）は、
+ウィンドウを見ているときのバッファ内のテキストの移動方向を表します。
+テキストは縦に長い紙に（横書きで）書いてあり、
+スクロールコマンドはその紙を上下に動かすと想像してください。
+したがって、バッファの中ほどのテキストを見ているときに
+@code{scroll-down}を繰り返し呼び出すと、
+最終的にはバッファの先頭を見ることになります。
+
+@c   Some people have urged that the opposite convention be used: they
+@c imagine that the window moves over text that remains in place.  Then
+@c ``down'' commands would take you to the end of the buffer.  This view is
+@c more consistent with the actual relationship between windows and the
+@c text in the buffer, but it is less like what the user sees.  The
+@c position of a window on the terminal does not move, and short scrolling
+@c commands clearly move the text up or down on the screen.  We have chosen
+@c names that fit the user's point of view.
+逆の慣習の名前を使うべきだと主張する人々もいます。
+彼らは、固定されたテキストのうえをウィンドウが動いていると想像するのです。
+すると、『下向き』のコマンドはバッファの末尾に移動することになります。
+この見方は、ウィンドウとバッファ内のテキストとの実際の関係に
+よく適合しているのですが、ユーザーはそのように考えないようです。
+端末上ではウィンドウは動きませんし、スクロールコマンドは
+明らかにテキストをスクリーン上で上下に動かしています。
+ユーザーの視点に合う名称を選んだのです。
+
+@c   The scrolling functions (aside from @code{scroll-other-window}) have
+@c unpredictable results if the current buffer is different from the buffer
+@c that is displayed in the selected window.  @xref{Current Buffer}.
+カレントバッファと選択されているウィンドウに
+表示されているバッファとが異なる場合には、
+（@code{scroll-other-window}以外の）スクロール関数の結果は予測できません。
+@xref{Current Buffer}。
+
+@c @deffn Command scroll-up &optional count
+@deffn コマンド scroll-up &optional count
+@c This function scrolls the text in the selected window upward
+@c @var{count} lines.  If @var{count} is negative, scrolling is actually
+@c downward.
+この関数は、選択されているウィンドウのテキストを
+上向きに@var{count}行だけスクロールする。
+@var{count}が負であると、実際のスクロール方向は下向きである。
+
+@c If @var{count} is @code{nil} (or omitted), then the length of scroll
+@c is @code{next-screen-context-lines} lines less than the usable height of
+@c the window (not counting its mode line).
+@var{count}が@code{nil}（あるいは省略）であると、
+スクロール量は、ウィンドウの（モード行を数えない）利用可能な高さより
+@code{next-screen-context-lines}だけ少なくなる。
+
+@c @code{scroll-up} returns @code{nil}.
+@code{scroll-up}は@code{nil}を返す。
+@end deffn
+
+@c @deffn Command scroll-down &optional count
+@deffn コマンド scroll-down &optional count
+@c This function scrolls the text in the selected window downward
+@c @var{count} lines.  If @var{count} is negative, scrolling is actually
+@c upward.
+この関数は、選択されているウィンドウのテキストを
+下向きに@var{count}行だけスクロールする。
+@var{count}が負であると、実際のスクロール方向は上向きである。
+
+@c If @var{count} is omitted or @code{nil}, then the length of the scroll
+@c is @code{next-screen-context-lines} lines less than the usable height of
+@c the window (not counting its mode line).
+@var{count}が@code{nil}（あるいは省略）であると、
+スクロール量は、ウィンドウの（モード行を数えない）利用可能な高さより
+@code{next-screen-context-lines}だけ少なくなる。
+
+@c @code{scroll-down} returns @code{nil}.
+@code{scroll-down}は@code{nil}を返す。
+@end deffn
+
+@c @deffn Command scroll-other-window &optional count
+@deffn コマンド scroll-other-window &optional count
+@c This function scrolls the text in another window upward @var{count}
+@c lines.  Negative values of @var{count}, or @code{nil}, are handled
+@c as in @code{scroll-up}.
+この関数は、別のウィンドウのテキストを上向きに
+@var{count}行だけスクロールする。
+@var{count}の値が負であったり@code{nil}であると、
+@code{scroll-up}と同様に扱う。
+
+@c You can specify a buffer to scroll with the variable
+@c @code{other-window-scroll-buffer}.  When the selected window is the
+@c minibuffer, the next window is normally the one at the top left corner.
+@c You can specify a different window to scroll with the variable
+@c @code{minibuffer-scroll-window}.  This variable has no effect when any
+@c other window is selected.  @xref{Minibuffer Misc}.
+変数@code{other-window-scroll-buffer}で、スクロールするバッファを指定できる。
+選択されているウィンドウがミニバッファ用であるときには、
+つぎのウィンドウは、通常、もっとも左上隅にあるウィンドウである。
+変数@code{minibuffer-scroll-window}で、
+スクロールする別のウィンドウを指定できる。
+別のウィンドウが選択されている場合には、この変数の効果はない。
+@pxref{Minibuffer Misc}。
+
+@c When the minibuffer is active, it is the next window if the selected
+@c window is the one at the bottom right corner.  In this case,
+@c @code{scroll-other-window} attempts to scroll the minibuffer.  If the
+@c minibuffer contains just one line, it has nowhere to scroll to, so the
+@c line reappears after the echo area momentarily displays the message
+@c ``Beginning of buffer''.
+ミニバッファが活性であると、
+右下隅のウィンドウが選択されているウィンドウであるときには、
+つぎのウィンドウはミニバッファ用ウィンドウである。
+この場合、@code{scroll-other-window}はミニバッファをスクロールしようとする。
+ミニバッファにたった1行しか入っていなければスクロールできず、
+エコー領域に『Beginning of buffer』と短時間表示されたあとで、
+ミニバッファの行が再度現れる。
+@end deffn
+
+@c Emacs 19 feature
+@defvar other-window-scroll-buffer
+@c If this variable is non-@code{nil}, it tells @code{scroll-other-window}
+@c which buffer to scroll.
+この変数が@code{nil}以外であると、
+@code{scroll-other-window}がスクロールするバッファを指定する。
+@end defvar
+
+@tindex scroll-margin
+@defopt scroll-margin
+@c This option specifies the size of the scroll margin---a minimum number
+@c of lines between point and the top or bottom of a window.  Whenever
+@c point gets within this many lines of the top or bottom of the window,
+@c the window scrolls automatically (if possible) to move point out of the
+@c margin, closer to the center of the window.
+このオプションは、スクロール時の余白の大きさ、
+つまり、ポイントとウィンドウの上端や下端とのあいだにある最低行数を指定する。
+ウィンドウの上端や下端からこの行数以内にポイントが移動するたびに、
+（可能ならば）ウィンドウを自動的にスクロールして、
+ポイントを余白の外側でウィンドウの中央近くに移動する。
+@end defopt
+
+@tindex scroll-conservatively
+@defopt scroll-conservatively
+@c This variable controls how scrolling is done automatically when point
+@c moves off the screen (or into the scroll margin).  If the value is zero,
+@c then redisplay scrolls the text to center point vertically in the
+@c window.  If the value is a positive integer @var{n}, then redisplay
+@c scrolls the window up to @var{n} lines in either direction, if that will
+@c bring point back into view.  Otherwise, it centers point.  The default
+@c value is zero.
+この変数は、ポイントがスクリーンからはみ出したとき
+（あるいはスクロール時の余白に入ったとき）に
+どのように自動的にスクロールするかを制御する。
+値が0であると、ウィンドウの縦方向でポイントが中央にくるように
+テキストをスクロールして再表示する。
+値が正の整数@var{n}であると、
+ウィンドウをどちらかの方向に最大@var{n}行だけスクロールすると
+ポイントが見えるようになるときには、そのようにスクロールして再表示する。
+さもなければ、ポイントが中央にくるようにする。
+デフォルト値は0である。
+@end defopt
+
+@defopt scroll-step
+@c This variable is an older variant of @code{scroll-conservatively}.  The
+@c difference is that it if its value is @var{n}, that permits scrolling
+@c only by precisely @var{n} lines, not a smaller number.  This feature
+@c does not work with @code{scroll-margin}.  The default value is zero.
+この変数は、@code{scroll-conservatively}の古い変種である。
+違いは、値が@var{n}であると正確に@var{n}行だけのスクロールを許すことである。
+この機能は@code{scroll-margin}では働かない。
+デフォルト値は0である。
+@end defopt
+
+@tindex scroll-preserve-screen-position
+@defopt scroll-preserve-screen-position
+@c If this option is non-@code{nil}, the scroll functions move point so
+@c that the vertical position of the cursor is unchanged, when that is
+@c possible.
+このオプションが@code{nil}以外であると、
+スクロール関数は、可能ならばカーソルの垂直方向の位置を
+変えないようにポイントを移動する。
+@end defopt
+
+@defopt next-screen-context-lines
+@c The value of this variable is the number of lines of continuity to
+@c retain when scrolling by full screens.  For example, @code{scroll-up}
+@c with an argument of @code{nil} scrolls so that this many lines at the
+@c bottom of the window appear instead at the top.  The default value is
+@c @code{2}.
+この変数の値は、1画面分スクロールしたときに連続して残っている行数である。
+たとえば、引数@code{nil}の@code{scroll-up}は、
+ウィンドウの下端にあるこの行数だけの行が上端にくるようにスクロールする。
+デフォルト値は@code{2}である。
+@end defopt
+
+@c @deffn Command recenter &optional count
+@deffn コマンド recenter &optional count
+@c @cindex centering point
+@cindex ポイントを中央に揃える
+@c This function scrolls the selected window to put the text where point
+@c is located at a specified vertical position within the window.
+この関数は、選択されているウィンドウをスクロールして
+ポイント位置にあるテキストがウィンドウ内の垂直方向の指定位置にくるようにする。
+
+@c If @var{count} is a nonnegative number, it puts the line containing
+@c point @var{count} lines down from the top of the window.  If @var{count}
+@c is a negative number, then it counts upward from the bottom of the
+@c window, so that @minus{}1 stands for the last usable line in the window.
+@c If @var{count} is a non-@code{nil} list, then it stands for the line in
+@c the middle of the window.
+@var{count}が非負の数であると、ポイント位置にある行を
+ウィンドウの上端から@var{count}行下にくるようにする。
+@var{count}が負の数であると、ウィンドウの下端から数え、
+@minus{}1はウィンドウの使用可能な最後の行を表す。
+@var{count}が@code{nil}以外のリストであると、
+ウィンドウの中央の行を表す。
+
+@c If @var{count} is @code{nil}, @code{recenter} puts the line containing
+@c point in the middle of the window, then clears and redisplays the entire
+@c selected frame.
+@var{count}が@code{nil}であると、@code{recenter}は、
+ポイント位置にある行がウィンドウの中央にくるようにして、
+選択されているフレーム全体をクリアして再表示する。
+
+@c When @code{recenter} is called interactively, @var{count} is the raw
+@c prefix argument.  Thus, typing @kbd{C-u} as the prefix sets the
+@c @var{count} to a non-@code{nil} list, while typing @kbd{C-u 4} sets
+@c @var{count} to 4, which positions the current line four lines from the
+@c top.
+@code{recenter}が対話的に呼び出されると、@var{count}は生の前置引数である。
+したがって、前置引数として@kbd{C-u}と打つと
+@var{count}は@code{nil}以外のリストになり、
+@kbd{C-u 4}と打つと@var{count}は4になって上端から4行目に現在行がくる。
+
+@c With an argument of zero, @code{recenter} positions the current line at
+@c the top of the window.  This action is so handy that some people make a
+@c separate key binding to do this.  For example,
+引数が0であると、
+@code{recenter}はウィンドウの上端に現在行がくるようにする。
+この動作は、このための専用のキーバインディングをする人がいるくらい便利である。
+たとえばつぎのようにする。
+
+@example
+@group
+(defun line-to-top-of-window ()
+  "Scroll current line to top of window.
+Replaces three keystroke sequence C-u 0 C-l."
+  (interactive)
+  (recenter 0))
+
+(global-set-key [kp-multiply] 'line-to-top-of-window)
+@end group
+@end example
+@end deffn
+
+@node Horizontal Scrolling
+@c @section Horizontal Scrolling
+@section 水平スクロール
+@c @cindex horizontal scrolling
+@cindex 水平スクロール
+
+@c   Because we read English from left to right in the ``inner loop'', and
+@c from top to bottom in the ``outer loop'', horizontal scrolling is not
+@c like vertical scrolling.  Vertical scrolling involves selection of a
+@c contiguous portion of text to display, but horizontal scrolling causes
+@c part of each line to go off screen.  The amount of horizontal scrolling
+@c is therefore specified as a number of columns rather than as a position
+@c in the buffer.  It has nothing to do with the display-start position
+@c returned by @code{window-start}.
+英文は『内側のループ』では左から右へ『外側のループ』では上から下へと読むので、
+水平スクロールは垂直スクロールには似ていません。
+垂直スクロールでは表示するテキストの連続部分を選びますが、
+水平スクロールでは各行の一部がスクリーンからはみ出すことになります。
+そのため、水平スクロールの量は、バッファ内の位置ではなく、
+コラム数で指定します。
+これは、@code{window-start}が返す表示開始位置とはなんの関係もありません。
+
+@c   Usually, no horizontal scrolling is in effect; then the leftmost
+@c column is at the left edge of the window.  In this state, scrolling to
+@c the right is meaningless, since there is no data to the left of the
+@c screen to be revealed by it; so this is not allowed.  Scrolling to the
+@c left is allowed; it scrolls the first columns of text off the edge of
+@c the window and can reveal additional columns on the right that were
+@c truncated before.  Once a window has a nonzero amount of leftward
+@c horizontal scrolling, you can scroll it back to the right, but only so
+@c far as to reduce the net horizontal scroll to zero.  There is no limit
+@c to how far left you can scroll, but eventually all the text will
+@c disappear off the left edge.
+通常、水平スクロールは行われません。
+つまり、左端のコラムはウィンドウの左端にあります。
+この状態で右向きにスクロールしても、
+それによって見えてくるスクリーンの左側にはなにもないので意味がありません。
+ですから、これは禁止されます。
+左向きへのスクロールは許されて、
+テキストの先頭コラムはウィンドウの端からはみ出し、
+それまで切り詰められていた右側のコラムが見えるようになります。
+左向きの水平スクロール量が0でなければ、
+右向きへスクロールして戻せますが、
+これは全体としての水平スクロール量が0になるまでです。
+左向きスクロールの限界はありませんが、
+最終的にはテキストすべてが左端からはみ出してしまいます。
+
+@c @deffn Command scroll-left count
+@deffn コマンド scroll-left count
+@c This function scrolls the selected window @var{count} columns to the
+@c left (or to the right if @var{count} is negative).  The return value is
+@c the total amount of leftward horizontal scrolling in effect after the
+@c change---just like the value returned by @code{window-hscroll} (below).
+この関数は、選択されているウィンドウを@var{count}コラムだけ
+左向きに（@var{count}が負ならば右向きに）スクロールする。
+戻り値は、変更後の左向き水平スクロール量の総量であり、
+@code{window-hscroll}（下記参照）が返す値と同じである。
+@end deffn
+
+@c @deffn Command scroll-right count
+@deffn コマンド scroll-right count
+@c This function scrolls the selected window @var{count} columns to the
+@c right (or to the left if @var{count} is negative).  The return value is
+@c the total amount of leftward horizontal scrolling in effect after the
+@c change---just like the value returned by @code{window-hscroll} (below).
+この関数は、選択されているウィンドウを@var{count}コラムだけ
+右向きに（@var{count}が負ならば左向きに）スクロールする。
+戻り値は、変更後の左向き水平スクロール量の総量であり、
+@code{window-hscroll}（下記参照）が返す値と同じである。
+
+@c Once you scroll a window as far right as it can go, back to its normal
+@c position where the total leftward scrolling is zero, attempts to scroll
+@c any farther right have no effect.
+可能なだけウィンドウを右向きにスクロールしてしまうと、
+通常の状態、つまり、左向き水平スクロール量が0になり、
+それ以降、右向きスクロールは効果がなくなる。
+@end deffn
+
+@defun window-hscroll &optional window
+@c This function returns the total leftward horizontal scrolling of
+@c @var{window}---the number of columns by which the text in @var{window}
+@c is scrolled left past the left margin.
+この関数は、@var{window}の左向き水平スクロール量の総量、
+つまり、@var{window}のテキストが左端を超えてスクロールされたコラム数を返す。
+
+@c The value is never negative.  It is zero when no horizontal scrolling
+@c has been done in @var{window} (which is usually the case).
+値はけっして負にはならない。
+@var{window}が水平方向にスクロールされていなければ
+（これが通常の状態）0である。
+
+@c If @var{window} is @code{nil}, the selected window is used.
+@var{window}が@code{nil}であると、選択されているウィンドウを使う。
+
+@example
+@group
+(window-hscroll)
+     @result{} 0
+@end group
+@group
+(scroll-left 5)
+     @result{} 5
+@end group
+@group
+(window-hscroll)
+     @result{} 5
+@end group
+@end example
+@end defun
+
+@defun set-window-hscroll window columns
+@c This function sets the number of columns from the left margin that
+@c @var{window} is scrolled from the value of @var{columns}.  The argument
+@c @var{columns} should be zero or positive; if not, it is taken as zero.
+この関数は、@var{window}のスクロールされている左端からのコラム数を
+@var{columns}の値とする。
+引数@var{columns}は0か正であること。
+さもないと0と仮定する。
+
+@c The value returned is @var{columns}.
+戻り値は@var{columns}である。
+
+@example
+@group
+(set-window-hscroll (selected-window) 10)
+     @result{} 10
+@end group
+@end example
+@end defun
+
+@c   Here is how you can determine whether a given position @var{position}
+@c is off the screen due to horizontal scrolling:
+水平スクロールのために指定位置@var{position}が
+スクリーンからはみ出しているかどうかを調べる方法をつぎに示します。
+
+@example
+@group
+(defun hscroll-on-screen (window position)
+  (save-excursion
+    (goto-char position)
+    (and
+     (>= (- (current-column) (window-hscroll window)) 0)
+     (< (- (current-column) (window-hscroll window))
+        (window-width window)))))
+@end group
+@end example
+
+@node Size of Window
+@c @section The Size of a Window
+@section ウィンドウサイズ
+@c @cindex window size
+@c @cindex size of window
+@cindex ウィンドウサイズ
+@cindex 大きさ、ウィンドウ
+@cindex サイズ、ウィンドウ
+
+@c   An Emacs window is rectangular, and its size information consists of
+@c the height (the number of lines) and the width (the number of character
+@c positions in each line).  The mode line is included in the height.  But
+@c the width does not count the scroll bar or the column of @samp{|}
+@c characters that separates side-by-side windows.
+Emacsのウィンドウは矩形であり、そのサイズ情報は
+高さ（行数）と幅（各行の文字数）から成ります。
+モード行は高さに含みます。
+しかし、スクロールバーや左右のウィンドウを隔てる文字@samp{|}のコラムは
+幅には含みません。
+
+@c   The following three functions return size information about a window:
+つぎの3つの関数は、ウィンドウのサイズ情報を返します。
+
+@defun window-height &optional window
+@c This function returns the number of lines in @var{window}, including its
+@c mode line.  If @var{window} fills its entire frame, this is typically
+@c one less than the value of @code{frame-height} on that frame (since the
+@c last line is always reserved for the minibuffer).
+この関数は、モード行を含む@var{window}の行数を返す。
+@var{window}がフレーム全体を占める場合、この値は典型的には、
+当該フレームにおける@code{frame-height}の値より1小さい
+（最後の行はミニバッファ用につねに確保してあるため）。
+
+@c If @var{window} is @code{nil}, the function uses the selected window.
+@var{window}が@code{nil}であると、この関数は選択されているウィンドウを使う。
+
+@example
+@group
+(window-height)
+     @result{} 23
+@end group
+@group
+(split-window-vertically)
+     @result{} #<window 4 on windows.texi>
+@end group
+@group
+(window-height)
+     @result{} 11
+@end group
+@end example
+@end defun
+
+@defun window-width &optional window
+@c This function returns the number of columns in @var{window}.  If
+@c @var{window} fills its entire frame, this is the same as the value of
+@c @code{frame-width} on that frame.  The width does not include the
+@c window's scroll bar or the column of @samp{|} characters that separates
+@c side-by-side windows.
+この関数は、@var{window}のコラム数を返す。
+@var{window}がフレーム全体を占める場合、この値は、
+当該フレームにおける@code{frame-width}の値と同じである。
+この幅には、ウィンドウのスクロールバーや
+左右のウィンドウを隔てる文字@samp{|}のコラムは含まない。
+
+@c If @var{window} is @code{nil}, the function uses the selected window.
+@var{window}が@code{nil}であると、この関数は選択されているウィンドウを使う。
+
+@example
+@group
+(window-width)
+     @result{} 80
+@end group
+@end example
+@end defun
+
+@defun window-edges &optional window
+@c This function returns a list of the edge coordinates of @var{window}.
+@c If @var{window} is @code{nil}, the selected window is used.
+この関数は、@var{window}の四隅の座標から成るリストを返す。
+@var{window}が@code{nil}であると、選択されているウィンドウを使う。
+
+@c The order of the list is @code{(@var{left} @var{top} @var{right}
+@c @var{bottom})}, all elements relative to 0, 0 at the top left corner of
+@c the frame.  The element @var{right} of the value is one more than the
+@c rightmost column used by @var{window}, and @var{bottom} is one more than
+@c the bottommost row used by @var{window} and its mode-line.
+list内の順番は@code{(@var{left} @var{top} @var{right} @var{bottom})}
+（つまり、左端、上端、右端、下端）であり、
+フレームの左上隅を0としてすべての要素は0を基準とする。
+要素@var{right}は@var{window}が使用する右端のコラムより1大きく、
+@var{bottom}は@var{window}が使用する下端より1大きく
+モード行と同じである。
+
+@c When you have side-by-side windows, the right edge value for a window
+@c with a neighbor on the right includes the width of the separator between
+@c the window and that neighbor.  This separator may be a column of
+@c @samp{|} characters or it may be a scroll bar.  Since the width of the
+@c window does not include this separator, the width does not equal the
+@c difference between the right and left edges in this case.
+左右に隣り合ったウィンドウがある場合、
+右隣にウィンドウがあるウィンドウの右端の値には、
+ウィンドウを隔てる区切りの幅が含まれる。
+この区切りは、文字@samp{|}のコラムであるかスクロールバーである。
+ウィンドウの幅にはこの区切りは含まないため、
+この場合、左端と右端の差は幅に等しくない。
+
+@c Here is the result obtained on a typical 24-line terminal with just one
+@c window:
+典型的な24行の端末でウィンドウが1つの場合に得られる結果を示す。
+
+@example
+@group
+(window-edges (selected-window))
+     @result{} (0 0 80 23)
+@end group
+@end example
+
+@noindent
+@c The bottom edge is at line 23 because the last line is the echo area.
+下端が23行目であるのは、最下行はエコー領域だからである。
+
+@c If @var{window} is at the upper left corner of its frame, then
+@c @var{bottom} is the same as the value of @code{(window-height)},
+@c @var{right} is almost the same as the value of
+@c @code{(window-width)}@footnote{They are not exactly equal because
+@c @var{right} includes the vertical separator line or scroll bar, while
+@c @code{(window-width)} does not.}, and @var{top} and @var{left} are zero.
+@c For example, the edges of the following window are @w{@samp{0 0 5 8}}.
+@c Assuming that the frame has more than 8 columns, the last column of the
+@c window (column 7) holds a border rather than text.  The last row (row 4)
+@c holds the mode line, shown here with @samp{xxxxxxxxx}.
+@var{window}がフレームの左上隅にあると、
+@var{bottom}は@code{(window-height)}の値に等しく、
+@var{right}は@code{(window-width)}の値にほぼ等しく
+@footnote{@var{right}は垂直の区切り行やスクロールバーを含むが、
+@code{(window-width)}はそれらを含まないため、
+完全に等しくはない。}、
+@var{top}と@var{left}は0である。
+たとえば、つぎのウィンドウは@w{@samp{0 0 5 8}}である。
+当該フレームには8コラムより多くあり、
+ウィンドウの最終コラム（7コラム目）はテキストではなく境界であると仮定する。
+最後の行（4行目）はモード行であり、ここでは@samp{xxxxxxxxx}で示した。
+
+@example
+@group
+           0
+           _______
+        0 |       |
+          |       |
+          |       |
+          |       |
+          xxxxxxxxx  4
+
+                  7
+@end group
+@end example
+
+@c When there are side-by-side windows, any window not at the right edge of
+@c its frame has a separator in its last column or columns.  The separator
+@c counts as one or two columns in the width of the window.  A window never
+@c includes a separator on its left, since that belongs to the window to
+@c the left.
+左右に隣り合ったウィンドウがあるときには、
+フレームの右端にないウィンドウの最後のコラムは区切りである。
+区切りは、ウィンドウの幅では1コラムか2コラム占める。
+左側の区切りは左隣のウィンドウに属するので、
+ウィンドウには左側の区切りは含まれない。
+
+@c In the following example, let's suppose that the frame is 7
+@c columns wide.  Then the edges of the left window are @w{@samp{0 0 4 3}}
+@c and the edges of the right window are @w{@samp{4 0 7 3}}.
+つぎの例では、フレームは7コラム幅であるとする。
+すると、左側のウィンドウの四隅は@w{@samp{0 0 4 3}}であり、
+右側のウィンドウの四隅は@w{@samp{4 0 7 3}}である。
+
+@example
+@group
+           ___ ___
+          |   |   |
+          |   |   |
+          xxxxxxxxx
+
+           0  34  7
+@end group
+@end example
+@end defun
+
+@node Resizing Windows
+@c @section Changing the Size of a Window
+@section ウィンドウサイズの変更
+@c @cindex window resizing
+@c @cindex changing window size
+@c @cindex window size, changing
+@cindex ウィンドウのリサイズ
+@cindex ウィンドウサイズの変更
+@cindex 変更、ウィンドウサイズ
+
+@c   The window size functions fall into two classes: high-level commands
+@c that change the size of windows and low-level functions that access
+@c window size.  Emacs does not permit overlapping windows or gaps between
+@c windows, so resizing one window affects other windows.
+ウィンドウサイズ関数は2つに大別できます。
+ウィンドウサイズを変える上位レベルのコマンドと
+ウィンドウサイズを調べる下位レベルの関数です。
+Emacsでは重なり合ったウィンドウやウィンドウのあいだに隙間を許さないので、
+1つのウィンドウの大きさを変えると別のウィンドウにも影響します。
+
+@c @deffn Command enlarge-window size &optional horizontal
+@deffn コマンド enlarge-window size &optional horizontal
+@c This function makes the selected window @var{size} lines taller,
+@c stealing lines from neighboring windows.  It takes the lines from one
+@c window at a time until that window is used up, then takes from another.
+@c If a window from which lines are stolen shrinks below
+@c @code{window-min-height} lines, that window disappears.
+この関数は、隣り合うウィンドウから場所を奪って、
+選択されているウィンドウを@var{size}行高くする。
+1つのウィンドウから場所を奪い取り、奪い尽くすと別のウィンドウから取る。
+場所を奪われたウィンドウが@code{window-min-height}行未満になると、
+そのウィンドウは消える。
+
+@c If @var{horizontal} is non-@code{nil}, this function makes
+@c @var{window} wider by @var{size} columns, stealing columns instead of
+@c lines.  If a window from which columns are stolen shrinks below
+@c @code{window-min-width} columns, that window disappears.
+@var{horizontal}が@code{nil}以外であると、
+この関数は、隣り合うウィンドウから場所を奪って、
+選択されているウィンドウを@var{size}コラム広くする。
+場所を奪われたウィンドウが@code{window-min-width}コラム未満になると、
+そのウィンドウは消える。
+
+@c If the requested size would exceed that of the window's frame, then the
+@c function makes the window occupy the entire height (or width) of the
+@c frame.
+指定した大きさがウィンドウのフレームの大きさを超える場合、
+この関数は、ウィンドウがフレームの高さ（あるいは幅）全体を占めるようにする。
+
+@c If @var{size} is negative, this function shrinks the window by
+@c @minus{}@var{size} lines or columns.  If that makes the window smaller
+@c than the minimum size (@code{window-min-height} and
+@c @code{window-min-width}), @code{enlarge-window} deletes the window.
+@var{size}が負であると、この関数は@minus{}@var{size}行／コラムだけ
+ウィンドウを縮める。
+ウィンドウが（@code{window-min-height}と@code{window-min-width}の）
+最小サイズより小さくなると、@code{enlarge-window}は
+当該ウィンドウを削除する。
+
+@c @code{enlarge-window} returns @code{nil}.
+@code{enlarge-window}は@code{nil}を返す。
+@end deffn
+
+@c @deffn Command enlarge-window-horizontally columns
+@deffn コマンド enlarge-window-horizontally columns
+@c This function makes the selected window @var{columns} wider.
+@c It could be defined as follows:
+この関数は、選択されているウィンドウを@var{columns}コラム広くする。
+
+@example
+@group
+(defun enlarge-window-horizontally (columns)
+  (enlarge-window columns t))
+@end group
+@end example
+@end deffn
+
+@c @deffn Command shrink-window size &optional horizontal
+@deffn コマンド shrink-window size &optional horizontal
+@c This function is like @code{enlarge-window} but negates the argument
+@c @var{size}, making the selected window smaller by giving lines (or
+@c columns) to the other windows.  If the window shrinks below
+@c @code{window-min-height} or @code{window-min-width}, then it disappears.
+この関数は@code{enlarge-window}に似ているが引数@var{size}の符号を変えて、
+選択されているウィンドウを縮めて指定行数（コラム数）を
+他のウィンドウに与える。
+ウィンドウが@code{window-min-height}や@code{window-min-width}未満に縮むと、
+そのウィンドウは消える。
+
+@c If @var{size} is negative, the window is enlarged by @minus{}@var{size}
+@c lines or columns.
+@var{size}が負であると、ウィンドウは
+@minus{}@var{size}行／コラムだけ伸びる。
+@end deffn
+
+@c @deffn Command shrink-window-horizontally columns
+@deffn コマンド shrink-window-horizontally columns
+@c This function makes the selected window @var{columns} narrower.
+@c It could be defined as follows:
+この関数は、選択されているウィンドウを@var{columns}コラム狭くする。
+つぎのように定義できる。
+
+@example
+@group
+(defun shrink-window-horizontally (columns)
+  (shrink-window columns t))
+@end group
+@end example
+@end deffn
+
+@c @deffn Command shrink-window-if-larger-than-buffer window
+@deffn コマンド shrink-window-if-larger-than-buffer window
+@c This command shrinks @var{window} to be as small as possible while still
+@c showing the full contents of its buffer---but not less than
+@c @code{window-min-height} lines.
+このコマンドは、バッファの全内容を表示するに十分なだけの大きさに
+@var{window}を縮めるが、@code{window-min-height}行未満にはしない。
+
+@c However, the command does nothing if the window is already too small to
+@c display the whole text of the buffer, or if part of the contents are
+@c currently scrolled off screen, or if the window is not the full width of
+@c its frame, or if the window is the only window in its frame.
+しかし、バッファの全テキストを表示するにはウィンドウが小さすぎる場合や、
+内容の一部がスクロールでスクリーンからはみ出している場合や、
+ウィンドウの幅がフレームの幅と同じでない場合や、
+ウィンドウがフレームの唯一のウィンドウである場合には、
+このコマンドはなにもしない。
+@end deffn
+
+@c @cindex minimum window size
+@cindex ウィンドウの最小サイズ
+@c   The following two variables constrain the window-size-changing
+@c functions to a minimum height and width.
+つぎの2つの変数は、ウィンドウサイズを変える関数に最小の高さと幅を課します。
+
+@defopt window-min-height
+@c The value of this variable determines how short a window may become
+@c before it is automatically deleted.  Making a window smaller than
+@c @code{window-min-height} automatically deletes it, and no window may be
+@c created shorter than this.  The absolute minimum height is two (allowing
+@c one line for the mode line, and one line for the buffer display).
+@c Actions that change window sizes reset this variable to two if it is
+@c less than two.  The default value is 4.
+この変数の値は、ウィンドウが自動的に削除されるまでに
+どの程度までウィンドウが短くなりうるかを決定する。
+ウィンドウを@code{window-min-height}行未満に小さくすると自動的に削除され、
+これより短いウィンドウは作成できない。
+絶対的な最小の高さは2行（モード行に1行、バッファの表示に1行）である。
+ウィンドウサイズを変える処理では、この変数が2未満であると2に設定し直す。
+デフォルト値は4である。
+@end defopt
+
+@defopt window-min-width
+@c The value of this variable determines how narrow a window may become
+@c before it is automatically deleted.  Making a window smaller than
+@c @code{window-min-width} automatically deletes it, and no window may be
+@c created narrower than this.  The absolute minimum width is one; any
+@c value below that is ignored.  The default value is 10.
+この変数の値は、ウィンドウが自動的に削除されるまでに
+どの程度までウィンドウが狭くなりうるかを決定する。
+ウィンドウを@code{window-min-width}コラム未満に小さくすると自動的に削除され、
+これより狭いウィンドウは作成できない。
+絶対的な最小の幅は1であり、それ未満は無視する。
+デフォルト値は10である。
+@end defopt
+
+@node Coordinates and Windows
+@c @section Coordinates and Windows
+@section 座標とウィンドウ
+
+@c This section describes how to relate screen coordinates to windows.
+本節では、スクリーン座標をウィンドウに関連付ける方法を述べます。
+
+@defun window-at x y &optional frame
+@c This function returns the window containing the specified cursor
+@c position in the frame @var{frame}.  The coordinates @var{x} and @var{y}
+@c are measured in characters and count from the top left corner of the
+@c frame.  If they are out of range, @code{window-at} returns @code{nil}.
+この関数は、フレーム@var{frame}において指定したカーソル位置を含んでいる
+ウィンドウを返す。
+座標@var{x}と@var{y}は、フレームの左上隅から文字単位で数える。
+座標が範囲外であると@code{window-at}は@code{nil}を返す。
+
+@c If you omit @var{frame}, the selected frame is used.
+@var{frame}を省略すると、選択されているフレームを使う。
+@end defun
+
+@defun coordinates-in-window-p coordinates window
+@c This function checks whether a particular frame position falls within
+@c the window @var{window}.
+この関数は、指定したフレーム位置がウィンドウ@var{window}の中に
+入るかどうかを検査する。
+
+@c The argument @var{coordinates} is a cons cell of the form @code{(@var{x}
+@c . @var{y})}.  The coordinates @var{x} and @var{y} are measured in
+@c characters, and count from the top left corner of the screen or frame.
+引数@var{coordinates}は、@code{(@var{x} . @var{y})}の形のコンスセルである。
+座標@var{x}と@var{y}は、スクリーンやフレームの左上隅から文字単位で数える。
+
+@c The value returned by @code{coordinates-in-window-p} is non-@code{nil}
+@c if the coordinates are inside @var{window}.  The value also indicates
+@c what part of the window the position is in, as follows:
+@code{coordinates-in-window-p}が返す値が@code{nil}以外であると、
+当該座標は@var{window}の内側にある。
+つぎのように、この値はウィンドウ内での位置も表す。
+
+@table @code
+@item (@var{relx} . @var{rely})
+@c The coordinates are inside @var{window}.  The numbers @var{relx} and
+@c @var{rely} are the equivalent window-relative coordinates for the
+@c specified position, counting from 0 at the top left corner of the
+@c window.
+当該座標は@var{window}の内側である。
+数@var{relx}と@var{rely}は、指定位置に対応するウィンドウ相対の座標であり、
+ウィンドウの左上隅を0として数えたものである。
+
+@item mode-line
+@c The coordinates are in the mode line of @var{window}.
+当該座標は@var{window}のモード行の内側である。
+
+@item vertical-split
+@c The coordinates are in the vertical line between @var{window} and its
+@c neighbor to the right.  This value occurs only if the window doesn't
+@c have a scroll bar; positions in a scroll bar are considered outside the
+@c window.
+当該座標は@var{window}と右隣のウィンドウのあいだの垂直行である。
+ウィンドウにスクロールバーがない場合に限って、この値になる。
+スクロールバーはウィンドウの外側であるとみなす。
+
+@item nil
+@c The coordinates are not in any part of @var{window}.
+当該座標は@var{window}のどこでもない。
+@end table
+
+@c The function @code{coordinates-in-window-p} does not require a frame as
+@c argument because it always uses the frame that @var{window} is on.
+関数@code{coordinates-in-window-p}は、
+@var{window}のフレームをつねに使うため、引数にフレームを必要としない。
+@end defun
+
+@node Window Configurations
+@c @section Window Configurations
+@section ウィンドウ構成
+@c @cindex window configurations
+@c @cindex saving window information
+@cindex ウィンドウ構成
+@cindex ウィンドウ情報の保存
+@cindex 保存、ウィンドウ情報
+
+@c   A @dfn{window configuration} records the entire layout of one
+@c frame---all windows, their sizes, which buffers they contain, what part
+@c of each buffer is displayed, and the values of point and the mark.  You
+@c can bring back an entire previous layout by restoring a window
+@c configuration previously saved.
+@dfn{ウィンドウ構成}（window configuration）は、
+1つのフレームの全体の配置、つまり、
+すべてのウィンドウ、それらの大きさ、表示しているバッファ、
+各バッファの表示位置、ポイントとマークの値を記録します。
+保存しておいたウィンドウ構成を復元すれば、
+まえとまったく同じ配置に戻せます。
+
+@c   If you want to record all frames instead of just one, use a frame
+@c configuration instead of a window configuration.  @xref{Frame
+@c Configurations}.
+1つのフレームではなくすべてのフレームを記録するには、
+ウィンドウ構成のかわりにフレーム構成を使います。
+@xref{Frame Configurations}。
+
+@defun current-window-configuration
+@c This function returns a new object representing the selected frame's
+@c current window configuration, including the number of windows, their
+@c sizes and current buffers, which window is the selected window, and for
+@c each window the displayed buffer, the display-start position, and the
+@c positions of point and the mark.  It also includes the values of
+@c @code{window-min-height}, @code{window-min-width} and
+@c @code{minibuffer-scroll-window}.  An exception is made for point in the
+@c current buffer, whose value is not saved.
+この関数は、選択されているフレームの現在のウィンドウ構成を表す
+新たなオブジェクトを返す。
+ウィンドウ構成には、ウィンドウの個数、それらの大きさとカレントバッファ、
+どのウィンドウが選択されているウィンドウであるか、
+各ウィンドウが表示しているバッファ、表示開始位置、
+ポイントとマークの位置が含まれる。
+@code{window-min-height}、@code{window-min-width}、
+@code{minibuffer-scroll-window}の値も含む。
+例外はカレントバッファのポイントであり、その値は保存されない。
+@end defun
+
+@defun set-window-configuration configuration
+@c This function restores the configuration of windows and buffers as
+@c specified by @var{configuration}.  The argument @var{configuration} must
+@c be a value that was previously returned by
+@c @code{current-window-configuration}.  This configuration is restored in
+@c the frame from which @var{configuration} was made, whether that frame is
+@c selected or not.  This always counts as a window size change and
+@c triggers execution of the @code{window-size-change-functions}
+@c (@pxref{Window Hooks}), because @code{set-window-configuration} doesn't
+@c know how to tell whether the new configuration actually differs from the
+@c old one.
+この関数は、@var{configuration}で指定される
+ウィンドウとバッファの構成に復元する。
+引数@var{configuration}は、
+@code{current-window-configuration}が返した値であること。
+@var{configuration}を作成したフレームにおいて、
+そのフレームが選択されているかどうかに関わらず、この構成を復元する。
+@code{set-window-configuration}は、新たな構成が古いものと
+実際に異なるのかどうか識別する方法を知らないため、
+ウィンドウサイズの変更とつねにみなして
+@code{window-size-change-functions}（@pxref{Window Hooks}）の
+実行を引き起こす。
+
+@c If the frame which @var{configuration} was saved from is dead, all this
+@c function does is restore the three variables @code{window-min-height},
+@c @code{window-min-width} and @code{minibuffer-scroll-window}.
+@var{configuration}を保存したフレームがなくなっていると、
+この関数は、3つの変数、@code{window-min-height}、
+@code{window-min-width}、@code{minibuffer-scroll-window}を
+復元するだけである。
+
+@c Here is a way of using this function to get the same effect
+@c as @code{save-window-excursion}:
+@code{save-window-excursion}と同じ効果を得るための
+この関数の使い方をつぎに示す。
+
+@example
+@group
+(let ((config (current-window-configuration)))
+  (unwind-protect
+      (progn (split-window-vertically nil)
+             @dots{})
+    (set-window-configuration config)))
+@end group
+@end example
+@end defun
+
+@defspec save-window-excursion forms@dots{}
+@c This special form records the window configuration, executes @var{forms}
+@c in sequence, then restores the earlier window configuration.  The window
+@c configuration includes the value of point and the portion of the buffer
+@c that is visible.  It also includes the choice of selected window.
+@c However, it does not include the value of point in the current buffer;
+@c use @code{save-excursion} also, if you wish to preserve that.
+このスペシャルフォームは、ウィンドウ構成を記録し、
+@var{forms}を順に評価し、もとのウィンドウ構成に復元する。
+ウィンドウ構成には、ポイントの値と可視なバッファの部分が含まれる。
+また、選択されているウィンドウも含む。
+しかし、これにはカレントバッファのポイント値は含まれないため、
+ポイント位置を保存したい場合には@code{save-excursion}も使う。
+
+@c Don't use this construct when @code{save-selected-window} is all you need.
+@code{save-selected-window}で十分なときには、この構文を使わないこと。
+
+@c Exit from @code{save-window-excursion} always triggers execution of the
+@c @code{window-size-change-functions}.  (It doesn't know how to tell
+@c whether the restored configuration actually differs from the one in
+@c effect at the end of the @var{forms}.)
+@code{save-window-excursion}から抜けると、
+@code{window-size-change-functions}の実行をつねに引き起こす。
+（復元した構成と@var{forms}の終りでの構成が実際に異なるかどうかを
+識別する方法を知らない。）
+
+@c The return value is the value of the final form in @var{forms}.
+@c For example:
+戻り値は、@var{forms}の最後のフォームの値である。
+例を示す。
+
+@example
+@group
+(split-window)
+     @result{} #<window 25 on control.texi>
+@end group
+@group
+(setq w (selected-window))
+     @result{} #<window 19 on control.texi>
+@end group
+@group
+(save-window-excursion
+  (delete-other-windows w)
+  (switch-to-buffer "foo")
+  'do-something)
+     @result{} do-something
+@c      ;; @r{The screen is now split again.}
+     ;; @r{スクリーンはここでふたたび分割される}
+@end group
+@end example
+@end defspec
+
+@defun window-configuration-p object
+@c This function returns @code{t} if @var{object} is a window configuration.
+この関数は、@var{object}がウィンドウ構成であれば@code{t}を返す。
+@end defun
+
+@defun compare-window-configurations config1 config2
+@c This function compares two window configurations as regards the
+@c structure of windows, but ignores the values of point and mark and the
+@c saved scrolling positions---it can return @code{t} even if those
+@c aspects differ.
+この関数は、ウィンドウの構造を基に2つのウィンドウ構成を比較する。
+ポイントとマークの値、保存されたスクロール位置は無視するので、
+それらが異なっていても@code{t}を返す。
+
+@c The function @code{equal} can also compare two window configurations; it
+@c regards configurations as unequal if they differ in any respect, even a
+@c saved point or mark.
+関数@code{equal}でも2つのウィンドウ構成を比較できるが、
+保存されたポイントやマークが違うだけであっても異なる部分があると、
+等しくない構成とみなす。
+@end defun
+
+@c   Primitives to look inside of window configurations would make sense,
+@c but none are implemented.  It is not clear they are useful enough to be
+@c worth implementing.
+ウィンドウ構成の内部を調べる基本関数には意味があるでしょうが、
+実装してありません。
+実装するだけの価値があるほど有用なのかはっきりしないのです。
+
+@node Window Hooks
+@c @section Hooks for Window Scrolling and Changes
+@section ウィンドウのスクロールとサイズ変更向けのフック
+
+@c This section describes how a Lisp program can take action whenever a
+@c window displays a different part of its buffer or a different buffer.
+@c There are three actions that can change this: scrolling the window,
+@c switching buffers in the window, and changing the size of the window.
+@c The first two actions run @code{window-scroll-functions}; the last runs
+@c @code{window-size-change-functions}.  The paradigmatic use of these
+@c hooks is in the implementation of Lazy Lock mode; see @ref{Support
+@c Modes, Lazy Lock, Font Lock Support Modes, emacs, The GNU Emacs Manual}.
+本節では、ウィンドウにバッファの別の部分を表示したり
+別のバッファを表示するたびに、
+Lispプログラムが動作する方法を述べます。
+変更できる動作は3種類、ウィンドウをスクロールするとき、
+ウィンドウでバッファを切り替えるとき、
+ウィンドウサイズを変えるときです。
+最初の2つの動作では@code{window-scroll-functions}を実行し、
+3つ目は@code{window-size-change-functions}を実行します。
+これらのフックの模範的な使用例は遅延ロック（lazy-lock）モードの
+実装の中にあります。
+@ref{Support Modes,, フォントロックのモード, emacs,
+GNU Emacs マニュアル}を参照してください。
+
+@defvar window-scroll-functions
+@c This variable holds a list of functions that Emacs should call before
+@c redisplaying a window with scrolling.  It is not a normal hook, because
+@c each function is called with two arguments: the window, and its new
+@c display-start position.
+この変数は、スクロールによりウィンドウを再表示するまえに
+Emacsが呼び出すべき関数のリストを保持する。
+各関数はウィンドウと新たな表示開始位置の2つの引数で呼ばれるため、
+これはノーマルフックではない。
+
+@c Displaying a different buffer in the window also runs these functions.
+ウィンドウに別のバッファを表示する場合でも
+これらの関数が実行される。
+
+@c These functions must be careful in using @code{window-end}
+@c (@pxref{Window Start}); if you need an up-to-date value, you must use
+@c the @var{update} argument to ensure you get it.
+これらの関数で@code{window-end}（@pxref{Window Start}）を使うには
+注意が必要である。
+更新された値が必要なときには、確実に更新値を得るために
+引数@var{update}を使う必要がある。
+@end defvar
+
+@defvar window-size-change-functions
+@c This variable holds a list of functions to be called if the size of any
+@c window changes for any reason.  The functions are called just once per
+@c redisplay, and just once for each frame on which size changes have
+@c occurred.
+この変数は、いかなる理由であれウィンドウサイズが変わるときに
+呼び出される関数のリストを保持する。
+関数は、再表示のたびにサイズ変更が起きたフレームごとに呼ばれる。
+
+@c Each function receives the frame as its sole argument.  There is no
+@c direct way to find out which windows on that frame have changed size, or
+@c precisely how.  However, if a size-change function records, at each
+@c call, the existing windows and their sizes, it can also compare the
+@c present sizes and the previous sizes.
+各関数はフレームを唯一の引数として受け取る。
+当該フレームで大きさが変更されたウィンドウを探す直接的な方法や
+正確な方法はない。
+しかし、サイズ変更関数が呼ばれるたびに
+既存のウィンドウとそれらの大きさを記録すれば、
+現在の大きさと以前の大きさを比較できる。
+
+@c Creating or deleting windows counts as a size change, and therefore
+@c causes these functions to be called.  Changing the frame size also
+@c counts, because it changes the sizes of the existing windows.
+ウィンドウを作成したり削除してもサイズ変更とみなすので、
+これらの関数が呼び出される。
+フレームの大きさが変わると既存のウィンドウの大きさも変わるので、
+これもサイズ変更とみなす。
+
+@c It is not a good idea to use @code{save-window-excursion} (@pxref{Window
+@c Configurations}) in these functions, because that always counts as a
+@c size change, and it would cause these functions to be called over and
+@c over.  In most cases, @code{save-selected-window} (@pxref{Selecting
+@c Windows}) is what you need here.
+これらの関数で@code{save-window-excursion}
+（@pxref{Window Configurations}）を使うのはよくない。
+この関数はつねにサイズ変更とみなしこれらの関数を呼び出し、
+これが繰り返されてしまうからである。
+多くの場合、ここで必要なのは@code{save-selected-window}
+（@pxref{Selecting Windows}）である。
+@end defvar
+
+@defvar redisplay-end-trigger-functions
+@tindex redisplay-end-trigger-functions
+@c This abnormal hook is run whenever redisplay in a window uses text that
+@c extends past a specified end trigger position.  You set the end trigger
+@c position with the function @code{set-window-redisplay-end-trigger}.  The
+@c functions are called with two arguments: the window, and the end trigger
+@c position.  Storing @code{nil} for the end trigger position turns off the
+@c feature, and the trigger value is automatically reset to @code{nil} just
+@c after the hook is run.
+このアブノーマルフックは、ウィンドウの再表示において、
+指定された終了トリガ位置を超えて伸びるテキストを使うたびに実行される。
+終了トリガ位置は関数@code{set-window-redisplay-end-trigger}で設定する。
+フック関数は2つの引数、ウィンドウと終了トリガ位置で呼ばれる。
+終了トリガ位置として@code{nil}を保存するとこの機能をオフにし、
+フックを実行直後にトリガ値は自動的に@code{nil}に再設定される。
+@end defvar
+
+@defun set-window-redisplay-end-trigger window position
+@tindex set-window-redisplay-end-trigger
+@c This function sets @var{window}'s end trigger position at
+@c @var{position}.
+この関数は、@var{window}の終了トリガ位置を@var{position}とする。
+@end defun
+
+@defun window-redisplay-end-trigger window
+@tindex window-redisplay-end-trigger
+@c This function returns @var{window}'s current end trigger position.
+この関数は、@var{window}の現在の終了トリガ位置を返す。
+@end defun
+
+@defvar window-configuration-change-hook
+@tindex window-configuration-change-hook
+@c A normal hook that is run every time you change the window configuration
+@c of an existing frame.  This includes splitting or deleting windows,
+@c changing the sizes of windows, or displaying a different buffer in a
+@c window.  The frame whose window configuration has changed is the
+@c selected frame when this hook runs.
+このノーマルフックは、
+既存のフレームのウィンドウの構成を変更するたびに呼び出される。
+これには、ウィンドウの分割や削除、ウィンドウサイズの変更、
+ウィンドウに別のバッファを表示することが含まれる。
+このフックを実行するときには、
+ウィンドウの構成が変更されたフレームが選択されているフレームである。
+@end defvar

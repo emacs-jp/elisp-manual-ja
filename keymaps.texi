@@ -1,0 +1,3168 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/keymaps
+@node Keymaps, Modes, Command Loop, Top
+@c @chapter Keymaps
+@chapter キーマップ
+@c @cindex keymap
+@cindex キーマップ
+
+@c   The bindings between input events and commands are recorded in data
+@c structures called @dfn{keymaps}.  Each binding in a keymap associates
+@c (or @dfn{binds}) an individual event type either to another keymap or to
+@c a command.  When an event type is bound to a keymap, that keymap is used
+@c to look up the next input event; this continues until a command is
+@c found.  The whole process is called @dfn{key lookup}.
+入力イベントとコマンドとのバインディング（対応）は、
+@dfn{キーマップ}（keymap）と呼ばれるデータ構造に記録されています。
+キーマップの各バインディング（あるいは@dfn{バインド}（bind））は、
+個々のイベント型を別のキーマップかコマンドに対応付けます。
+イベント型のバインディングがキーマップであると、
+後続の入力イベントを探すためにそのキーマップを使います。
+コマンドがみつかるまで、これを繰り返します。
+この処理全体を@dfn{キー探索}（key lookup）と呼びます。
+
+@menu
+* Keymap Terminology::        	Definitions of terms pertaining to keymaps.
+* Format of Keymaps::		What a keymap looks like as a Lisp object.
+* Creating Keymaps:: 		Functions to create and copy keymaps.
+* Inheritance and Keymaps::	How one keymap can inherit the bindings
+				   of another keymap.
+* Prefix Keys::                 Defining a key with a keymap as its definition.
+* Active Keymaps::	        Each buffer has a local keymap
+                                   to override the standard (global) bindings.
+				   A minor mode can also override them.
+* Key Lookup::                  How extracting elements from keymaps works.
+* Functions for Key Lookup::    How to request key lookup.
+* Changing Key Bindings::       Redefining a key in a keymap.
+* Key Binding Commands::        Interactive interfaces for redefining keys.
+* Scanning Keymaps::            Looking through all keymaps, for printing help.
+* Menu Keymaps::		Defining a menu as a keymap.
+@end menu
+
+@node Keymap Terminology
+@c @section Keymap Terminology
+@section キーマップの用語
+@c @cindex key
+@c @cindex keystroke
+@c @cindex key binding
+@c @cindex binding of a key
+@c @cindex complete key
+@c @cindex undefined key
+@cindex キー
+@cindex 打鍵
+@cindex キーバインディング
+@cindex キーのバインド
+@cindex 完全なキー
+@cindex 未定義キー
+
+@c   A @dfn{keymap} is a table mapping event types to definitions (which
+@c can be any Lisp objects, though only certain types are meaningful for
+@c execution by the command loop).  Given an event (or an event type) and a
+@c keymap, Emacs can get the event's definition.  Events include
+@c characters, function keys, and mouse actions (@pxref{Input Events}).
+@dfn{キーマップ}（keymap）は、イベント型を定義に対応させる表です。
+（この定義は任意のLispオブジェクトであるが、
+コマンドループによる実行においては、特定の型のみが意味を持つ）。
+与えられたイベント（あるいはイベント型）とキーマップから、
+Emacsはイベントの定義を得ることができます。
+イベントは、文字、ファンクションキー、マウス操作です
+（@pxref{Input Events}）。
+
+@c   A sequence of input events that form a unit is called a
+@c @dfn{key sequence}, or @dfn{key} for short.  A sequence of one event
+@c is always a key sequence, and so are some multi-event sequences.
+ある単位を構成する入力イベントの列を@dfn{キー列}（key sequence）、
+あるいは、略して@dfn{キー}（key）と呼びます。
+単一イベントから成る列はつねにキー列であり、複数イベント列もキー列です。
+
+@c   A keymap determines a binding or definition for any key sequence.  If
+@c the key sequence is a single event, its binding is the definition of the
+@c event in the keymap.  The binding of a key sequence of more than one
+@c event is found by an iterative process: the binding of the first event
+@c is found, and must be a keymap; then the second event's binding is found
+@c in that keymap, and so on until all the events in the key sequence are
+@c used up.
+キーマップは、任意のキー列に対するバインディング、
+つまり、定義を決定します。
+キー列が単一イベントから成るとき、
+そのバインディングはキーマップ内の当該イベントの定義です。
+複数のイベントから成るキー列のバインディングは、
+繰り返し処理で探します。
+つまり、最初のイベントのバインディングを探すと、
+それはキーマップであるはずです。
+続いて、そのキーマップから2番目のイベントのバインディングを探します。
+これをキー列のすべてのイベントを使い尽くすまで行います
+
+@c   If the binding of a key sequence is a keymap, we call the key sequence
+@c a @dfn{prefix key}.  Otherwise, we call it a @dfn{complete key} (because
+@c no more events can be added to it).  If the binding is @code{nil},
+@c we call the key @dfn{undefined}.  Examples of prefix keys are @kbd{C-c},
+@c @kbd{C-x}, and @kbd{C-x 4}.  Examples of defined complete keys are
+@c @kbd{X}, @key{RET}, and @kbd{C-x 4 C-f}.  Examples of undefined complete
+@c keys are @kbd{C-x C-g}, and @kbd{C-c 3}.  @xref{Prefix Keys}, for more
+@c details.
+キー列のバインディングがキーマップであると、
+そのキー列を@dfn{プレフィックスキー}（prefix key）と呼びます。
+さもなければ、（追加できるイベントがないので）
+@dfn{完全なキー}（complete key）と呼びます。
+バインディングが@code{nil}であると、キーは@dfn{未定義}であるといいます。
+プレフィックスキーの例は、@kbd{C-c}、@kbd{C-x}、@kbd{C-x 4}です。
+定義されている完全なキーの例は、@kbd{X}、@key{RET}、@kbd{C-x 4 C-f}です。
+未定義な完全なキーの例は、@kbd{C-x C-g}と@kbd{C-c 3}です。
+詳しくは、@xref{Prefix Keys}。
+
+@c   The rule for finding the binding of a key sequence assumes that the
+@c intermediate bindings (found for the events before the last) are all
+@c keymaps; if this is not so, the sequence of events does not form a
+@c unit---it is not really one key sequence.  In other words, removing one
+@c or more events from the end of any valid key sequence must always yield
+@c a prefix key.  For example, @kbd{C-f C-n} is not a key sequence;
+@c @kbd{C-f} is not a prefix key, so a longer sequence starting with
+@c @kbd{C-f} cannot be a key sequence.
+キー列のバインディングを探す際の規則では、
+（最後のイベントのまえまでにみつかる）途中のバインディングは
+すべてキーマップであると仮定します。
+これが満たされないと、イベントの列があるまとまりを構成せず、
+1つのキー列になりません。
+いいかえれば、有効なキー列の末尾からいくつかのイベントを取りさると、
+つねにプレフィックスキーになる必要があります。
+たとえば、@kbd{C-f C-n}はキー列ではありません。
+@kbd{C-f}はプレフィックスキーではないので、
+@kbd{C-f}で始まる列はキー列ではありません。
+
+@c   The set of possible multi-event key sequences depends on the bindings
+@c for prefix keys; therefore, it can be different for different keymaps,
+@c and can change when bindings are changed.  However, a one-event sequence
+@c is always a key sequence, because it does not depend on any prefix keys
+@c for its well-formedness.
+複数イベントから成るキー列の候補は、
+プレフィックスキーのバインディングに依存します。
+したがって、キーマップが異なればそれらは異なり、
+バインディングを変更するとそれらは変わります。
+しかし、単一イベントから成る列は、プレフィックスに依存しないので、
+つねにキー列です。
+
+@c   At any time, several primary keymaps are @dfn{active}---that is, in
+@c use for finding key bindings.  These are the @dfn{global map}, which is
+@c shared by all buffers; the @dfn{local keymap}, which is usually
+@c associated with a specific major mode; and zero or more @dfn{minor mode
+@c keymaps}, which belong to currently enabled minor modes.  (Not all minor
+@c modes have keymaps.)  The local keymap bindings shadow (i.e., take
+@c precedence over) the corresponding global bindings.  The minor mode
+@c keymaps shadow both local and global keymaps.  @xref{Active Keymaps},
+@c for details.
+ある時点には、複数個の主キーマップが活性です。
+つまり、キーバインディングの探索に使われます。
+それらは、
+すべてのバッファが共有する@dfn{グローバルマップ}（global map）、
+特定のメジャーモードに関連付けられた@dfn{ローカルマップ}（local keymap）、
+現在オンにしてあるマイナモードに属する
+@dfn{マイナモードキーマップ}（minor mode keymaps）です。
+（すべてのマイナモードにキーマップがあるわけではない。）
+ローカルキーマップのバインディングは、
+対応するグローバルなバインディングを隠します（つまり優先する）。
+マイナモードキーマップは、ローカルとグローバルの両方のキーマップを隠します。
+詳しくは@xref{Active Keymaps}。
+
+@node Format of Keymaps
+@c @section Format of Keymaps
+@section キーマップの形式
+@c @cindex format of keymaps
+@c @cindex keymap format
+@c @cindex full keymap
+@c @cindex sparse keymap
+@cindex キーマップの形式
+@cindex 完全なキーマップ
+@cindex 疎なキーマップ
+
+@c   A keymap is a list whose @sc{car} is the symbol @code{keymap}.  The
+@c remaining elements of the list define the key bindings of the keymap.
+@c Use the function @code{keymapp} (see below) to test whether an object is
+@c a keymap.
+キーマップは、その@sc{car}がシンボル@code{keymap}であるリストです。
+リストの残りの要素がキーマップのキーバインディングを定義します。
+オブジェクトがキーマップであるかどうか検査するには、
+関数@code{keymapp}（下記参照）を使います。
+
+@c   Several kinds of elements may appear in a keymap, after the symbol
+@c @code{keymap} that begins it:
+キーマップでは、シンボル@code{keymap}のうしろに、
+さまざまな種類の要素が現れます。
+
+@table @code
+@item (@var{type} .@: @var{binding})
+@c This specifies one binding, for events of type @var{type}.  Each
+@c ordinary binding applies to events of a particular @dfn{event type},
+@c which is always a character or a symbol.  @xref{Classifying Events}.
+イベント型@var{type}に対する1つのバインディングを指定する。
+普通の各バインディングは、文字やシンボルである特定の@dfn{イベント型}に
+適用される。
+@pxref{Classifying Events}。
+
+@item (t .@: @var{binding})
+@c @cindex default key binding
+@cindex デフォルトのキーバインディング
+@c This specifies a @dfn{default key binding}; any event not bound by other
+@c elements of the keymap is given @var{binding} as its binding.  Default
+@c bindings allow a keymap to bind all possible event types without having
+@c to enumerate all of them.  A keymap that has a default binding
+@c completely masks any lower-precedence keymap.
+@dfn{デフォルトのキーバインディング}を指定する。
+キーマップの他の要素に一致しない任意のイベントには、
+そのバインディングとして指定した@var{binding}を与える。
+デフォルトのバインディングにより、
+すべてを列挙せずに可能なすべてのイベントにバインドできる。
+デフォルトのバインディングを有するキーマップは、
+任意の低優先順位のキーマップを隠してしまう。
+
+@item @var{vector}
+@c If an element of a keymap is a vector, the vector counts as bindings for
+@c all the @sc{ASCII} characters, codes 0 through 127; vector element
+@c @var{n} is the binding for the character with code @var{n}.  This is a
+@c compact way to record lots of bindings.  A keymap with such a vector is
+@c called a @dfn{full keymap}.  Other keymaps are called @dfn{sparse
+@c keymaps}.
+キーマップの要素がベクトルであると、
+当該ベクトルを@sc{ASCII}文字全体、つまり、コード0から127に対する
+バインディングとみなす。
+ベクトルの@var{n}番目の要素は、コード@var{n}の文字に対する
+バインディングである。
+これは、多くのバインディングを記録するコンパクトな方法である。
+このようなベクトルのキーマップを@dfn{完全なキーマップ}（full keymap）と呼ぶ。
+それ以外のキーマップを@dfn{疎なキーマップ}（sparse keymaps）と呼ぶ。
+
+@c When a keymap contains a vector, it always defines a binding for each
+@c @sc{ASCII} character, even if the vector contains @code{nil} for that
+@c character.  Such a binding of @code{nil} overrides any default key
+@c binding in the keymap, for @sc{ASCII} characters.  However, default
+@c bindings are still meaningful for events other than @sc{ASCII}
+@c characters.  A binding of @code{nil} does @emph{not} override
+@c lower-precedence keymaps; thus, if the local map gives a binding of
+@c @code{nil}, Emacs uses the binding from the global map.
+キーマップにベクトルがあると、ベクトルの要素が@code{nil}であっても
+ベクトルが各@sc{ASCII}文字のバインディングをつねに定義する。
+そのような@code{nil}のバインディングは、
+@sc{ASCII}文字に対しては
+キーマップのデフォルトのキーバインディングを無効にする。
+しかし、@sc{ASCII}文字以外のイベントに対しては、
+デフォルトのバインディングが意味を持つ。
+@code{nil}のバインディングが
+低優先順位のキーマップを隠すことは@emph{ない}。
+つまり、ローカルマップが@code{nil}のバインディングを与えると、
+Emacsはグローバルマップのバインディングを使う。
+
+@item @var{string}
+@c @cindex keymap prompt string
+@c @cindex overall prompt string
+@c @cindex prompt string of keymap
+@cindex キーマップのプロンプト文字列
+@cindex 全面プロンプト文字列
+@c Aside from bindings, a keymap can also have a string as an element.
+@c This is called the @dfn{overall prompt string} and makes it possible to
+@c use the keymap as a menu.  @xref{Menu Keymaps}.
+バインディングに加えて、
+キーマップでは、要素として文字列を持つこともできる。
+これを@dfn{全面プロンプト文字列}（overall prompt string）と呼び、
+キーマップをメニューとして使うことを可能にする。
+@pxref{Menu Keymaps}。
+@end table
+
+@c @cindex meta characters lookup
+@cindex メタ文字の探索
+@c   Keymaps do not directly record bindings for the meta characters.
+@c Instead, meta characters are regarded for
+@c purposes of key lookup as sequences of two characters, the first of
+@c which is @key{ESC} (or whatever is currently the value of
+@c @code{meta-prefix-char}).  Thus, the key @kbd{M-a} is really represented
+@c as @kbd{@key{ESC} a}, and its global binding is found at the slot for
+@c @kbd{a} in @code{esc-map} (@pxref{Prefix Keys}).
+キーマップは、メタ文字に対するバインディングを直接には記録していません。
+そのかわりに、キー探索においては、メタ文字は2文字から成る列とみなし、
+先頭文字は@key{ESC}（あるいは、@code{meta-prefix-char}の現在値）です。
+つまり、キー@kbd{M-a}は実際には@kbd{@key{ESC} a}と表現され、
+そのグローバルなバインディングは
+@code{esc-map}の@kbd{a}でみつかります（@pxref{Prefix Keys}）。
+
+@c   Here as an example is the local keymap for Lisp mode, a sparse
+@c keymap.  It defines bindings for @key{DEL} and @key{TAB}, plus @kbd{C-c
+@c C-l}, @kbd{M-C-q}, and @kbd{M-C-x}.
+Lispモードに対するローカルキーマップの例を示します。
+これは疎なキーマップです。
+@key{DEL}、@key{TAB}、@kbd{C-c C-l}、@kbd{M-C-q}、@kbd{M-C-x}に対する
+バインディングを定義しています。
+
+@example
+@group
+lisp-mode-map
+@result{} 
+@end group
+@group
+(keymap 
+ ;; @key{TAB}
+ (9 . lisp-indent-line)                 
+@end group
+@group
+ ;; @key{DEL}
+ (127 . backward-delete-char-untabify)  
+@end group
+@group
+ (3 keymap 
+    ;; @kbd{C-c C-l}
+    (12 . run-lisp))                    
+@end group
+@group
+ (27 keymap 
+@c      ;; @r{@kbd{M-C-q}, treated as @kbd{@key{ESC} C-q}}
+     ;; @r{@kbd{M-C-q}は@kbd{@key{ESC} C-q}とみなされる}
+     (17 . indent-sexp)                 
+@c      ;; @r{@kbd{M-C-x}, treated as @kbd{@key{ESC} C-x}}
+     ;; @r{@kbd{M-C-x}は@kbd{@key{ESC} C-x}とみなされる}
+     (24 . lisp-send-defun)))           
+@end group
+@end example
+
+@defun keymapp object
+@c This function returns @code{t} if @var{object} is a keymap, @code{nil}
+@c otherwise.  More precisely, this function tests for a list whose
+@c @sc{car} is @code{keymap}.
+この関数は、@var{object}がキーマップであれば@code{t}を返し、
+さもなければ@code{nil}を返す。
+より正確には、この関数は、
+その@sc{car}が@code{keymap}であるリストかどうかを検査する。
+
+@example
+@group
+(keymapp '(keymap))
+    @result{} t
+@end group
+@group
+(keymapp (current-global-map))
+    @result{} t
+@end group
+@end example
+@end defun
+
+@node Creating Keymaps
+@c @section Creating Keymaps
+@section キーマップの作成
+@c @cindex creating keymaps
+@cindex キーマップの作成
+
+@c   Here we describe the functions for creating keymaps.
+ここでは、キーマップを作成するための関数について述べます。
+
+@c ??? This should come after make-sparse-keymap
+@defun make-keymap &optional prompt
+@c This function creates and returns a new full keymap (i.e., one
+@c containing a vector of length 128 for defining all the @sc{ASCII}
+@c characters).  The new keymap initially binds all @sc{ASCII} characters
+@c to @code{nil}, and does not bind any other kind of event.
+この関数は新たに完全なキーマップ
+（つまり、すべての@sc{ASCII}文字に対する定義を収めた
+長さ128のベクトル）を作成しそれを返す。
+新たなキーマップでは、すべての@sc{ASCII}文字に対するバインディングは
+@code{nil}であり、それ以外の種類のイベントに対するバインディングはない。
+
+@example
+@group
+(make-keymap)
+    @result{} (keymap [nil nil nil @dots{} nil nil])
+@end group
+@end example
+
+@c If you specify @var{prompt}, that becomes the overall prompt string for
+@c the keymap.  The prompt string is useful for menu keymaps (@pxref{Menu
+@c Keymaps}).
+@var{prompt}を指定すると、
+それはキーマップに対する全面プロンプト文字列になる。
+全面プロンプト文字列はメニューキーマップ
+（@pxref{Menu Keymaps}）に有用である。
+@end defun
+
+@defun make-sparse-keymap &optional prompt
+@c This function creates and returns a new sparse keymap with no entries.
+@c The new keymap does not bind any events.  The argument @var{prompt}
+@c specifies a prompt string, as in @code{make-keymap}.
+この関数は、新たに空の疎なキーマップを作成しそれを返す。
+新たなキーマップにはイベントに対するバインディングはいっさいない。
+引数@var{prompt}は、@code{make-keymap}の場合同様、
+プロンプト文字列を指定する。
+
+@example
+@group
+(make-sparse-keymap)
+    @result{} (keymap)
+@end group
+@end example
+@end defun
+
+@defun copy-keymap keymap
+@c This function returns a copy of @var{keymap}.  Any keymaps that
+@c appear directly as bindings in @var{keymap} are also copied recursively,
+@c and so on to any number of levels.  However, recursive copying does not
+@c take place when the definition of a character is a symbol whose function
+@c definition is a keymap; the same symbol appears in the new copy.
+@c @c Emacs 19 feature
+この関数は@var{keymap}のコピーを返す。
+@var{keymap}にバインディングとして直接現れる任意のキーマップも
+任意のレベルまで再帰的にコピーされる。
+しかし、文字に対する定義が、その関数定義がキーマップであるような
+シンボルに出会うと再帰的なコピーを行わないため、
+同じシンボルが新たなコピーにも現れる。
+
+@example
+@group
+(setq map (copy-keymap (current-local-map)))
+@result{} (keymap
+@end group
+@group
+@c      ;; @r{(This implements meta characters.)}
+     ;; @r{(これはメタ文字を意味する)}
+     (27 keymap         
+         (83 . center-paragraph)
+         (115 . center-line))
+     (9 . tab-to-tab-stop))
+@end group
+
+@group
+(eq map (current-local-map))
+    @result{} nil
+@end group
+@group
+(equal map (current-local-map))
+    @result{} t
+@end group
+@end example
+@end defun
+
+@node Inheritance and Keymaps
+@c @section Inheritance and Keymaps
+@section 継承とキーマップ
+@c @cindex keymap inheritance
+@c @cindex inheriting a keymap's bindings
+@cindex キーマップの継承
+@cindex 継承、キーマップ
+@cindex キーマップのバインディングの継承
+@cindex 継承、キーマップのバインディング
+
+@c   A keymap can inherit the bindings of another keymap, which we call the
+@c @dfn{parent keymap}.  Such a keymap looks like this:
+キーマップでは、@dfn{親キーマップ}（parent keymap）と呼ぶ別のキーマップの
+バインディングを継承できます。
+そのようなキーマップはつぎのようになります。
+
+@example
+(keymap @var{bindings}@dots{} . @var{parent-keymap})
+@end example
+
+@noindent
+@c The effect is that this keymap inherits all the bindings of
+@c @var{parent-keymap}, whatever they may be at the time a key is looked up,
+@c but can add to them or override them with @var{bindings}.
+このキーマップは、キーを探索する時点において
+@var{parent-keymap}が有するすべてのバインディングを継承しますが、
+それらには@var{bindings}が追加されたり優先します。
+
+@c If you change the bindings in @var{parent-keymap} using @code{define-key}
+@c or other key-binding functions, these changes are visible in the
+@c inheriting keymap unless shadowed by @var{bindings}.  The converse is
+@c not true: if you use @code{define-key} to change the inheriting keymap,
+@c that affects @var{bindings}, but has no effect on @var{parent-keymap}.
+@code{define-key}や他のキーバインディング関数で@var{parent-keymap}の
+バインディングを変更すると、それらの変更は、
+@var{bindings}で隠されない限り継承側のキーマップからも見えます。
+その逆は真ではありません。
+@code{define-key}で継承側のキーマップを修正すると、
+それは@var{bindings}に影響するだけで@var{parent-keymap}には影響しません。
+
+@c The proper way to construct a keymap with a parent is to use
+@c @code{set-keymap-parent}; if you have code that directly constructs a
+@c keymap with a parent, please convert the program to use
+@c @code{set-keymap-parent} instead.
+親キーマップを用いたキーマップを作成する正しい方法は、
+@code{set-keymap-parent}を使うことです。
+親キーマップを用いたキーマップを直接作成するようなコードがある場合には、
+@code{set-keymap-parent}を用いるようにプログラムを変更してください。
+
+@defun keymap-parent keymap
+@c This returns the parent keymap of @var{keymap}.  If @var{keymap}
+@c has no parent, @code{keymap-parent} returns @code{nil}.
+この関数は、キーマップ@var{keymap}の親キーマップを返す。
+@var{keymap}に親がなければ@code{keymap-parent}は@code{nil}を返す。
+@end defun
+
+@defun set-keymap-parent keymap parent
+@c This sets the parent keymap of @var{keymap} to @var{parent}, and returns
+@c @var{parent}.  If @var{parent} is @code{nil}, this function gives
+@c @var{keymap} no parent at all.
+キーマップ@var{keymap}の親キーマップとして@var{parent}を設定し、
+@var{parent}を返す。
+@var{parent}が@code{nil}であると、
+この関数は@var{keymap}に親キーマップをいっさい与えない。
+
+@c If @var{keymap} has submaps (bindings for prefix keys), they too receive
+@c new parent keymaps that reflect what @var{parent} specifies for those
+@c prefix keys.
+@var{keymap}に（プレフィックスキー用のバインディングである）
+サブマップがあれば、それらも@var{parent}が指定するプレフィックスキーを
+反映する新たな親マップを受け取る。
+@end defun
+
+@c Here is an example showing how to make a keymap that inherits
+@c from @code{text-mode-map}:
+@code{text-mode-map}からキーマップを継承する方法を示します。
+
+@example
+(let ((map (make-sparse-keymap)))
+  (set-keymap-parent map text-mode-map)
+  map)
+@end example
+
+@node Prefix Keys
+@c @section Prefix Keys
+@section プレフィックスキー
+@c @cindex prefix key
+@cindex プレフィックスキー
+
+@c   A @dfn{prefix key} is a key sequence whose binding is a keymap.  The
+@c keymap defines what to do with key sequences that extend the prefix key.
+@c For example, @kbd{C-x} is a prefix key, and it uses a keymap that is
+@c also stored in the variable @code{ctl-x-map}.  This keymap defines
+@c bindings for key sequences starting with @kbd{C-x}.
+@dfn{プレフィックス}（prefix key）とは、
+そのバインディングがキーマップであるキー列のことです。
+そのキーマップが、プレフィックスキー以降のキーでなにをするかを定義します。
+たとえば、@kbd{C-x}はプレフィックスキーであり、
+変数@code{ctl-x-map}に保持されたキーマップを使います。
+このキーマップは、@kbd{C-x}で始まるキー列に対するバインディングを定義します。
+
+@c   Some of the standard Emacs prefix keys use keymaps that are
+@c also found in Lisp variables:
+Emacsの標準プレフィックスキーのなかには、
+Lisp変数にも保持されたキーマップを使うものがあります。
+
+@itemize @bullet
+@item
+@vindex esc-map
+@findex ESC-prefix
+@c @code{esc-map} is the global keymap for the @key{ESC} prefix key.  Thus,
+@c the global definitions of all meta characters are actually found here.
+@c This map is also the function definition of @code{ESC-prefix}.
+@code{esc-map}は、プレフィックスキー@key{ESC}用のグローバルマップである。
+したがって、すべてのメタ文字のグローバルな定義はここにある。
+このキーマップは@code{ESC-prefix}の関数定義でもある。
+
+@item
+@cindex @kbd{C-h}
+@c @code{help-map} is the global keymap for the @kbd{C-h} prefix key.
+@code{help-map}は、プレフィックスキー@kbd{C-h}に対する
+グローバルキーマップである。
+
+@item
+@cindex @kbd{C-c}
+@vindex mode-specific-map
+@c @code{mode-specific-map} is the global keymap for the prefix key
+@c @kbd{C-c}.  This map is actually global, not mode-specific, but its name
+@c provides useful information about @kbd{C-c} in the output of @kbd{C-h b}
+@c (@code{display-bindings}), since the main use of this prefix key is for
+@c mode-specific bindings.
+@code{mode-specific-map}は、プレフィックスキー@kbd{C-c}に対する
+グローバルキーマップである。
+このキーマップは実際にはグローバルでありモード固有ではないが、
+その名前は、@kbd{C-h b}（@code{display-bindings}）の出力において
+@kbd{C-c}に関する有用な情報を与える。
+というのは、このプレフィックスキーの主な用途は、
+モード固有のバインディングのためだからである。
+
+@item
+@cindex @kbd{C-x}
+@vindex ctl-x-map
+@findex Control-X-prefix
+@c @code{ctl-x-map} is the global keymap used for the @kbd{C-x} prefix key.
+@c This map is found via the function cell of the symbol
+@c @code{Control-X-prefix}.
+@code{ctl-x-map}は、プレフィックスキー@kbd{C-x}に対して使われる
+グローバルキーマップである。
+このキーマップは、シンボル@code{Control-X-prefix}の関数セルに現れる。
+
+@item
+@cindex @kbd{C-x @key{RET}}
+@vindex mule-keymap
+@c @code{mule-keymap} is the global keymap used for the @kbd{C-x @key{RET}}
+@c prefix key.
+@code{mule-keymap}は、プレフィックスキー@kbd{C-x @key{RET}}に対して使われる
+グローバルキーマップである。
+
+@item
+@cindex @kbd{C-x 4}
+@vindex ctl-x-4-map
+@c @code{ctl-x-4-map} is the global keymap used for the @kbd{C-x 4} prefix
+@c key.
+@code{ctl-x-4-map}は、プレフィックスキー@kbd{C-x 4}に対して使われる
+グローバルキーマップである。
+
+@c Emacs 19 feature
+@item
+@cindex @kbd{C-x 5}
+@vindex ctl-x-5-map
+@c @code{ctl-x-5-map} is the global keymap used for the @kbd{C-x 5} prefix
+@c key.
+@code{ctl-x-5-map}は、プレフィックスキー@kbd{C-x 5}に対して使われる
+グローバルキーマップである。
+
+@c Emacs 19 feature
+@item
+@cindex @kbd{C-x 6}
+@vindex 2C-mode-map
+@c @code{2C-mode-map} is the global keymap used for the @kbd{C-x 6} prefix
+@c key.
+@code{2C-mode-map}は、プレフィックスキー@kbd{C-x 6}に対して使われる
+グローバルキーマップである。
+
+@item
+@cindex @kbd{C-x v}
+@vindex vc-prefix-map
+@c @code{vc-prefix-map} is the global keymap used for the @kbd{C-x v} prefix
+@c key.
+@code{vc-prefix-map}は、プレフィックスキー@kbd{C-x v}に対して使われる
+グローバルキーマップである。
+
+@item
+@cindex @kbd{M-g}
+@vindex facemenu-keymap
+@c @code{facemenu-keymap} is the global keymap used for the @kbd{M-g}
+@c prefix key.
+@code{facemenu-keymap}は、プレフィックスキー@kbd{M-g}に対して使われる
+グローバルキーマップである。
+
+@c Emacs 19 feature
+@item
+@c The other Emacs prefix keys are @kbd{C-x @@}, @kbd{C-x a i}, @kbd{C-x
+@c @key{ESC}} and @kbd{@key{ESC} @key{ESC}}.  They use keymaps that have no
+@c special names.
+Emacsには、他にも、@kbd{C-x @@}、@kbd{C-x a i}、@kbd{C-x @key{ESC}}、
+@kbd{@key{ESC} @key{ESC}}のプレフィックスキーがある。
+これらは、特別な名前を持たないキーマップを使う。
+@end itemize
+
+@c   The keymap binding of a prefix key is used for looking up the event
+@c that follows the prefix key.  (It may instead be a symbol whose function
+@c definition is a keymap.  The effect is the same, but the symbol serves
+@c as a name for the prefix key.)  Thus, the binding of @kbd{C-x} is the
+@c symbol @code{Control-X-prefix}, whose function cell holds the keymap
+@c for @kbd{C-x} commands.  (The same keymap is also the value of
+@c @code{ctl-x-map}.)
+プレフィックスキーのキーマップバインディングは、
+当該プレフィックスキーに続くイベントを探すために使われます。
+（その関数定義がキーマップであるシンボルでもよい。
+効果は同じであるが、シンボルはプレフィックスキーに対する名前として働く。）
+したがって、@kbd{C-x}のバインディングは
+シンボル@code{Control-X-prefix}であり、
+その関数セルがコマンド@kbd{C-x}用のキーマップを保持している。
+（@code{ctl-x-map}の値も同じキーマップである。）
+
+@c   Prefix key definitions can appear in any active keymap.  The
+@c definitions of @kbd{C-c}, @kbd{C-x}, @kbd{C-h} and @key{ESC} as prefix
+@c keys appear in the global map, so these prefix keys are always
+@c available.  Major and minor modes can redefine a key as a prefix by
+@c putting a prefix key definition for it in the local map or the minor
+@c mode's map.  @xref{Active Keymaps}.
+プレフィックスキーの定義は、任意の活性なキーマップにあってかまいません。
+プレフィックスキーとしての@kbd{C-c}、@kbd{C-x}、@kbd{C-h}、@key{ESC}の
+定義はグローバルマップにあるので、これらのプレフィックスキーは
+つねに利用できます。
+メジャーモードやマイナモードでは、
+プレフィックスキーの定義をローカルキーマップや
+マイナモードキーマップに入れることで、
+キーをプレフィックスとして再定義できます。
+@xref{Active Keymaps}。
+
+@c   If a key is defined as a prefix in more than one active map, then its
+@c various definitions are in effect merged: the commands defined in the
+@c minor mode keymaps come first, followed by those in the local map's
+@c prefix definition, and then by those from the global map.
+複数の活性なキーマップにおいて、キーがプレフィックスと定義されていると、
+さまざまな定義は実質的には併合されます。
+マイナモードキーマップで定義されたコマンドが最優先で、
+つぎにローカルマップのプレフィックス定義、
+そしてグローバルマップのプレフィックス定義が続きます。
+
+@c   In the following example, we make @kbd{C-p} a prefix key in the local
+@c keymap, in such a way that @kbd{C-p} is identical to @kbd{C-x}.  Then
+@c the binding for @kbd{C-p C-f} is the function @code{find-file}, just
+@c like @kbd{C-x C-f}.  The key sequence @kbd{C-p 6} is not found in any
+@c active keymap.
+以下の例では、ローカルキーマップにおいて、
+@kbd{C-p}を@kbd{C-x}に等価なプレフィックスキーにします。
+続いて@kbd{C-p C-f}のバインディングを
+@kbd{C-x C-f}のように関数@code{find-file}にします。
+キー列@kbd{C-p 6}はどの活性なキーマップでもみつかりません。
+
+@example
+@group
+(use-local-map (make-sparse-keymap))
+    @result{} nil
+@end group
+@group
+(local-set-key "\C-p" ctl-x-map)
+    @result{} nil
+@end group
+@group
+(key-binding "\C-p\C-f")
+    @result{} find-file
+@end group
+
+@group
+(key-binding "\C-p6")
+    @result{} nil
+@end group
+@end example
+
+@defun define-prefix-command symbol
+@c @cindex prefix command
+@cindex プレフィックスコマンド
+@cindex コマンド、プレフィックス
+@c This function prepares @var{symbol} for use as a prefix key's binding:
+@c it creates a full keymap and stores it as @var{symbol}'s function
+@c definition.  Subsequently binding a key sequence to @var{symbol} will
+@c make that key sequence into a prefix key.
+この関数は、@var{symbol}をプレフィックスキーの
+バインディングとして使えるように準備する。
+つまり、完全なキーマップを作成し、
+@var{symbol}の関数定義にそのキーマップを保存する。
+以後、@var{symbol}にキー列をバインドすると、
+当該キー列をプレフィックスキーに入る。
+
+@c This function also sets @var{symbol} as a variable, with the keymap as
+@c its value.  It returns @var{symbol}.
+この関数は、変数としての@var{symbol}にも値としてキーマップを設定する。
+@var{symbol}を返す。
+
+@c  In Emacs version 18, only the function definition of @var{symbol} was
+@c set, not the value as a variable.
+@end defun
+
+@node Active Keymaps
+@c @section Active Keymaps
+@section 活性なキーマップ
+@c @cindex active keymap
+@c @cindex global keymap
+@c @cindex local keymap
+@cindex 活性なキーマップ
+@cindex グローバルキーマップ
+@cindex ローカルキーマップ
+
+@c   Emacs normally contains many keymaps; at any given time, just a few of
+@c them are @dfn{active} in that they participate in the interpretation
+@c of user input.  These are the global keymap, the current buffer's
+@c local keymap, and the keymaps of any enabled minor modes.
+Emacsには、通常、たくさんのキーマップがあります。
+ある時点では、それらの数個が@dfn{活性}になっていて、
+ユーザー入力の解釈に関与します。
+それらは、グローバルキーマップ、カレントバッファのローカルキーマップ、
+オンになっているマイナモードのキーマップです。
+
+@c   The @dfn{global keymap} holds the bindings of keys that are defined
+@c regardless of the current buffer, such as @kbd{C-f}.  The variable
+@c @code{global-map} holds this keymap, which is always active.
+@dfn{グローバルキーマップ}（global keymap）は、
+@kbd{C-f}のようなカレントバッファに依存せずに
+定義されたキーのバインディングを保持します。
+変数@code{global-map}はこのキーマップを保持していて、
+このキーマップはつねに活性です。
+
+@c   Each buffer may have another keymap, its @dfn{local keymap}, which may
+@c contain new or overriding definitions for keys.  The current buffer's
+@c local keymap is always active except when @code{overriding-local-map}
+@c overrides it.  Text properties can specify an alternative local map for
+@c certain parts of the buffer; see @ref{Special Properties}.
+各バッファには別のキーマップ、つまり、
+バッファの@dfn{ローカルキーマップ}（local keymap）があり、
+キーに対する新しい定義や無効にする定義を保持しています。
+カレントバッファのローカルキーマップは、
+@code{overriding-local-map}で無効にしない限り、つねに活性です。
+テキスト属性により、バッファの特定部分に対する
+代替ローカルマップを指定できます。
+@ref{Special Properties}を参照してください。
+
+@c   Each minor mode can have a keymap; if it does, the keymap is active
+@c when the minor mode is enabled.
+各マイナモードもキーマップを持てます。
+その場合、マイナモードがオンであると当該キーマップは活性です。
+
+@c   The variable @code{overriding-local-map}, if non-@code{nil}, specifies
+@c another local keymap that overrides the buffer's local map and all the 
+@c minor mode keymaps.
+変数@code{overriding-local-map}が@code{nil}以外であると、
+バッファのローカルキーマップとそのすべてのマイナモードキーマップに
+取ってかわるローカルキーマップを指定します。
+
+@c   All the active keymaps are used together to determine what command to
+@c execute when a key is entered.  Emacs searches these maps one by one, in
+@c order of decreasing precedence, until it finds a binding in one of the
+@c maps.  The procedure for searching a single keymap is called @dfn{key
+@c lookup}; see @ref{Key Lookup}.
+キーが入力されるとどのコマンドを実行するかを決定するために、
+すべての活性なキーマップを一緒に使います。
+Emacsは、キーマップの1つでバインディングがみつかるまで、
+優先順位が高いほうからこれらのキーマップを1つ1つ探索します。
+1つのキーマップで探索する処理のことを
+@dfn{キー探索}（key lookup）といいます。
+@ref{Key Lookup}を参照してください。
+
+@c   Normally, Emacs first searches for the key in the minor mode maps, in
+@c the order specified by @code{minor-mode-map-alist}; if they do not
+@c supply a binding for the key, Emacs searches the local map; if that too
+@c has no binding, Emacs then searches the global map.  However, if
+@c @code{overriding-local-map} is non-@code{nil}, Emacs searches that map
+@c first, before the global map.
+通常、Emacsはまず@code{minor-mode-map-alist}で指定される順に
+マイナモードキーマップでキーを探します。
+キーに対するバインディングがなければ、
+Emacsはローカルキーマップで探します。
+そこにもバインディングがなければ、
+Emacsはグローバルキーマップで探します。
+しかし、@code{overriding-local-map}が@code{nil}以外であれば、
+Emacsはまずそのキーマップで探してから、
+グローバルキーマップで探します。
+
+@c @cindex major mode keymap
+@cindex メジャーモードのキーマップ
+@c   Since every buffer that uses the same major mode normally uses the
+@c same local keymap, you can think of the keymap as local to the mode.  A
+@c change to the local keymap of a buffer (using @code{local-set-key}, for
+@c example) is seen also in the other buffers that share that keymap.
+同じメジャーモードを使う各バッファは、通常、同じローカルキーマップを
+使うので、キーマップはモードにローカルであると考えることができます。
+（たとえば@code{local-set-key}を使って）バッファのローカルキーマップを
+修正すると、当該キーマップを共有している別のバッファでも
+その修正が見えます。
+
+@c   The local keymaps that are used for Lisp mode and some other major
+@c modes exist even if they have not yet been used.  These local maps are
+@c the values of variables such as @code{lisp-mode-map}.  For most major
+@c modes, which are less frequently used, the local keymap is constructed
+@c only when the mode is used for the first time in a session.
+Lispモードや他の数個のメジャーモードで使われるローカルキーマップは、
+それらのモードがまだ使われていなくても存在します。
+そのようなローカルキーマップは、@code{lisp-mode-map}などの変数の値です。
+使用頻度の低いほとんどのメジャーモードでは、
+セッションで始めてそのモードを使ったときに
+ローカルキーマップを作成します。
+
+@c   The minibuffer has local keymaps, too; they contain various completion
+@c and exit commands.  @xref{Intro to Minibuffers}.
+ミニバッファにもローカルキーマップがあります。
+それにはさまざまな補完コマンドや脱出コマンドが含まれます。
+@xref{Intro to Minibuffers}。
+
+@c   Emacs has other keymaps that are used in a different way---translating
+@c events within @code{read-key-sequence}.  @xref{Translating Input}.
+Emacsには、別の用途のキーマップもあります。
+@code{read-key-sequence}でイベントを変換するためのものです。
+@xref{Translating Input}。
+
+@c   @xref{Standard Keymaps}, for a list of standard keymaps.
+標準的なキーマップの一覧については@xref{Standard Keymaps}。
+
+@defvar global-map
+@c This variable contains the default global keymap that maps Emacs
+@c keyboard input to commands.  The global keymap is normally this keymap.
+@c The default global keymap is a full keymap that binds
+@c @code{self-insert-command} to all of the printing characters.
+この変数は、Emacsがキーボード入力をコマンドに対応させるための
+デフォルトのグローバルキーマップを保持する。
+グローバルキーマップは、通常、このキーマップである。
+デフォルトのグローバルキーマップは、
+すべての印字文字に@code{self-insert-command}をバインドする
+完全なキーマップである。
+
+@c It is normal practice to change the bindings in the global map, but you
+@c should not assign this variable any value other than the keymap it starts
+@c out with.
+グローバルマップのバインディングを修正することは実用的ですが、
+この変数には、動作開始時のキーマップ以外の値は設定しないこと。
+@end defvar
+
+@defun current-global-map
+@c This function returns the current global keymap.  This is the
+@c same as the value of @code{global-map} unless you change one or the
+@c other.
+この関数は、現在のグローバルキーマップを返す。
+@code{global-map}を変更していなければ、
+これは@code{global-map}の値と同じである。
+
+@example
+@group
+(current-global-map)
+@result{} (keymap [set-mark-command beginning-of-line @dots{} 
+            delete-backward-char])
+@end group
+@end example
+@end defun
+
+@defun current-local-map
+@c This function returns the current buffer's local keymap, or @code{nil}
+@c if it has none.  In the following example, the keymap for the
+@c @samp{*scratch*} buffer (using Lisp Interaction mode) is a sparse keymap
+@c in which the entry for @key{ESC}, @sc{ASCII} code 27, is another sparse
+@c keymap.
+この関数は、カレントバッファのローカルキーマップを返す。
+なければ@code{nil}を返す。
+つぎの例では、（lisp対話モードを使っている）バッファ@samp{*scratch*}の
+キーマップは疎なキーマップであり、
+@sc{ASCII}コード27の@key{ESC}に対する指定も別の疎なキーマップである。
+
+@example
+@group
+(current-local-map)
+@result{} (keymap 
+    (10 . eval-print-last-sexp) 
+    (9 . lisp-indent-line) 
+    (127 . backward-delete-char-untabify) 
+@end group
+@group
+    (27 keymap 
+        (24 . eval-defun) 
+        (17 . indent-sexp)))
+@end group
+@end example
+@end defun
+
+@defun current-minor-mode-maps
+@c This function returns a list of the keymaps of currently enabled minor modes.
+この関数は、現在オンになっているマイナモードのキーマップのリストを返す。
+@end defun
+
+@defun use-global-map keymap
+@c This function makes @var{keymap} the new current global keymap.  It
+@c returns @code{nil}.
+この関数は、キーマップ@var{keymap}を新たな現在のグローバルキーマップとする。
+これは@code{nil}を返す。
+
+@c It is very unusual to change the global keymap.
+グローバルキーマップを変更することは、とうてい普通のことではない。
+@end defun
+
+@defun use-local-map keymap
+@c This function makes @var{keymap} the new local keymap of the current
+@c buffer.  If @var{keymap} is @code{nil}, then the buffer has no local
+@c keymap.  @code{use-local-map} returns @code{nil}.  Most major mode
+@c commands use this function.
+この関数は、キーマップ@var{keymap}をカレントバッファの
+新たなローカルキーマップとする。
+@var{keymap}が@code{nil}であると、
+バッファにはローカルキーマップがなくなる。
+@code{use-local-map}は@code{nil}を返す。
+ほとんどのメジャーモードコマンドは、この関数を使う。
+@end defun
+
+@c Emacs 19 feature
+@defvar minor-mode-map-alist
+@c This variable is an alist describing keymaps that may or may not be
+@c active according to the values of certain variables.  Its elements look
+@c like this:
+この変数は、変数の値に応じて活性になっている／いないキーマップを
+記述する連想リストである。
+その要素はつぎの形である。
+
+@example
+(@var{variable} . @var{keymap})
+@end example
+
+@c The keymap @var{keymap} is active whenever @var{variable} has a
+@c non-@code{nil} value.  Typically @var{variable} is the variable that
+@c enables or disables a minor mode.  @xref{Keymaps and Minor Modes}.
+変数@var{variable}の値が@code{nil}以外であれば、
+キーマップ@var{keymap}は活性である。
+典型的には、@var{variable}はマイナモードをオン／オフする変数である。
+@pxref{Keymaps and Minor Modes}。
+
+@c Note that elements of @code{minor-mode-map-alist} do not have the same
+@c structure as elements of @code{minor-mode-alist}.  The map must be the
+@c @sc{cdr} of the element; a list with the map as the @sc{cadr} will not
+@c do.  The @sc{cadr} can be either a keymap (a list) or a symbol
+@c whose function definition is a keymap.
+@code{minor-mode-map-alist}の要素と@code{minor-mode-alist}の要素とは、
+異なる構造であることに注意してほしい。
+キーマップは要素の@sc{cdr}である必要があり、
+要素の@sc{cadr}がキーマップであるようなリストではだめである。
+@sc{cadr}は、（リストの）キーマップであるか、
+関数定義がキーマップであるシンボルである。
+
+@c When more than one minor mode keymap is active, their order of priority
+@c is the order of @code{minor-mode-map-alist}.  But you should design
+@c minor modes so that they don't interfere with each other.  If you do
+@c this properly, the order will not matter.
+複数のマイナモードキーマップが活性な場合、
+それらの優先順位は、@code{minor-mode-map-alist}での順番である。
+読者は、互いに干渉しないようにマイナモードを設計する必要がある。
+正しくできていれば、順序は関係ないはずである。
+
+@c See @ref{Keymaps and Minor Modes}, for more information about minor
+@c modes.  See also @code{minor-mode-key-binding} (@pxref{Functions for Key
+@c Lookup}).
+マイナモードについて詳しくは@ref{Keymaps and Minor Modes}を参照。
+@code{minor-mode-key-binding}（@pxref{Functions for Key Lookup}）も参照のこと。
+@end defvar
+
+@defvar minor-mode-overriding-map-alist
+@tindex minor-mode-overriding-map-alist
+@c This variable allows major modes to override the key bindings for
+@c particular minor modes.  The elements of this alist look like the
+@c elements of @code{minor-mode-map-alist}: @code{(@var{variable}
+@c . @var{keymap})}.
+この変数は、メジャーモードから特定のマイナモード向けのキーバインディングを
+無効にするためのものである。
+この連想リストの要素は、@code{minor-mode-map-alist}の要素と同じ形で、
+@code{(@var{variable} . @var{keymap})}である。
+
+@c If a variable appears as an element of
+@c @code{minor-mode-overriding-map-alist}, the map specified by that
+@c element totally replaces any map specified for the same variable in
+@c @code{minor-mode-map-alist}.
+@code{minor-mode-overriding-map-alist}の要素として変数が現れると、
+当該要素が指定するキーマップで、
+@code{minor-mode-map-alist}内の同じ変数で指定したキーマップを
+完全に置き換える。
+
+@c @code{minor-mode-overriding-map-alist} is automatically buffer-local in
+@c all buffers.
+@code{minor-mode-overriding-map-alist}は、すべてのバッファにおいて、
+自動的にバッファにローカルになる。
+@end defvar
+
+@defvar overriding-local-map
+@c If non-@code{nil}, this variable holds a keymap to use instead of the
+@c buffer's local keymap and instead of all the minor mode keymaps.  This
+@c keymap, if any, overrides all other maps that would have been active,
+@c except for the current global map.
+@code{nil}以外の値であると、この変数は、
+バッファのローカルキーマップ、ならびに、すべてのマイナモードキーマップの
+かわりに用いるキーマップを保持する。
+このキーマップは、現在のグローバルキーマップを除く、
+他のすべての活性なキーマップを無効にする。
+@end defvar
+
+@defvar overriding-terminal-local-map
+@c If non-@code{nil}, this variable holds a keymap to use instead of
+@c @code{overriding-local-map}, the buffer's local keymap and all the minor
+@c mode keymaps.
+@code{nil}以外であると、この変数は、
+@code{overriding-local-map}、および、バッファのローカルキーマップと
+すべてのマイナモードキーマップのかわりに用いるキーマップを保持する。
+
+@c This variable is always local to the current terminal and cannot be
+@c buffer-local.  @xref{Multiple Displays}.  It is used to implement
+@c incremental search mode.
+この変数はつねに現在の端末に対してローカルであり、
+バッファに対してローカルにはならない。
+@pxref{Multiple Displays}。
+これはインクリメンタルサーチモードの実装に使われている。
+@end defvar
+
+@defvar overriding-local-map-menu-flag
+@c If this variable is non-@code{nil}, the value of
+@c @code{overriding-local-map} or @code{overriding-terminal-local-map} can
+@c affect the display of the menu bar.  The default value is @code{nil}, so
+@c those map variables have no effect on the menu bar.
+この変数が@code{nil}以外であれば、
+@code{overriding-local-map}や@code{overriding-terminal-local-map}の値は、
+メニューバーの表示に影響する。
+デフォルト値は@code{nil}であり、
+そのため、それらのマップはメニューバーには影響しない。
+
+@c Note that these two map variables do affect the execution of key
+@c sequences entered using the menu bar, even if they do not affect the
+@c menu bar display.  So if a menu bar key sequence comes in, you should
+@c clear the variables before looking up and executing that key sequence.
+@c Modes that use the variables would typically do this anyway; normally
+@c they respond to events that they do not handle by ``unreading'' them and
+@c exiting.
+これら2つのキーマップ変数は、メニューバーの表示に影響しないときであっても、
+メニューバーを用いて入力したキー列の実行には影響することに注意してほしい。
+そのため、メニューバーのキー列が到着したら、
+そのキー列を探索し実行するまえに、これらの変数をクリアすべきである。
+これらの変数を使うモードでは、典型的にはつぎのようにする。
+つまり、モードで処理できないイベントは『読み戻し』てモードから抜ける。
+@end defvar
+
+@defvar special-event-map
+@c This variable holds a keymap for special events.  If an event type has a
+@c binding in this keymap, then it is special, and the binding for the
+@c event is run directly by @code{read-event}.  @xref{Special Events}.
+この変数は特殊イベント用のキーマップを保持する。
+イベント型のバインディングがこのキーマップにあれば、
+そのイベントは特殊イベントであり、
+@code{read-event}が当該イベントのバインディングを直接実行する。
+@pxref{Special Events}。
+@end defvar
+
+@node Key Lookup
+@c @section Key Lookup
+@section キー探索
+@c @cindex key lookup
+@c @cindex keymap entry
+@cindex キー探索
+@cindex キーマップの項目
+
+@c   @dfn{Key lookup} is the process of finding the binding of a key
+@c sequence from a given keymap.  Actual execution of the binding is not
+@c part of key lookup.
+@dfn{キー探索}（key lookup）とは、
+与えられたキーマップからキー列のバインディングを捜し出す処理です。
+バインディングを実際に実行することは、キー探索ではありません。
+
+@c   Key lookup uses just the event type of each event in the key sequence;
+@c the rest of the event is ignored.  In fact, a key sequence used for key
+@c lookup may designate mouse events with just their types (symbols)
+@c instead of with entire mouse events (lists).  @xref{Input Events}.  Such
+@c a ``key-sequence'' is insufficient for @code{command-execute} to run,
+@c but it is sufficient for looking up or rebinding a key.
+キー探索では、キー列の各イベントのイベント型のみを使い、
+イベントの他の部分は無視します。
+実際、キー探索に使われるキー列では、
+マウスイベント全体（リスト）ではなく
+そのイベント型（シンボル）のみを指定します。
+@xref{Input Events}。
+そのような『キー列』は、@code{command-execute}の動作には不十分ですが、
+キーの探索や再バインディングには十分です。
+
+@c   When the key sequence consists of multiple events, key lookup
+@c processes the events sequentially: the binding of the first event is
+@c found, and must be a keymap; then the second event's binding is found in
+@c that keymap, and so on until all the events in the key sequence are used
+@c up.  (The binding thus found for the last event may or may not be a
+@c keymap.)  Thus, the process of key lookup is defined in terms of a
+@c simpler process for looking up a single event in a keymap.  How that is
+@c done depends on the type of object associated with the event in that
+@c keymap.
+キー列が複数のイベントから構成される場合、
+キー探索ではイベントを順番に処理します。
+先頭のイベントのバインディングを探しますが、
+それはキーマップであるはずです。
+続いて、そのキーマップから2番目のイベントのバインディングを探します。
+これをキー列のすべてのイベントを使い尽くすまで行います。
+（このように探した最後のイベントに対するバインディングは、
+キーマップであたっりそうでないかもしれない。）
+つまり、キー探索処理は、
+キーマップから単一イベントを探索するという単純な処理として定義できます。
+これがどのように行われるかは、
+キーマップ内のイベントに対応付けられたオブジェクトの型に依存します。
+
+@c   Let's use the term @dfn{keymap entry} to describe the value found by
+@c looking up an event type in a keymap.  (This doesn't include the item
+@c string and other extra elements in menu key bindings, because
+@c @code{lookup-key} and other key lookup functions don't include them in
+@c the returned value.)  While any Lisp object may be stored in a keymap as
+@c a keymap entry, not all make sense for key lookup.  Here is a table of
+@c the meaningful kinds of keymap entries:
+キーマップでイベント型を探してみつかった値のことを
+@dfn{キーマップ項目}（keymap entry）という単語で表します。
+（これには、メニューキーバインディングにある
+項目文字列や他の追加要素を含まない。
+というのは、@code{lookup-key}や他のキー探索関数は、
+それらを戻り値として返さないからである。）
+キーマップ項目として任意のLispオブジェクトをキーマップに保存できますが、
+キー探索においてそのすべてが意味を持つとは限りません。
+意味のある種類のキー項目をつぎに示します。
+
+@table @asis
+@item @code{nil}
+@c @cindex @code{nil} in keymap
+@cindex @code{nil}、キーマップ
+@cindex キーマップ内の@code{nil}
+@c @code{nil} means that the events used so far in the lookup form an
+@c undefined key.  When a keymap fails to mention an event type at all, and
+@c has no default binding, that is equivalent to a binding of @code{nil}
+@c for that event type.
+@code{nil}は、探索に使ったここまでのイベントが
+未定義キーを構成することを意味する。
+キーマップにイベント型が記載されてなく、かつ、
+デフォルトのバインディングもない場合には、
+そのイベント型に対しては、バインディングが@code{nil}であるのと等価。
+
+@item @var{command}
+@c @cindex command in keymap
+@cindex コマンド、キーマップ
+@cindex キーマップ内のコマンド
+@c The events used so far in the lookup form a complete key,
+@c and @var{command} is its binding.  @xref{What Is a Function}.
+探索に使ったここまでのイベントは完全なキーを構成し、
+そのバインディングはコマンド@var{command}である。
+@pxref{What Is a Function}。
+
+@item @var{array}
+@c @cindex string in keymap
+@cindex 文字列、キーマップ
+@cindex キーマップ内の文字列
+@c The array (either a string or a vector) is a keyboard macro.  The events
+@c used so far in the lookup form a complete key, and the array is its
+@c binding.  See @ref{Keyboard Macros}, for more information.
+配列（文字列やベクトル）は、キーボードマクロである。
+探索に使ったここまでのイベントは完全なキーを構成し、
+そのバインディングは配列@var{array}である。
+詳しくは@ref{Keyboard Macros}を参照。
+
+@item @var{keymap}
+@c @cindex keymap in keymap
+@cindex キーマップ、キーマップ
+@cindex キーマップ内のキーマップ
+@c The events used so far in the lookup form a prefix key.  The next
+@c event of the key sequence is looked up in @var{keymap}.
+探索に使ったここまでのイベントはプレフィックスキーを構成する。
+キー列のつぎのイベントはこのキーマップ@var{keymap}で探す。
+
+@item @var{list}
+@c @cindex list in keymap
+@cindex リスト、キーマップ
+@cindex キーマップ内のリスト
+@c The meaning of a list depends on the types of the elements of the list.
+リストの意味は、リストの要素の型に依存する。
+
+@itemize @bullet
+@item
+@c If the @sc{car} of @var{list} is the symbol @code{keymap}, then the list
+@c is a keymap, and is treated as a keymap (see above).
+@var{list}の@sc{car}がシンボル@code{keymap}であれば、
+そのリストはキーマップであり、キーマップとして扱われる（上記参照）。
+
+@item
+@c @cindex @code{lambda} in keymap
+@cindex @code{lambda}、キーマップ
+@cindex キーマップ内の@code{lambda}
+@c If the @sc{car} of @var{list} is @code{lambda}, then the list is a
+@c lambda expression.  This is presumed to be a command, and is treated as
+@c such (see above).
+@var{list}の@sc{car}がシンボル@code{lambda}であれば、
+そのリストはラムダ式である。
+これはコマンドとみなされ、そのように扱われる（上記参照）。
+
+@item
+@c If the @sc{car} of @var{list} is a keymap and the @sc{cdr} is an event
+@c type, then this is an @dfn{indirect entry}:
+@var{list}の@sc{car}がキーマップであり、@sc{cdr}がイベント型であると、
+これは@dfn{間接項目}（indirect entry）である。
+
+@example
+(@var{othermap} . @var{othertype})
+@end example
+
+@c When key lookup encounters an indirect entry, it looks up instead the
+@c binding of @var{othertype} in @var{othermap} and uses that.
+キー探索中に間接項目に出会うと、
+@var{othertype}のバインディングを@var{othermap}で探しそれを用いる。
+
+@c This feature permits you to define one key as an alias for another key.
+@c For example, an entry whose @sc{car} is the keymap called @code{esc-map}
+@c and whose @sc{cdr} is 32 (the code for @key{SPC}) means, ``Use the global
+@c binding of @kbd{Meta-@key{SPC}}, whatever that may be.''
+この機能により、あるキーを別のキーに対する別名として定義できる。
+たとえば、@sc{car}が@code{esc-map}と呼ばれるキーマップであり
+@sc{cdr}が32（@key{SPC}の文字コード）である項目は、
+『@kbd{Meta-@key{SPC}}のグローバルバインディングを
+それがなんであれ使う』という意味になる。
+@end itemize
+
+@item @var{symbol}
+@c @cindex symbol in keymap
+@cindex シンボル、キーマップ
+@cindex キーマップ内のシンボル
+@c The function definition of @var{symbol} is used in place of
+@c @var{symbol}.  If that too is a symbol, then this process is repeated,
+@c any number of times.  Ultimately this should lead to an object that is
+@c a keymap, a command, or a keyboard macro.  A list is allowed if it is a
+@c keymap or a command, but indirect entries are not understood when found
+@c via symbols.
+シンボル@var{symbol}のかわりにその関数定義を使う。
+それがまたシンボルであると、この処理を何回でも繰り返す。
+最終的にこれは、キーマップ、コマンド、キーボードマクロの
+いずれかのオブジェクトになるはずである。
+キーマップやコマンドであるリストは許されるが、
+シンボルを介しては間接項目は使えない。
+
+@c Note that keymaps and keyboard macros (strings and vectors) are not
+@c valid functions, so a symbol with a keymap, string, or vector as its
+@c function definition is invalid as a function.  It is, however, valid as
+@c a key binding.  If the definition is a keyboard macro, then the symbol
+@c is also valid as an argument to @code{command-execute}
+@c (@pxref{Interactive Call}).
+キーマップやキーボードマクロ（文字列やベクトル）は正しい関数ではないので、
+関数定義としてキーマップ、文字列、ベクトルを持つシンボルは、
+正しい関数ではない。
+しかし、キーバインディングとしては正しい。
+定義がキーボードマクロである場合には、そのシンボルは
+@code{command-execute}の引数としても正しい
+（@pxref{Interactive Call}）。
+
+@c @cindex @code{undefined} in keymap
+@cindex @code{undefined}、キーマップ
+@cindex キーマップ内の@code{undefined}
+@c The symbol @code{undefined} is worth special mention: it means to treat
+@c the key as undefined.  Strictly speaking, the key is defined, and its
+@c binding is the command @code{undefined}; but that command does the same
+@c thing that is done automatically for an undefined key: it rings the bell
+@c (by calling @code{ding}) but does not signal an error.
+シンボル@code{undefined}について特記しておく。
+これは、キーを未定義として扱うことを意味する。
+正確には、キーは定義されており、
+そのバインディングはコマンド@code{undefined}である。
+しかし、そのコマンドは、未定義キーに対して自動的に行われることと
+同じことを行う。
+つまり、（@code{ding}を呼び出して）ベルを鳴らすが、
+エラーは通知しない。
+
+@c @cindex preventing prefix key
+@cindex プレフィックスキーの禁止
+@c @code{undefined} is used in local keymaps to override a global key
+@c binding and make the key ``undefined'' locally.  A local binding of
+@c @code{nil} would fail to do this because it would not override the
+@c global binding.
+@code{undefined}は、グローバルキーバインディングを無効にして
+キーをローカルに『未定義』にするためにローカルキーマップで使われる。
+@code{nil}のローカルバインディングでは、
+グローバルバインディングを無効にしないため、こうはならない。
+
+@c @item @var{anything else}
+@item @var{その他}
+@c If any other type of object is found, the events used so far in the
+@c lookup form a complete key, and the object is its binding, but the
+@c binding is not executable as a command.
+その他の型のオブジェクトであると、
+探索に使ったここまでのイベントは完全なキーを構成し、
+当該オブジェクトがそのバインディングであるが、
+当該バインディングはコマンドとしては実行できない。
+@end table
+
+@c   In short, a keymap entry may be a keymap, a command, a keyboard macro,
+@c a symbol that leads to one of them, or an indirection or @code{nil}.
+@c Here is an example of a sparse keymap with two characters bound to
+@c commands and one bound to another keymap.  This map is the normal value
+@c of @code{emacs-lisp-mode-map}.  Note that 9 is the code for @key{TAB},
+@c 127 for @key{DEL}, 27 for @key{ESC}, 17 for @kbd{C-q} and 24 for
+@c @kbd{C-x}.
+まとめると、キー項目は、キーマップ、コマンド、キーボードマクロ、
+これら3つのいずれかになるシンボル、間接項目、@code{nil}です。
+2つの文字をコマンドに、1つを別のキーマップに対応付ける
+疎なキーマップの例を示します。
+このキーマップは、@code{emacs-lisp-mode-map}の通常の値です。
+ここで、それぞれ、9は@key{TAB}、
+127は@key{DEL}、27は@key{ESC}、17は@kbd{C-q}、
+24は@kbd{C-x}の文字コードであることに注意してください。
+
+@example
+@group
+(keymap (9 . lisp-indent-line)
+        (127 . backward-delete-char-untabify)
+        (27 keymap (17 . indent-sexp) (24 . eval-defun)))
+@end group
+@end example
+
+@node Functions for Key Lookup
+@c @section Functions for Key Lookup
+@section キー探索関数
+
+@c   Here are the functions and variables pertaining to key lookup.
+ここでは、キー探索に関わる関数や変数について述べます。
+
+@defun lookup-key keymap key &optional accept-defaults
+@c This function returns the definition of @var{key} in @var{keymap}.  All
+@c the other functions described in this chapter that look up keys use
+@c @code{lookup-key}.  Here are examples:
+この関数はキーマップ@var{keymap}における@var{key}の定義を返す。
+本章で述べる他の関数は、@code{lookup-key}を用いてキーを探す。
+例を示す。
+
+@example
+@group
+(lookup-key (current-global-map) "\C-x\C-f")
+    @result{} find-file
+@end group
+@group
+(lookup-key (current-global-map) "\C-x\C-f12345")
+    @result{} 2
+@end group
+@end example
+
+@c If the string or vector @var{key} is not a valid key sequence according
+@c to the prefix keys specified in @var{keymap}, it must be ``too long''
+@c and have extra events at the end that do not fit into a single key
+@c sequence.  Then the value is a number, the number of events at the front
+@c of @var{key} that compose a complete key.
+文字列やベクトルである@var{key}が、
+@var{keymap}で指定されたプレフィックスキーに対して正しいキー列でなければ、
+@var{key}は『長すぎる』のであって、
+1つのキー列に収まらない余分なイベントが末尾にある。
+その場合、戻り値は数であり、
+完全なキーを構成する@var{key}の先頭からのイベント数を表す。
+
+@c @c Emacs 19 feature
+@c If @var{accept-defaults} is non-@code{nil}, then @code{lookup-key}
+@c considers default bindings as well as bindings for the specific events
+@c in @var{key}.  Otherwise, @code{lookup-key} reports only bindings for
+@c the specific sequence @var{key}, ignoring default bindings except when
+@c you explicitly ask about them.  (To do this, supply @code{t} as an
+@c element of @var{key}; see @ref{Format of Keymaps}.)
+@var{accept-defaults}が@code{nil}以外であると、
+@code{lookup-key}は、@var{key}の特定のイベントに
+対するバインディングだけでなく、
+デフォルトのバインディングも考慮する。
+さもなければ、@code{lookup-key}は、
+@var{key}の特定のイベントに対するバインディングだけを報告し、
+特に指定しない限りデフォルトのバインディングは無視する。
+（それには、@var{key}の要素として@code{t}を与える。
+@ref{Format of Keymaps}を参照。）
+
+@c If @var{key} contains a meta character, that character is implicitly
+@c replaced by a two-character sequence: the value of
+@c @code{meta-prefix-char}, followed by the corresponding non-meta
+@c character.  Thus, the first example below is handled by conversion into
+@c the second example.
+@var{key}にメタ文字が含まれる場合、
+当該文字は暗黙のうちに2文字の列、
+つまり、@code{meta-prefix-char}の値と対応する非メタ文字
+に置き換えられる。
+したがって、つぎの最初の例は、2番目の例に変換して処理される。
+
+@example
+@group
+(lookup-key (current-global-map) "\M-f")
+    @result{} forward-word
+@end group
+@group
+(lookup-key (current-global-map) "\ef")
+    @result{} forward-word
+@end group
+@end example
+
+@c Unlike @code{read-key-sequence}, this function does not modify the
+@c specified events in ways that discard information (@pxref{Key Sequence
+@c Input}).  In particular, it does not convert letters to lower case and
+@c it does not change drag events to clicks.
+@code{read-key-sequence}と異なり、
+この関数は、情報を欠落するようには指定されたイベントを修正しない
+（@pxref{Key Sequence Input}）。
+特に、文字を小文字に変換したり、
+ドラッグイベントをクリックイベントに変換したりはしない。
+@end defun
+
+@c @deffn Command undefined
+@deffn コマンド undefined
+@c Used in keymaps to undefine keys.  It calls @code{ding}, but does
+@c not cause an error.
+キーを未定義にするためにキーマップで使われる。
+@code{ding}を呼び出すが、エラーにはならない。
+@end deffn
+
+@defun key-binding key &optional accept-defaults
+@c This function returns the binding for @var{key} in the current
+@c keymaps, trying all the active keymaps.  The result is @code{nil} if
+@c @var{key} is undefined in the keymaps.
+この関数は、すべての活性なキーマップを試して
+@var{key}に対するバインディングを返す。
+キーマップで@var{key}が未定義であると結果は@code{nil}。
+
+@c @c Emacs 19 feature
+@c The argument @var{accept-defaults} controls checking for default
+@c bindings, as in @code{lookup-key} (above).
+引数@var{accept-defaults}は、@code{lookup-key}（上記）と同様に、
+デフォルトのバインディングを調べるかどうか制御する。
+
+@c An error is signaled if @var{key} is not a string or a vector.
+@var{key}が文字列でもベクトルでもないとエラーを通知する。
+
+@example
+@group
+(key-binding "\C-x\C-f")
+    @result{} find-file
+@end group
+@end example
+@end defun
+
+@defun local-key-binding key &optional accept-defaults
+@c This function returns the binding for @var{key} in the current
+@c local keymap, or @code{nil} if it is undefined there.
+この関数は、現在のローカルキーマップから
+@var{key}に対するバインディングを返す。
+未定義ならば@code{nil}を返す。
+
+@c @c Emacs 19 feature
+@c The argument @var{accept-defaults} controls checking for default bindings,
+@c as in @code{lookup-key} (above).
+引数@var{accept-defaults}は、@code{lookup-key}（上記）と同様に、
+デフォルトのバインディングを調べるかどうか制御する。
+@end defun
+
+@defun global-key-binding key &optional accept-defaults
+@c This function returns the binding for command @var{key} in the
+@c current global keymap, or @code{nil} if it is undefined there.
+この関数は、現在のグローバルキーマップから
+@var{key}に対するバインディングを返す。
+未定義ならば@code{nil}を返す。
+
+@c @c Emacs 19 feature
+@c The argument @var{accept-defaults} controls checking for default bindings,
+@c as in @code{lookup-key} (above).
+引数@var{accept-defaults}は、@code{lookup-key}（上記）と同様に、
+デフォルトのバインディングを調べるかどうか制御する。
+@end defun
+
+@c Emacs 19 feature
+@defun minor-mode-key-binding key &optional accept-defaults
+@c This function returns a list of all the active minor mode bindings of
+@c @var{key}.  More precisely, it returns an alist of pairs
+@c @code{(@var{modename} . @var{binding})}, where @var{modename} is the
+@c variable that enables the minor mode, and @var{binding} is @var{key}'s
+@c binding in that mode.  If @var{key} has no minor-mode bindings, the
+@c value is @code{nil}.
+この関数は、すべてのオンになっているマイナモードにおける
+@var{key}のバインディングのリストを返す。
+より正確には、対@code{(@var{modename} . @var{binding})}を要素とする
+連想リストを返す。
+ここで、@var{modename}はマイナモードをオンにする変数であり、
+@var{binding}は当該モードにおける@var{key}のバインディングである。
+@var{key}にマイナモードでのバインディングがなければ、
+値は@code{nil}である。
+
+@c If the first binding found is not a prefix definition (a keymap or a
+@c symbol defined as a keymap), all subsequent bindings from other minor
+@c modes are omitted, since they would be completely shadowed.  Similarly,
+@c the list omits non-prefix bindings that follow prefix bindings.
+最初にみつかったバインディングがプレフィックスの定義
+（キーマップかキーマップとしてのシンボル）でなければ、
+残りのマイナモードからのバインディングは完全に隠されてしまうので
+それらは省略する。
+同様に、プレフィックスバインディングに
+続く非プレフィックスバインディングも省略する。
+
+@c The argument @var{accept-defaults} controls checking for default
+@c bindings, as in @code{lookup-key} (above).
+引数@var{accept-defaults}は、@code{lookup-key}（上記）と同様に、
+デフォルトのバインディングを調べるかどうか制御する。
+@end defun
+
+@defvar meta-prefix-char
+@cindex @key{ESC}
+@c This variable is the meta-prefix character code.  It is used when
+@c translating a meta character to a two-character sequence so it can be
+@c looked up in a keymap.  For useful results, the value should be a prefix
+@c event (@pxref{Prefix Keys}).  The default value is 27, which is the
+@c @sc{ASCII} code for @key{ESC}.
+この変数は、メタプレフィックス文字の文字コードである。
+メタ文字をキーマップで探索するために2文字列に変換するときに使われる。
+結果が有用であるためには、
+この値はプレフィックスイベント（@pxref{Prefix Keys}）であるべきである。
+デフォルト値は27、@key{ESC}の@sc{ASCII}コードである。
+
+@c As long as the value of @code{meta-prefix-char} remains 27, key
+@c lookup translates @kbd{M-b} into @kbd{@key{ESC} b}, which is normally
+@c defined as the @code{backward-word} command.  However, if you set
+@c @code{meta-prefix-char} to 24, the code for @kbd{C-x}, then Emacs will
+@c translate @kbd{M-b} into @kbd{C-x b}, whose standard binding is the
+@c @code{switch-to-buffer} command.  Here is an illustration:
+@code{meta-prefix-char}の値が27である限り、
+キー探索では@kbd{M-b}を@kbd{@key{ESC} b}に変換し、
+通常、これはコマンド@code{backward-word}と定義されている。
+しかし、@code{meta-prefix-char}に@kbd{C-x}のコードである24を設定すると、
+Emacsは@kbd{M-b}を@kbd{C-x b}に変換し、
+その標準のバインディングはコマンド@code{switch-to-buffer}である。
+これを以下に示す。
+
+@smallexample
+@group
+@c meta-prefix-char                    ; @r{The default value.}
+meta-prefix-char                    ; @r{デフォルト値}
+     @result{} 27
+@end group
+@group
+(key-binding "\M-b")
+     @result{} backward-word
+@end group
+@group
+@c ?\C-x                               ; @r{The print representation}
+@c      @result{} 24                          ;   @r{of a character.}
+?\C-x                               ; @r{文字の表示表現}
+     @result{} 24
+@end group
+@group
+(setq meta-prefix-char 24)
+     @result{} 24      
+@end group
+@group
+(key-binding "\M-b")
+@c      @result{} switch-to-buffer            ; @r{Now, typing @kbd{M-b} is}
+@c                                     ;   @r{like typing @kbd{C-x b}.}
+    @result{} switch-to-buffer            ; @r{ここで@kbd{M-b}と打つと}
+                                    ; @r{@kbd{C-x b}と打つのと同じ}
+
+@c (setq meta-prefix-char 27)          ; @r{Avoid confusion!}
+@c      @result{} 27                          ; @r{Restore the default value!}
+(setq meta-prefix-char 27)          ; @r{混乱を避けるために}
+     @result{} 27                         ; @r{デフォルト値に戻す！}
+@end group
+@end smallexample
+@end defvar
+
+@node Changing Key Bindings
+@c @section Changing Key Bindings
+@section キーバインディングの変更
+@c @cindex changing key bindings
+@c @cindex rebinding
+@cindex キーバインディングの変更
+@cindex 再バインディング
+
+@c   The way to rebind a key is to change its entry in a keymap.  If you
+@c change a binding in the global keymap, the change is effective in all
+@c buffers (though it has no direct effect in buffers that shadow the
+@c global binding with a local one).  If you change the current buffer's
+@c local map, that usually affects all buffers using the same major mode.
+@c The @code{global-set-key} and @code{local-set-key} functions are
+@c convenient interfaces for these operations (@pxref{Key Binding
+@c Commands}).  You can also use @code{define-key}, a more general
+@c function; then you must specify explicitly the map to change.
+キーを再バインドするには、キーマップにおける当該項目を変更します。
+グローバルキーマップでバインディングを変更すると、
+その変更はすべてのバッファで効果を発揮します
+（ただし、ローカルキーマップでグローバルバインディングを
+隠しているバッファでは直接の効果はない）。
+カレントバッファのローカルキーマップで変更すると、
+通常、同じメジャーモードを使っているすべてのバッファに影響します。
+関数@code{global-set-key}や@code{local-set-key}は、
+これらの操作を行うための便利なインターフェイスです
+（@pxref{Key Binding Commands}）。
+より汎用の関数@code{define-key}を使うこともできますが、
+変更対象のキーマップを明示する必要があります。
+
+@c @cindex meta character key constants
+@c @cindex control character key constants
+@cindex メタ文字キー定数
+@cindex コントロール文字キー定数
+@c   In writing the key sequence to rebind, it is good to use the special
+@c escape sequences for control and meta characters (@pxref{String Type}).
+@c The syntax @samp{\C-} means that the following character is a control
+@c character and @samp{\M-} means that the following character is a meta
+@c character.  Thus, the string @code{"\M-x"} is read as containing a
+@c single @kbd{M-x}, @code{"\C-f"} is read as containing a single
+@c @kbd{C-f}, and @code{"\M-\C-x"} and @code{"\C-\M-x"} are both read as
+@c containing a single @kbd{C-M-x}.  You can also use this escape syntax in
+@c vectors, as well as others that aren't allowed in strings; one example
+@c is @samp{[?\C-\H-x home]}.  @xref{Character Type}.
+キー列の再バインドを書くときには、
+コントロール文字やメタ文字向けの
+特別なエスケープシーケンスを使うのがよいです（@pxref{String Type}）。
+構文@samp{\C-}は後続の文字がコントロール文字であること、
+構文@samp{\M-}は後続の文字がメタ文字であることを意味します。
+したがって、文字列@code{"\M-x"}は単一の@kbd{M-x}を含むと読まれ、
+@code{"\C-f"}は単一の@kbd{C-f}を含むと読まれ、
+@code{"\M-\C-x"}や@code{"\C-\M-x"}はいずれも単一の@kbd{C-M-x}を
+含むと読まれます。
+同じエスケープシーケンスは、
+ベクトルでも使え、文字列が許されない他の場面でも使えます。
+たとえば、@samp{[?\C-\H-x home]}です。
+@xref{Character Type}。
+
+@c   The key definition and lookup functions accept an alternate syntax for
+@c event types in a key sequence that is a vector: you can use a list
+@c containing modifier names plus one base event (a character or function
+@c key name).  For example, @code{(control ?a)} is equivalent to
+@c @code{?\C-a} and @code{(hyper control left)} is equivalent to
+@c @code{C-H-left}.  One advantage of such lists is that the precise
+@c numeric codes for the modifier bits don't appear in compiled files.
+キーを定義したり探索する関数では、
+ベクトルで表したキー列内のイベント型に対して別の構文、
+つまり、修飾子名と1つの基本イベント（文字やファンクションキー名）
+から成るリストを受け付けます。
+たとえば、@code{(control ?a)}は@code{?\C-a}に等価であり、
+@code{(hyper control left)}は@code{C-H-left}に等価です。
+このようなリストの利点の1つは、
+コンパイル済みのファイルに修飾ビットの数値が現れないことです。
+
+@c   For the functions below, an error is signaled if @var{keymap} is not a
+@c keymap or if @var{key} is not a string or vector representing a key
+@c sequence.  You can use event types (symbols) as shorthand for events
+@c that are lists.
+以下の関数では、@var{keymap}がキーマップでなかったり、
+@var{key}がキー列を表す文字列やベクトルでないと、エラーを通知します。
+リストであるイベントの省略形としてイベント型（シンボル）を使えます。
+
+@defun define-key keymap key binding
+@c This function sets the binding for @var{key} in @var{keymap}.  (If
+@c @var{key} is more than one event long, the change is actually made
+@c in another keymap reached from @var{keymap}.)  The argument
+@c @var{binding} can be any Lisp object, but only certain types are
+@c meaningful.  (For a list of meaningful types, see @ref{Key Lookup}.)
+@c The value returned by @code{define-key} is @var{binding}.
+この関数は、キーマップ@var{keymap}において
+キー@var{key}に対するバインディングを設定する。
+（@var{key}が複数イベントの場合、
+@var{keymap}から辿った別のキーマップが実際には変更される。）
+引数@var{binding}は任意のLispオブジェクトであるが、
+ある種の型のものだけが意味を持つ。
+（意味のある型の一覧については、@ref{Key Lookup}を参照。）
+@code{define-key}が返す値は@var{binding}である。
+
+@c @cindex invalid prefix key error
+@c @cindex key sequence error
+@cindex 不正なプレフィックスキーエラー
+@cindex キー列エラー
+@c Every prefix of @var{key} must be a prefix key (i.e., bound to a keymap)
+@c or undefined; otherwise an error is signaled.  If some prefix of
+@c @var{key} is undefined, then @code{define-key} defines it as a prefix
+@c key so that the rest of @var{key} can be defined as specified.
+@var{key}のおのおののプレフィックスはプレフィックスキーである
+（キーマップにある）か未定義であること。
+さもなければ、エラーを通知する。
+@var{key}のプレフィックスに未定義なものがあると、
+@code{define-key}は当該プレフィックスをプレフィックスキーと定義し、
+@var{key}の残りの部分を指定どおりに定義できるようにする。
+
+@c If there was previously no binding for @var{key} in @var{keymap}, the
+@c new binding is added at the beginning of @var{keymap}.  The order of
+@c bindings in a keymap makes no difference in most cases, but it does
+@c matter for menu keymaps (@pxref{Menu Keymaps}).
+@var{keymap}に@var{key}のバインディングがなければ、
+新たなバインディングを@var{keymap}の先頭に追加する。
+キーマップ内のバインディングの順序は多くの場合関係ないが、
+メニューキーマップでは意味を持つ（@pxref{Menu Keymaps}）。
+@end defun
+
+@c   Here is an example that creates a sparse keymap and makes a number of
+@c bindings in it:
+疎なキーマップを作成し、そこにバインディングを作る例を示します。
+
+@smallexample
+@group
+(setq map (make-sparse-keymap))
+    @result{} (keymap)
+@end group
+@group
+(define-key map "\C-f" 'forward-char)
+    @result{} forward-char
+@end group
+@group
+map
+    @result{} (keymap (6 . forward-char))
+@end group
+
+@group
+@c ;; @r{Build sparse submap for @kbd{C-x} and bind @kbd{f} in that.}
+;; @r{@kbd{C-x}用の疎なサブマップを作り、}
+;; @r{そこに@kbd{f}のバインディングを入れる}
+(define-key map "\C-xf" 'forward-word)
+    @result{} forward-word
+@end group
+@group
+map
+@result{} (keymap 
+    (24 keymap                ; @kbd{C-x}
+        (102 . forward-word)) ;      @kbd{f}
+    (6 . forward-char))       ; @kbd{C-f}
+@end group
+
+@group
+@c ;; @r{Bind @kbd{C-p} to the @code{ctl-x-map}.}
+;; @r{@kbd{C-p}を@code{ctl-x-map}にバインドする}
+(define-key map "\C-p" ctl-x-map)
+;; @code{ctl-x-map}
+@result{} [nil @dots{} find-file @dots{} backward-kill-sentence] 
+@end group
+
+@group
+@c ;; @r{Bind @kbd{C-f} to @code{foo} in the @code{ctl-x-map}.}
+;; @r{@code{ctl-x-map}で、@kbd{C-f}を@code{foo}にバインドする}
+(define-key map "\C-p\C-f" 'foo)
+@result{} 'foo
+@end group
+@group
+map
+@c @result{} (keymap     ; @r{Note @code{foo} in @code{ctl-x-map}.}
+@result{} (keymap     ; @r{@code{foo}は@code{ctl-x-map}の中にある}
+    (16 keymap [nil @dots{} foo @dots{} backward-kill-sentence])
+    (24 keymap 
+        (102 . forward-word))
+    (6 . forward-char))
+@end group
+@end smallexample
+
+@noindent
+@c Note that storing a new binding for @kbd{C-p C-f} actually works by
+@c changing an entry in @code{ctl-x-map}, and this has the effect of
+@c changing the bindings of both @kbd{C-p C-f} and @kbd{C-x C-f} in the
+@c default global map.
+@kbd{C-p C-f}に対する新しいバインディングは、
+実際には@code{ctl-x-map}の項目を変更していて、
+これには、@kbd{C-p C-f}とデフォルトのグローバルキーマップ内の
+@kbd{C-x C-f}の両方のバインディングを変更する効果がある
+ことに注意してください。
+
+@defun substitute-key-definition olddef newdef keymap &optional oldmap
+@c @cindex replace bindings
+@cindex バインディングの置き換え
+@c This function replaces @var{olddef} with @var{newdef} for any keys in
+@c @var{keymap} that were bound to @var{olddef}.  In other words,
+@c @var{olddef} is replaced with @var{newdef} wherever it appears.  The
+@c function returns @code{nil}.
+この関数は、@var{keymap}内の@var{olddef}にバインドされたキーの
+@var{olddef}を@var{newdef}に置き換える。
+いいかえると、@var{olddef}に出会うたびにそれを@var{newdef}に置き換える。
+関数は@code{nil}を返す。
+
+@c For example, this redefines @kbd{C-x C-f}, if you do it in an Emacs with
+@c standard bindings:
+たとえば、Emacsの標準のバインディングであると、
+つぎの例は@kbd{C-x C-f}を再定義する。
+
+@smallexample
+@group
+(substitute-key-definition 
+ 'find-file 'find-file-read-only (current-global-map))
+@end group
+@end smallexample
+
+@c @c Emacs 19 feature
+@c If @var{oldmap} is non-@code{nil}, then its bindings determine which
+@c keys to rebind.  The rebindings still happen in @var{keymap}, not in
+@c @var{oldmap}.  Thus, you can change one map under the control of the
+@c bindings in another.  For example,
+@var{oldmap}が@code{nil}以外であると、
+そのバインディングによってどのキーを再バインドするかを決定する。
+再バインディングは@var{keymap}で行い、@var{oldmap}ではない。
+つまり、別のキーマップ内のバインディングの制御のもとに、
+キーマップを変更できる。
+たとえば、
+
+@smallexample
+(substitute-key-definition
+  'delete-backward-char 'my-funny-delete
+  my-map global-map)
+@end smallexample
+
+@noindent
+@c puts the special deletion command in @code{my-map} for whichever keys
+@c are globally bound to the standard deletion command.
+では、グローバルには標準の削除コマンドにバインドされているキーに対しては、
+@code{my-map}では特別な削除コマンドにする。
+
+@ignore
+@c Emacs 18 only
+Prefix keymaps that appear within @var{keymap} are not checked
+recursively for keys bound to @var{olddef}; they are not changed at all.
+Perhaps it would be better to check nested keymaps recursively.
+@end ignore
+
+@c Here is an example showing a keymap before and after substitution:
+変更前後のキーマップを以下に示す。
+
+@smallexample
+@group
+(setq map '(keymap 
+            (?1 . olddef-1) 
+            (?2 . olddef-2) 
+            (?3 . olddef-1)))
+@result{} (keymap (49 . olddef-1) (50 . olddef-2) (51 . olddef-1))
+@end group
+
+@group
+(substitute-key-definition 'olddef-1 'newdef map)
+@result{} nil
+@end group
+@group
+map
+@result{} (keymap (49 . newdef) (50 . olddef-2) (51 . newdef))
+@end group
+@end smallexample
+@end defun
+
+@defun suppress-keymap keymap &optional nodigits
+@c @cindex @code{self-insert-command} override
+@cindex @code{self-insert-command}の無効化
+@c This function changes the contents of the full keymap @var{keymap} by
+@c making all the printing characters undefined.  More precisely, it binds
+@c them to the command @code{undefined}.  This makes ordinary insertion of
+@c text impossible.  @code{suppress-keymap} returns @code{nil}.
+この関数は、完全なキーマップ@var{keymap}の内容を変更し、
+すべての印字文字を未定義にする。
+より正確には、それらにコマンド@code{undefined}をバインドする。
+これにより、通常のテキストの挿入を不可能にする。
+@code{suppress-keymap}は@code{nil}を返す。
+
+@c If @var{nodigits} is @code{nil}, then @code{suppress-keymap} defines
+@c digits to run @code{digit-argument}, and @kbd{-} to run
+@c @code{negative-argument}.  Otherwise it makes them undefined like the
+@c rest of the printing characters.
+@var{nodigits}が@code{nil}であると、
+@code{suppress-keymap}は、
+数字文字では@code{digit-argument}を実行し、
+@kbd{-}では@code{negative-argument}を実行するように定義する。
+さもなければ、それらも他の印字文字と同様に未定義にする。
+
+@c @cindex yank suppression 
+@c @cindex @code{quoted-insert} suppression 
+@cindex ヤンクの抑制
+@cindex @code{quoted-insert}の抑制
+@c The @code{suppress-keymap} function does not make it impossible to
+@c modify a buffer, as it does not suppress commands such as @code{yank}
+@c and @code{quoted-insert}.  To prevent any modification of a buffer, make
+@c it read-only (@pxref{Read Only Buffers}).
+関数@code{suppress-keymap}は、
+@code{yank}や@code{quoted-insert}などのコマンドを抑制しないので、
+バッファを変更不可能にするわけではない。
+バッファの変更を禁止するには、バッファを読み出し専用にする
+（@pxref{Read Only Buffers}）。
+
+@c Since this function modifies @var{keymap}, you would normally use it
+@c on a newly created keymap.  Operating on an existing keymap
+@c that is used for some other purpose is likely to cause trouble; for
+@c example, suppressing @code{global-map} would make it impossible to use
+@c most of Emacs.
+この関数は@var{keymap}を変更するため、
+読者は、通常、新たに作成したキーマップに対して使うであろう。
+ある目的で使用中の既存のキーマップを操作すると、
+問題を引き起こすことがある。
+たとえば、@code{global-map}に適用するとEmacsをほとんど使用不能にしてしまう。
+
+@c Most often, @code{suppress-keymap} is used to initialize local
+@c keymaps of modes such as Rmail and Dired where insertion of text is not
+@c desirable and the buffer is read-only.  Here is an example taken from
+@c the file @file{emacs/lisp/dired.el}, showing how the local keymap for
+@c Dired mode is set up:
+多くの場合、テキストの挿入が必要なくバッファを読み出し専用で使う
+rmailやdiredなどのモードのローカルキーマップの初期化に
+@code{suppress-keymap}を使う。
+ファイル@file{emacs/lisp/dired.el}から持ってきた例を示す。
+これは、diredモード用のローカルキーマップの設定方法である。
+
+@smallexample
+@group
+(setq dired-mode-map (make-keymap))
+(suppress-keymap dired-mode-map)
+(define-key dired-mode-map "r" 'dired-rename-file)
+(define-key dired-mode-map "\C-d" 'dired-flag-file-deleted)
+(define-key dired-mode-map "d" 'dired-flag-file-deleted)
+(define-key dired-mode-map "v" 'dired-view-file)
+(define-key dired-mode-map "e" 'dired-find-file)
+(define-key dired-mode-map "f" 'dired-find-file)
+@dots{}
+@end group
+@end smallexample
+@end defun
+
+@node Key Binding Commands
+@c @section Commands for Binding Keys
+@section キーをバインドするためのコマンド
+
+@c   This section describes some convenient interactive interfaces for
+@c changing key bindings.  They work by calling @code{define-key}.
+本節では、キーのバインディングを変更する
+便利で対話的なインターフェイスについて述べます。
+これらは、@code{define-key}を呼び出して動作します。
+
+@c   People often use @code{global-set-key} in their @file{.emacs} file for
+@c simple customization.  For example,
+単純なカスタマイズのために
+ファイル@file{.emacs}で@code{global-set-key}をしばしば使います。
+たとえば、
+
+@smallexample
+(global-set-key "\C-x\C-\\" 'next-line)
+@end smallexample
+
+@noindent
+@c or
+や
+
+@smallexample
+(global-set-key [?\C-x ?\C-\\] 'next-line)
+@end smallexample
+
+@noindent
+@c or
+や
+
+@smallexample
+(global-set-key [(control ?x) (control ?\\)] 'next-line)
+@end smallexample
+
+@noindent
+@c redefines @kbd{C-x C-\} to move down a line.
+は、1行下がるように@kbd{C-x C-\}を再定義します。
+
+@smallexample
+(global-set-key [M-mouse-1] 'mouse-set-point)
+@end smallexample
+
+@noindent
+@c redefines the first (leftmost) mouse button, typed with the Meta key, to
+@c set point where you click.
+は、メタキーを押し下げながらマウスの第1ボタン（左端）をクリックすると
+クリック位置にポイントを設定するように再定義します。
+
+@c @deffn Command global-set-key key definition
+@deffn コマンド global-set-key key definition
+@c This function sets the binding of @var{key} in the current global map
+@c to @var{definition}.
+この関数は、現在のグローバルキーマップにおいて
+@var{key}のバインディングを@var{definition}と設定する。
+
+@smallexample
+@group
+(global-set-key @var{key} @var{definition})
+@equiv{}
+(define-key (current-global-map) @var{key} @var{definition})
+@end group
+@end smallexample
+@end deffn
+
+@c @deffn Command global-unset-key key
+@deffn コマンド global-unset-key key
+@c @cindex unbinding keys
+@cindex キーバインディングの解除
+@c This function removes the binding of @var{key} from the current
+@c global map.
+この関数は、現在のグローバルキーマップから
+@var{key}のバインディングを削除する。
+
+@c One use of this function is in preparation for defining a longer key
+@c that uses @var{key} as a prefix---which would not be allowed if
+@c @var{key} has a non-prefix binding.  For example:
+この関数の1つの用途は、
+@var{key}に非プレフィックスのバインディングがあると再定義できないため、
+@var{key}をプレフィックスとして使う長いキーを定義する前準備である。
+たとえば、つぎのとおり。
+
+@smallexample
+@group
+(global-unset-key "\C-l")
+    @result{} nil
+@end group
+@group
+(global-set-key "\C-l\C-l" 'redraw-display)
+    @result{} nil
+@end group
+@end smallexample
+
+@c This function is implemented simply using @code{define-key}:
+この関数は単に@code{define-key}を使って実装してある。
+
+@smallexample
+@group
+(global-unset-key @var{key})
+@equiv{}
+(define-key (current-global-map) @var{key} nil)
+@end group
+@end smallexample
+@end deffn
+
+@c @deffn Command local-set-key key definition
+@deffn コマンド local-set-key key definition
+@c This function sets the binding of @var{key} in the current local
+@c keymap to @var{definition}.
+この関数は、現在のローカルキーマップにおいて
+@var{key}のバインディングを@var{definition}と設定する。
+
+@smallexample
+@group
+(local-set-key @var{key} @var{definition})
+@equiv{}
+(define-key (current-local-map) @var{key} @var{definition})
+@end group
+@end smallexample
+@end deffn
+
+@c @deffn Command local-unset-key key
+@deffn コマンド local-unset-key key
+@c This function removes the binding of @var{key} from the current
+@c local map.
+この関数は、現在のローカルキーマップから
+@var{key}のバインディングを削除する。
+
+@smallexample
+@group
+(local-unset-key @var{key})
+@equiv{}
+(define-key (current-local-map) @var{key} nil)
+@end group
+@end smallexample
+@end deffn
+
+@node Scanning Keymaps
+@c @section Scanning Keymaps
+@section キーマップの走査
+
+@c   This section describes functions used to scan all the current keymaps
+@c for the sake of printing help information.
+本節では、ヘルプ情報を表示するために
+現在のキーマップをすべて走査する関数について述べます。
+
+@defun accessible-keymaps keymap &optional prefix
+@c This function returns a list of all the keymaps that can be reached (via
+@c zero or more prefix keys) from @var{keymap}.  The value is an
+@c association list with elements of the form @code{(@var{key} .@:
+@c @var{map})}, where @var{key} is a prefix key whose definition in
+@c @var{keymap} is @var{map}.
+この関数は、@var{keymap}から（0個以上のプレフィックスキーにより）辿れる
+すべてのキーマップのリストを返す。
+その値は、@code{(@var{key} .@: @var{map})}の形の要素から成る
+連想リストである。
+ここで、@var{key}はプレフィックスキーであり、
+@var{keymap}内でのその定義は@var{map}である。
+
+@c The elements of the alist are ordered so that the @var{key} increases
+@c in length.  The first element is always @code{("" .@: @var{keymap})},
+@c because the specified keymap is accessible from itself with a prefix of
+@c no events.
+連想リスト内での要素の順番は、@var{key}の長さが増える順である。
+指定したキーマップ@var{keymap}はプレフィックスのイベントなしに参照できるので、
+最初の要素はつねに@code{("" .@: @var{keymap})}である。
+
+@c If @var{prefix} is given, it should be a prefix key sequence; then
+@c @code{accessible-keymaps} includes only the submaps whose prefixes start
+@c with @var{prefix}.  These elements look just as they do in the value of
+@c @code{(accessible-keymaps)}; the only difference is that some elements
+@c are omitted.
+@var{prefix}を与える場合、それはプレフィックスキー列であること。
+すると、@code{accessible-keymaps}は、
+@var{prefix}で始まるプレフィックスに対応したサブマップのみを含める。
+それらの要素は、@code{(accessible-keymaps)}の値と同じに見えるが、
+違いは、いくつかの要素が省略されることである。
+
+@c In the example below, the returned alist indicates that the key
+@c @key{ESC}, which is displayed as @samp{^[}, is a prefix key whose
+@c definition is the sparse keymap @code{(keymap (83 .@: center-paragraph)
+@c (115 .@: foo))}.
+つぎの例では、返された連想リストにおいては、
+@samp{^[}と表示されたキー@key{ESC}はプレフィックスキーであり、
+その定義は疎なキーマップ
+@code{(keymap (83 .@: center-paragraph) (115 .@: foo))}であることを表す。
+
+@smallexample
+@group
+(accessible-keymaps (current-local-map))
+@result{}(("" keymap 
+      (27 keymap   ; @r{Note this keymap for @key{ESC} is repeated below.}
+          (83 . center-paragraph)
+          (115 . center-line))
+      (9 . tab-to-tab-stop))
+@end group
+
+@group
+   ("^[" keymap 
+    (83 . center-paragraph) 
+    (115 . foo)))
+@end group
+@end smallexample
+
+@c In the following example, @kbd{C-h} is a prefix key that uses a sparse
+@c keymap starting with @code{(keymap (118 . describe-variable)@dots{})}.
+@c Another prefix, @kbd{C-x 4}, uses a keymap which is also the value of
+@c the variable @code{ctl-x-4-map}.  The event @code{mode-line} is one of
+@c several dummy events used as prefixes for mouse actions in special parts
+@c of a window.
+つぎの例では、@kbd{C-h}は、
+疎なキーマップ@code{(keymap (118 . describe-variable)@dots{})}を
+使うプレフィックスキーである。
+別のプレフィックス@kbd{C-x 4}は、
+変数@code{ctl-x-4-map}の値でもあるキーマップを使う。
+イベント@code{mode-line}は、
+ウィンドウの特別な箇所におけるマウス操作を表すための
+疑似イベントの1つである。
+
+@smallexample
+@group
+(accessible-keymaps (current-global-map))
+@result{} (("" keymap [set-mark-command beginning-of-line @dots{} 
+                   delete-backward-char])
+@end group
+@group
+    ("^H" keymap (118 . describe-variable) @dots{}
+     (8 . help-for-help))
+@end group
+@group
+    ("^X" keymap [x-flush-mouse-queue @dots{}
+     backward-kill-sentence])
+@end group
+@group
+    ("^[" keymap [mark-sexp backward-sexp @dots{}
+     backward-kill-word])
+@end group
+    ("^X4" keymap (15 . display-buffer) @dots{})
+@group
+    ([mode-line] keymap
+     (S-mouse-2 . mouse-split-window-horizontally) @dots{}))
+@end group
+@end smallexample
+
+@noindent
+@c These are not all the keymaps you would see in actuality.
+実際に表示されるキーマップはこれらだけとは限らない。
+@end defun
+
+@defun where-is-internal command &optional keymap firstonly noindirect
+@c This function is a subroutine used by the @code{where-is} command
+@c (@pxref{Help, , Help, emacs,The GNU Emacs Manual}).  It returns a list
+@c of key sequences (of any length) that are bound to @var{command} in a
+@c set of keymaps.
+この関数は、コマンド@code{where-is}
+（@pxref{Help,, ヘルプ機能, emacs, GNU Emacs マニュアル}）が使う
+サブルーティンである。
+キーマップにおいて@var{command}にバインドされた
+（任意長の）キー列のリストを返す。
+
+@c The argument @var{command} can be any object; it is compared with all
+@c keymap entries using @code{eq}.
+引数@var{command}は任意のオブジェクトであり、
+キーマップ項目とは@code{eq}で比較する。
+
+@c If @var{keymap} is @code{nil}, then the maps used are the current active
+@c keymaps, disregarding @code{overriding-local-map} (that is, pretending
+@c its value is @code{nil}).  If @var{keymap} is non-@code{nil}, then the
+@c maps searched are @var{keymap} and the global keymap.
+@var{keymap}が@code{nil}であると、
+@code{overriding-local-map}を無視
+（つまり、その値は@code{nil}とみな）して、
+現在活性なキーマップを使う。
+@var{keymap}が@code{nil}以外であると、
+@var{keymap}とグローバルキーマップから辿れるキーマップを使う。
+
+@c Usually it's best to use @code{overriding-local-map} as the expression
+@c for @var{keymap}.  Then @code{where-is-internal} searches precisely the
+@c keymaps that are active.  To search only the global map, pass
+@c @code{(keymap)} (an empty keymap) as @var{keymap}.
+通常、@var{keymap}に対する式には@code{overriding-local-map}を使うのが
+最良である。
+そうすると、@code{where-is-internal}は正確に活性なキーマップを走査する。
+グローバルキーマップのみを走査するには、
+@var{keymap}として@code{(keymap)}（空のキーマップ）を渡す。
+
+@c If @var{firstonly} is @code{non-ascii}, then the value is a single
+@c string representing the first key sequence found, rather than a list of
+@c all possible key sequences.  If @var{firstonly} is @code{t}, then the
+@c value is the first key sequence, except that key sequences consisting
+@c entirely of @sc{ASCII} characters (or meta variants of @sc{ASCII}
+@c characters) are preferred to all other key sequences.
+@var{firstonly}が@code{non-ascii}であると、
+戻り値は、可能なキー列のリストではなく、
+最初にみつかったキー列を表す1つの文字列である。
+@var{firstonly}が@code{t}であると、
+値は最初のキー列であるが、
+@sc{ASCII}文字（あるいは@sc{ASCII}文字のメタ変種）のみから成るキー列が
+他のキー列より優先される。
+
+@c If @var{noindirect} is non-@code{nil}, @code{where-is-internal} doesn't
+@c follow indirect keymap bindings.  This makes it possible to search for
+@c an indirect definition itself.
+@var{noindirect}が@code{nil}以外であると、
+@code{where-is-internal}は間接項目を辿らない。
+これにより、間接項目そのものを探すことができる。
+
+@smallexample
+@group
+(where-is-internal 'describe-function)
+    @result{} ("\^hf" "\^hd")
+@end group
+@end smallexample
+@end defun
+
+@c @deffn Command describe-bindings &optional prefix
+@deffn コマンド describe-bindings &optional prefix
+@c This function creates a listing of all current key bindings, and
+@c displays it in a buffer named @samp{*Help*}.  The text is grouped by
+@c modes---minor modes first, then the major mode, then global bindings.
+この関数は、現在のすべてのキーバインディングの一覧を作成し、
+@samp{*Help*}という名前のバッファに表示する。
+テキストはモードごとにまとめられ、
+マイナモード、メジャーモード、グローバルバインディングの順である。
+
+@c If @var{prefix} is non-@code{nil}, it should be a prefix key; then the
+@c listing includes only keys that start with @var{prefix}.
+@var{prefix}が@code{nil}以外であると、それはプレフィックスキーであること。
+そうすると、@var{prefix}で始まるキーのみの一覧を作る。
+
+@c The listing describes meta characters as @key{ESC} followed by the
+@c corresponding non-meta character.
+一覧では、メタ文字は、@key{ESC}に続けて対応する非メタ文字で表す。
+
+@c When several characters with consecutive @sc{ASCII} codes have the
+@c same definition, they are shown together, as
+@c @samp{@var{firstchar}..@var{lastchar}}.  In this instance, you need to
+@c know the @sc{ASCII} codes to understand which characters this means.
+@c For example, in the default global map, the characters @samp{@key{SPC}
+@c ..@: ~} are described by a single line.  @key{SPC} is @sc{ASCII} 32,
+@c @kbd{~} is @sc{ASCII} 126, and the characters between them include all
+@c the normal printing characters, (e.g., letters, digits, punctuation,
+@c etc.@:); all these characters are bound to @code{self-insert-command}.
+連続した@sc{ASCII}コードの一連の文字が同じ定義である場合には、
+それらをまとめて@samp{@var{firstchar}..@var{lastchar}}と表示する。
+この場合、どの文字であるか理解するには、
+@sc{ASCII}コードを知っている必要がある。
+たとえば、デフォルトのグローバルキーマップでは、
+@samp{@key{SPC}..@: ~}の文字が1行に表示される。
+@key{SPC}は@sc{ASCII}コード32、@kbd{~}は@sc{ASCII}コード126であり、
+そのあいだには普通の印字文字（英文字、数字文字、句読点文字など）が
+すべて含まれる。
+これらの文字はすべて@code{self-insert-command}にバインドされている。
+@end deffn
+
+@node Menu Keymaps
+@c @section Menu Keymaps
+@section メニューキーマップ
+@c @cindex menu keymaps
+@cindex メニューキーマップ
+
+@c @c Emacs 19 feature
+@c A keymap can define a menu as well as bindings for keyboard keys and
+@c mouse button.  Menus are usually actuated with the mouse, but they can
+@c work with the keyboard also.
+キーマップは、キーボードのキーやマウスボタンに対するバインディングに加えて
+メニューも定義できます。
+
+@menu
+* Defining Menus::		How to make a keymap that defines a menu.
+* Mouse Menus::			How users actuate the menu with the mouse.
+* Keyboard Menus::		How they actuate it with the keyboard.
+* Menu Example::		Making a simple menu.
+* Menu Bar::			How to customize the menu bar.
+* Modifying Menus::             How to add new items to a menu.
+@end menu
+
+@node Defining Menus
+@c @subsection Defining Menus
+@subsection メニューの定義
+@c @cindex defining menus
+@c @cindex menu prompt string
+@c @cindex prompt string (of menu)
+@cindex メニューの定義
+@cindex メニュープロンプト文字列
+@cindex プロンプト文字列、メニュー
+
+@c A keymap is suitable for menu use if it has an @dfn{overall prompt
+@c string}, which is a string that appears as an element of the keymap.
+@c (@xref{Format of Keymaps}.)  The string should describe the purpose of
+@c the menu.  The easiest way to construct a keymap with a prompt string is
+@c to specify the string as an argument when you call @code{make-keymap} or
+@c @code{make-sparse-keymap} (@pxref{Creating Keymaps}).
+キーマップに@dfn{全面プロンプト文字列}（overall prompt string）、
+つまり、キーマップの要素として文字列が現れれば、
+メニューとして使えます。
+その文字列でメニューの目的を記述します。
+プロンプト文字列を持ったキーマップを作成するもっとも簡単な方法は、
+@code{make-keymap}や@code{make-sparse-keymap}（@pxref{Creating Keymaps}）を
+呼ぶときに、引数として文字列を指定します。
+
+@c The order of items in the menu is the same as the order of bindings in
+@c the keymap.  Since @code{define-key} puts new bindings at the front, you
+@c should define the menu items starting at the bottom of the menu and
+@c moving to the top, if you care about the order.  When you add an item to
+@c an existing menu, you can specify its position in the menu using
+@c @code{define-key-after} (@pxref{Modifying Menus}).
+メニュー上での項目の順番は、
+キーマップ内のバインディングの順番と同じです。
+@code{define-key}は、新たなバインディングを先頭に追加するので、
+順番を気にするのならば、メニューの底の項目から始めて
+上の項目へ向かってメニュー項目の定義を入れます。
+既存のメニューに項目を追加する場合には、
+@code{define-key-after}（@pxref{Modifying Menus}）を使って
+メニュー内での位置を指定できます。
+
+@menu
+* Simple Menu Items::       A simple kind of menu key binding,
+                              limited in capabilities.
+* Alias Menu Items::        Using command aliases in menu items.
+* Extended Menu Items::     More powerful menu item definitions
+                              let you specify keywords to enable
+                              various features.
+@end menu
+
+@node Simple Menu Items
+@c @subsubsection Simple Menu Items
+@subsubsection 単純なメニュー項目
+
+@c   The simpler and older way to define a menu keymap binding
+@c looks like this:
+メニューキーマップのバインディングを定義する単純で旧式の方法は
+つぎのとおりです。
+
+@example
+(@var{item-string} . @var{real-binding})
+@end example
+
+@noindent
+@c The @sc{car}, @var{item-string}, is the string to be displayed in the
+@c menu.  It should be short---preferably one to three words.  It should
+@c describe the action of the command it corresponds to.
+@sc{car}の@var{item-string}は、メニューに表示される文字列です。
+3単語までの短いものにし、対応するコマンドの動作を記述します。
+
+@c You can also supply a second string, called the help string, as follows:
+つぎのように、ヘルプ文字列となる2つめの文字列も指定できます。
+
+@example
+(@var{item-string} @var{help-string} . @var{real-binding})
+@end example
+
+@c Currently Emacs does not actually use @var{help-string}; it knows only
+@c how to ignore @var{help-string} in order to extract @var{real-binding}.
+@c In the future we may use @var{help-string} as extended documentation for
+@c the menu item, available on request.
+現状では、Emacsは実際には@var{help-string}を使いません。
+@var{real-binding}を取り出すために@var{help-string}を無視する方法を
+知っているだけです。
+将来、ユーザーの要望に応じてメニュー項目に対する追加説明として
+@var{help-string}を使うかもしれません。
+
+@c As far as @code{define-key} is concerned, @var{item-string} and
+@c @var{help-string} are part of the event's binding.  However,
+@c @code{lookup-key} returns just @var{real-binding}, and only
+@c @var{real-binding} is used for executing the key.
+@code{define-key}に関する限り、
+@var{item-string}と@var{help-string}は
+イベントのバインディングの一部分です。
+しかし、@code{lookup-key}は@var{real-binding}のみを返し、
+キーの実行には@var{real-binding}のみが使われます。
+
+@c If @var{real-binding} is @code{nil}, then @var{item-string} appears in
+@c the menu but cannot be selected.
+@var{real-binding}が@code{nil}であると、
+@var{item-string}はメニューに現れますが、それは選択できません。
+
+@c If @var{real-binding} is a symbol and has a non-@code{nil}
+@c @code{menu-enable} property, that property is an expression that
+@c controls whether the menu item is enabled.  Every time the keymap is
+@c used to display a menu, Emacs evaluates the expression, and it enables
+@c the menu item only if the expression's value is non-@code{nil}.  When a
+@c menu item is disabled, it is displayed in a ``fuzzy'' fashion, and
+@c cannot be selected.
+@var{real-binding}がシンボルであり、
+その属性@code{menu-enable}が@code{nil}以外であると、
+当該属性は、メニュー項目を活性にするかどうかを制御する式です。
+Emacsは、メニューを表示するためにキーマップを使うたびに、
+その式を評価し、式の値が@code{nil}以外である場合に限り、
+当該メニュー項目をオンにします。
+メニュー項目がオフであると、『薄く』表示し、それは選択できません。
+
+@c The menu bar does not recalculate which items are enabled every time you
+@c look at a menu.  This is because the X toolkit requires the whole tree
+@c of menus in advance.  To force recalculation of the menu bar, call
+@c @code{force-mode-line-update} (@pxref{Mode Line Format}).
+メニューバーでは、読者がメニューを見るたびにどの項目がオンであるかを
+再計算しません。
+Xツールキットがあらかじめメニューの木構造全体を必要とするからです。
+メニューバーの再計算を強制するには、
+@code{force-mode-line-update}を呼び出します。
+（@pxref{Mode Line Format}）。
+
+@c You've probably noticed that menu items show the equivalent keyboard key
+@c sequence (if any) to invoke the same command.  To save time on
+@c recalculation, menu display caches this information in a sublist in the
+@c binding, like this:
+メニュー項目には、同じコマンドを起動する等価なキーボードのキー列が
+（あれば）表示されていることに気づいたと思います。
+再計算の時間を節約するために、
+メニューの表示では、この情報をつぎのように
+バインディングの部分リストに隠し持っています。
+
+@c This line is not too long--rms.
+@example
+(@var{item-string} @r{[}@var{help-string}@r{]} (@var{key-binding-data}) . @var{real-binding})
+@end example
+
+@noindent
+@c Don't put these sublists in the menu item yourself; menu display
+@c calculates them automatically.  Don't mention keyboard equivalents in
+@c the item strings themselves, since that is redundant.
+読者は、メニュー項目にこれらの部分リストを入れないでください。
+それらはメニューの表示で自動的に計算されます。
+冗長になるので、項目の文字列には、等価なキーボード入力を
+含めないでください。
+
+@node Extended Menu Items
+@c @subsubsection Extended Menu Items
+@subsubsection 拡張メニュー項目
+@kindex menu-item
+
+@c   An extended-format menu item is a more flexible and also cleaner
+@c alternative to the simple format.  It consists of a list that starts
+@c with the symbol @code{menu-item}.  To define a non-selectable string,
+@c the item looks like this:
+拡張形式のメニュー項目は、より柔軟性があり、
+単純な形式より見通しがよい代替方法です。
+それらは、シンボル@code{menu-item}で始まるリストから成ります。
+選択不可の文字列を定義するには、項目をつぎのようにします。
+
+@example
+(menu-item @var{item-name})
+@end example
+
+@noindent
+@c where a string consisting of two or more dashes specifies a separator line.
+ここで、文字列@var{item-name}は区切り行を表す複数個のダッシュから成ります。
+
+@c   To define a real menu item which can be selected, the extended format
+@c item looks like this:
+選択可能な実際のメニュー項目を定義するには、
+拡張形式の項目はつぎのようになります。
+
+@example
+(menu-item @var{item-name} @var{real-binding}
+    . @var{item-property-list})
+@end example
+
+@noindent
+@c Here, @var{item-name} is an expression which evaluates to the menu item
+@c string.  Thus, the string need not be a constant.  The third element,
+@c @var{real-binding}, is the command to execute.  The tail of the list,
+@c @var{item-property-list}, has the form of a property list which contains
+@c other information.  Here is a table of the properties that are supported:
+ここで、@var{item-name}は、メニュー項目の文字列に評価される式です。
+つまり、（項目の）文字列は定数である必要はありません。
+3番目の要素@var{item-property-list}は実行すべきコマンドです。
+リストの残り@var{item-property-list}は、
+他の情報を含んだ属性リストの形式です。
+指定できる属性はつぎのとおりです。
+
+@table @code
+@item :enable FORM
+@c The result of evaluating @var{form} determines whether the item is
+@c enabled (non-@code{nil} means yes).
+@var{form}の評価結果で、項目をオンにするかどうか決定する
+（@code{nil}以外だとオン）。
+
+@item :visible FORM
+@c The result of evaluating @var{form} determines whether the item should
+@c actually appear in the menu (non-@code{nil} means yes).  If the item
+@c does not appear, then the menu is displayed as if this item were
+@c not defined at all.
+@var{form}の評価結果で、項目をメニューに含めるかどうか決定する。
+（@code{nil}以外だと含める）。
+項目を含めない場合、当該項目が定義されていないかのようにメニューを表示する。
+
+@item :help @var{help}
+@c The value of this property, @var{help}, is the extra help string (not
+@c currently used by Emacs).
+この属性の値@var{help}は、拡張ヘルプ文字列
+（現状ではEmacsは使わない）。
+
+@item :button (@var{type} . @var{selected})
+@c This property provides a way to define radio buttons and toggle buttons.
+@c The @sc{car}, @var{type}, says which: is should be @code{:toggle} or
+@c @code{:radio}.  The @sc{cdr}, @var{selected}, should be a form; the
+@c result of evaluating it says whether this button is currently selected.
+この属性は、ラジオボタンとトグルボタンを定義する方法を提供する。
+@sc{car}の@var{type}は、@code{:toggle}か@code{:radio}であり、
+どちらであるかを指定する。
+@sc{cdr}の@var{selected}はフォームであること。
+その評価結果が、現在ボタンが選択されているかどうかを決定する。
+
+@c A @dfn{toggle} is a menu item which is labeled as either ``on'' or ``off''
+@c according to the value of @var{selected}.  The command itself should
+@c toggle @var{selected}, setting it to @code{t} if it is @code{nil},
+@c and to @code{nil} if it is @code{t}.  Here is how the menu item
+@c to toggle the @code{debug-on-error} flag is defined:
+@dfn{トグル}（toggle）は、@var{selected}の値に応じて
+『on』か『off』と書かれるメニュー項目である。
+コマンド自身では、@var{selected}が@code{nil}ならば
+@var{selected}に@code{t}を設定し、
+@code{t}ならば@code{nil}を設定すること。
+以下は、@code{debug-on-error}が定義されていれば
+@code{debug-on-error}をオン／オフするメニュー項目の書き方である。
+
+@example
+(menu-item "Debug on Error" toggle-debug-on-error
+           :button (:toggle
+                    . (and (boundp 'debug-on-error)
+                           debug-on-error))
+@end example
+
+@noindent
+@c This works because @code{toggle-debug-on-error} is defined as a command
+@c which toggles the variable @code{debug-on-error}.
+これは、変数@code{debug-on-error}をオン／オフするコマンドとして
+@code{toggle-debug-on-error}が定義されているので動作する。
+
+@c @dfn{Radio buttons} are a group of menu items, in which at any time one
+@c and only one is ``selected.''  There should be a variable whose value
+@c says which one is selected at any time.  The @var{selected} form for
+@c each radio button in the group should check whether the variable has the
+@c right value for selecting that button.  Clicking on the button should
+@c set the variable so that the button you clicked on becomes selected.
+@dfn{ラジオボタン}（radio button）はメニュー項目のグループであり、
+ある時点ではそれらのうちの1つだけを『選択』できる。
+どれを選択しているかを表す変数が必要である。
+グループ内の各ラジオボタンに対するフォーム@var{selected}は、
+当該変数の値が当該ボタンを選択している値かどうかを検査する。
+ボタンをクリックすると、クリックしたボタンが選択されるように
+当該変数に設定すること。
+
+@item :key-sequence @var{key-sequence}
+@c This property specifies which key sequence is likely to be bound to the
+@c same command invoked by this menu item.  If you specify the right key
+@c sequence, that makes preparing the menu for display run much faster.
+この属性は、このメニュー項目が起動するコマンドにバインド
+される可能性があるキー列を指定する。
+正しいキー列を指定すると、メニュー表示の準備が素早くなる。
+
+@c If you specify the wrong key sequence, it has no effect; before Emacs
+@c displays @var{key-sequence} in the menu, it verifies that
+@c @var{key-sequence} is really equivalent to this menu item.
+まちがったキー列を指定しても、その効果はない。
+メニューに@var{key-sequence}を表示するまえに、
+Emacsは@var{key-sequence}がこのメニュー項目に実際に等価かどうか調べる。
+
+@item :key-sequence nil
+@c This property indicates that there is normally no key binding which is
+@c equivalent to this menu item.  Using this property saves time in
+@c preparing the menu for display, because Emacs does not need to search
+@c the keymaps for a keyboard equivalent for this menu item.
+この属性は、このメニュー項目に等価なキーバインディングが
+普通はないことを示す。
+この属性を使うとメニュー表示の準備時間を節約できる。
+Emacsはこのメニュー項目に等価なキーボード入力をキーマップで
+探す必要がないからである。
+
+@c However, if the user has rebound this item's definition to a key
+@c sequence, Emacs ignores the @code{:keys} property and finds the keyboard
+@c equivalent anyway.
+しかし、ユーザーがこの項目の定義に対してキー列を再バインドすると、
+Emacsは属性@code{:keys}を無視して等価なキーボード入力を探す。
+
+@item :keys @var{string}
+@c This property specifies that @var{string} is the string to display
+@c as the keyboard equivalent for this menu item.  You can use
+@c the @samp{\\[...]} documentation construct in @var{string}.
+この属性は、このメニュー項目に対する等価なキーボード入力として
+表示する文字列@var{string}を指定する。
+@var{string}では説明文の@samp{\\[...]}の書き方を使える。
+
+@item :filter @var{filter-fn}
+@c This property provides a way to compute the menu item dynamically.
+@c The property value @var{filter-fn} should be a function of one argument;
+@c when it is called, its argument will be @var{real-binding}.  The
+@c function should return the binding to use instead.
+この属性は、動的にメニュー項目を計算する方法を与える。
+属性値@var{filter-fn}は1引数の関数であること。
+それが呼ばれるとき、引数は@var{real-binding}になる。
+関数はかわりに使用するバインディングを返すこと。
+@end table
+
+@node Alias Menu Items
+@c @subsubsection Alias Menu Items
+@subsubsection メニュー項目の別名
+
+@c   Sometimes it is useful to make menu items that use the ``same''
+@c command but with different enable conditions.  The best way to do this
+@c in Emacs now is with extended menu items; before that feature existed,
+@c it could be done by defining alias commands and using them in menu
+@c items.  Here's an example that makes two aliases for
+@c @code{toggle-read-only} and gives them different enable conditions:
+『同じ』コマンドを使いながらオン条件が異なるメニュー項目を
+作れると便利なことがあります。
+現状のEmacsでこれを行う最良の方法は、拡張メニュー項目を使うことです。
+この機能がなかった頃には、コマンドの別名を定義し、
+それをメニュー項目で使うことで可能でした。
+異なるオン条件で@code{toggle-read-only}を
+使う2つの別名の作り方を以下に示します。
+
+@example
+(defalias 'make-read-only 'toggle-read-only)
+(put 'make-read-only 'menu-enable '(not buffer-read-only))
+(defalias 'make-writable 'toggle-read-only)
+(put 'make-writable 'menu-enable 'buffer-read-only)
+@end example
+
+@c When using aliases in menus, often it is useful to display the
+@c equivalent key bindings for the ``real'' command name, not the aliases
+@c (which typically don't have any key bindings except for the menu
+@c itself).  To request this, give the alias symbol a non-@code{nil}
+@c @code{menu-alias} property.  Thus,
+メニューに別名を使うときには、
+（典型的にはメニュー以外にはキーバインディングがない）別名ではなく
+『本物の』コマンド名に対する等価なキーバインディングを
+表示しするのがしばしば有用です。
+これを行うには、別名のシンボルには
+@code{nil}以外の属性@code{menu-alias}を与えます。
+
+@example
+(put 'make-read-only 'menu-alias t)
+(put 'make-writable 'menu-alias t)
+@end example
+
+@noindent
+@c causes menu items for @code{make-read-only} and @code{make-writable} to
+@c show the keyboard bindings for @code{toggle-read-only}.
+こうすると、@code{make-read-only}と@code{make-writable}のメニュー項目には
+@code{toggle-read-only}に対するキーバインディングが表示されます。
+
+@node Mouse Menus
+@c @subsection Menus and the Mouse
+@subsection メニューとマウス
+
+@c   The usual way to make a menu keymap produce a menu is to make it the
+@c definition of a prefix key.  (A Lisp program can explicitly pop up a
+@c menu and receive the user's choice---see @ref{Pop-Up Menus}.)
+メニューキーマップがメニューを表示するようにする普通の方法は、
+メニューキーマップをプレフィックスキーの定義にすることです。
+（Lispプログラムから明示的にメニューをポップアップして、
+ユーザーの選択を受け取れる。
+@ref{Pop-Up Menus}を参照。）
+
+@c   If the prefix key ends with a mouse event, Emacs handles the menu keymap
+@c by popping up a visible menu, so that the user can select a choice with
+@c the mouse.  When the user clicks on a menu item, the event generated is
+@c whatever character or symbol has the binding that brought about that
+@c menu item.  (A menu item may generate a series of events if the menu has
+@c multiple levels or comes from the menu bar.)
+プレフィックスキーがマウスイベントで終っていると、
+Emacsはメニューをポップアップすることでメニューキーマップを扱います。
+これで、ユーザーはマウスで選択できるようになります。
+ユーザーがメニュー項目をクリックすると、
+当該メニュー項目をバインディングとする文字やシンボルが
+イベントとして生成されます。
+（メニューが複数レベルになっていたりメニューバーから開いたときには、
+メニュー項目は一連のイベントを生成する。）
+
+@c   It's often best to use a button-down event to trigger the menu.  Then
+@c the user can select a menu item by releasing the button.
+メニューの開始にはボタン押し下げイベントを使うのがしばしば最良です。
+そうすると、ユーザーはボタンを離すことでメニュー項目を選べます。
+
+@c   A single keymap can appear as multiple menu panes, if you explicitly
+@c arrange for this.  The way to do this is to make a keymap for each pane,
+@c then create a binding for each of those maps in the main keymap of the
+@c menu.  Give each of these bindings an item string that starts with
+@c @samp{@@}.  The rest of the item string becomes the name of the pane.
+@c See the file @file{lisp/mouse.el} for an example of this.  Any ordinary
+@c bindings with @samp{@@}-less item strings are grouped into one pane,
+@c which appears along with the other panes explicitly created for the
+@c submaps.
+@c = ペイン → パン ?
+@c = ペインのほうがなじむ感じがするが・・・
+明示的に配置すれば、1つのキーマップをメニューペインとして表示できます。
+それには、各ペインに対するキーマップを作成し、
+つぎに、メニューのメインのキーマップにおいて、
+（各ペインの）各キーマップに対するバインディングを作ります。
+なお、これらのバインディングには、
+@samp{@@}で始まる項目文字列を指定します。
+項目文字列の残りの部分がペインの名前になります。
+この例についてはファイル@file{lisp/mouse.el}を参照してください。
+@samp{@@}で始まらない項目文字列の他の普通のバインディングは
+1つのペインにまとめられ、サブマップに対して明示的に作られた
+他のペインとともに表示されます。
+
+@c   X toolkit menus don't have panes; instead, they can have submenus.
+@c Every nested keymap becomes a submenu, whether the item string starts
+@c with @samp{@@} or not.  In a toolkit version of Emacs, the only thing
+@c special about @samp{@@} at the beginning of an item string is that the
+@c @samp{@@} doesn't appear in the menu item.
+Xツールキットのメニューにはペインはありませんが、
+そのかわりに、サブメニューがあります。
+項目文字列が@samp{@@}で始まるかどうかに関わらず、
+入れ子になった各キーマップがサブメニューになります。
+Emacsのツールキット版では、項目文字列の先頭の@samp{@@}に関して特別なことは、
+@samp{@@}がメニュー項目に表示されないことです。
+
+@c   You can also produce multiple panes or submenus from separate keymaps.
+@c The full definition of a prefix key always comes from merging the
+@c definitions supplied by the various active keymaps (minor mode, local,
+@c and global).  When more than one of these keymaps is a menu, each of
+@c them makes a separate pane or panes (when Emacs does not use an
+@c X-toolkit) or a separate submenu (when using an X-toolkit).
+@c @xref{Active Keymaps}.
+個別のキーマップからも複数ペインやサブメニューを作成できます。
+プレフィックスキーの完全な定義は、
+さまざまな活性のキーマップ（マイナモード、ローカル、グローバル）が与える
+定義を併合することで得られます。
+これらのキーマップのうち複数個がメニューであるとき、
+そのおのおのが別々のペイン（Xツールキットを使わないEmacs）や
+別々のサブメニュー（Xツールキットを使ったEmacs）になります。
+@xref{Active Keymaps}。
+
+@node Keyboard Menus
+@c @subsection Menus and the Keyboard
+@subsection メニューとキーボード
+
+@c When a prefix key ending with a keyboard event (a character or function
+@c key) has a definition that is a menu keymap, the user can use the
+@c keyboard to choose a menu item.
+キーボードイベント（文字や関数）で終るプレフィックスキーに、
+メニューキーマップであるような定義があると、
+ユーザーはメニュー項目を選ぶためにキーボードを使えます。
+
+@c Emacs displays the menu alternatives (the item strings of the bindings)
+@c in the echo area.  If they don't all fit at once, the user can type
+@c @key{SPC} to see the next line of alternatives.  Successive uses of
+@c @key{SPC} eventually get to the end of the menu and then cycle around to
+@c the beginning.  (The variable @code{menu-prompt-more-char} specifies
+@c which character is used for this; @key{SPC} is the default.)
+Emacsはメニューの選択項目（バインディングの項目文字列）を
+エコー領域に表示します。
+それらが1行に収まらなければ、
+ユーザーは@key{SPC}を打つことで選択項目のつぎの行を見ることができます。
+@key{SPC}を連続して使うと最終的にはメニューの最後に達し、
+そうするとメニューの先頭に戻ります。
+（変数@code{menu-prompt-more-char}に、このために用いる文字を指定する。
+デフォルトは@key{SPC}。）
+
+@c When the user has found the desired alternative from the menu, he or she
+@c should type the corresponding character---the one whose binding is that
+@c alternative.
+ユーザーは、メニューから望みの項目をみつけたら、
+対応する文字、つまり、その項目のバインディングを持つ文字を打ちます。
+
+@ignore
+In a menu intended for keyboard use, each menu item must clearly
+indicate what character to type.  The best convention to use is to make
+the character the first letter of the item string---that is something
+users will understand without being told.  We plan to change this; by
+the time you read this manual, keyboard menus may explicitly name the
+key for each alternative.
+@end ignore
+
+@c This way of using menus in an Emacs-like editor was inspired by the
+@c Hierarkey system.
+Emacs類似エディタにおけるこのようなメニューの使い方は、
+システムHierarkeyに触発されたからです。
+
+@defvar menu-prompt-more-char
+@c This variable specifies the character to use to ask to see
+@c the next line of a menu.  Its initial value is 32, the code
+@c for @key{SPC}.
+この変数は、メニューのつぎの行を見るために使う文字を指定する。
+初期値は、@key{SPC}の文字コードの32である。
+@end defvar
+
+@node Menu Example
+@c @subsection Menu Example
+@subsection メニューの例
+@c @cindex menu definition example
+@cindex メニューの定義例
+
+@c   Here is a complete example of defining a menu keymap.  It is the
+@c definition of the @samp{Print} submenu in the @samp{Tools} menu in the
+@c menu bar, and it uses the simple menu item format (@pxref{Simple Menu
+@c Items}).  First we create the keymap, and give it a name:
+以下に、メニューキーマップの完全な定義の例を示します。
+これは、メニューバーのメニュー@samp{Tools}の
+サブメニュー@samp{Print}の定義であり、
+単純なメニュー項目を使います
+（@pxref{Simple Menu Items}）。
+まず、キーマップを作成し名前を与えます。
+
+@example
+(defvar menu-bar-print-menu (make-sparse-keymap "Print"))
+@end example
+
+@noindent
+@c Next we define the menu items:
+つぎに、メニュー項目を定義します。
+
+@example
+(define-key menu-bar-print-menu [ps-print-region]
+  '("Postscript Print Region" . ps-print-region-with-faces))
+(define-key menu-bar-print-menu [ps-print-buffer]
+  '("Postscript Print Buffer" . ps-print-buffer-with-faces))
+(define-key menu-bar-print-menu [separator-ps-print]
+  '("--"))
+(define-key menu-bar-print-menu [print-region]
+  '("Print Region" . print-region))
+(define-key menu-bar-print-menu [print-buffer]
+  '("Print Buffer" . print-buffer))
+@end example
+
+@noindent
+@c Note the symbols which the bindings are ``made for''; these appear
+@c inside square brackets, in the key sequence being defined.  In some
+@c cases, this symbol is the same as the command name; sometimes it is
+@c different.  These symbols are treated as ``function keys'', but they are
+@c not real function keys on the keyboard.  They do not affect the
+@c functioning of the menu itself, but they are ``echoed'' in the echo area
+@c when the user selects from the menu, and they appear in the output of
+@c @code{where-is} and @code{apropos}.
+バインディングが『作られる対象』のシンボルに注意してください。
+定義されるキー列の角括弧の内側に現れています。
+そのシンボルはコマンド名に等しい場合もあればそうでない場合もあります。
+これらのシンボルは『ファンクションキー』として扱われますが、
+キーボード上の本物のファンクションキーではありません。
+それらはメニュー項目の機能には影響ありませんが、
+ユーザーがメニューから選ぶとそれらはエコー領域に『表示』され、
+@code{where-is}や@code{apropos}の出力にも現れます。
+
+@c   The binding whose definition is @code{("--")} is a separator line.
+@c Like a real menu item, the separator has a key symbol, in this case
+@c @code{separator-ps-print}.  If one menu has two separators, they must
+@c have two different key symbols.
+定義が@code{("--")}であるようなバインディングは区切り行です。
+実際のメニュー項目のように、区切りにもキーシンボルがあり、
+例では@code{separator-ps-print}です。
+1つのメニューに複数の区切りがある場合、
+それらはすべて異なるキーシンボルでなければなりません。
+
+@c   Here is code to define enable conditions for two of the commands in
+@c the menu:
+つぎには、メニュー内の2つのコマンドのオン条件を定義するコードです。
+
+@example
+(put 'print-region 'menu-enable 'mark-active)
+(put 'ps-print-region-with-faces 'menu-enable 'mark-active)
+@end example
+
+@c   Here is how we make this menu appear as an item in the parent menu:
+つぎは、このメニューを親メニューの項目に現れるようにする方法です。
+
+@example
+(define-key menu-bar-tools-menu [print]
+  (cons "Print" menu-bar-print-menu))
+@end example
+
+@noindent
+@c Note that this incorporates the submenu keymap, which is the value of
+@c the variable @code{menu-bar-print-menu}, rather than the symbol
+@c @code{menu-bar-print-menu} itself.  Using that symbol in the parent menu
+@c item would be meaningless because @code{menu-bar-print-menu} is not a
+@c command.
+ここで使っているのは、サブメニューのキーマップ、つまり、
+変数@code{menu-bar-print-menu}の値であって、
+変数そのものではないことに注意してください。
+@code{menu-bar-print-menu}はコマンドではないので、
+このシンボルを親メニューの項目に使っても意味がありません。
+
+@c   If you wanted to attach the same print menu to a mouse click, you
+@c can do it this way:
+同じ印刷メニューをマウスクリックに対応付けたければ、
+つぎのようにしてできます。
+
+@example
+(define-key global-map [C-S-down-mouse-1]
+   menu-bar-print-menu)
+@end example
+
+@c   We could equally well use an extended menu item (@pxref{Extended Menu
+@c Items}) for @code{print-region}, like this:
+つぎのようにして、@code{print-region}に対して拡張メニュー項目
+（@pxref{Extended Menu Items}）を使うこともできます。
+
+@example
+(define-key menu-bar-print-menu [print-region]
+  '(menu-item "Print Region" print-region
+              :enable (mark-active)))
+@end example
+
+@noindent
+@c With the extended menu item, the enable condition is specified
+@c inside the menu item itself.  If we wanted to make this
+@c item disappear from the menu entirely when the mark is inactive,
+@c we could do it this way:
+拡張メニュー項目では、オン条件はメニュー項目自体の内側に指定します。
+マークがないときにはメニューからこの項目が消えるようにするには
+つぎのようにします。
+
+@example
+(define-key menu-bar-print-menu [print-region]
+  '(menu-item "Print Region" print-region
+              :visible (mark-active)))
+@end example
+
+@node Menu Bar
+@c @subsection The Menu Bar
+@subsection メニューバー
+@c @cindex menu bar
+@cindex メニューバー
+
+@c   Most window systems allow each frame to have a @dfn{menu bar}---a
+@c permanently displayed menu stretching horizontally across the top of the
+@c frame.  The items of the menu bar are the subcommands of the fake
+@c ``function key'' @code{menu-bar}, as defined by all the active keymaps.
+ほとんどのウィンドウシステムでは、
+各フレームに@dfn{メニューバー}（menu bar）、
+つまり、フレームの先頭に水平方向に延びているメニューを恒久的に表示できます。
+メニューバーの項目は、すべての活性なキーマップで定義された
+疑似『ファンクションキー』@code{menu-bar}のサブコマンドです。
+
+@c   To add an item to the menu bar, invent a fake ``function key'' of your
+@c own (let's call it @var{key}), and make a binding for the key sequence
+@c @code{[menu-bar @var{key}]}.  Most often, the binding is a menu keymap,
+@c so that pressing a button on the menu bar item leads to another menu.
+メニューバーに項目を追加するには、
+読者独自の疑似『ファンクションキー』を考え（これを@var{key}とする）、
+キー列@code{[menu-bar @var{key}]}に対するバインディングを作ります。
+多くの場合、バインディングはメニューキーマップであって、
+メニューバーの項目上でボタンを押すと別のメニューへ至るようにします。
+
+@c   When more than one active keymap defines the same fake function key
+@c for the menu bar, the item appears just once.  If the user clicks on
+@c that menu bar item, it brings up a single, combined menu containing
+@c all the subcommands of that item---the global subcommands, the local
+@c subcommands, and the minor mode subcommands.
+メニューバーに対する同じ疑似ファンクションキーを
+複数の活性なキーマップで定義していても、1つの項目だけが表示されます。
+ユーザーがメニューバーの当該項目をクリックすると、
+当該項目のすべてのサブコマンド、つまり、
+グローバルのサブコマンド、ローカルのサブコマンド、
+マイナモードのサブコマンドを含む1つの複合メニューが表示されます。
+
+@c   The variable @code{overriding-local-map} is normally ignored when
+@c determining the menu bar contents.  That is, the menu bar is computed
+@c from the keymaps that would be active if @code{overriding-local-map}
+@c were @code{nil}.  @xref{Active Keymaps}.
+メニューバーの内容を決定する際には、
+通常、変数@code{overriding-local-map}は無視されます。
+つまり、@code{overriding-local-map}が@code{nil}であるときに
+活性になるキーマップからメニューバーを計算します。
+@xref{Active Keymaps}。
+
+@c   In order for a frame to display a menu bar, its @code{menu-bar-lines}
+@c parameter must be greater than zero.  Emacs uses just one line for the
+@c menu bar itself; if you specify more than one line, the other lines
+@c serve to separate the menu bar from the windows in the frame.  We
+@c recommend 1 or 2 as the value of @code{menu-bar-lines}.  @xref{Window Frame
+@c Parameters}.
+フレームにメニューバーを表示するには、
+フレームのパラメータ@code{menu-bar-lines}が0より大きい必要があります。
+Emacsはメニューバーそのものには1行だけ使います。
+読者が2行以上を指定すると、
+残りの行はフレームのウィンドウとメニューバーを区切る行になります。
+@code{menu-bar-lines}の値には1か2を勧めます。
+@xref{Window Frame Parameters}。
+
+@c   Here's an example of setting up a menu bar item:
+メニューバーの項目の設定例を示します。
+
+@example
+@group
+(modify-frame-parameters (selected-frame)
+                         '((menu-bar-lines . 2)))
+@end group
+
+@group
+@c ;; @r{Make a menu keymap (with a prompt string)}
+@c ;; @r{and make it the menu bar item's definition.}
+;; @r{（プロンプト文字列を持つ）メニューキーマップを作り}
+;; @r{それをメニューバーの項目の定義にする}
+(define-key global-map [menu-bar words]
+  (cons "Words" (make-sparse-keymap "Words")))
+@end group
+
+@group
+@c ;; @r{Define specific subcommands in this menu.}
+;; @r{このメニュー内のサブコマンドを定義する}
+(define-key global-map
+  [menu-bar words forward]
+  '("Forward word" . forward-word))
+@end group
+@group
+(define-key global-map
+  [menu-bar words backward]
+  '("Backward word" . backward-word))
+@end group
+@end example
+
+@c   A local keymap can cancel a menu bar item made by the global keymap by
+@c rebinding the same fake function key with @code{undefined} as the
+@c binding.  For example, this is how Dired suppresses the @samp{Edit} menu
+@c bar item:
+グローバルキーマップに作ったメニューバー項目を
+ローカルキーマップで取り消すには、
+ローカルキーマップの当該疑似ファンクションキーのバインディングを
+@code{undefined}で再バインドします。
+たとえば、つぎのようにしてdiredはメニューバーの項目@samp{Edit}を抑制します。
+
+@example
+(define-key dired-mode-map [menu-bar edit] 'undefined)
+@end example
+
+@noindent
+@c @code{edit} is the fake function key used by the global map for the
+@c @samp{Edit} menu bar item.  The main reason to suppress a global
+@c menu bar item is to regain space for mode-specific items.
+@code{edit}は、メニューバー項目@samp{Edit}に対して
+グローバルキーマップで使う疑似ファンクションキーです。
+グローバルなメニューバー項目を抑制する主な理由は、
+モード固有の項目向けに場所を確保するためです。
+
+@defvar menu-bar-final-items
+@c Normally the menu bar shows global items followed by items defined by the
+@c local maps.
+通常、メニューバーは、グローバルな項目に
+ローカルキーマップで定義された項目を続けて表示する。
+
+@c This variable holds a list of fake function keys for items to display at
+@c the end of the menu bar rather than in normal sequence.  The default
+@c value is @code{(help-menu)}; thus, the @samp{Help} menu item normally appears
+@c at the end of the menu bar, following local menu items.
+この変数は、通常の順ではなくメニューバーの底に表示する項目に
+対する疑似ファンクションキーのリストを保持する。
+デフォルト値は@code{(help-menu)}であり、
+したがって、ローカルのメニュー項目に続いて、
+メニュー項目@samp{Help}はメニューバーの最後に通常表示される。
+@end defvar
+
+@defvar menu-bar-update-hook
+@c This normal hook is run whenever the user clicks on the menu bar, before
+@c displaying a submenu.  You can use it to update submenus whose contents
+@c should vary.
+このノーマルフックは、
+ユーザーがメニューバーをクリックするたびに、
+サブメニューを表示するまえに実行される。
+これを用いて、内容が変化するサブメニューを更新できる。
+@end defvar
+
+@node Modifying Menus
+@c @subsection Modifying Menus
+@subsection メニューの修正
+
+@c   When you insert a new item in an existing menu, you probably want to
+@c put it in a particular place among the menu's existing items.  If you
+@c use @code{define-key} to add the item, it normally goes at the front of
+@c the menu.  To put it elsewhere in the menu, use @code{define-key-after}:
+既存のメニューに新たな項目を挿入するとき、
+メニューの既存の項目の特定の場所に挿入したいでしょう。
+@code{define-key}で項目を追加すると、通常、メニューの先頭に入ります。
+メニューのそれ以外の場所に挿入するには、
+@code{define-key-after}を使います。
+
+@defun define-key-after map key binding after
+@c Define a binding in @var{map} for @var{key}, with value @var{binding},
+@c just like @code{define-key}, but position the binding in @var{map} after
+@c the binding for the event @var{after}.  The argument @var{key} should be
+@c of length one---a vector or string with just one element.  But
+@c @var{after} should be a single event type---a symbol or a character, not
+@c a sequence.  The new binding goes after the binding for @var{after}.  If
+@c @var{after} is @code{t}, then the new binding goes last, at the end of
+@c the keymap.
+@var{key}に対するバインディング@var{binding}を@var{map}内に作る。
+ただし、@var{map}内でのバインディングの位置は、
+イベント@var{after}に対するバインディングのあとにする。
+引数@var{key}は長さ1、つまり、1要素のみのベクトルか文字列であること。
+しかし、@var{after}は1つのイベント型、つまり、
+シンボルか文字であり列ではないこと。
+新たなバインディングは@var{after}に対するバインディングのうしろに入る。
+@var{after}が@code{t}であると、新たなバインディングは最後、
+つまり、キーマップの末尾に入る。
+
+@c Here is an example:
+例を示す。
+
+@example
+(define-key-after my-menu [drink]
+                  '("Drink" . drink-command) 'eat)
+@end example
+
+@noindent
+@c makes a binding for the fake function key @key{DRINK} and puts it
+@c right after the binding for @key{EAT}.
+これは、疑似ファンクションキー@key{DRINK}に対するバインディングを作り、
+@key{EAT}に対するバインディングのあとに入れる。
+
+@c Here is how to insert an item called @samp{Work} in the @samp{Signals}
+@c menu of Shell mode, after the item @code{break}:
+shellモードのメニュー@samp{Signals}において、
+項目@code{break}のあとに項目@samp{Work}を入れる方法はつぎのとおりである。
+
+@example
+(define-key-after
+  (lookup-key shell-mode-map [menu-bar signals])
+  [work] '("Work" . work-command) 'break)
+@end example
+@end defun

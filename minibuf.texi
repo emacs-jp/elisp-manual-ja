@@ -1,0 +1,2417 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/minibuf
+@node Minibuffers, Command Loop, Read and Print, Top
+@c @chapter Minibuffers
+@chapter ミニバッファ
+@c @cindex arguments, reading
+@c @cindex complex arguments
+@c @cindex minibuffer
+@cindex 引数の読み取り
+@cindex 複雑な引数
+@cindex ミニバッファ
+
+@c   A @dfn{minibuffer} is a special buffer that Emacs commands use to read
+@c arguments more complicated than the single numeric prefix argument.
+@c These arguments include file names, buffer names, and command names (as
+@c in @kbd{M-x}).  The minibuffer is displayed on the bottom line of the
+@c frame, in the same place as the echo area, but only while it is in use
+@c for reading an argument.
+@dfn{ミニバッファ}（minibuffer）は、単純な数値前置引数ではなく、
+より複雑な引数を読み取るためにEmacsのコマンドが使う特別なバッファです。
+これらの引数には、ファイル名、バッファ名、
+（@kbd{M-x}での）コマンド名があります。
+ミニバッファは、エコー領域と同様に、フレームの最下行に表示されますが、
+引数を読み取るときにのみ表示されます。
+
+@menu
+* Intro to Minibuffers::      Basic information about minibuffers.
+* Text from Minibuffer::      How to read a straight text string.
+* Object from Minibuffer::    How to read a Lisp object or expression.
+* Minibuffer History::	      Recording previous minibuffer inputs
+				so the user can reuse them.
+* Completion::                How to invoke and customize completion.
+* Yes-or-No Queries::         Asking a question with a simple answer.
+* Multiple Queries::	      Asking a series of similar questions.
+* Reading a Password::	      Reading a password from the terminal.
+* Minibuffer Misc::           Various customization hooks and variables.
+@end menu
+
+@node Intro to Minibuffers
+@c @section Introduction to Minibuffers
+@section ミニバッファの紹介
+
+@c   In most ways, a minibuffer is a normal Emacs buffer.  Most operations
+@c @emph{within} a buffer, such as editing commands, work normally in a
+@c minibuffer.  However, many operations for managing buffers do not apply
+@c to minibuffers.  The name of a minibuffer always has the form @w{@samp{
+@c *Minibuf-@var{number}}}, and it cannot be changed.  Minibuffers are
+@c displayed only in special windows used only for minibuffers; these
+@c windows always appear at the bottom of a frame.  (Sometimes frames have
+@c no minibuffer window, and sometimes a special kind of frame contains
+@c nothing but a minibuffer window; see @ref{Minibuffers and Frames}.)
+ほとんどの意味において、ミニバッファはEmacsの普通のバッファです。
+編集コマンドなどのバッファ@emph{内}でのほとんどの操作は、
+ミニバッファでも普通に動作します。
+しかし、バッファを操作するコマンドの多くは、
+ミニバッファには適用できません。
+ミニバッファの名前はつねに@w{@samp{*Minibuf-@var{number}}}という形式であって、
+変更できません。
+ミニバッファはミニバッファ専用の特別なウィンドウだけに表示されます。
+これらのウィンドウはつねにフレームの最下行に現れます。
+（ミニバッファを持たないフレームや、
+ミニバッファ用ウィンドウのみの特殊なフレームもある。
+@ref{Minibuffers and Frames}を参照。）
+
+@c   The minibuffer's window is normally a single line.  You can resize it
+@c temporarily with the window sizing commands; it reverts to its normal
+@c size when the minibuffer is exited.  You can resize it permanently by
+@c using the window sizing commands in the frame's other window, when the
+@c minibuffer is not active.  If the frame contains just a minibuffer, you
+@c can change the minibuffer's size by changing the frame's size.
+ミニバッファ用のウィンドウは通常は1行だけです。
+ウィンドウサイズを変更するコマンドで一時的に大きさを変えられますが、
+ミニバッファから抜けると通常サイズに戻ります。
+ミニバッファ用ウィンドウのサイズを恒久的に変更するには、
+ミニバッファを使っていないときに、フレームの別のウィンドウにおいて
+ウィンドウサイズを変更するコマンドを使います。
+ミニバッファだけを持つフレームの場合、
+フレームのサイズを変更すればミニバッファのサイズを変更できます。
+
+@c   If a command uses a minibuffer while there is an active minibuffer,
+@c this is called a @dfn{recursive minibuffer}.  The first minibuffer is
+@c named @w{@samp{ *Minibuf-0*}}.  Recursive minibuffers are named by
+@c incrementing the number at the end of the name.  (The names begin with a
+@c space so that they won't show up in normal buffer lists.)  Of several
+@c recursive minibuffers, the innermost (or most recently entered) is the
+@c active minibuffer.  We usually call this ``the'' minibuffer.  You can
+@c permit or forbid recursive minibuffers by setting the variable
+@c @code{enable-recursive-minibuffers} or by putting properties of that
+@c name on command symbols (@pxref{Minibuffer Misc}).
+すでにミニバッファが活性であるときにコマンドがミニバッファを使用することを
+@dfn{再帰ミニバッファ}と呼びます。
+最初のミニバッファの名前は@w{@samp{ *Minibuf-0*}}です。
+再帰ミニバッファは、名前の最後の数を増やして命名します。
+（名前は空白で始まるため、通常のバッファの一覧には表示されない。）
+再帰ミニバッファの中で、もっとも内側の（つまりもっとも再帰が深い）ものが
+活性なミニバッファです。
+これを単にミニバッファと呼びます。
+変数@code{enable-recursive-minibuffers}を設定すれば、
+再帰ミニバッファを許可したり禁止できます。
+あるいは、コマンドシンボルにこの名前の属性を入れます
+（@pxref{Minibuffer Misc}）。
+
+@c   Like other buffers, a minibuffer may use any of several local keymaps
+@c (@pxref{Keymaps}); these contain various exit commands and in some cases
+@c completion commands (@pxref{Completion}).
+他のバッファと同様に、ミニバッファは
+複数のローカルキーマップ（@pxref{Keymaps}）を使うことがあります。
+これらには、さまざまな終了コマンドや補完コマンド（@pxref{Completion}）
+が含まれます。
+
+@itemize @bullet
+@item
+@c @code{minibuffer-local-map} is for ordinary input (no completion).
+@code{minibuffer-local-map}は（補完なしの）普通の入力用。
+
+@item
+@c @code{minibuffer-local-ns-map} is similar, except that @key{SPC} exits
+@c just like @key{RET}.  This is used mainly for Mocklisp compatibility.
+@code{minibuffer-local-ns-map}も同様だが、
+@key{RET}と同様に@key{SPC}で抜ける。
+これは主にMocklisp互換用に使われる。
+
+@item
+@c @code{minibuffer-local-completion-map} is for permissive completion.
+@code{minibuffer-local-completion-map}は弱い補完用。
+
+@item
+@c @code{minibuffer-local-must-match-map} is for strict completion and
+@c for cautious completion.
+@code{minibuffer-local-completion-map}は強い補完や慎重な補完用。
+@end itemize
+
+@node Text from Minibuffer
+@c @section Reading Text Strings with the Minibuffer
+@section ミニバッファでのテキスト文字列の読み取り
+
+@c   Most often, the minibuffer is used to read text as a string.  It can
+@c also be used to read a Lisp object in textual form.  The most basic
+@c primitive for minibuffer input is @code{read-from-minibuffer}; it can do
+@c either one.
+多くの場合、テキストを文字列として読み取るためにミニバッファを使います。
+Lispオブジェクトのテキスト表現を読み取るためにも使えます。
+ミニバッファでの入力のもっとも基本的な関数は
+@code{read-from-minibuffer}であり、どちらの目的にも使えます。
+
+@c   In most cases, you should not call minibuffer input functions in the
+@c middle of a Lisp function.  Instead, do all minibuffer input as part of
+@c reading the arguments for a command, in the @code{interactive}
+@c specification.  @xref{Defining Commands}.
+多くの場合、Lisp関数の途中でミニバッファの入力関数を呼ぶべきではありません。
+そのかわりに、@code{interactive}の指定で、
+コマンドの引数を読み取る操作の一部として
+すべてのミニバッファ入力を行います。
+@xref{Defining Commands}。
+
+@defun read-from-minibuffer prompt-string &optional initial-contents keymap read hist default inherit-input-method
+@c This function is the most general way to get input through the
+@c minibuffer.  By default, it accepts arbitrary text and returns it as a
+@c string; however, if @var{read} is non-@code{nil}, then it uses
+@c @code{read} to convert the text into a Lisp object (@pxref{Input
+@c Functions}).
+この関数は、ミニバッファから入力を得るもっとも汎用の方法である。
+デフォルトでは、任意のテキストを受け取り文字列として返す。
+しかし、@var{read}が@code{nil}以外であれば、
+@code{read}を用いてテキストを
+Lispオブジェクトへ変換する（@pxref{Input Functions}）。
+
+@c The first thing this function does is to activate a minibuffer and
+@c display it with @var{prompt-string} as the prompt.  This value must be a
+@c string.  Then the user can edit text in the minibuffer.
+この関数がまず行うことは、ミニバッファを活性にし、
+プロンプト@var{prompt-string}とともに表示することである。
+@var{prompt-string}は文字列であること。
+これで、ユーザーはミニバッファでテキストを編集できるようになる。
+
+@c When the user types a command to exit the minibuffer,
+@c @code{read-from-minibuffer} constructs the return value from the text in
+@c the minibuffer.  Normally it returns a string containing that text.
+@c However, if @var{read} is non-@code{nil}, @code{read-from-minibuffer}
+@c reads the text and returns the resulting Lisp object, unevaluated.
+@c (@xref{Input Functions}, for information about reading.)
+ユーザーがミニバッファを抜けるコマンドを打つと、
+@code{read-from-minibuffer}は
+ミニバッファ内のテキストから戻り値を構築する。
+通常、当該テキストを含む文字列を返す。
+しかし、@var{read}が@code{nil}以外であると、
+@code{read-from-minibuffer}はテキストを読み取った結果である
+Lispオブジェクトを評価せずに返す。
+（読み取りについては@pxref{Input Functions}。）
+
+@c The argument @var{default} specifies a default value to make available
+@c through the history commands.  It should be a string, or @code{nil}.  If
+@c @var{read} is non-@code{nil}, then @var{default} is also used as the
+@c input to @code{read}, if the user enters empty input.  However, in the
+@c usual case (where @var{read} is @code{nil}), @code{read-from-minibuffer}
+@c does not return @var{default} when the user enters empty input; it
+@c returns an empty string, @code{""}.  In this respect, it is different
+@c from all the other minibuffer input functions in this chapter.
+引数@var{default}は、履歴コマンドで使うデフォルト値を指定する。
+これは文字列か@code{nil}であること。
+@var{read}が@code{nil}以外である場合、
+ユーザーの入力が空であるときには、
+@code{read}への入力としても@var{default}を用いる。
+しかし、（@var{read}が@code{nil}である）通常の場合、
+ユーザーの入力が空のとき、@code{read-from-minibuffer}は
+@var{default}を返さずに空文字列@code{""}を返す。
+この意味において、この関数は本章の他のミニバッファ用入力関数と異なる。
+
+@c If @var{keymap} is non-@code{nil}, that keymap is the local keymap to
+@c use in the minibuffer.  If @var{keymap} is omitted or @code{nil}, the
+@c value of @code{minibuffer-local-map} is used as the keymap.  Specifying
+@c a keymap is the most important way to customize the minibuffer for
+@c various applications such as completion.
+@var{keymap}が@code{nil}以外であると、
+ミニバッファのローカルキーマップとして用いる。
+@var{keymap}を省略したり@code{nil}であると、
+@code{minibuffer-local-map}の値をキーマップとして用いる。
+キーマップを指定することは、
+補完などのさまざまな応用向けにミニバッファをカスタマイズする
+もっとも重要な方法である。
+
+@c The argument @var{hist} specifies which history list variable to use
+@c for saving the input and for history commands used in the minibuffer.
+@c It defaults to @code{minibuffer-history}.  @xref{Minibuffer History}.
+引数@var{hist}は、ミニバッファでの入力を保存し履歴コマンドを使用可能に
+するために用いる履歴リスト変数を指定する。
+デフォルトは@code{minibuffer-history}である。
+@pxref{Minibuffer History}。
+
+@c If the variable @code{minibuffer-allow-text-properties} is
+@c non-@code{nil}, then the string which is returned includes whatever text
+@c properties were present in the minibuffer.  Otherwise all the text
+@c properties are stripped when the value is returned.
+変数@code{minibuffer-allow-text-properties}が@code{nil}以外であると、
+返される文字列には、ミニバッファで指定されたテキスト属性が含まれる。
+さもなければ、値を返すときにすべてのテキスト属性を取り除く。
+
+@c If the argument @var{inherit-input-method} is non-@code{nil}, then the
+@c minibuffer inherits the current input method (@pxref{Input Methods}) and
+@c the setting of @code{enable-multibyte-characters} (@pxref{Text
+@c Representations}) from whichever buffer was current before entering the
+@c minibuffer.
+引数@var{inherit-input-method}が@code{nil}以外であると、
+ミニバッファに入るまえにどのバッファにいたかに関わらず、
+そのバッファから現在の入力方式（@pxref{Input Methods}）と
+@code{enable-multibyte-characters}（@pxref{Text Representations}）の設定を
+継承する。
+
+@c If @var{initial-contents} is a string, @code{read-from-minibuffer}
+@c inserts it into the minibuffer, leaving point at the end, before the
+@c user starts to edit the text.  The minibuffer appears with this text as
+@c its initial contents.
+@var{initial-contents}が文字列であれば、
+@code{read-from-minibuffer}は、
+ユーザーがテキスト編集を始めるまえに、
+この文字列をミニバッファに挿入しその末尾にポイントを置く。
+この文字列を初期内容とするミニバッファが現れる。
+
+@c Alternatively, @var{initial-contents} can be a cons cell of the form
+@c @code{(@var{string} . @var{position})}.  This means to insert
+@c @var{string} in the minibuffer but put point @var{position} characters
+@c from the beginning, rather than at the end.
+あるいは、@var{initial-contents}は、
+@code{(@var{string} . @var{position})}という形式のコンスセルでもよい。
+これは、文字列@var{string}をミニバッファに挿入し、
+ポイントは末尾にではなく
+先頭から@var{position}番目の文字に置くことを意味する。
+
+@c @strong{Usage note:} The @var{initial-contents} argument and the
+@c @var{default} argument are two alternative features for more or less the
+@c same job.  It does not make sense to use both features in a single call
+@c to @code{read-from-minibuffer}.  In general, we recommend using
+@c @var{default}, since this permits the user to insert the default value
+@c when it is wanted, but does not burden the user with deleting it from
+@c the minibuffer on other occasions.
+@strong{使用上の注意：}@code{ }
+引数@var{initial-contents}と@var{default}は、
+多かれ少なかれ同じことを行う代替方法を提供する。
+@code{read-from-minibuffer}の1つの呼び出しにおいて、
+両者の機能を同時に使うことに意味はない。
+一般には、@var{default}を使うことを勧める。
+というのは、ユーザーがデフォルト値を望む場合にはデフォルト値を挿入でき、
+それ以外の場合にはデフォルト値を削除しなくてもよいからである。
+@end defun
+
+@defun read-string prompt &optional initial history default inherit-input-method
+@c This function reads a string from the minibuffer and returns it.  The
+@c arguments @var{prompt} and @var{initial} are used as in
+@c @code{read-from-minibuffer}.  The keymap used is
+@c @code{minibuffer-local-map}.
+この関数はミニバッファから文字列を読み取り、それを返す。
+引数@var{prompt}と@var{initial}は、
+@code{read-from-minibuffer}と同様に使われる。
+使用するキーマップは@code{minibuffer-local-map}である。
+
+@c The optional argument @var{history}, if non-nil, specifies a history
+@c list and optionally the initial position in the list.  The optional
+@c argument @var{default} specifies a default value to return if the user
+@c enters null input; it should be a string.  The optional argument
+@c @var{inherit-input-method} specifies whether to inherit the current
+@c buffer's input method.
+省略可能な引数@var{history}は、@code{nil}以外であると、
+履歴リストと（省略可能な）リスト内での初期位置を指定する。
+省略可能な引数@var{default}は、
+ユーザー入力が空の場合に返されるデフォルト値であり、文字列であること。
+省略可能な引数@var{inherit-input-method}は、
+カレントバッファの入力方式を継承するかどうかを指定する。
+
+@c This function is a simplified interface to the
+@c @code{read-from-minibuffer} function:
+この関数は関数@code{read-from-minibuffer}の
+インターフェイスを単純化したものである。
+
+@smallexample
+@group
+(read-string @var{prompt} @var{initial} @var{history} @var{default} @var{inherit})
+@equiv{}
+(let ((value
+       (read-from-minibuffer @var{prompt} @var{initial} nil nil
+                             @var{history} @var{default} @var{inherit})))
+  (if (equal value "")
+      @var{default}
+    value))
+@end group
+@end smallexample
+@end defun
+
+@defvar minibuffer-allow-text-properties
+@c If this variable is @code{nil}, then @code{read-from-minibuffer} strips
+@c all text properties from the minibuffer input before returning it.
+@c Since all minibuffer input uses @code{read-from-minibuffer}, this
+@c variable applies to all minibuffer input.
+この変数が@code{nil}であると、
+@code{read-from-minibuffer}はミニバッファで指定されたすべての
+テキスト属性を返すまえに取り除く。
+すべてのミニバッファが@code{read-from-minibuffer}を使うので、
+この変数はすべてのミニバッファ入力に適用される。
+
+@c Note that the completion functions discard text properties unconditionally,
+@c regardless of the value of this variable.
+この変数の値に関わらず、
+補完関数は無条件にテキスト属性を廃棄することに注意。
+@end defvar
+
+@defvar minibuffer-local-map
+@c This is the default local keymap for reading from the minibuffer.  By
+@c default, it makes the following bindings:
+ミニバッファから読み取るときのデフォルトのローカルキーマップ。
+デフォルトでは、以下のバインディングである。
+
+@table @asis
+@item @kbd{C-j}
+@code{exit-minibuffer}
+
+@item @key{RET}
+@code{exit-minibuffer}
+
+@item @kbd{C-g}
+@code{abort-recursive-edit}
+
+@item @kbd{M-n}
+@code{next-history-element}
+
+@item @kbd{M-p}
+@code{previous-history-element}
+
+@item @kbd{M-r}
+@code{next-matching-history-element}
+
+@item @kbd{M-s}
+@code{previous-matching-history-element}
+@end table
+@end defvar
+
+@c In version 18, initial is required
+@c Emacs 19 feature
+@defun read-no-blanks-input prompt &optional initial inherit-input-method
+@c This function reads a string from the minibuffer, but does not allow
+@c whitespace characters as part of the input: instead, those characters
+@c terminate the input.  The arguments @var{prompt}, @var{initial}, and
+@c @var{inherit-input-method} are used as in @code{read-from-minibuffer}.
+この関数はミニバッファから文字列を読み取るが、
+入力には白文字を許さず、白文字は入力を終らせる。
+引数@var{prompt}、@var{initial}、@var{inherit-input-method}は、
+@code{read-from-minibuffer}と同様に使われる。
+
+@c This is a simplified interface to the @code{read-from-minibuffer}
+@c function, and passes the value of the @code{minibuffer-local-ns-map}
+@c keymap as the @var{keymap} argument for that function.  Since the keymap
+@c @code{minibuffer-local-ns-map} does not rebind @kbd{C-q}, it @emph{is}
+@c possible to put a space into the string, by quoting it.
+これは関数@code{read-from-minibuffer}の
+インターフェイスを単純化したものであり、
+引数@var{keymap}として@code{minibuffer-local-ns-map}の値を渡す。
+キーマップ@code{minibuffer-local-ns-map}では
+@kbd{C-q}を再バインドしないため、
+クォートすれば空白を文字列に含めることが@emph{できる}。
+
+@smallexample
+@group
+(read-no-blanks-input @var{prompt} @var{initial})
+@equiv{}
+(read-from-minibuffer @var{prompt} @var{initial} minibuffer-local-ns-map)
+@end group
+@end smallexample
+@end defun
+
+@defvar minibuffer-local-ns-map
+@c This built-in variable is the keymap used as the minibuffer local keymap
+@c in the function @code{read-no-blanks-input}.  By default, it makes the
+@c following bindings, in addition to those of @code{minibuffer-local-map}:
+この組み込み変数は、関数@code{read-no-blanks-input}が
+ミニバッファ用のローカルキーマップとして使うキーマップである。
+デフォルトでは、@code{minibuffer-local-map}のバインディングに加えて
+以下のバインディングである。
+
+@table @asis
+@item @key{SPC}
+@c @cindex @key{SPC} in minibuffer
+@cindex @key{SPC}、ミニバッファ
+@cindex ミニバッファ、@key{SPC}
+@code{exit-minibuffer}
+
+@item @key{TAB}
+@c @cindex @key{TAB} in minibuffer
+@cindex @key{TAB}、ミニバッファ
+@cindex ミニバッファ、@key{TAB}
+@code{exit-minibuffer}
+
+@item @kbd{?}
+@c @cindex @kbd{?} in minibuffer
+@cindex @kbd{?}、ミニバッファ
+@cindex ミニバッファ、@kbd{?}
+@code{self-insert-and-exit}
+@end table
+@end defvar
+
+@node Object from Minibuffer
+@c @section Reading Lisp Objects with the Minibuffer
+@section ミニバッファでのLispオブジェクトの読み取り
+
+@c   This section describes functions for reading Lisp objects with the
+@c minibuffer.
+本節では、ミニバッファでLispオブジェクトを読み取る関数について述べます。
+
+@defun read-minibuffer prompt &optional initial
+@c This function reads a Lisp object using the minibuffer, and returns it
+@c without evaluating it.  The arguments @var{prompt} and @var{initial} are
+@c used as in @code{read-from-minibuffer}.
+この関数はミニバッファを用いてLispオブジェクトを読み取り、
+それを評価せずに返す。
+引数@var{prompt}と@var{initial}は、
+@code{read-from-minibuffer}と同様に使われる。
+
+@c This is a simplified interface to the
+@c @code{read-from-minibuffer} function:
+これは関数@code{read-from-minibuffer}の
+インターフェイスを単純化したものである。
+
+@smallexample
+@group
+(read-minibuffer @var{prompt} @var{initial})
+@equiv{}
+(read-from-minibuffer @var{prompt} @var{initial} nil t)
+@end group
+@end smallexample
+
+@c Here is an example in which we supply the string @code{"(testing)"} as
+@c initial input:
+初期入力として文字列@code{"(testing)"}を与えた例を示す。
+
+@smallexample
+@group
+(read-minibuffer
+ "Enter an expression: " (format "%s" '(testing)))
+
+@c ;; @r{Here is how the minibuffer is displayed:}
+;; @r{以下のようにミニバッファが表示される}
+@end group
+
+@group
+---------- Buffer: Minibuffer ----------
+Enter an expression: (testing)@point{}
+---------- Buffer: Minibuffer ----------
+@end group
+@end smallexample
+
+@noindent
+@c The user can type @key{RET} immediately to use the initial input as a
+@c default, or can edit the input.
+デフォルトとして初期入力を使うには、ユーザーはただちに@key{RET}を打てばよい。
+あるいは、入力を編集する。
+@end defun
+
+@defun eval-minibuffer prompt &optional initial
+@c This function reads a Lisp expression using the minibuffer, evaluates
+@c it, then returns the result.  The arguments @var{prompt} and
+@c @var{initial} are used as in @code{read-from-minibuffer}.
+この関数はミニバッファを用いてLisp式を読み取り、
+それを評価してその結果を返す。
+引数@var{prompt}と@var{initial}は、
+@code{read-from-minibuffer}と同様に使われる。
+
+@c This function simply evaluates the result of a call to
+@c @code{read-minibuffer}:
+この関数は@code{read-from-minibuffer}の
+インターフェイスを単純化したものである。
+
+@smallexample
+@group
+(eval-minibuffer @var{prompt} @var{initial})
+@equiv{}
+(eval (read-minibuffer @var{prompt} @var{initial}))
+@end group
+@end smallexample
+@end defun
+
+@defun edit-and-eval-command prompt form
+@c This function reads a Lisp expression in the minibuffer, and then
+@c evaluates it.  The difference between this command and
+@c @code{eval-minibuffer} is that here the initial @var{form} is not
+@c optional and it is treated as a Lisp object to be converted to printed
+@c representation rather than as a string of text.  It is printed with
+@c @code{prin1}, so if it is a string, double-quote characters (@samp{"})
+@c appear in the initial text.  @xref{Output Functions}.
+この関数はミニバッファを用いてLisp式を読み取り、それを評価する。
+このコマンドと@code{eval-minibuffer}との違いは、
+初期フォーム@var{form}を省略できないことであり、
+このフォームをテキスト文字列としではなく表示表現に
+変換するLispオブジェクトとして扱うことである。
+@code{prin1}を用いて表示するので、
+これが文字列であると初期テキストにはダブルクォート文字（@samp{"}）が現れる。
+@pxref{Output Functions}。
+
+@c The first thing @code{edit-and-eval-command} does is to activate the
+@c minibuffer with @var{prompt} as the prompt.  Then it inserts the printed
+@c representation of @var{form} in the minibuffer, and lets the user edit it.
+@c When the user exits the minibuffer, the edited text is read with
+@c @code{read} and then evaluated.  The resulting value becomes the value
+@c of @code{edit-and-eval-command}.
+@code{edit-and-eval-command}はまず、@var{prompt}をプロンプトとして
+ミニバッファを活性にする。
+続いて、ミニバッファに@var{form}の表示表現を挿入し、ユーザーに編集させる。
+ユーザーがミニバッファから抜けると、
+編集後のテキストを@code{read}で読み取り評価する。
+評価結果が@code{edit-and-eval-command}の値になる。
+
+@c In the following example, we offer the user an expression with initial
+@c text which is a valid form already:
+以下の例では、すでに正しいフォームである
+初期テキストの式をユーザーに提示する。
+
+@smallexample
+@group
+(edit-and-eval-command "Please edit: " '(forward-word 1))
+
+@c ;; @r{After evaluation of the preceding expression,} 
+@c ;;   @r{the following appears in the minibuffer:}
+;; @r{上の式を評価後には、ミニバッファは以下のようになる} 
+@end group
+
+@group
+---------- Buffer: Minibuffer ----------
+Please edit: (forward-word 1)@point{}
+---------- Buffer: Minibuffer ----------
+@end group
+@end smallexample
+
+@noindent
+@c Typing @key{RET} right away would exit the minibuffer and evaluate the
+@c expression, thus moving point forward one word.
+@c @code{edit-and-eval-command} returns @code{nil} in this example.
+ただちに@key{RET}を打つと、
+ミニバッファから抜けて式を評価するので、
+ポイントを1単語分先へ進めることになる。
+この例では、@code{edit-and-eval-command}は@code{nil}を返す。
+@end defun
+
+@node Minibuffer History
+@c @section Minibuffer History
+@section ミニバッファの履歴
+@c @cindex minibuffer history
+@c @cindex history list
+@cindex ミニバッファの履歴
+@cindex 履歴リスト
+
+@c   A @dfn{minibuffer history list} records previous minibuffer inputs so
+@c the user can reuse them conveniently.  A history list is actually a
+@c symbol, not a list; it is a variable whose value is a list of strings
+@c (previous inputs), most recent first.
+@dfn{ミニバッファ履歴リスト}（minibuffer history list）は
+ミニバッファでの以前の入力を記録し、
+ユーザーがそれらを手軽に再利用できるようにします。
+履歴リストは実際にはシンボルでありリストではありません。
+最新のものが先頭にある（以前の入力の）文字列のリストを値とする変数です。
+
+@c   There are many separate history lists, used for different kinds of
+@c inputs.  It's the Lisp programmer's job to specify the right history
+@c list for each use of the minibuffer.
+異なる種類の入力に用いる多くの別々の履歴リストがあります。
+ミニバッファを利用するたびに適した履歴リストを指定するのは、
+Lispプログラマの責任です。
+
+@c   The basic minibuffer input functions @code{read-from-minibuffer} and
+@c @code{completing-read} both accept an optional argument named @var{hist}
+@c which is how you specify the history list.  Here are the possible
+@c values:
+基本的なミニバッファ入力関数
+@code{read-from-minibuffer}と@code{completing-read}の両者は、
+読者が指定する履歴リストを省略可能な引数@var{hist}として受け付けます。
+指定可能な値はつぎのとおりです。
+
+@table @asis
+@item @var{variable}
+@c Use @var{variable} (a symbol) as the history list.
+変数@var{variable}（シンボル）を履歴リストとして用いる。
+
+@item (@var{variable} . @var{startpos})
+@c Use @var{variable} (a symbol) as the history list, and assume that the
+@c initial history position is @var{startpos} (an integer, counting from
+@c zero which specifies the most recent element of the history).
+変数@var{variable}（シンボル）を履歴リストとして用い、
+初期履歴位置を@var{startpos}
+（履歴リストの最新要素を0とする整数）と仮定する。
+
+@c If you specify @var{startpos}, then you should also specify that element
+@c of the history as the initial minibuffer contents, for consistency.
+@var{startpos}を指定した場合、整合性を保つために、
+履歴リストの当該要素をミニバッファの初期内容にも指定すること。
+@end table
+
+@c   If you don't specify @var{hist}, then the default history list
+@c @code{minibuffer-history} is used.  For other standard history lists,
+@c see below.  You can also create your own history list variable; just
+@c initialize it to @code{nil} before the first use.
+@var{hist}を指定しなければ、
+デフォルトの履歴リスト@code{minibuffer-history}を用いる。
+その他の標準的な履歴リストについては以下を参照。
+読者が独自の履歴リスト変数を作成してもよい。
+初めて使用するまえに単に@code{nil}で初期化しておく。
+
+@c   Both @code{read-from-minibuffer} and @code{completing-read} add new
+@c elements to the history list automatically, and provide commands to
+@c allow the user to reuse items on the list.  The only thing your program
+@c needs to do to use a history list is to initialize it and to pass its
+@c name to the input functions when you wish.  But it is safe to modify the
+@c list by hand when the minibuffer input functions are not using it.
+@code{read-from-minibuffer}と@code{completing-read}の両者は
+履歴リストに新たな要素を自動的に追加し、
+リスト上の要素を再利用するためのコマンドをユーザーに提供する。
+履歴リストを使うために読者のプログラムで行うべきことは、
+履歴リストを初期化し必要なときにその名前を入力関数に渡すだけである。
+ミニバッファ入力関数が履歴リストを使用していないときには、
+履歴リストを変更しても安全である。
+
+@c   Here are some of the standard minibuffer history list variables:
+標準的なミニバッファ履歴リスト変数を以下にあげておく。
+
+@defvar minibuffer-history
+@c The default history list for minibuffer history input.
+ミニバッファの履歴入力用のデフォルトの履歴リスト。
+@end defvar
+
+@defvar query-replace-history
+@c A history list for arguments to @code{query-replace} (and similar
+@c arguments to other commands).
+@code{query-replace}（および同様のコマンド）の引数用の履歴リスト。
+@end defvar
+
+@defvar file-name-history
+@c A history list for file-name arguments.
+ファイル名引数用の履歴リスト。
+@end defvar
+
+@defvar buffer-name-history
+@tindex buffer-name-history
+@c A history list for buffer-name arguments.
+バッファ名引数用の履歴リスト。
+@end defvar
+
+@defvar regexp-history
+@c A history list for regular expression arguments.
+正規表現引数用の履歴リスト。
+@end defvar
+
+@defvar extended-command-history
+@c A history list for arguments that are names of extended commands.
+拡張コマンド名である引数用の履歴リスト。
+@end defvar
+
+@defvar shell-command-history
+@c A history list for arguments that are shell commands.
+シェルコマンドである引数用の履歴リスト。
+@end defvar
+
+@defvar read-expression-history
+@c A history list for arguments that are Lisp expressions to evaluate.
+Lisp式として評価する引数用の履歴リスト。
+@end defvar
+
+@node Completion
+@c @section Completion
+@section 補完
+@c @cindex completion
+@cindex 補完
+
+@c   @dfn{Completion} is a feature that fills in the rest of a name
+@c starting from an abbreviation for it.  Completion works by comparing the
+@c user's input against a list of valid names and determining how much of
+@c the name is determined uniquely by what the user has typed.  For
+@c example, when you type @kbd{C-x b} (@code{switch-to-buffer}) and then
+@c type the first few letters of the name of the buffer to which you wish
+@c to switch, and then type @key{TAB} (@code{minibuffer-complete}), Emacs
+@c extends the name as far as it can.
+@dfn{補完}（completion）とは、
+名前の省略から始まる名前の残り部分を補充する機能です。
+ユーザー入力を正しい名前のリストと比較し、
+すでにユーザーが入力したものに名前が
+どの程度一致するかを決定することで補完します。
+たとえば、@kbd{C-x b}（@code{switch-to-buffer}）と打って、
+切り替えたいバッファ名の始めの数文字を打って
+@key{TAB}（@code{minibuffer-complete}）を打つと、
+Emacsは可能な限りその名前を補充します。
+
+@c   Standard Emacs commands offer completion for names of symbols, files,
+@c buffers, and processes; with the functions in this section, you can
+@c implement completion for other kinds of names.
+Emacsの標準のコマンドは、
+シンボル、ファイル、バッファ、プロセスの名前を補完できます。
+本節の関数を用いれば、その他の種類の名前の補完も実装できます。
+
+@c   The @code{try-completion} function is the basic primitive for
+@c completion: it returns the longest determined completion of a given
+@c initial string, with a given set of strings to match against.
+関数@code{try-completion}は補完のための基本関数です。
+与えられた文字列の集まりから
+初期文字列にもっとも適合する最長のものを返します。
+
+@c   The function @code{completing-read} provides a higher-level interface
+@c for completion.  A call to @code{completing-read} specifies how to
+@c determine the list of valid names.  The function then activates the
+@c minibuffer with a local keymap that binds a few keys to commands useful
+@c for completion.  Other functions provide convenient simple interfaces
+@c for reading certain kinds of names with completion.
+関数@code{completing-read}は補完のための上位レベルの
+インターフェイスを提供します。
+@code{completing-read}の呼び出しには、
+正しい名前のリストを決定する方法を指定します。
+この関数は、補完に有用なコマンドを数個のキーにバインドした
+ローカルキーマップを使うミニバッファを活性にします。
+その他の関数は、特定の種類の名前を補完して読み取るために
+単純化したインターフェイスを提供します。
+
+@menu
+* Basic Completion::       Low-level functions for completing strings.
+                             (These are too low level to use the minibuffer.)
+* Minibuffer Completion::  Invoking the minibuffer with completion.
+* Completion Commands::    Minibuffer commands that do completion.
+* High-Level Completion::  Convenient special cases of completion
+                             (reading buffer name, file name, etc.)
+* Reading File Names::     Using completion to read file names.
+* Programmed Completion::  Finding the completions for a given file name.
+@end menu
+
+@node Basic Completion
+@c @subsection Basic Completion Functions
+@subsection 基本補完関数
+
+@c   The two functions @code{try-completion} and @code{all-completions}
+@c have nothing in themselves to do with minibuffers.  We describe them in
+@c this chapter so as to keep them near the higher-level completion
+@c features that do use the minibuffer.
+2つの関数@code{try-completion}と@code{all-completions}は、
+それ自身ではミニバッファを使いません。
+これらについて本章で述べるのは、
+ミニバッファを使う上位レベルの補完機能と同列にしておくためです。
+
+@defun try-completion string collection &optional predicate
+@c This function returns the longest common substring of all possible
+@c completions of @var{string} in @var{collection}.  The value of
+@c @var{collection} must be an alist, an obarray, or a function that
+@c implements a virtual set of strings (see below).
+この関数は、@var{collection}にある@var{string}を補完する
+共通の最長な部分文字列を返す。
+@var{collection}の値は、連想リスト、オブジェクト配列、あるいは、
+実質的な文字列の集まりを返す関数（下記参照）であること。
+
+@c Completion compares @var{string} against each of the permissible
+@c completions specified by @var{collection}; if the beginning of the
+@c permissible completion equals @var{string}, it matches.  If no permissible
+@c completions match, @code{try-completion} returns @code{nil}.  If only
+@c one permissible completion matches, and the match is exact, then
+@c @code{try-completion} returns @code{t}.  Otherwise, the value is the
+@c longest initial sequence common to all the permissible completions that
+@c match.
+補完では、@var{collection}で指定した各補完候補と
+@var{string}を比較する。
+補完候補の先頭部分が@var{string}に等しければ、
+その補完候補は一致するという。
+一致する補完候補がなければ、@code{try-completion}は@code{nil}を返す。
+たった1つの補完候補に一致し、かつ、完全に一致すれば、
+@code{try-completion}は@code{t}を返す。
+さもなければ、一致する補完候補すべてに共通する最長の文字列を値とする。
+
+@c If @var{collection} is an alist (@pxref{Association Lists}), the
+@c @sc{car}s of the alist elements form the set of permissible completions.
+@var{collection}が連想リスト（@pxref{Association Lists}）であると、
+連想リストの要素の@sc{car}群が補完候補の集まりになる。
+
+@c @cindex obarray in completion
+@cindex 補完におけるオブジェクト配列
+@c If @var{collection} is an obarray (@pxref{Creating Symbols}), the names
+@c of all symbols in the obarray form the set of permissible completions.  The
+@c global variable @code{obarray} holds an obarray containing the names of
+@c all interned Lisp symbols.
+@var{collection}がオブジェクト配列（@pxref{Creating Symbols}）であると、
+オブジェクト配列内のすべてのシンボルの名前が補完候補の集まりになる。
+グローバル変数@code{obarray}は、インターンしたすべてのLispシンボルの
+名前を収めたオブジェクト配列を保持する。
+
+@c Note that the only valid way to make a new obarray is to create it
+@c empty and then add symbols to it one by one using @code{intern}.
+@c Also, you cannot intern a given symbol in more than one obarray.
+新たなオブジェクト配列を作成する唯一の正しい方法は、
+まず空で作成してから@code{intern}で1つ1つシンボルを追加することである
+ことに注意。
+なお、1つのシンボルを複数のオブジェクト配列にはインターンできない。
+
+@c If the argument @var{predicate} is non-@code{nil}, then it must be a
+@c function of one argument.  It is used to test each possible match, and
+@c the match is accepted only if @var{predicate} returns non-@code{nil}.
+@c The argument given to @var{predicate} is either a cons cell from the alist
+@c (the @sc{car} of which is a string) or else it is a symbol (@emph{not} a
+@c symbol name) from the obarray.
+引数@var{predicate}が@code{nil}以外である場合、
+それは1引数の関数であること。
+その関数は一致する補完候補の検査に使われ、
+@var{predicate}が@code{nil}以外を返す場合にのみ一致した候補とみなす。
+@var{predicate}に渡す引数は、
+（@sc{car}が文字列である）連想リストのコンスセルであるか、
+オブジェクト配列からの（シンボル名では@emph{ない}）シンボルである。
+
+@c You can also use a symbol that is a function as @var{collection}.  Then
+@c the function is solely responsible for performing completion;
+@c @code{try-completion} returns whatever this function returns.  The
+@c function is called with three arguments: @var{string}, @var{predicate}
+@c and @code{nil}.  (The reason for the third argument is so that the same
+@c function can be used in @code{all-completions} and do the appropriate
+@c thing in either case.)  @xref{Programmed Completion}.
+@var{collection}には、関数であるシンボルを使うこともできる。
+その関数には補完処理を完遂する責任がある。
+@code{try-completion}はその関数が返したものを返す。
+その関数は3引数、つまり、
+@var{string}、@var{predicate}、@code{nil}で呼ばれる。
+（第3引数がある理由は、
+@code{all-completions}でも同じ関数を使い、
+いずれの場合にも適切に動作できるようにするため。）
+@pxref{Programmed Completion}。
+
+@c In the first of the following examples, the string @samp{foo} is
+@c matched by three of the alist @sc{car}s.  All of the matches begin with
+@c the characters @samp{fooba}, so that is the result.  In the second
+@c example, there is only one possible match, and it is exact, so the value
+@c is @code{t}.
+以下の最初の例では、
+文字列@samp{foo}は連想リストの3つの@sc{car}に一致する。
+すべての一致は@samp{fooba}で始まるため、これが結果になる。
+2番目の例では、たった1つの一致があり、しかも、完全に一致するので、
+値は@code{t}である。
+
+@smallexample
+@group
+(try-completion 
+ "foo"
+ '(("foobar1" 1) ("barfoo" 2) ("foobaz" 3) ("foobar2" 4)))
+     @result{} "fooba"
+@end group
+
+@group
+(try-completion "foo" '(("barfoo" 2) ("foo" 3)))
+     @result{} t
+@end group
+@end smallexample
+
+@c In the following example, numerous symbols begin with the characters
+@c @samp{forw}, and all of them begin with the word @samp{forward}.  In
+@c most of the symbols, this is followed with a @samp{-}, but not in all,
+@c so no more than @samp{forward} can be completed.
+つぎの例では、@samp{forw}で始まるシンボルが多数あり、
+それらはすべて単語@samp{forward}で始まる。
+ほとんどのシンボルでは、これに@samp{-}が続くが、
+すべてがそうではないので、@samp{forward}までしか補完できない。
+
+@smallexample
+@group
+(try-completion "forw" obarray)
+     @result{} "forward"
+@end group
+@end smallexample
+
+@c Finally, in the following example, only two of the three possible
+@c matches pass the predicate @code{test} (the string @samp{foobaz} is
+@c too short).  Both of those begin with the string @samp{foobar}.
+最後の例は、述語@code{test}の検査に通るのは3つの一致のうち2つだけである
+（文字列@samp{foobaz}は短すぎる）。
+両者は文字列@samp{foobar}で始まる。
+
+@smallexample
+@group
+(defun test (s) 
+  (> (length (car s)) 6))
+     @result{} test
+@end group
+@group
+(try-completion 
+ "foo"
+ '(("foobar1" 1) ("barfoo" 2) ("foobaz" 3) ("foobar2" 4)) 
+ 'test)
+     @result{} "foobar"
+@end group
+@end smallexample
+@end defun
+
+@defun all-completions string collection &optional predicate nospace
+@c This function returns a list of all possible completions of
+@c @var{string}.  The arguments to this function are the same as those of
+@c @code{try-completion}.
+この関数は@var{string}の補完すべてのリストを返す。
+この関数の引数は、@code{try-completion}のものと同じである。
+
+@c If @var{collection} is a function, it is called with three arguments:
+@c @var{string}, @var{predicate} and @code{t}; then @code{all-completions}
+@c returns whatever the function returns.  @xref{Programmed Completion}.
+@var{collection}が関数であると、
+@var{string}、@var{predicate}、@code{t}の3引数で呼ばれる。
+@code{all-completions}はこの関数が返す値を返す。
+@pxref{Programmed Completion}。
+
+@c If @var{nospace} is non-@code{nil}, completions that start with a space
+@c are ignored unless @var{string} also starts with a space.
+@var{nospace}が@code{nil}以外であると、
+@var{string}が空白で始まらない限り、空白で始まる補完は無視する。
+
+@c Here is an example, using the function @code{test} shown in the
+@c example for @code{try-completion}:
+@code{try-completion}の例に示した関数@code{test}を用いた例を示す。
+
+@smallexample
+@group
+(defun test (s) 
+  (> (length (car s)) 6))
+     @result{} test
+@end group
+
+@group
+(all-completions  
+ "foo"
+ '(("foobar1" 1) ("barfoo" 2) ("foobaz" 3) ("foobar2" 4))
+ 'test)
+     @result{} ("foobar1" "foobar2")
+@end group
+@end smallexample
+@end defun
+
+@defvar completion-ignore-case
+@c If the value of this variable is 
+@c non-@code{nil}, Emacs does not consider case significant in completion.
+この変数の値が@code{nil}以外であると、
+Emacsは補完において大文字小文字を区別しない。
+@end defvar
+
+@node Minibuffer Completion
+@c @subsection Completion and the Minibuffer
+@subsection 補完とミニバッファ
+
+@c   This section describes the basic interface for reading from the
+@c minibuffer with completion.
+本節ではミニバッファからの補完による読み取り用の
+基本インターフェイスについて述べます。
+
+@defun completing-read prompt collection &optional predicate require-match initial hist default inherit-input-method
+@c This function reads a string in the minibuffer, assisting the user by
+@c providing completion.  It activates the minibuffer with prompt
+@c @var{prompt}, which must be a string.
+この関数は、与えられた補完でユーザーを補佐して
+ミニバッファで文字列を読み取る。
+文字列であるプロンプト@var{prompt}でミニバッファを活性にする。
+
+@c The actual completion is done by passing @var{collection} and
+@c @var{predicate} to the function @code{try-completion}.  This happens in
+@c certain commands bound in the local keymaps used for completion.
+実際の補完は、@var{collection}と@var{predicate}を
+関数@code{try-completion}に渡して行う。
+これは、補完を用いるローカルキーマップでバインドされたコマンドで行われる。
+
+@c If @var{require-match} is @code{nil}, the exit commands work regardless
+@c of the input in the minibuffer.  If @var{require-match} is @code{t}, the
+@c usual minibuffer exit commands won't exit unless the input completes to
+@c an element of @var{collection}.  If @var{require-match} is neither
+@c @code{nil} nor @code{t}, then the exit commands won't exit unless the
+@c input already in the buffer matches an element of @var{collection}.
+@var{require-match}が@code{nil}であると、
+ミニバッファでの入力に関わらず
+ミニバッファから抜けるコマンドは動作する。
+@var{require-match}が@code{t}であると、
+ミニバッファでの入力が@var{collection}の1つの要素に補完できない限り、
+ミニバッファから抜ける通常のコマンドは動作しない。
+@var{require-match}が@code{nil}でも@code{t}でもないと、
+ミニバッファでの入力が@var{collection}の1つの要素に一致しない限り、
+ミニバッファから抜けるコマンドは動作しない。
+
+@c However, empty input is always permitted, regardless of the value of
+@c @var{require-match}; in that case, @code{completing-read} returns
+@c @var{default}.  The value of @var{default} (if non-@code{nil}) is also
+@c available to the user through the history commands.
+しかし、@var{require-match}の値に関わらず、
+空の入力はつねに許される。
+その場合、@code{completing-read}は@var{default}を返す。
+@var{default}の値は（@code{nil}でなければ）履歴コマンドを介しても
+ユーザーが使える。
+
+@c The user can exit with null input by typing @key{RET} with an empty
+@c minibuffer.  Then @code{completing-read} returns @code{""}.  This is how
+@c the user requests whatever default the command uses for the value being
+@c read.  The user can return using @key{RET} in this way regardless of the
+@c value of @var{require-match}, and regardless of whether the empty string
+@c is included in @var{collection}.
+ミニバッファが空の状態で@key{RET}を打つと、
+ユーザーは空入力で抜けることができる。
+そうすると、@code{completing-read}は@code{""}を返す。
+これにより、読み取った値に対してコマンドが使うどんなデフォルトでも指定できる。
+@var{require-match}の値、および、@var{collection}に空文字列が
+含まれるかどうかに関わらず、ユーザーはこのようにして@key{RET}で戻れる。
+
+@c The function @code{completing-read} works by calling
+@c @code{read-minibuffer}.  It uses @code{minibuffer-local-completion-map}
+@c as the keymap if @var{require-match} is @code{nil}, and uses
+@c @code{minibuffer-local-must-match-map} if @var{require-match} is
+@c non-@code{nil}.  @xref{Completion Commands}.
+関数@code{completing-read}は@code{read-minibuffer}を呼び出すことで動作する。
+@var{require-match}が@code{nil}であると、
+キーマップとして@code{minibuffer-local-completion-map}を使い、
+@code{nil}以外であると@code{minibuffer-local-must-match-map}を使う。
+@pxref{Completion Commands}。
+
+@c The argument @var{hist} specifies which history list variable to use for
+@c saving the input and for minibuffer history commands.  It defaults to
+@c @code{minibuffer-history}.  @xref{Minibuffer History}.
+引数@var{hist}は、入力を保存しミニバッファ履歴コマンドで
+使う履歴リスト変数を指定する。
+デフォルトは@code{minibuffer-history}である。
+@pxref{Minibuffer History}。
+
+@c If @var{initial} is non-@code{nil}, @code{completing-read} inserts it
+@c into the minibuffer as part of the input.  Then it allows the user to
+@c edit the input, providing several commands to attempt completion.
+@c In most cases, we recommend using @var{default}, and not @var{initial}.
+@var{initial}が@code{nil}以外であると、
+@code{completing-read}はこれを入力の一部としてミニバッファに挿入する。
+これにより、ユーザーは補完コマンドとともに入力を編集できる。
+ほとんどの場合、@var{initial}ではなく@var{default}を使うことを勧める。
+
+@c If the argument @var{inherit-input-method} is non-@code{nil}, then the
+@c minibuffer inherits the current input method (@pxref{Input
+@c Methods}) and the setting of @code{enable-multibyte-characters}
+@c (@pxref{Text Representations}) from whichever buffer was current before
+@c entering the minibuffer.
+引数@var{inherit-input-method}が@code{nil}以外であると、
+ミニバッファに入るまえのカレントバッファがなんであれ、
+カレントバッファから現在の入力方式（@pxref{Input Methods}）と
+@code{enable-multibyte-characters}（@pxref{Text Representations}）
+の設定を継承する。
+
+@c Completion ignores case when comparing the input against the possible
+@c matches, if the built-in variable @code{completion-ignore-case} is
+@c non-@code{nil}.  @xref{Basic Completion}.
+組み込み変数@code{completion-ignore-case}が@code{nil}以外であると、
+大文字小文字を区別せずに候補に対して入力を比較する。
+@pxref{Basic Completion}。
+
+@c Here's an example of using @code{completing-read}:
+@code{completing-read}を用いた例を以下に示す。
+
+@smallexample
+@group
+(completing-read
+ "Complete a foo: "
+ '(("foobar1" 1) ("barfoo" 2) ("foobaz" 3) ("foobar2" 4))
+ nil t "fo")
+@end group
+
+@group
+@c ;; @r{After evaluation of the preceding expression,} 
+@c ;;   @r{the following appears in the minibuffer:}
+;; @r{上の式を評価するとミニバッファはつぎのようになる} 
+
+---------- Buffer: Minibuffer ----------
+Complete a foo: fo@point{}
+---------- Buffer: Minibuffer ----------
+@end group
+@end smallexample
+
+@noindent
+@c If the user then types @kbd{@key{DEL} @key{DEL} b @key{RET}},
+@c @code{completing-read} returns @code{barfoo}.
+ユーザーが@kbd{@key{DEL} @key{DEL} b @key{RET}}を打つと、
+@code{completing-read}は@code{barfoo}を返す。
+
+@c The @code{completing-read} function binds three variables to pass
+@c information to the commands that actually do completion.  These
+@c variables are @code{minibuffer-completion-table},
+@c @code{minibuffer-completion-predicate} and
+@c @code{minibuffer-completion-confirm}.  For more information about them,
+@c see @ref{Completion Commands}.
+関数@code{completing-read}は、
+補完を実際に行うコマンドに情報を渡すために3つの変数を束縛する。
+3つの変数とは、@code{minibuffer-completion-table}、
+@code{minibuffer-completion-predicate}、
+@code{minibuffer-completion-confirm}である。
+これらについて詳しくは、@ref{Completion Commands}を参照。
+@end defun
+
+@node Completion Commands
+@c @subsection Minibuffer Commands That Do Completion
+@subsection 補完を行うミニバッファコマンド
+
+@c   This section describes the keymaps, commands and user options used in
+@c the minibuffer to do completion.
+本節では、補完を行うためにミニバッファで用いられるキーマップ、
+コマンド、ユーザーオプションについて述べます。
+
+@defvar minibuffer-local-completion-map
+@c @code{completing-read} uses this value as the local keymap when an
+@c exact match of one of the completions is not required.  By default, this
+@c keymap makes the following bindings:
+@code{completing-read}は、
+補完候補の1つと完全に一致しなくてもよい場合に
+ローカルキーマップとしてこの値を使う。
+デフォルトでは、このキーマップのバインディングはつぎのとおり。
+
+@table @asis
+@item @kbd{?}
+@code{minibuffer-completion-help}
+
+@item @key{SPC}
+@code{minibuffer-complete-word}
+
+@item @key{TAB}
+@code{minibuffer-complete}
+@end table
+
+@noindent
+@c with other characters bound as in @code{minibuffer-local-map}
+@c (@pxref{Text from Minibuffer}).
+他の文字は@code{minibuffer-local-map}
+（@pxref{Text from Minibuffer}）と同様にバインドされる。
+@end defvar
+
+@defvar minibuffer-local-must-match-map
+@c @code{completing-read} uses this value as the local keymap when an
+@c exact match of one of the completions is required.  Therefore, no keys
+@c are bound to @code{exit-minibuffer}, the command that exits the
+@c minibuffer unconditionally.  By default, this keymap makes the following
+@c bindings:
+@code{completing-read}は、
+補完候補の1つと完全に一致する必要がある場合に
+ローカルキーマップとしてこの値を使う。
+そのため、ミニバッファから無条件に抜けるコマンド@code{exit-minibuffer}に
+バインドしたキーはない。
+デフォルトでは、このキーマップのバインディングはつぎのとおり。
+
+@table @asis
+@item @kbd{?}
+@code{minibuffer-completion-help}
+
+@item @key{SPC}
+@code{minibuffer-complete-word}
+
+@item @key{TAB}
+@code{minibuffer-complete}
+
+@item @kbd{C-j}
+@code{minibuffer-complete-and-exit}
+
+@item @key{RET}
+@code{minibuffer-complete-and-exit}
+@end table
+
+@noindent
+@c with other characters bound as in @code{minibuffer-local-map}.
+他の文字は@code{minibuffer-local-map}と同様にバインドされる。
+@end defvar
+
+@defvar minibuffer-completion-table
+@c The value of this variable is the alist or obarray used for completion
+@c in the minibuffer.  This is the global variable that contains what
+@c @code{completing-read} passes to @code{try-completion}.  It is used by
+@c minibuffer completion commands such as @code{minibuffer-complete-word}.
+この変数の値は、ミニバッファでの補完に用いられる
+連想リストやオブジェクト配列である。
+これは、@code{completing-read}が@code{try-completion}に渡すものを
+保持したグローバル変数である。
+@code{minibuffer-complete-word}などの
+ミニバッファ補完コマンドで使用される。
+@end defvar
+
+@defvar minibuffer-completion-predicate
+@c This variable's value is the predicate that @code{completing-read}
+@c passes to @code{try-completion}.  The variable is also used by the other
+@c minibuffer completion functions.
+この変数の値は、@code{completing-read}が
+@code{try-completion}へ渡す述語である。
+この変数は、他のミニバッファ補完関数でも使われる。
+@end defvar
+
+@c @deffn Command minibuffer-complete-word
+@deffn コマンド minibuffer-complete-word
+@c This function completes the minibuffer contents by at most a single
+@c word.  Even if the minibuffer contents have only one completion,
+@c @code{minibuffer-complete-word} does not add any characters beyond the
+@c first character that is not a word constituent.  @xref{Syntax Tables}.
+この関数は、ミニバッファの内容を多くても1単語分補完する。
+ミニバッファの内容に対応する補完がたった1つであっても、
+単語構成文字ではない文字以降は補充しない。
+@pxref{Syntax Tables}。
+@end deffn
+
+@c @deffn Command minibuffer-complete
+@deffn コマンド minibuffer-complete
+@c This function completes the minibuffer contents as far as possible.
+この関数は、ミニバッファの内容を可能な限り補完する。
+@end deffn
+
+@c @deffn Command minibuffer-complete-and-exit
+@deffn コマンド minibuffer-complete-and-exit
+@c This function completes the minibuffer contents, and exits if
+@c confirmation is not required, i.e., if
+@c @code{minibuffer-completion-confirm} is @code{nil}.  If confirmation
+@c @emph{is} required, it is given by repeating this command
+@c immediately---the command is programmed to work without confirmation
+@c when run twice in succession.
+この関数は、確認が必要でないとき、つまり、
+@code{minibuffer-completion-confirm}が@code{nil}であるときには、
+ミニバッファの内容を補完後に抜ける。
+確認が必要@emph{である}ときには、
+このコマンドをただちに繰り返すことで確認をとる。
+このコマンドは、連続して2回呼ばれると、
+確認しないようにプログラムしてある。
+@end deffn
+
+@defvar minibuffer-completion-confirm
+@c When the value of this variable is non-@code{nil}, Emacs asks for
+@c confirmation of a completion before exiting the minibuffer.  The
+@c function @code{minibuffer-complete-and-exit} checks the value of this
+@c variable before it exits.
+この変数の値が@code{nil}以外の場合、
+Emacsはミニバッファから抜けるまえに補完を確認してくる。
+関数@code{minibuffer-complete-and-exit}は、
+抜けるまえにこの変数の値を検査する。
+@end defvar
+
+@c @deffn Command minibuffer-completion-help
+@deffn コマンド minibuffer-completion-help
+@c This function creates a list of the possible completions of the
+@c current minibuffer contents.  It works by calling @code{all-completions}
+@c using the value of the variable @code{minibuffer-completion-table} as
+@c the @var{collection} argument, and the value of
+@c @code{minibuffer-completion-predicate} as the @var{predicate} argument.
+@c The list of completions is displayed as text in a buffer named
+@c @samp{*Completions*}.
+この関数は、ミニバッファの現在の内容に対する補完のリストを作る。
+引数@var{collection}として変数@code{minibuffer-completion-table}の値を、
+引数@var{predicate}として@code{minibuffer-completion-predicate}の値を
+用いて@code{all-completions}を呼び出すことで動作する。
+補完のリストは、@samp{*Completions*}という名前のバッファに
+テキストとして表示される。
+@end deffn
+
+@defun display-completion-list completions
+@c This function displays @var{completions} to the stream in
+@c @code{standard-output}, usually a buffer.  (@xref{Read and Print}, for more
+@c information about streams.)  The argument @var{completions} is normally
+@c a list of completions just returned by @code{all-completions}, but it
+@c does not have to be.  Each element may be a symbol or a string, either
+@c of which is simply printed, or a list of two strings, which is printed
+@c as if the strings were concatenated.
+この関数は、通常はバッファであるストリーム@code{standard-output}に
+@var{completions}を表示する。
+（ストリームについては詳しくは@pxref{Read and Print}。）
+引数@var{completions}は、普通は、@code{all-completions}が
+返した補完のリストであるが、そうでなくてもよい。
+各要素は、シンボルか文字列であり、その場合、そのまま表示される。
+各要素が2つの文字列から成るリストである場合、
+文字列を連結したものを表示する。
+
+@c This function is called by @code{minibuffer-completion-help}.  The
+@c most common way to use it is together with
+@c @code{with-output-to-temp-buffer}, like this:
+この関数は、@code{minibuffer-completion-help}から呼ばれる。
+以下のように、@code{with-output-to-temp-buffer}とともに
+用いるのがもっとも一般的である。
+
+@example
+(with-output-to-temp-buffer "*Completions*"
+  (display-completion-list
+    (all-completions (buffer-string) my-alist)))
+@end example
+@end defun
+
+@defopt completion-auto-help
+@c If this variable is non-@code{nil}, the completion commands
+@c automatically display a list of possible completions whenever nothing
+@c can be completed because the next character is not uniquely determined.
+この変数が@code{nil}以外であると、
+つぎの補充文字が一意に決まらない場合には、
+自動的に補完のリストを表示する。
+@end defopt
+
+@node High-Level Completion
+@c @subsection High-Level Completion  Functions
+@subsection 高レベルの補完関数
+
+@c   This section describes the higher-level convenient functions for
+@c reading certain sorts of names with completion.
+本節では、特定の種類の名前を補完付きで読み取るための
+高レベルの便利な関数について述べます。
+
+@c   In most cases, you should not call these functions in the middle of a
+@c Lisp function.  When possible, do all minibuffer input as part of
+@c reading the arguments for a command, in the @code{interactive}
+@c specification.  @xref{Defining Commands}.
+多くの場合、これらの関数をLisp関数の途中では呼び出さないでください。
+可能な場合には、@code{interactive}の指定で、
+コマンドの引数を読み取る操作の一部としてすべてのミニバッファ入力を
+行ってください。
+@xref{Defining Commands}。
+
+@defun read-buffer prompt &optional default existing
+@c This function reads the name of a buffer and returns it as a string.
+@c The argument @var{default} is the default name to use, the value to
+@c return if the user exits with an empty minibuffer.  If non-@code{nil},
+@c it should be a string or a buffer.  It is mentioned in the prompt, but
+@c is not inserted in the minibuffer as initial input.
+この関数はバッファ名を読み取り、文字列として返す。
+引数@var{default}はデフォルトの名前を表し、
+ユーザーがミニバッファから空で抜け出したときに返される値である。
+@code{nil}以外であるときには、文字列かバッファであること。
+これはプロンプトとして現れるが、
+ミニバッファには初期入力として挿入されない。
+
+@c If @var{existing} is non-@code{nil}, then the name specified must be
+@c that of an existing buffer.  The usual commands to exit the minibuffer
+@c do not exit if the text is not valid, and @key{RET} does completion to
+@c attempt to find a valid name.  (However, @var{default} is not checked
+@c for validity; it is returned, whatever it is, if the user exits with the
+@c minibuffer empty.)
+@var{existing}が@code{nil}以外であると、
+指定した名前は既存のバッファ名であること。
+テキストが正しくないとミニバッファから抜ける通常のコマンドは動作せず、
+@key{RET}は正しい名前を探すため補完を行う。
+（しかし、@var{default}が正しいかどうかは検査しない。
+ユーザーがミニバッファを空で抜ければ、
+なんであろうと@var{default}が返される。）
+
+@c In the following example, the user enters @samp{minibuffer.t}, and
+@c then types @key{RET}.  The argument @var{existing} is @code{t}, and the
+@c only buffer name starting with the given input is
+@c @samp{minibuffer.texi}, so that name is the value.
+以下の例では、ユーザーは@samp{minibuffer.t}と入力してから@key{RET}を打つ。
+引数@var{existing}は@code{t}であり、
+入力した名前で始まる唯一のバッファ名は@samp{minibuffer.texi}であるので、
+この名前が値になる。
+
+@example
+(read-buffer "Buffer name? " "foo" t)
+@group
+@c ;; @r{After evaluation of the preceding expression,} 
+@c ;;   @r{the following prompt appears,}
+@c ;;   @r{with an empty minibuffer:}
+;; @r{上の式を評価すると、ミニバッファは空で}
+;; @r{つぎのようなプロンプトが表示される}
+@end group
+
+@group
+---------- Buffer: Minibuffer ----------
+Buffer name? (default foo) @point{}
+---------- Buffer: Minibuffer ----------
+@end group
+
+@group
+@c ;; @r{The user types @kbd{minibuffer.t @key{RET}}.}
+;; @r{ユーザーは@kbd{minibuffer.t @key{RET}}と打つ}
+     @result{} "minibuffer.texi"
+@end group
+@end example
+@end defun
+
+@defvar read-buffer-function
+@c This variable specifies how to read buffer names.  For example, if you
+@c set this variable to @code{iswitchb-read-buffer}, all Emacs commands
+@c that call @code{read-buffer} to read a buffer name will actually use the
+@c @code{iswitchb} package to read it.
+この変数は、バッファ名の読み取り方を指定する。
+たとえば、この変数に@code{iswitchb-read-buffer}を設定すると、
+バッファ名を読み取るために@code{read-buffer}を呼び出す
+すべてのEmacsコマンドは、
+バッファ名を読むためにパッケージ@code{iswitchb}を使うようになる。
+@end defvar
+
+@defun read-command prompt &optional default
+@c This function reads the name of a command and returns it as a Lisp
+@c symbol.  The argument @var{prompt} is used as in
+@c @code{read-from-minibuffer}.  Recall that a command is anything for
+@c which @code{commandp} returns @code{t}, and a command name is a symbol
+@c for which @code{commandp} returns @code{t}.  @xref{Interactive Call}.
+この関数はコマンド名を読み取り、Lispシンボルとして返す。
+引数@var{prompt}は、@code{read-from-minibuffer}と同様に使われる。
+なんであっても@code{commandp}が@code{t}を返せばコマンドであり、
+@code{commandp}が@code{t}を返すシンボルはコマンド名であることに注意。
+@pxref{Interactive Call}。
+
+@c The argument @var{default} specifies what to return if the user enters
+@c null input.  It can be a symbol or a string; if it is a string,
+@c @code{read-command} interns it before returning it.  If @var{default} is
+@c @code{nil}, that means no default has been specified; then if the user
+@c enters null input, the return value is @code{nil}.
+引数@var{default}は、ユーザー入力が空だった場合に返したい値を指定する。
+これは、シンボルか文字列であること。
+文字列であると、@code{read-command}は、これを返すまえにインターンする。
+@var{default}が@code{nil}であると、デフォルトを指定しないことを意味し、
+ユーザー入力が空であると戻り値は@code{nil}である。
+
+@example
+(read-command "Command name? ")
+
+@group
+@c ;; @r{After evaluation of the preceding expression,} 
+@c ;;   @r{the following prompt appears with an empty minibuffer:}
+;; @r{上の式を評価後には、ミニバッファは空で} 
+;; @r{つぎのようなプロンプトが表示される}
+@end group
+
+@group
+---------- Buffer: Minibuffer ---------- 
+Command name?  
+---------- Buffer: Minibuffer ----------
+@end group
+@end example
+
+@noindent
+@c If the user types @kbd{forward-c @key{RET}}, then this function returns
+@c @code{forward-char}.
+ユーザーが@kbd{forward-c @key{RET}}と打つと、
+この関数は@code{forward-char}を返す。
+
+@c The @code{read-command} function is a simplified interface to
+@c @code{completing-read}.  It uses the variable @code{obarray} so as to
+@c complete in the set of extant Lisp symbols, and it uses the
+@c @code{commandp} predicate so as to accept only command names:
+関数@code{read-command}は@code{completing-read}のインターフェイスを
+単純化したものである。
+既存のLispシンボルの集まりから補完するために変数@code{obarray}を使い、
+コマンド名のみを対象とするために述語@code{commandp}を使う。
+
+@c @cindex @code{commandp} example
+@cindex @code{commandp}の例
+@cindex 例、@code{commandp}
+@example
+@group
+(read-command @var{prompt})
+@equiv{}
+(intern (completing-read @var{prompt} obarray 
+                         'commandp t nil))
+@end group
+@end example
+@end defun
+
+@defun read-variable prompt &optional default
+@c This function reads the name of a user variable and returns it as a
+@c symbol.
+この関数はユーザー変数の名前を読み取り、シンボルとして返す。
+
+@c The argument @var{default} specifies what to return if the user enters
+@c null input.  It can be a symbol or a string; if it is a string,
+@c @code{read-variable} interns it before returning it.  If @var{default}
+@c is @code{nil}, that means no default has been specified; then if the
+@c user enters null input, the return value is @code{nil}.
+引数@var{default}は、ユーザー入力が空だった場合に返したい値を指定する。
+これは、シンボルか文字列であること。
+文字列であると、@code{read-variable}は、これを返すまえにインターンする。
+@var{default}が@code{nil}であると、デフォルトを指定しないことを意味し、
+ユーザー入力が空であると戻り値は@code{nil}である。
+
+@example
+@group
+(read-variable "Variable name? ")
+
+@c ;; @r{After evaluation of the preceding expression,} 
+@c ;;   @r{the following prompt appears,} 
+@c ;;   @r{with an empty minibuffer:}
+;; @r{上の式を評価後には、ミニバッファは空で} 
+;; @r{つぎのようなプロンプトが表示される}
+@end group
+
+@group
+---------- Buffer: Minibuffer ----------
+Variable name? @point{}
+---------- Buffer: Minibuffer ----------
+@end group
+@end example
+
+@noindent
+@c If the user then types @kbd{fill-p @key{RET}}, @code{read-variable}
+@c returns @code{fill-prefix}.
+ユーザーが@kbd{fill-p @key{RET}}と打つと、
+@code{read-variable}は@code{fill-prefix}を返す。
+
+@c This function is similar to @code{read-command}, but uses the
+@c predicate @code{user-variable-p} instead of @code{commandp}:
+この関数は@code{read-command}に似ているが、
+@code{commandp}のかわりに述語@code{user-variable-p}を使う。
+
+@c @cindex @code{user-variable-p} example
+@cindex 例、@code{user-variable-p}
+@example
+@group
+(read-variable @var{prompt})
+@equiv{}
+(intern
+ (completing-read @var{prompt} obarray
+                  'user-variable-p t nil))
+@end group
+@end example
+@end defun
+
+@c   See also the functions @code{read-coding-system} and
+@c @code{read-non-nil-coding-system}, in @ref{User-Chosen Coding Systems}.
+@ref{User-Chosen Coding Systems}の関数@code{read-coding-system}や
+@code{read-non-nil-coding-system}も参照してください。
+
+@node Reading File Names
+@c @subsection Reading File Names
+@subsection ファイル名の読み取り
+
+@c   Here is another high-level completion function, designed for reading a
+@c file name.  It provides special features including automatic insertion
+@c of the default directory.
+ここでは、ファイル名を読み取るように設計された高レベルの
+別の補完関数について述べます。
+デフォルトディレクトリの自動挿入などの特別な機能を提供します。
+
+@defun read-file-name prompt &optional directory default existing initial
+@c This function reads a file name in the minibuffer, prompting with
+@c @var{prompt} and providing completion.  If @var{default} is
+@c non-@code{nil}, then the function returns @var{default} if the user just
+@c types @key{RET}.  @var{default} is not checked for validity; it is
+@c returned, whatever it is, if the user exits with the minibuffer empty.
+この関数は、@var{prompt}をプロンプトとし、
+補完を行ってミニバッファでファイル名を読み取る。
+@var{default}が@code{nil}以外であると、
+ユーザーが単に@key{RET}を打つと、この関数は@var{default}を返す。
+@var{default}が正しいかどうかは検査せず、
+それがなんであれ、ユーザーがミニバッファを空で抜けるとそれを返す。
+
+@c If @var{existing} is non-@code{nil}, then the user must specify the name
+@c of an existing file; @key{RET} performs completion to make the name
+@c valid if possible, and then refuses to exit if it is not valid.  If the
+@c value of @var{existing} is neither @code{nil} nor @code{t}, then
+@c @key{RET} also requires confirmation after completion.  If
+@c @var{existing} is @code{nil}, then the name of a nonexistent file is
+@c acceptable.
+@var{existing}が@code{nil}以外であると、
+ユーザーは既存ファイルの名前を指定する必要がある。
+@key{RET}は、可能ならば正しい名前に補完を行うが、
+それが正しくない場合には抜けない。
+@var{existing}の値が@code{nil}でも@code{t}でもないと、
+@key{RET}は補完後の確認を必要とする。
+@var{existing}が@code{nil}であると、
+存在しないファイルの名前も許す。
+
+@c The argument @var{directory} specifies the directory to use for
+@c completion of relative file names.  If @code{insert-default-directory}
+@c is non-@code{nil}, @var{directory} is also inserted in the minibuffer as
+@c initial input.  It defaults to the current buffer's value of
+@c @code{default-directory}.
+引数@var{directory}は、相対ファイル名の補完に用いるディレクトリを指定する。
+@code{insert-default-directory}が@code{nil}以外であると、
+初期入力として@var{directory}をミニバッファに挿入する。
+カレントバッファの@code{default-directory}の値がデフォルトになる。
+
+@c @c Emacs 19 feature
+@c If you specify @var{initial}, that is an initial file name to insert in
+@c the buffer (after @var{directory}, if that is inserted).  In this
+@c case, point goes at the beginning of @var{initial}.  The default for
+@c @var{initial} is @code{nil}---don't insert any file name.  To see what
+@c @var{initial} does, try the command @kbd{C-x C-v}.  @strong{Note:} we
+@c recommend using @var{default} rather than @var{initial} in most cases.
+@var{initial}を指定すると、
+（@var{directory}があればそれを挿入後に）バッファに
+挿入される初期ファイル名になる。
+この場合、ポイントは@var{initial}の先頭に置かれる。
+@var{initial}のデフォルトは@code{nil}であり、
+いかなるファイル名も挿入しない。
+@var{initial}の動作を見るには、コマンド@kbd{C-x C-v}を試してほしい。
+@strong{注意：}@code{ }
+ほとんどの場合、@var{initial}ではなく@var{default}を使うことを勧める。
+
+@c Here is an example: 
+例を示す。
+
+@example
+@group
+(read-file-name "The file is ")
+
+@c ;; @r{After evaluation of the preceding expression,} 
+@c ;;   @r{the following appears in the minibuffer:}
+;; @r{上の式を評価後には、ミニバッファはつぎのようになる}
+@end group
+
+@group
+---------- Buffer: Minibuffer ----------
+The file is /gp/gnu/elisp/@point{}
+---------- Buffer: Minibuffer ----------
+@end group
+@end example
+
+@noindent
+@c Typing @kbd{manual @key{TAB}} results in the following:
+@kbd{manual @key{TAB}}を打つと、つぎのようになる。
+
+@example
+@group
+---------- Buffer: Minibuffer ----------
+The file is /gp/gnu/elisp/manual.texi@point{}
+---------- Buffer: Minibuffer ----------
+@end group
+@end example
+
+@c Wordy to avoid overfull hbox in smallbook mode.
+@noindent
+@c If the user types @key{RET}, @code{read-file-name} returns the file name
+@c as the string @code{"/gp/gnu/elisp/manual.texi"}.
+ユーザーが@key{RET}と打つと、
+@code{read-file-name}は
+ファイル名を文字列@code{"/gp/gnu/elisp/manual.texi"}として返す。
+@end defun
+
+@defopt insert-default-directory
+@c This variable is used by @code{read-file-name}.  Its value controls
+@c whether @code{read-file-name} starts by placing the name of the default
+@c directory in the minibuffer, plus the initial file name if any.  If the
+@c value of this variable is @code{nil}, then @code{read-file-name} does
+@c not place any initial input in the minibuffer (unless you specify
+@c initial input with the @var{initial} argument).  In that case, the
+@c default directory is still used for completion of relative file names,
+@c but is not displayed.
+この変数は@code{read-file-name}が使う。
+その値は、@code{read-file-name}が、
+デフォルトディレクトリの名前と（あれば）初期ファイル名を
+ミニバッファに入れて動作を開始するかどうかを制御する。
+この変数の値が@code{nil}であると、
+@code{read-file-name}は
+（引数@var{initial}で初期入力を指定しない限り）
+ミニバッファに初期入力を入れない。
+その場合でも、相対ファイル名の補完には
+デフォルトディレクトリを使うが表示はしない。
+
+@c For example:
+例を示す。
+
+@example
+@group
+@c ;; @r{Here the minibuffer starts out with the default directory.}
+;; @r{デフォルトディレクトリを入れて始める}
+(let ((insert-default-directory t))
+  (read-file-name "The file is "))
+@end group
+
+@group
+---------- Buffer: Minibuffer ----------
+The file is ~lewis/manual/@point{}
+---------- Buffer: Minibuffer ----------
+@end group
+
+@group
+@c ;; @r{Here the minibuffer is empty and only the prompt}
+@c ;;   @r{appears on its line.}
+;; @r{ミニバッファは空であり、プロンプトのみ}
+(let ((insert-default-directory nil))
+  (read-file-name "The file is "))
+@end group
+
+@group
+---------- Buffer: Minibuffer ----------
+The file is @point{}
+---------- Buffer: Minibuffer ----------
+@end group
+@end example
+@end defopt
+
+@node Programmed Completion
+@c @subsection Programmed Completion
+@subsection プログラム補完
+@c @cindex programmed completion
+@cindex プログラム補完
+
+@c   Sometimes it is not possible to create an alist or an obarray
+@c containing all the intended possible completions.  In such a case, you
+@c can supply your own function to compute the completion of a given string.
+@c This is called @dfn{programmed completion}.
+意図した補完候補を持った連想リストやオブジェクト配列を
+作成することが困難な場合もあります。
+そのような場合、与えられた文字列に対する補完を計算する
+独自の関数を与えることができます。
+これを@dfn{プログラム補完}（programmed completion）と呼びます。
+
+@c   To use this feature, pass a symbol with a function definition as the
+@c @var{collection} argument to @code{completing-read}.  The function
+@c @code{completing-read} arranges to pass your completion function along
+@c to @code{try-completion} and @code{all-completions}, which will then let
+@c your function do all the work.
+この機能を使うには、@code{completing-read}の引数@var{collection}に
+関数定義を持つシンボルを渡します。
+関数@code{completing-read}は、
+@code{try-completion}や@code{all-completions}に
+読者の補完関数を渡すようにして、読者の関数にすべてを任せます。
+
+@c   The completion function should accept three arguments:
+補完関数はつぎの3つの引数を受け取ります。
+
+@itemize @bullet
+@item
+@c The string to be completed.
+補完すべき文字列。
+
+@item
+@c The predicate function to filter possible matches, or @code{nil} if
+@c none.  Your function should call the predicate for each possible match,
+@c and ignore the possible match if the predicate returns @code{nil}.
+補完候補を選別する述語関数、あるいは、選別しないのならば@code{nil}。
+読者の関数では、各補完候補についてこの述語を呼び出し、
+@code{nil}が返されたら当該候補を無視する。
+
+@item
+@c A flag specifying the type of operation.
+操作の型を示すフラグ。
+@end itemize
+
+@c   There are three flag values for three operations:
+3つの操作型に対応してフラグの値は3つあります。
+
+@itemize @bullet
+@item
+@c @code{nil} specifies @code{try-completion}.  The completion function
+@c should return the completion of the specified string, or @code{t} if the
+@c string is a unique and exact match already, or @code{nil} if the string
+@c matches no possibility.
+@code{nil}は@code{try-completion}を指定する。
+補完関数は、指定された文字列の補完を返すこと。
+あるいは、文字列が一意に完全に一致する場合には@code{t}を返し、
+文字列の補完がまったくなければ@code{nil}を返す。
+
+@c If the string is an exact match for one possibility, but also matches
+@c other longer possibilities, the function should return the string, not
+@c @code{t}.
+文字列が一意に完全に一致する場合であっても、
+より長い候補に一致する場合には、
+この関数は@code{t}ではなく文字列を返すこと。
+
+@item
+@c @code{t} specifies @code{all-completions}.  The completion function
+@c should return a list of all possible completions of the specified
+@c string.
+@code{t}は@code{all-completions}を指定する。
+補完関数は、指定された文字列に対する補完のリストを返すこと。
+
+@item
+@c @code{lambda} specifies a test for an exact match.  The completion
+@c function should return @code{t} if the specified string is an exact
+@c match for some possibility; @code{nil} otherwise.
+@code{lambda}は、完全な一致を指定する。
+補完関数は、指定された文字列が候補に完全に一致する場合には@code{t}を返し、
+さもなければ@code{nil}を返すこと。
+@end itemize
+
+@c   It would be consistent and clean for completion functions to allow
+@c lambda expressions (lists that are functions) as well as function
+@c symbols as @var{collection}, but this is impossible.  Lists as
+@c completion tables are already assigned another meaning---as alists.  It
+@c would be unreliable to fail to handle an alist normally because it is
+@c also a possible function.  So you must arrange for any function you wish
+@c to use for completion to be encapsulated in a symbol.
+補完関数@var{collection}には関数シンボルに加えて、
+ラムダ式（関数であるリスト）も許すほうが
+一貫性があって見通しがよいはずですが、それは不可能です。
+リストには補完候補表としての意味がすでにあり、連想リストがそれです。
+関数としての可能性もある通常の連想リストの扱いに失敗するようでは、
+信頼性がなくなります。
+そのため、読者が補完に使用したい関数は、
+シンボルに入れておく必要があるのです。
+
+@c   Emacs uses programmed completion when completing file names.
+@c @xref{File Name Completion}.
+Emacsは、ファイル名の補完にはプログラム補完を用います。
+@xref{File Name Completion}。
+
+@node Yes-or-No Queries
+@c @section Yes-or-No Queries
+@section Yes/Noの問い合わせ
+@c @cindex asking the user questions
+@c @cindex querying the user
+@c @cindex yes-or-no questions
+@cindex ユーザーへの問い合わせ
+@cindex yes/noの問い合わせ
+
+@c   This section describes functions used to ask the user a yes-or-no
+@c question.  The function @code{y-or-n-p} can be answered with a single
+@c character; it is useful for questions where an inadvertent wrong answer
+@c will not have serious consequences.  @code{yes-or-no-p} is suitable for
+@c more momentous questions, since it requires three or four characters to
+@c answer.
+本節ではユーザーにyes/noを問い合わせるための関数について述べます。
+関数@code{y-or-n-p}には、1文字で答えます。
+誤った答えでも重大な問題に至らないような問い合わせに便利です。
+@code{yes-or-no-p}には3文字か4文字で答える必要があるため、
+より重要な問い合わせに適しています。
+
+@c    If either of these functions is called in a command that was invoked
+@c using the mouse---more precisely, if @code{last-nonmenu-event}
+@c (@pxref{Command Loop Info}) is either @code{nil} or a list---then it
+@c uses a dialog box or pop-up menu to ask the question.  Otherwise, it
+@c uses keyboard input.  You can force use of the mouse or use of keyboard
+@c input by binding @code{last-nonmenu-event} to a suitable value around
+@c the call.
+これらの関数がマウスを使って起動されたコマンドから呼ばれると、
+より正確には、@code{last-nonmenu-event}（@pxref{Command Loop Info}）が
+@code{nil}かリストであると、
+関数は問い合わせのための対話ボックスやポップアップメニューを使います。
+さもなければ、キーボード入力を使います。
+呼び出しにおいて@code{last-nonmenu-event}に適切な値を束縛することで
+マウスかキーボード入力の使用を強制できます。
+
+@c   Strictly speaking, @code{yes-or-no-p} uses the minibuffer and
+@c @code{y-or-n-p} does not; but it seems best to describe them together.
+厳密にいえば、@code{yes-or-no-p}はミニバッファを使いますが、
+@code{y-or-n-p}は使いません。
+ですが、両者をここで説明しておきます。
+
+@defun y-or-n-p prompt
+@c This function asks the user a question, expecting input in the echo
+@c area.  It returns @code{t} if the user types @kbd{y}, @code{nil} if the
+@c user types @kbd{n}.  This function also accepts @key{SPC} to mean yes
+@c and @key{DEL} to mean no.  It accepts @kbd{C-]} to mean ``quit'', like
+@c @kbd{C-g}, because the question might look like a minibuffer and for
+@c that reason the user might try to use @kbd{C-]} to get out.  The answer
+@c is a single character, with no @key{RET} needed to terminate it.  Upper
+@c and lower case are equivalent.
+この関数はユーザーに問い合わせ、エコー領域で入力を待ちます。
+ユーザーが@kbd{y}を打てば@code{t}を返し、
+@kbd{n}を打てば@code{nil}を返します。
+さらに、@key{SPC}を「y」、@key{DEL}を「n」ともみなします。
+@kbd{C-]}を@kbd{C-g}のように『中断』ともみなします。
+というのは、問い合わせはミニバッファを使っているようにみえるので、
+これから抜けるためにユーザーが@kbd{C-]}を使いそうだからである。
+応答は1文字であり、@key{RET}で終える必要はない。
+大文字と小文字は同じ意味である。
+
+@c ``Asking the question'' means printing @var{prompt} in the echo area,
+@c followed by the string @w{@samp{(y or n) }}.  If the input is not one of
+@c the expected answers (@kbd{y}, @kbd{n}, @kbd{@key{SPC}},
+@c @kbd{@key{DEL}}, or something that quits), the function responds
+@c @samp{Please answer y or n.}, and repeats the request.
+『問い合わせ』では、エコー領域に@var{prompt}を表示し、
+文字列@w{@samp{(y or n) }}が続きます。
+入力が正しい応答（@kbd{y}、@kbd{n}、@kbd{@key{SPC}}、
+@kbd{@key{DEL}}、中断など）でないと、
+関数は@samp{Please answer y or n.}を表示して
+問い合わせるを繰り返す。
+
+@c This function does not actually use the minibuffer, since it does not
+@c allow editing of the answer.  It actually uses the echo area (@pxref{The
+@c Echo Area}), which uses the same screen space as the minibuffer.  The
+@c cursor moves to the echo area while the question is being asked.
+応答は編集できないので、この関数は実際にはミニバッファを使わない。
+ミニバッファが使うのと同じ画面領域を使う
+エコー領域（@pxref{The Echo Area}）を実際には使う。
+問い合わせ中は、カーソルはエコー領域に移動する。
+
+@c The answers and their meanings, even @samp{y} and @samp{n}, are not
+@c hardwired.  The keymap @code{query-replace-map} specifies them.
+@c @xref{Search and Replace}.
+応答とその意味は、
+たとえ@samp{y}や@samp{n}であっても組み込まれているわけではない。
+キーマップ@code{query-replace-map}がそれらを指定する。
+@pxref{Search and Replace}。
+
+@c In the following example, the user first types @kbd{q}, which is
+@c invalid.  At the next prompt the user types @kbd{y}.
+以下の例では、ユーザーはまず@kbd{q}を打つが、これは正しくない。
+つぎのプロンプトに対して、ユーザーは@kbd{y}を打つ。
+
+@smallexample
+@group
+(y-or-n-p "Do you need a lift? ")
+
+@c ;; @r{After evaluation of the preceding expression,} 
+@c ;;   @r{the following prompt appears in the echo area:}
+;; @r{上の式を評価後には、エコー領域には}
+;; @r{つぎのプロンプトが表示される}
+@end group
+
+@group
+---------- Echo area ----------
+Do you need a lift? (y or n) 
+---------- Echo area ----------
+@end group
+
+@c ;; @r{If the user then types @kbd{q}, the following appears:}
+;; @r{ユーザーが@kbd{q}を打つと、つぎのようになる}
+
+@group
+---------- Echo area ----------
+Please answer y or n.  Do you need a lift? (y or n) 
+---------- Echo area ----------
+@end group
+
+@c ;; @r{When the user types a valid answer,}
+@c ;;   @r{it is displayed after the question:}
+;; @r{ユーザーが正しい応答を打つと}
+;; @r{問い合わせのうしろに表示される}
+
+@group
+---------- Echo area ----------
+Do you need a lift? (y or n) y
+---------- Echo area ----------
+@end group
+@end smallexample
+
+@noindent
+@c We show successive lines of echo area messages, but only one actually
+@c appears on the screen at a time.
+ここでは、エコー領域のメッセージを複数行示したが、
+実際には、1度に1つのメッセージだけが表示される。
+@end defun
+
+@defun y-or-n-p-with-timeout prompt seconds default-value
+@c Like @code{y-or-n-p}, except that if the user fails to answer within
+@c @var{seconds} seconds, this function stops waiting and returns
+@c @var{default-value}.  It works by setting up a timer; see @ref{Timers}.
+@c The argument @var{seconds} may be an integer or a floating point number.
+@code{y-or-n-p}と同様だが、ユーザーが@var{seconds}秒以内に答えないと、
+入力を待たずに@var{default-value}を返す。
+これにはタイマを使う。
+@ref{Timers}を参照。
+引数@var{seconds}は整数でも浮動小数点でもよい。
+@end defun
+
+@defun yes-or-no-p prompt
+@c This function asks the user a question, expecting input in the
+@c minibuffer.  It returns @code{t} if the user enters @samp{yes},
+@c @code{nil} if the user types @samp{no}.  The user must type @key{RET} to
+@c finalize the response.  Upper and lower case are equivalent.
+この関数はユーザーに問い合わせ、ミニバッファでの入力を仮定する。
+ユーザーが@samp{yes}を入力すると@code{t}を返し、
+@samp{no}を入力すると@code{nil}を返す。
+応答を終えるためにユーザーは@key{RET}を打つ必要がある。
+大文字と小文字は同じ意味である。
+
+@c @code{yes-or-no-p} starts by displaying @var{prompt} in the echo area,
+@c followed by @w{@samp{(yes or no) }}.  The user must type one of the
+@c expected responses; otherwise, the function responds @samp{Please answer
+@c yes or no.}, waits about two seconds and repeats the request.
+@code{yes-or-no-p}は、まず、@var{prompt}に続けて
+@w{@samp{(yes or no) }}をエコー領域に表示する。
+ユーザーは正しい応答の1つを入力する必要がある。
+さもないと、この関数は@samp{Please answer yes or no.}を2秒ほど
+表示してから問い合わせを繰り返す。
+
+@c @code{yes-or-no-p} requires more work from the user than
+@c @code{y-or-n-p} and is appropriate for more crucial decisions.
+@code{yes-or-no-p}は@code{y-or-n-p}よりもユーザーの手間を必要とし、
+より重要な決定に適している。
+
+@c Here is an example:
+例を示す。
+
+@smallexample
+@group
+(yes-or-no-p "Do you really want to remove everything? ")
+
+@c ;; @r{After evaluation of the preceding expression,} 
+@c ;;   @r{the following prompt appears,} 
+@c ;;   @r{with an empty minibuffer:}
+;; @r{上の式を評価後には、つぎのプロンプトが} 
+;; @r{空のミニバッファとともに表示される} 
+@end group
+
+@group
+---------- Buffer: minibuffer ----------
+Do you really want to remove everything? (yes or no) 
+---------- Buffer: minibuffer ----------
+@end group
+@end smallexample
+
+@noindent
+@c If the user first types @kbd{y @key{RET}}, which is invalid because this
+@c function demands the entire word @samp{yes}, it responds by displaying
+@c these prompts, with a brief pause between them:
+ユーザーは、まず@kbd{y @key{RET}}を打つが、
+この関数は完全な単語@samp{yes}を要求するので正しくない。
+以下のプロンプトを少し時間をおいて表示する。
+
+@smallexample
+@group
+---------- Buffer: minibuffer ----------
+Please answer yes or no.
+Do you really want to remove everything? (yes or no)
+---------- Buffer: minibuffer ----------
+@end group
+@end smallexample
+@end defun
+
+@node Multiple Queries
+@c @section Asking Multiple Y-or-N Questions
+@section 複数のY/Nの問い合わせ
+
+@c   When you have a series of similar questions to ask, such as ``Do you
+@c want to save this buffer'' for each buffer in turn, you should use
+@c @code{map-y-or-n-p} to ask the collection of questions, rather than
+@c asking each question individually.  This gives the user certain
+@c convenient facilities such as the ability to answer the whole series at
+@c once.
+各バッファについて『バッファを保存するか』などの
+一連の単純な問い合わせをする場合には、
+個々に問い合わせるかわりに
+@code{map-y-or-n-p}を用いてまとめて問い合わせるべきです。
+
+@defun map-y-or-n-p prompter actor list &optional help action-alist
+@c This function asks the user a series of questions, reading a
+@c single-character answer in the echo area for each one.
+この関数は、各問について1文字の応答をエコー領域から読み取ることで、
+ユーザーに一連の問い合わせを行う。
+
+@c The value of @var{list} specifies the objects to ask questions about.
+@c It should be either a list of objects or a generator function.  If it is
+@c a function, it should expect no arguments, and should return either the
+@c next object to ask about, or @code{nil} meaning stop asking questions.
+@var{list}の値は、問い合わせ対象のオブジェクトを指定する。
+オブジェクトのリストであるか、生成関数であること。
+関数である場合、それは引数なしで呼ばれ、
+つぎの問い合わせ対象のオブジェクトを返すか、
+問い合わせの終了を意味する@code{nil}を返す。
+
+@c The argument @var{prompter} specifies how to ask each question.  If
+@c @var{prompter} is a string, the question text is computed like this:
+引数@var{prompter}は、各問い合わせをどのように問うかを指定する。
+@var{prompter}が文字列であると、問い合わせ文はつぎのように計算される。
+
+@example
+(format @var{prompter} @var{object})
+@end example
+
+@noindent
+@c where @var{object} is the next object to ask about (as obtained from
+@c @var{list}).
+ここで、@var{object}は（@var{list}から得た）
+問い合わせ対象のオブジェクトである。
+
+@c If not a string, @var{prompter} should be a function of one argument
+@c (the next object to ask about) and should return the question text.  If
+@c the value is a string, that is the question to ask the user.  The
+@c function can also return @code{t} meaning do act on this object (and
+@c don't ask the user), or @code{nil} meaning ignore this object (and don't
+@c ask the user).
+文字列でなければ、@var{prompter}は
+1引数（問い合わせ対象のオブジェクト）の関数であり、
+問い合わせ文を返す。
+値が文字列であれば、それがユーザーへの問い合わせ文になる。
+関数は、（ユーザーに問い合わせずに）
+当該オブジェクトを処理することを意味する@code{t}か、
+（ユーザーに問い合わせずに）当該オブジェクトを無視することを意味する
+@code{nil}を返してもよい。
+
+@c The argument @var{actor} says how to act on the answers that the user
+@c gives.  It should be a function of one argument, and it is called with
+@c each object that the user says yes for.  Its argument is always an
+@c object obtained from @var{list}.
+引数@var{actor}は、ユーザーの応答に対してどのように動作するかを指定する。
+これは1引数の関数であり、ユーザーが「はい」と答えたオブジェクトで
+呼ばれる。
+引数は、つねに@var{list}から得たオブジェクトである。
+
+@c If the argument @var{help} is given, it should be a list of this form:
+引数@var{help}を指定する場合、つぎの形のリストであること。
+
+@example
+(@var{singular} @var{plural} @var{action})
+@end example
+
+@noindent
+@c where @var{singular} is a string containing a singular noun that
+@c describes the objects conceptually being acted on, @var{plural} is the
+@c corresponding plural noun, and @var{action} is a transitive verb
+@c describing what @var{actor} does.
+ここで、
+@var{singular}は操作対象のオブジェクトを
+記述する単数形の名詞を含んだ文字列であり、
+@var{plural}は対応する複数形の名詞であり、
+@var{action}は動作を記述する他動詞であること。
+
+@c If you don't specify @var{help}, the default is @code{("object"
+@c "objects" "act on")}.
+@var{help}を指定しないと、デフォルトは
+@code{("object" "objects" "act on")}である。
+
+@c Each time a question is asked, the user may enter @kbd{y}, @kbd{Y}, or
+@c @key{SPC} to act on that object; @kbd{n}, @kbd{N}, or @key{DEL} to skip
+@c that object; @kbd{!} to act on all following objects; @key{ESC} or
+@c @kbd{q} to exit (skip all following objects); @kbd{.} (period) to act on
+@c the current object and then exit; or @kbd{C-h} to get help.  These are
+@c the same answers that @code{query-replace} accepts.  The keymap
+@c @code{query-replace-map} defines their meaning for @code{map-y-or-n-p}
+@c as well as for @code{query-replace}; see @ref{Search and Replace}.
+各問い合わせでは、ユーザーは当該対象オブジェクトに対する操作に
+@kbd{y}、@kbd{Y}、@kbd{SPC}で答える。
+@kbd{n}、@kbd{N}、@key{DEL}は、そのオブジェクトを無視する。
+@kbd{!}はそのオブジェクトを含めて後続のものも処理する。
+@key{ESC}や@kbd{q}は（後続のオブジェクトをすべて無視して）抜ける。
+@kbd{.}（ピリオド）は現在の対象オブジェクトを処理してから抜ける。
+@kbd{C-h}はヘルプメッセージを表示する。
+これらは、@code{query-replace}が受け付ける応答と同じである。
+キーマップ@code{query-replace-map}が、
+@code{query-replace}と同様に
+@code{map-y-or-n-p}に対する（応答の）意味を定義する。
+@ref{Search and Replace}を参照。
+
+@c You can use @var{action-alist} to specify additional possible answers
+@c and what they mean.  It is an alist of elements of the form
+@c @code{(@var{char} @var{function} @var{help})}, each of which defines one
+@c additional answer.  In this element, @var{char} is a character (the
+@c answer); @var{function} is a function of one argument (an object from
+@c @var{list}); @var{help} is a string.
+@var{action-alist}を使って、
+可能な応答とそれらの意味を追加指定することもできる。
+これは、@code{(@var{char} @var{function} @var{help})}の形の要素から成る
+連想リストであり、それぞれが1つの追加応答を定義する。
+この要素の中で、
+@var{char}は（応答である）1つの文字、
+@var{function}は1引数（@var{list}からのオブジェクト）の関数、
+@var{help}は文字列である。
+
+@c When the user responds with @var{char}, @code{map-y-or-n-p} calls
+@c @var{function}.  If it returns non-@code{nil}, the object is considered
+@c ``acted upon'', and @code{map-y-or-n-p} advances to the next object in
+@c @var{list}.  If it returns @code{nil}, the prompt is repeated for the
+@c same object.
+ユーザーが@var{char}で答えると、
+@code{map-y-or-n-p}は@var{function}を呼び出す。
+これが@code{nil}以外を返せば、当該オブジェクトを『処理』したとみなして、
+@code{map-y-or-n-p}は@var{list}のつぎのオブジェクトに移る。
+@code{nil}であると、同じオブジェクトについてプロンプトを繰り返す。
+
+@c If @code{map-y-or-n-p} is called in a command that was invoked using the
+@c mouse---more precisely, if @code{last-nonmenu-event} (@pxref{Command
+@c Loop Info}) is either @code{nil} or a list---then it uses a dialog box
+@c or pop-up menu to ask the question.  In this case, it does not use
+@c keyboard input or the echo area.  You can force use of the mouse or use
+@c of keyboard input by binding @code{last-nonmenu-event} to a suitable
+@c value around the call.
+@code{map-y-or-n-p}がマウスを使って起動されたコマンドから呼ばれると、
+より正確には、@code{last-nonmenu-event}（@pxref{Command Loop Info}）が、
+@code{nil}かリストであると、
+関数は問い合わせのための対話ボックスやポップアップメニューを使う。
+その場合、キーボード入力やエコー領域は使わない。
+呼び出しにおいて@code{last-nonmenu-event}に適切な値を束縛することで
+マウスかキーボード入力の使用を強制できる。
+
+@c The return value of @code{map-y-or-n-p} is the number of objects acted on.
+@code{map-y-or-n-p}の戻り値は、処理したオブジェクトの個数である。
+@end defun
+
+@node Reading a Password
+@c @section Reading a Password
+@section パスワードの読み取り
+@c @cindex passwords, reading
+@cindex 読み取り、パスワード
+
+@c   To read a password to pass to another program, you can use the
+@c function @code{read-passwd}.
+別のプログラムへ渡すパスワードを読み取るには、
+関数@code{read-passwd}を使います。
+
+@tindex read-passwd
+@defun read-passwd prompt &optional confirm default
+@c This function reads a password, prompting with @var{prompt}.  It does
+@c not echo the password as the user types it; instead, it echoes @samp{.}
+@c for each character in the password.
+この関数は、プロンプト@var{prompt}を表示してパスワードを読み取る。
+ユーザーが入力するパスワードは表示せず、
+そのかわりにパスワードの各文字ごとに@samp{.}を表示する。
+
+@c The optional argument @var{confirm}, if non-@code{nil}, says to read the
+@c password twice and insist it must be the same both times.  If it isn't
+@c the same, the user has to type it over and over until the last two
+@c times match.
+省略可能な引数@var{confirm}が@code{nil}以外であると、
+パスワードを2回読み取り、両者が同一である必要がある。
+同一でないと、連続して2回同じパスワードを打つまで
+ユーザーは何度でも繰り返す必要がある。
+
+@c The optional argument @var{default} specifies the default password to
+@c return if the user enters empty input.  If @var{default} is @code{nil},
+@c then @code{read-passwd} returns the null string in that case.
+省略可能な引数@var{default}は、ユーザーが空のパスワードを
+入力したときに返すデフォルトのパスワードを指定する。
+@var{default}が@code{nil}であると、
+@code{read-passwd}はそのような場面では空文字列を返す。
+@end defun
+
+@node Minibuffer Misc
+@c @section Minibuffer Miscellany
+@section ミニバッファに関するその他
+
+@c   This section describes some basic functions and variables related to
+@c minibuffers.
+本節では、ミニバッファに関係する他の基本関数や変数について述べます。
+
+@c @deffn Command exit-minibuffer
+@deffn コマンド exit-minibuffer
+@c This command exits the active minibuffer.  It is normally bound to
+@c keys in minibuffer local keymaps.
+このコマンドは活性なミニバッファから抜ける。
+通常、ミニバッファのローカルキーマップでキーにバインドされる。
+@end deffn
+
+@c @deffn Command self-insert-and-exit
+@deffn コマンド self-insert-and-exit
+@c This command exits the active minibuffer after inserting the last
+@c character typed on the keyboard (found in @code{last-command-char};
+@c @pxref{Command Loop Info}).
+このコマンドは（@ref{Command Loop Info}の@code{last-command-char}にある）
+最新のキーボード入力文字を活性なミニバッファに挿入してから抜ける。
+@end deffn
+
+@c @deffn Command previous-history-element n
+@deffn コマンド previous-history-element n
+@c This command replaces the minibuffer contents with the value of the
+@c @var{n}th previous (older) history element.
+このコマンドは、ミニバッファの内容を
+@var{n}番目まえの（古い）履歴要素の値で置き換える。
+@end deffn
+
+@c @deffn Command next-history-element n
+@deffn コマンド next-history-element n
+@c This command replaces the minibuffer contents with the value of the
+@c @var{n}th more recent history element.
+このコマンドは、ミニバッファの内容を
+@var{n}番目先のより新しい履歴要素の値で置き換える。
+@end deffn
+
+@c @deffn Command previous-matching-history-element pattern
+@deffn コマンド previous-matching-history-element pattern
+@c This command replaces the minibuffer contents with the value of the
+@c previous (older) history element that matches @var{pattern} (a regular
+@c expression).
+このコマンドは、ミニバッファの内容を
+@var{pattern}（正規表現）に一致するまえの（古い）履歴要素の値で置き換える。
+@end deffn
+
+@c @deffn Command next-matching-history-element pattern
+@deffn コマンド next-matching-history-element pattern
+@c This command replaces the minibuffer contents with the value of the next
+@c (newer) history element that matches @var{pattern} (a regular
+@c expression).
+このコマンドは、ミニバッファの内容を
+@var{pattern}（正規表現）に一致するつぎの（新しい）履歴要素の値で置き換える。
+@end deffn
+
+@defun minibuffer-prompt
+@c This function returns the prompt string of the currently active
+@c minibuffer.  If no minibuffer is active, it returns @code{nil}.
+この関数は、現在活性なミニバッファのプロンプト文字列を返す。
+活性なミニバッファがなければ@code{nil}を返す。
+@end defun
+
+@defun minibuffer-prompt-width
+@c This function returns the display width of the prompt string of the
+@c currently active minibuffer.  If no minibuffer is active, it returns 0.
+この関数は、現在活性なミニバッファのプロンプト文字列の表示幅を返す。
+活性なミニバッファがなければ0を返す。
+@end defun
+
+@defvar minibuffer-setup-hook
+@c This is a normal hook that is run whenever the minibuffer is entered.
+@c @xref{Hooks}.
+ミニバッファに入るたびに実行されるノーマルフック。
+@pxref{Hooks}。
+@end defvar
+
+@defvar minibuffer-exit-hook
+@c This is a normal hook that is run whenever the minibuffer is exited.
+@c @xref{Hooks}.
+ミニバッファから抜けるたびに実行されるノーマルフック。
+@pxref{Hooks}。
+@end defvar
+
+@defvar minibuffer-help-form
+@c The current value of this variable is used to rebind @code{help-form}
+@c locally inside the minibuffer (@pxref{Help Functions}).
+この変数の現在値は、
+ミニバッファの内側で@code{help-form}のローカルな束縛に使われる。
+（@pxref{Help Functions}）。
+@end defvar
+
+@defun active-minibuffer-window
+@c This function returns the currently active minibuffer window, or
+@c @code{nil} if none is currently active.
+この関数は、現在活性なミニバッファのウィンドウを返す。
+あるいは、活性なミニバッファがなければ@code{nil}を返す。
+@end defun
+
+@defun minibuffer-window &optional frame
+@c This function returns the minibuffer window used for frame @var{frame}.
+@c If @var{frame} is @code{nil}, that stands for the current frame.  Note
+@c that the minibuffer window used by a frame need not be part of that
+@c frame---a frame that has no minibuffer of its own necessarily uses some
+@c other frame's minibuffer window.
+この関数は、フレーム@var{frame}で使われるミニバッファ用ウィンドウを返す。
+@var{frame}が@code{nil}であると、カレントフレームを意味する。
+フレームで使うミニバッファ用ウィンドウは、
+そのフレームの一部である必要はない。
+ミニバッファを持たないフレームでは、
+他のフレームのミニバッファ用ウィンドウを使う。
+@end defun
+
+@c Emacs 19 feature
+@defun window-minibuffer-p window
+@c This function returns non-@code{nil} if @var{window} is a minibuffer window.
+この関数は、@var{window}がミニバッファ用ウィンドウであると
+@code{nil}以外を返す。
+@end defun
+
+@c It is not correct to determine whether a given window is a minibuffer by
+@c comparing it with the result of @code{(minibuffer-window)}, because
+@c there can be more than one minibuffer window if there is more than one
+@c frame.
+与えられたウィンドウがミニバッファ用であるかどうかを調べるために、
+@code{(minibuffer-window)}の戻り値と比較するのは正しくありません。
+というのは、フレームが複数個あると
+複数のミニバッファ用ウィンドウがあるからです。
+
+@defun minibuffer-window-active-p window
+@c This function returns non-@code{nil} if @var{window}, assumed to be
+@c a minibuffer window, is currently active.
+この関数は、ミニバッファ用ウィンドウ@var{window}が活性であると
+@code{nil}以外を返す。
+@end defun
+
+@defvar minibuffer-scroll-window
+@c If the value of this variable is non-@code{nil}, it should be a window
+@c object.  When the function @code{scroll-other-window} is called in the
+@c minibuffer, it scrolls this window.
+この変数の値が@code{nil}以外であると、
+値はウィンドウオブジェクトであること。
+ミニバッファで関数@code{scroll-other-window}が呼ばれると、
+@code{scroll-other-window}はこのウィンドウをスクロールする。
+@end defvar
+
+@c Finally, some functions and variables deal with recursive minibuffers
+@c (@pxref{Recursive Editing}):
+最後に、再帰ミニバッファ（@pxref{Recursive Editing}）を扱う
+関数と変数について述べます。
+
+@defun minibuffer-depth
+@c This function returns the current depth of activations of the
+@c minibuffer, a nonnegative integer.  If no minibuffers are active, it
+@c returns zero.
+この関数は、活性なミニバッファの現在の深さを非負整数で返す。
+活性なミニバッファがなければ0を返す。
+@end defun
+
+@defopt enable-recursive-minibuffers
+@c If this variable is non-@code{nil}, you can invoke commands (such as
+@c @code{find-file}) that use minibuffers even while the minibuffer window
+@c is active.  Such invocation produces a recursive editing level for a new
+@c minibuffer.  The outer-level minibuffer is invisible while you are
+@c editing the inner one.
+この変数が@code{nil}以外であると、
+ミニバッファ用ウィンドウが活性であっても、
+（@code{find-file}などの）ミニバッファを使うコマンドを起動できる。
+そのような起動では、新たなミニバッファに対する再帰編集レベルが作られる。
+内側の（深い）ミニバッファを編集中には、
+外側の（浅い）レベルのミニバッファは見えない。
+
+@c If this variable is @code{nil}, you cannot invoke minibuffer
+@c commands when the minibuffer window is active, not even if you switch to
+@c another window to do it.
+この変数が@code{nil}であると、
+ミニバッファ用ウィンドウが活性なときには、
+別のウィンドウに切り替えたとしてもミニバッファコマンドは使えない。
+@end defopt
+
+@c @c Emacs 19 feature
+@c If a command name has a property @code{enable-recursive-minibuffers}
+@c that is non-@code{nil}, then the command can use the minibuffer to read
+@c arguments even if it is invoked from the minibuffer.  The minibuffer
+@c command @code{next-matching-history-element} (normally @kbd{M-s} in the
+@c minibuffer) uses this feature.
+コマンド名に@code{nil}以外の
+属性@code{enable-recursive-minibuffers}があると、
+当該コマンドをミニバッファから起動したときでさえ、
+当該コマンドはミニバッファを使って引数を読み取れます。
+ミニバッファコマンド@code{next-matching-history-element}
+（ミニバッファでは通常@kbd{M-s}）は、この機能を使っています。

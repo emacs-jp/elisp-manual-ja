@@ -1,0 +1,1033 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/sequences
+@node Sequences Arrays Vectors, Symbols, Lists, Top
+@c @chapter Sequences, Arrays, and Vectors
+@chapter シーケンス、配列、ベクトル
+@c @cindex sequence
+@cindex シーケンス
+
+@c   Recall that the @dfn{sequence} type is the union of two other Lisp
+@c types: lists and arrays.  In other words, any list is a sequence, and
+@c any array is a sequence.  The common property that all sequences have is
+@c that each is an ordered collection of elements.
+@dfn{シーケンス}（sequence）型とは、Lispの2つの異なる型の和であることを
+思い出してください。
+いいかえれば、任意のリストはシーケンスであり、
+任意の配列もシーケンスです。
+すべてのシーケンスに共通する性質は、
+それぞれ、要素の順序付けた集まりであるということです。
+
+@c   An @dfn{array} is a single primitive object that has a slot for each
+@c of its elements.  All the elements are accessible in constant time, but
+@c the length of an existing array cannot be changed.  Strings, vectors,
+@c char-tables and bool-vectors are the four types of arrays.
+@dfn{配列}（array）は、各要素ごとに1つ1つスロットを用意してある
+単一の基本オブジェクトです。
+すべての要素は一定時間内に参照できますが、既存の配列の長さは変更できません。
+文字列、ベクトル、文字テーブル、ブールベクトルは、配列型の4つの型です。
+
+@c   A list is a sequence of elements, but it is not a single primitive
+@c object; it is made of cons cells, one cell per element.  Finding the
+@c @var{n}th element requires looking through @var{n} cons cells, so
+@c elements farther from the beginning of the list take longer to access.
+@c But it is possible to add elements to the list, or remove elements.
+リストは、要素を並べたものですが、
+単一の基本オブジェクトではありません。
+コンスセルから作られていて、1つの要素あたり1つのセルがあります。
+@var{n}番目の要素を探すには、@var{n}個のコンスセルを調べる必要があるので、
+リストの先頭から遠い要素を参照するには余計に時間がかかります。
+しかし、リストには要素を追加したり削除したりできます。
+
+@c   The following diagram shows the relationship between these types:
+以下の図は、これらの型の関係を示します。
+
+@example
+@group
+@c           _____________________________________________
+@c          |                                             |
+@c          |          Sequence                           |
+@c          |  ______   ________________________________  |
+@c          | |      | |                                | |
+@c          | | List | |             Array              | |
+@c          | |      | |    ________       ________     | |
+@c          | |______| |   |        |     |        |    | |
+@c          |          |   | Vector |     | String |    | |
+@c          |          |   |________|     |________|    | |
+@c          |          |  ____________   _____________  | |
+@c          |          | |            | |             | | |
+@c          |          | | Char-table | | Bool-vector | | |
+@c          |          | |____________| |_____________| | |
+@c          |          |________________________________| |
+@c          |_____________________________________________|
+　　　　　┌────────────────────────┐
+　　　　　│　　　　　　シーケンス　　　　　　　　　　　　　│
+　　　　　│┌───┐　┌───────────────┐　│
+　　　　　││　　　│　│　　　　　　　　　　　　　　　│　│
+　　　　　││リスト│　│　　　　　　配列　　　　　　　│　│
+　　　　　││　　　│　│　┌────┐　┌───┐　　│　│
+　　　　　││　　　│　│　│　　　　│　│　　　｜　　│　│
+　　　　　│└───┘　│　│ベクトル│　│文字列｜　　│　│
+　　　　　│　　　　　　│　│　　　　│　│　　　｜　　│　│
+　　　　　│　　　　　　│　└────┘　└───┘　　│　│
+　　　　　│　　　　　　│　┌────┐　┌────┐　│　│
+　　　　　│　　　　　　│　│文字　　│　│ブール　│　│　│
+　　　　　│　　　　　　│　│テーブル│　│ベクトル│　│　│
+　　　　　│　　　　　　│　└────┘　└────┘　│　│
+　　　　　│　　　　　　└───────────────┘　│
+　　　　　└────────────────────────┘
+@end group
+@end example
+
+@c   The elements of vectors and lists may be any Lisp objects.  The
+@c elements of strings are all characters.
+ベクトルやリストの要素は、どんなLispオブジェクトでもかまいません。
+文字列の要素はすべて文字です。
+
+@menu
+* Sequence Functions::    Functions that accept any kind of sequence.
+* Arrays::                Characteristics of arrays in Emacs Lisp.
+* Array Functions::       Functions specifically for arrays.
+* Vectors::               Special characteristics of Emacs Lisp vectors.
+* Vector Functions::      Functions specifically for vectors.
+* Char-Tables::           How to work with char-tables.
+* Bool-Vectors::          How to work with bool-vectors.
+@end menu
+
+@node Sequence Functions
+@c @section Sequences
+@section シーケンス
+
+@c   In Emacs Lisp, a @dfn{sequence} is either a list or an array.  The
+@c common property of all sequences is that they are ordered collections of
+@c elements.  This section describes functions that accept any kind of
+@c sequence.
+Emacs Lispでは、@dfn{シーケンス}（sequence）とはリストか配列のことです。
+すべてのシーケンスに共通する性質は、
+要素の順序付けた集まりであるということです。
+本節では任意のシーケンスを受け付ける関数を説明します。
+
+@defun sequencep object
+@c Returns @code{t} if @var{object} is a list, vector, or
+@c string, @code{nil} otherwise.
+@var{object}が、リスト、ベクトル、あるいは、文字列ならば@code{t}を返し、
+さもなければ@code{nil}を返す。
+@end defun
+
+@defun length sequence
+@c @cindex string length
+@c @cindex list length
+@c @cindex vector length
+@c @cindex sequence length
+@cindex 文字列の長さ
+@cindex 長さ、文字列
+@cindex リストの長さ
+@cindex 長さ、リスト
+@cindex ベクトルの長さ
+@cindex 長さ、ベクトル
+@cindex シーケンスの長さ
+@cindex 長さ、シーケンス
+@c This function returns the number of elements in @var{sequence}.  If
+@c @var{sequence} is a cons cell that is not a list (because the final
+@c @sc{cdr} is not @code{nil}), a @code{wrong-type-argument} error is
+@c signaled.
+この関数は@var{sequence}内の要素の個数を返す。
+@var{sequence}が（最後の@sc{cdr}が@code{nil}ではないため）
+リストではないコンスセルであると、
+エラー@code{wrong-type-argument}を通知する。
+
+@c @xref{List Elements}, for the related function @code{safe-length}.
+関連する関数@code{safe-length}については、@pxref{List Elements}。
+
+@example
+@group
+(length '(1 2 3))
+    @result{} 3
+@end group
+@group
+(length ())
+    @result{} 0
+@end group
+@group
+(length "foobar")
+    @result{} 6
+@end group
+@group
+(length [1 2 3])
+    @result{} 3
+@end group
+@group
+(length (make-bool-vector 5 nil))
+    @result{} 5
+@end group
+@end example
+@end defun
+
+@defun elt sequence index
+@c @cindex elements of sequences
+@cindex シーケンスの要素
+@cindex 要素、シーケンス
+@c This function returns the element of @var{sequence} indexed by
+@c @var{index}.  Legitimate values of @var{index} are integers ranging from
+@c 0 up to one less than the length of @var{sequence}.  If @var{sequence}
+@c is a list, then out-of-range values of @var{index} return @code{nil};
+@c otherwise, they trigger an @code{args-out-of-range} error.
+この関数は@var{index}で添字付けされる@var{sequence}の要素を返す。
+@var{index}の正当な値は、0から@var{sequence}の長さより1小さい範囲の
+整数である。
+@var{sequence}がリストである場合には、
+範囲外の@var{index}に対しては@code{nil}を返す。
+さもなければエラー@code{args-out-of-range}を引き起こす。
+
+@example
+@group
+(elt [1 2 3 4] 2)
+     @result{} 3
+@end group
+@group
+(elt '(1 2 3 4) 2)
+     @result{} 3
+@end group
+@group
+@c ;; @r{We use @code{string} to show clearly which character @code{elt} returns.}
+;; @r{@code{string}を用いて@code{elt}が返す文字を明確にする}
+(string (elt "1234" 2))
+     @result{} "3"
+@end group
+@group
+(elt [1 2 3 4] 4)
+     @error{} Args out of range: [1 2 3 4], 4
+@end group
+@group
+(elt [1 2 3 4] -1)
+     @error{} Args out of range: [1 2 3 4], -1
+@end group
+@end example
+
+@c This function generalizes @code{aref} (@pxref{Array Functions}) and
+@c @code{nth} (@pxref{List Elements}).
+この関数は、@code{aref}（@pxref{Array Functions}）や
+@code{nth}（@pxref{List Elements}）を汎用にしたものである。
+@end defun
+
+@defun copy-sequence sequence
+@c @cindex copying sequences
+@cindex シーケンスのコピー
+@cindex コピー、シーケンス
+@c Returns a copy of @var{sequence}.  The copy is the same type of object
+@c as the original sequence, and it has the same elements in the same order.
+@var{sequence}のコピーを返す。
+コピーは、もとのシーケンスと同じ型のオブジェクトであり、
+同じ要素が同じ順序で入っている。
+
+@c Storing a new element into the copy does not affect the original
+@c @var{sequence}, and vice versa.  However, the elements of the new
+@c sequence are not copies; they are identical (@code{eq}) to the elements
+@c of the original.  Therefore, changes made within these elements, as
+@c found via the copied sequence, are also visible in the original
+@c sequence.
+コピーに新たな要素を格納しても、もとの@var{sequence}には影響せず、
+その逆もそうである。
+しかし、新たなシーケンスの要素はコピーしていない。
+つまり、それらはもとの要素と同一（@code{eq}）である。
+したがって、シーケンスのコピーにおいて、
+それらの要素の内部を変更すると、もとのシーケンスでもその変更がわかる。
+
+@c If the sequence is a string with text properties, the property list in
+@c the copy is itself a copy, not shared with the original's property
+@c list.  However, the actual values of the properties are shared.
+@c @xref{Text Properties}.
+シーケンスがテキスト属性を持つ文字列である場合には、
+コピーの中の属性リストそのものもコピーであり、
+もとの属性リストを共有するのではない。
+しかし、属性の実際の値は共有される。
+
+@c See also @code{append} in @ref{Building Lists}, @code{concat} in
+@c @ref{Creating Strings}, and @code{vconcat} in @ref{Vectors}, for others
+@c ways to copy sequences.
+シーケンスをコピーする別の方法については、
+@ref{Building Lists}の@code{append}、@ref{Creating Strings}の@code{concat}、
+@ref{Vectors}の@code{vconcat}を参照。
+
+@example
+@group
+(setq bar '(1 2))
+     @result{} (1 2)
+@end group
+@group
+(setq x (vector 'foo bar))
+     @result{} [foo (1 2)]
+@end group
+@group
+(setq y (copy-sequence x))
+     @result{} [foo (1 2)]
+@end group
+
+@group
+(eq x y)
+     @result{} nil
+@end group
+@group
+(equal x y)
+     @result{} t
+@end group
+@group
+(eq (elt x 1) (elt y 1))
+     @result{} t
+@end group
+
+@group
+@c ;; @r{Replacing an element of one sequence.}
+;; @r{1つのシーケンスの1つの要素を置き換える}
+(aset x 0 'quux)
+x @result{} [quux (1 2)]
+y @result{} [foo (1 2)]
+@end group
+
+@group
+@c ;; @r{Modifying the inside of a shared element.}
+;; @r{共有された要素の内部を修正する}
+(setcar (aref x 1) 69)
+x @result{} [quux (69 2)]
+y @result{} [foo (69 2)]
+@end group
+@end example
+@end defun
+
+@node Arrays
+@c @section Arrays
+@section 配列
+@c @cindex array
+@cindex 配列
+
+@c   An @dfn{array} object has slots that hold a number of other Lisp
+@c objects, called the elements of the array.  Any element of an array may
+@c be accessed in constant time.  In contrast, an element of a list
+@c requires access time that is proportional to the position of the element
+@c in the list.
+@dfn{配列}（array）オブジェクトには、配列の要素と呼ばれる
+Lispオブジェクトを保持するためのスロットがいくつかあります。
+配列の任意の要素は一定時間で参照できます。
+一方、リストの要素の参照には、
+リスト内でのその要素の位置に比例した時間が必要です。
+
+@c   Emacs defines four types of array, all one-dimensional: @dfn{strings},
+@c @dfn{vectors}, @dfn{bool-vectors} and @dfn{char-tables}.  A vector is a
+@c general array; its elements can be any Lisp objects.  A string is a
+@c specialized array; its elements must be characters (i.e., integers
+@c between 0 and 255).  Each type of array has its own read syntax.
+@c @xref{String Type}, and @ref{Vector Type}.
+Emacsには4つの型の配列があり、すべて1次元です。
+@dfn{文字列}（strings）、@dfn{ベクトル}（vectors）、
+@dfn{ブールベクトル}（bool-vectors）、@dfn{文字テーブル}（char-tables）です。
+ベクトルは汎用の配列であり、
+その要素は任意のLispオブジェクトでかまいません。
+文字列は特化された配列であり、その要素は文字（つまり、0から255までの整数）で
+ある必要があります。
+配列のそれぞれの型には、独自の入力構文があります。
+@ref{String Type}と@xref{Vector Type}。
+
+@c   All four kinds of array share these characteristics:
+配列の4つの型すべてには、以下の性質があります。
+
+@itemize @bullet
+@item
+@c The first element of an array has index zero, the second element has
+@c index 1, and so on.  This is called @dfn{zero-origin} indexing.  For
+@c example, an array of four elements has indices 0, 1, 2, @w{and 3}.
+配列の最初の要素は添字0であり、2番目の要素は添字1であり、といった具合。
+これを@dfn{ゼロ原点}（zero-origin）の添字付けと呼ぶ。
+たとえば、4要素の配列の添字は、0、1、2、そして、@w{3}。
+
+@item
+@c The length of the array is fixed once you create it; you cannot
+@c change the length of an existing array.
+配列の長さは、いったん作成すると固定される。
+既存配列の長さは変更できない。
+
+@item
+@c The array is a constant, for evaluation---in other words, it evaluates
+@c to itself.
+配列は、評価上は定数である。
+いいかえれば、それ自身に評価される。
+
+@item
+@c The elements of an array may be referenced or changed with the functions
+@c @code{aref} and @code{aset}, respectively (@pxref{Array Functions}).
+配列要素の参照や変更は、それぞれ、
+関数@code{aref}や@code{aset}で行う
+（@pxref{Array Functions}）。
+@end itemize
+
+@c     When you create an array, other than a char-table, you must specify
+@c its length.  You cannot specify the length of a char-table, because that
+@c is determined by the range of character codes.
+文字テーブル以外の配列を作成するときには、
+その長さを指定する必要があります。
+文字テーブルの長さは指定できません。
+というのは、その長さは文字コードの範囲で決まるからです。
+
+@c   In principle, if you want an array of text characters, you could use
+@c either a string or a vector.  In practice, we always choose strings for
+@c such applications, for four reasons:
+原理的には、テキスト文字の配列が必要ならば文字列かベクトルを使います。
+実用上は、以下の4つの理由から、そのような場合には文字列を使います。
+
+@itemize @bullet
+@item
+@c They occupy one-fourth the space of a vector of the same elements.
+同じ要素のベクトルの1/4の領域を専有するだけ。
+
+@item
+@c Strings are printed in a way that shows the contents more clearly
+@c as text.
+文字列の表示方法は、その内容をテキストとして明確に示す。
+
+@item
+@c Strings can hold text properties.  @xref{Text Properties}.
+文字列は、テキスト属性を保持できる。
+@pxref{Text Properties}。
+
+@item
+@c Many of the specialized editing and I/O facilities of Emacs accept only
+@c strings.  For example, you cannot insert a vector of characters into a
+@c buffer the way you can insert a string.  @xref{Strings and Characters}.
+Emacsの特化された編集機能や入出力機能の多くは、
+文字列だけを受け付ける。
+たとえば、文字のベクトルをバッファには挿入できないが、
+文字列ならば挿入できる。
+@pxref{Strings and Characters}。
+@end itemize
+
+@c   By contrast, for an array of keyboard input characters (such as a key
+@c sequence), a vector may be necessary, because many keyboard input
+@c characters are outside the range that will fit in a string.  @xref{Key
+@c Sequence Input}.
+一方、（キー列のような）キーボード入力文字の配列には、
+ベクトルが必要です。
+というのは、キーボード入力文字の多くは、文字列に納まる範囲外だからです。
+@xref{Key Sequence Input}。
+
+@node Array Functions
+@c @section Functions that Operate on Arrays
+@section 配列操作関数
+
+@c   In this section, we describe the functions that accept all types of
+@c arrays.
+本節では任意の配列型を受け付ける関数を説明します。
+
+@defun arrayp object
+@c This function returns @code{t} if @var{object} is an array (i.e., a
+@c vector, a string, a bool-vector or a char-table).
+この関数は@var{object}が配列
+（つまり、ベクトル、文字列、ブールベクトル、あるいは、文字テーブル）ならば、
+@code{t}を返す。
+
+@example
+@group
+(arrayp [a])
+     @result{} t
+(arrayp "asdf")
+     @result{} t
+@c (arrayp (syntax-table))    ;; @r{A char-table.}
+(arrayp (syntax-table))    ;; @r{文字テーブル}
+     @result{} t
+@end group
+@end example
+@end defun
+
+@defun aref array index
+@c @cindex array elements
+@cindex 配列要素
+@c This function returns the @var{index}th element of @var{array}.  The
+@c first element is at index zero.
+この関数は@var{array}の@var{index}番目の要素を返す。
+最初の要素の添字は0。
+
+@example
+@group
+(setq primes [2 3 5 7 11 13])
+     @result{} [2 3 5 7 11 13]
+(aref primes 4)
+     @result{} 11
+@end group
+@group
+(aref "abcdefg" 1)
+@c      @result{} 98           ; @r{@samp{b} is @sc{ASCII} code 98.}
+     @result{} 98           ; @r{@samp{b}は、@sc{ASCII}コード98}
+@end group
+@end example
+
+@c See also the function @code{elt}, in @ref{Sequence Functions}.
+@ref{Sequence Functions}の関数@code{elt}も参照。
+@end defun
+
+@defun aset array index object
+@c This function sets the @var{index}th element of @var{array} to be
+@c @var{object}.  It returns @var{object}.
+この関数は配列@var{array}の@var{index}番目の要素に@var{object}を設定する。
+@var{object}を返す。
+
+@example
+@group
+(setq w [foo bar baz])
+     @result{} [foo bar baz]
+(aset w 0 'fu)
+     @result{} fu
+w
+     @result{} [fu bar baz]
+@end group
+
+@group
+(setq x "asdfasfd")
+     @result{} "asdfasfd"
+(aset x 3 ?Z)
+     @result{} 90
+x
+     @result{} "asdZasfd"
+@end group
+@end example
+
+@c If @var{array} is a string and @var{object} is not a character, a
+@c @code{wrong-type-argument} error results.  If @var{array} is a string
+@c and @var{object} is character, but @var{object} does not use the same
+@c number of bytes as the character currently stored in @code{(aref
+@c @var{object} @var{index})}, that is also an error.  @xref{Splitting
+@c Characters}.
+@var{array}が文字列であり、かつ、@var{object}が文字でなければ、
+結果はエラー@code{wrong-type-argument}となる。
+@var{array}が文字列であり、かつ、@var{object}が文字であっても、
+現在@code{(aref @var{object} @var{index})}に保存されている文字のバイト数と
+@var{object}が使うバイト数が異なれば、やはり、エラーとなる。
+@pxref{Splitting Characters}。
+@end defun
+
+@defun fillarray array object
+@c This function fills the array @var{array} with @var{object}, so that
+@c each element of @var{array} is @var{object}.  It returns @var{array}.
+この関数は、配列@var{array}を@var{object}で埋め、
+@var{array}の各要素が@var{object}となるようにする。
+@var{array}を返す。
+
+@example
+@group
+(setq a [a b c d e f g])
+     @result{} [a b c d e f g]
+(fillarray a 0)
+     @result{} [0 0 0 0 0 0 0]
+a
+     @result{} [0 0 0 0 0 0 0]
+@end group
+@group
+(setq s "When in the course")
+     @result{} "When in the course"
+(fillarray s ?-)
+     @result{} "------------------"
+@end group
+@end example
+
+@c If @var{array} is a string and @var{object} is not a character, a
+@c @code{wrong-type-argument} error results.
+@var{array}が文字列であり、かつ、@var{object}が文字でなければ、
+結果はエラー@code{wrong-type-argument}になる。
+@end defun
+
+@c The general sequence functions @code{copy-sequence} and @code{length}
+@c are often useful for objects known to be arrays.  @xref{Sequence Functions}.
+配列であることが既知のオブジェクトに対しては、
+汎用のシーケンス関数@code{copy-sequence}や@code{length}がしばしば有用です。
+@xref{Sequence Functions}。
+
+@node Vectors
+@c @section Vectors
+@section ベクトル
+@c @cindex vector
+@cindex ベクトル
+
+@c   Arrays in Lisp, like arrays in most languages, are blocks of memory
+@c whose elements can be accessed in constant time.  A @dfn{vector} is a
+@c general-purpose array of specified length; its elements can be any Lisp
+@c objects.  (By contrast, a string can hold only characters as elements.)
+@c Vectors in Emacs are used for obarrays (vectors of symbols), and as part
+@c of keymaps (vectors of commands).  They are also used internally as part
+@c of the representation of a byte-compiled function; if you print such a
+@c function, you will see a vector in it.
+Lispの配列は、ほとんどの言語の配列と同様に、
+その要素を一定時間で参照可能なメモリのブロックです。
+@dfn{ベクトル}（vector）は指定長の汎用配列です。
+その要素はどんなLispオブジェクトでもかまいません。
+（対照的に、文字列は要素としては文字だけを保持する。）
+Emacsでは、オブジェクト配列obarray（シンボルのベクトル）、
+キーマップ（コマンドのベクトル）の一部にベクトルを使っています。
+これらは、内部的には、バイトコード関数の表現の一部にも使っています。
+そのような関数を表示すると、その中にベクトルがあるのがわかります。
+
+@c   In Emacs Lisp, the indices of the elements of a vector start from zero
+@c and count up from there.
+Emacs Lispでは、ベクトルの要素の添字は0から始まります。
+
+@c   Vectors are printed with square brackets surrounding the elements.
+@c Thus, a vector whose elements are the symbols @code{a}, @code{b} and
+@c @code{a} is printed as @code{[a b a]}.  You can write vectors in the
+@c same way in Lisp input.
+ベクトルは要素を角括弧で囲んで表示します。
+したがって、要素がシンボル@code{a}、@code{b}、@code{a}であるベクトルは、
+@code{[a b a]}と表示されます。
+Lispへの入力では同じようにベクトルを書きます。
+
+@c   A vector, like a string or a number, is considered a constant for
+@c evaluation: the result of evaluating it is the same vector.  This does
+@c not evaluate or even examine the elements of the vector.
+@c @xref{Self-Evaluating Forms}.
+文字列や数と同様に、評価上、ベクトルは定数とみなします。
+それを評価した結果は、同じベクトルです。
+この評価では、ベクトルの要素を評価したり調べたりはしません。
+
+@c   Here are examples illustrating these principles:
+以下は、これらの原理を例示するものです。
+
+@example
+@group
+(setq avector [1 two '(three) "four" [five]])
+     @result{} [1 two (quote (three)) "four" [five]]
+(eval avector)
+     @result{} [1 two (quote (three)) "four" [five]]
+(eq avector (eval avector))
+     @result{} t
+@end group
+@end example
+
+@node Vector Functions
+@c @section Functions for Vectors
+@section ベクトル向け関数
+
+@c   Here are some functions that relate to vectors:
+ベクトルに関連した関数はつぎのとおりです。
+
+@defun vectorp object
+@c This function returns @code{t} if @var{object} is a vector.
+この関数は、@var{object}がベクトルならば@code{t}を返す。
+
+@example
+@group
+(vectorp [a])
+     @result{} t
+(vectorp "asdf")
+     @result{} nil
+@end group
+@end example
+@end defun
+
+@defun vector &rest objects
+@c This function creates and returns a vector whose elements are the
+@c arguments, @var{objects}.
+この関数は、引数@var{objects}を要素とするベクトルを作成しそれを返す。
+
+@example
+@group
+(vector 'foo 23 [bar baz] "rats")
+     @result{} [foo 23 [bar baz] "rats"]
+(vector)
+     @result{} []
+@end group
+@end example
+@end defun
+
+@defun make-vector length object
+@c This function returns a new vector consisting of @var{length} elements,
+@c each initialized to @var{object}.
+この関数は、各要素を@var{object}に初期化した
+@var{length}個の要素から成る新たなベクトルを返す。
+
+@example
+@group
+(setq sleepy (make-vector 9 'Z))
+     @result{} [Z Z Z Z Z Z Z Z Z]
+@end group
+@end example
+@end defun
+
+@defun vconcat &rest sequences
+@c @cindex copying vectors
+@cindex ベクトルのコピー
+@cindex コピー、ベクトル
+@c This function returns a new vector containing all the elements of the
+@c @var{sequences}.  The arguments @var{sequences} may be any kind of
+@c arrays, including lists, vectors, or strings.  If no @var{sequences} are
+@c given, an empty vector is returned.
+この関数は、@var{sequences}のすべての要素を入れた新たなベクトルを返す。
+引数@var{sequences}は、リスト、ベクトル、文字列を含む任意の配列でよい。
+@var{sequences}を指定しないと空ベクトルを返す。
+
+@c The value is a newly constructed vector that is not @code{eq} to any
+@c existing vector.
+その値は、既存のベクトルと@code{eq}でない新たに作成したベクトルである。
+
+@example
+@group
+(setq a (vconcat '(A B C) '(D E F)))
+     @result{} [A B C D E F]
+(eq a (vconcat a))
+     @result{} nil
+@end group
+@group
+(vconcat)
+     @result{} []
+(vconcat [A B C] "aa" '(foo (6 7)))
+     @result{} [A B C 97 97 foo (6 7)]
+@end group
+@end example
+
+@c The @code{vconcat} function also allows byte-code function objects as
+@c arguments.  This is a special feature to make it easy to access the entire
+@c contents of a byte-code function object.  @xref{Byte-Code Objects}.
+関数@code{vconcat}は、引数としてバイトコード関数でも受け付ける。
+これは、バイトコード関数オブジェクトの全内容を簡単に参照できるように
+するための特別な機能である。
+@pxref{Byte-Code Objects}。
+
+@c The @code{vconcat} function also allows integers as arguments.  It
+@c converts them to strings of digits, making up the decimal print
+@c representation of the integer, and then uses the strings instead of the
+@c original integers.  @strong{Don't use this feature; we plan to eliminate
+@c it.  If you already use this feature, change your programs now!}  The
+@c proper way to convert an integer to a decimal number in this way is with
+@c @code{format} (@pxref{Formatting Strings}) or @code{number-to-string}
+@c (@pxref{String Conversion}).
+関数@code{vconcat}は、引数として整数も受け付ける。
+整数はその10進の表示表現の文字列に変換してから、
+その文字列を整数のかわりに使う。
+@strong{この機能を使わないでほしい。
+削除する予定である。
+読者がこの機能を使っていたら、今すぐプログラムを直すこと！}@code{ }
+整数をこのような10進数に変換する正しい方法は、
+@code{format}（@pxref{Formatting Strings}）や
+@code{number-to-string}（@pxref{String Conversion}）を使うことである。
+
+@c For other concatenation functions, see @code{mapconcat} in @ref{Mapping
+@c Functions}, @code{concat} in @ref{Creating Strings}, and @code{append}
+@c in @ref{Building Lists}.
+他の連結関数については、
+@ref{Mapping Functions}の@code{mapconcat}、
+@ref{Creating Strings}の@code{concat}、
+@ref{Building Lists}の@code{append}を参照。
+@end defun
+
+@c   The @code{append} function provides a way to convert a vector into a
+@c list with the same elements (@pxref{Building Lists}):
+関数@code{append}は、ベクトルを同じ要素から成るリストへ変換する便利な方法です
+（@pxref{Building Lists}）。
+
+@example
+@group
+(setq avector [1 two (quote (three)) "four" [five]])
+     @result{} [1 two (quote (three)) "four" [five]]
+(append avector nil)
+     @result{} (1 two (quote (three)) "four" [five])
+@end group
+@end example
+
+@node Char-Tables
+@c @section Char-Tables
+@section 文字テーブル
+@c @cindex char-tables
+@c @cindex extra slots of char-table
+@cindex 文字テーブル
+@cindex 文字テーブルの追加スロット
+
+@c   A char-table is much like a vector, except that it is indexed by
+@c character codes.  Any valid character code, without modifiers, can be
+@c used as an index in a char-table.  You can access a char-table's
+@c elements with @code{aref} and @code{aset}, as with any array.  In
+@c addition, a char-table can have @dfn{extra slots} to hold additional
+@c data not associated with particular character codes.  Char-tables are
+@c constants when evaluated.
+文字テーブルはベクトルによく似ていますが、
+文字コードで添字付けする点が異なります。
+修飾子を伴わない任意の正当な文字コードは、文字テーブルの添字に使えます。
+文字テーブルの要素は、任意の配列のように、@code{aref}や@code{aset}で
+参照できます。
+さらに、文字テーブルでは、
+特定の文字コードには対応しない追加データを保持するための@dfn{追加スロット}を
+保持できます。
+評価時には、文字テーブルは定数です。
+
+@c @cindex subtype of char-table
+@cindex 文字テーブルのサブタイプ
+@c   Each char-table has a @dfn{subtype} which is a symbol.  The subtype
+@c has two purposes: to distinguish char-tables meant for different uses,
+@c and to control the number of extra slots.  For example, display tables
+@c are char-tables with @code{display-table} as the subtype, and syntax
+@c tables are char-tables with @code{syntax-table} as the subtype.  A valid
+@c subtype must have a @code{char-table-extra-slots} property which is an
+@c integer between 0 and 10.  This integer specifies the number of
+@c @dfn{extra slots} in the char-table.
+各文字テーブルには、シンボルである@dfn{サブタイプ}（subtype）があります。
+サブタイプには2つの目的があります。
+異なる使い方をする文字テーブルを区別するためと、
+追加スロットの個数を制御するためです。
+たとえば、表示テーブルはサブタイプが@code{display-table}である
+文字テーブルであり、
+構文テーブルはサブタイプが@code{syntax-table}である文字テーブルです。
+正当なサブタイプには、@code{char-table-extra-slots}属性があるはずで、
+その値は0から10までの整数です。
+この整数が文字テーブルの@dfn{追加スロット}の個数を指定します。
+
+@c @cindex parent of char-table
+@cindex 文字テーブルの親
+@c   A char-table can have a @dfn{parent}. which is another char-table.  If
+@c it does, then whenever the char-table specifies @code{nil} for a
+@c particular character @var{c}, it inherits the value specified in the
+@c parent.  In other words, @code{(aref @var{char-table} @var{c})} returns
+@c the value from the parent of @var{char-table} if @var{char-table} itself
+@c specifies @code{nil}.
+文字テーブルは、別の文字テーブルである@dfn{親}を持てます。
+その場合、特定の文字@var{c}に対する文字テーブルの指定が@code{nil}のときには、
+親において指定された値を継承します。
+いいかえれば、@var{char-table}自体に@code{nil}を指定してあると、
+@code{(aref @var{char-table} @var{c})}は、
+@var{char-table}の親の値を返します。
+
+@c @cindex default value of char-table
+@cindex 文字テーブルのデフォルト値
+@c   A char-table can also have a @dfn{default value}.  If so, then
+@c @code{(aref @var{char-table} @var{c})} returns the default value
+@c whenever the char-table does not specify any other non-@code{nil} value.
+文字テーブルは、@dfn{デフォルト値}も持てます。
+その場合、文字テーブルが指定する値が@code{nil}であると、
+@code{(aref @var{char-table} @var{c})}はデフォルト値を返します。
+
+@defun make-char-table subtype &optional init
+@tindex make-char-table
+@c Return a newly created char-table, with subtype @var{subtype}.  Each
+@c element is initialized to @var{init}, which defaults to @code{nil}.  You
+@c cannot alter the subtype of a char-table after the char-table is
+@c created.
+サブタイプが@var{subtype}である新たに作成した文字テーブルを返す。
+各要素を@var{init}で初期化する。
+なお、@var{init}のデフォルトは@code{nil}である。
+文字テーブル作成後には、文字テーブルのサブタイプは変更できない。
+
+@c There is no argument to specify the length of the char-table, because
+@c all char-tables have room for any valid character code as an index.
+文字テーブルの長さを指定する引数はない。
+なぜなら、すべての文字テーブルでは、
+任意の正当な文字コードを添字として使えるからである。
+@end defun
+
+@defun char-table-p object
+@tindex char-table-p
+@c This function returns @code{t} if @var{object} is a char-table,
+@c otherwise @code{nil}.
+この関数は、@var{object}が文字テーブルならば@code{t}を返し、
+さもなければ@code{nil}を返す。
+@end defun
+
+@defun char-table-subtype char-table
+@tindex char-table-subtype
+@c This function returns the subtype symbol of @var{char-table}.
+この関数は@var{char-table}のサブタイプを表すシンボルを返す。
+@end defun
+
+@defun set-char-table-default char-table new-default
+@tindex set-char-table-default
+@c This function sets the default value of @var{char-table} to
+@c @var{new-default}.
+この関数は@var{char-table}のデフォルト値を@var{new-default}にする。
+
+@c There is no special function to access the default value of a char-table.
+@c To do that, use @code{(char-table-range @var{char-table} nil)}.
+文字テーブルのデフォルト値を参照するための特別な関数はない。
+それには@code{(char-table-range @var{char-table} nil)}を使う。
+@end defun
+
+@defun char-table-parent char-table
+@tindex char-table-parent
+@c This function returns the parent of @var{char-table}.  The parent is
+@c always either @code{nil} or another char-table.
+この関数は@var{char-table}の親を返す。
+親は、@code{nil}であるか他の文字テーブルである。
+@end defun
+
+@defun set-char-table-parent char-table new-parent
+@tindex set-char-table-parent
+@c This function sets the parent of @var{char-table} to @var{new-parent}.
+この関数は@var{char-table}の親を@var{new-parent}にする。
+@end defun
+
+@defun char-table-extra-slot char-table n
+@tindex char-table-extra-slot
+@c This function returns the contents of extra slot @var{n} of
+@c @var{char-table}.  The number of extra slots in a char-table is
+@c determined by its subtype.
+この関数は@var{char-table}の追加スロット@var{n}の内容を返す。
+文字テーブル内の追加スロットの個数はそのサブタイプで決まる。
+@end defun
+
+@defun set-char-table-extra-slot char-table n value
+@tindex set-char-table-extra-slot
+@c This function stores @var{value} in extra slot @var{n} of
+@c @var{char-table}.
+この関数は@var{char-table}の追加スロット@var{n}に@var{value}を格納する。
+@end defun
+
+@c   A char-table can specify an element value for a single character code;
+@c it can also specify a value for an entire character set.
+文字テーブルでは、1つの文字コードに対して1つの要素値を指定できます。
+また、文字集合全体に対して1つの値を指定することもできます。
+
+@defun char-table-range char-table range
+@tindex char-table-range
+@c This returns the value specified in @var{char-table} for a range of
+@c characters @var{range}.  Here are the possibilities for @var{range}:
+これは、@var{char-table}において文字範囲@var{range}に指定されている値を返す。
+@var{range}として可能なものは以下のとおり。
+
+@table @asis
+@item @code{nil}
+@c Refers to the default value.
+デフォルト値を指す。
+
+@item @var{char}
+@c Refers to the element for character @var{char}
+@c (supposing @var{char} is a valid character code).
+（@var{char}が正当な文字コードであると仮定して）
+文字@var{char}に対する要素を指す。
+
+@item @var{charset}
+@c Refers to the value specified for the whole character set
+@c @var{charset} (@pxref{Character Sets}).
+文字集合@var{charset}全体に対して指定してある値を指す
+（@pxref{Character Sets}）。
+
+@item @var{generic-char}
+@c A generic character stands for a character set; specifying the generic
+@c character as argument is equivalent to specifying the character set
+@c name.  @xref{Splitting Characters}, for a description of generic characters.
+文字集合に対する汎用文字を表す。
+引数として汎用文字を指定することは、文字集合名を指定することと同値。
+汎用文字の説明は、@pxref{Splitting Characters}。
+@end table
+@end defun
+
+@defun set-char-table-range char-table range value
+@tindex set-char-table-range
+@c This function sets the value in @var{char-table} for a range of
+@c characters @var{range}.  Here are the possibilities for @var{range}:
+この関数は文字範囲@var{range}に対する@var{char-table}の値を設定する。
+@var{range}として可能なものは以下のとおり。
+
+@table @asis
+@item @code{nil}
+@c Refers to the default value.
+デフォルト値を指す。
+
+@item @code{t}
+@c Refers to the whole range of character codes.
+文字コードの範囲全体を指す。
+
+@item @var{char}
+@c Refers to the element for character @var{char}
+@c (supposing @var{char} is a valid character code).
+（@var{char}が正当な文字コードであると仮定して）
+文字@var{char}に対する要素を指す。
+
+@item @var{charset}
+@c Refers to the value specified for the whole character set
+@c @var{charset} (@pxref{Character Sets}).
+文字集合@var{charset}全体に対して指定してある値を指す
+（@pxref{Character Sets}）。
+
+@item @var{generic-char}
+@c A generic character stands for a character set; specifying the generic
+@c character as argument is equivalent to specifying the character set
+@c name.  @xref{Splitting Characters}, for a description of generic characters.
+文字集合に対する汎用文字を表す。
+引数として汎用文字を指定することは、文字集合名を指定することと同値。
+汎用文字の説明は、@pxref{Splitting Characters}。
+@end table
+@end defun
+
+@defun map-char-table function char-table
+@tindex map-char-table
+@c This function calls @var{function} for each element of @var{char-table}.
+@c @var{function} is called with two arguments, a key and a value.  The key
+@c is a possible @var{range} argument for @code{char-table-range}---either
+@c a valid character or a generic character---and the value is
+@c @code{(char-table-range @var{char-table} @var{key})}.
+この関数は、@var{char-table}の各要素について@var{function}を呼び出す。
+@var{function}をキーと値の2つの引数で呼び出す。
+キーは@code{char-table-range}に対する可能な@var{range}引数であり、
+正当な文字か汎用文字である。
+値は@code{(char-table-range @var{char-table} @var{key})}である。
+
+@c Overall, the key-value pairs passed to @var{function} describe all the
+@c values stored in @var{char-table}.
+全体として、@var{function}に渡すキー・値の対は、
+@var{char-table}に格納されたすべての値を表す。
+
+@c The return value is always @code{nil}; to make this function useful,
+@c @var{function} should have side effects.  For example,
+@c here is how to examine each element of the syntax table:
+戻り値はつねに@code{nil}である。
+この関数が有用であるようにするには、
+@var{function}には副作用があるべきである。
+たとえば、つぎは構文テーブルの各要素の調べ方である。
+
+@example
+(let (accumulator)
+  (map-char-table
+   #'(lambda (key value)
+       (setq accumulator
+             (cons (list key value) accumulator)))
+   (syntax-table))
+  accumulator)
+@result{}
+((475008 nil) (474880 nil) (474752 nil) (474624 nil)
+ ... (5 (3)) (4 (3)) (3 (3)) (2 (3)) (1 (3)) (0 (3)))
+@end example
+@end defun
+
+@node Bool-Vectors
+@c @section Bool-vectors
+@section ブールベクトル
+@c @cindex Bool-vectors
+@cindex ブールベクトル
+
+@c   A bool-vector is much like a vector, except that it stores only the
+@c values @code{t} and @code{nil}.  If you try to store any non-@code{nil}
+@c value into an element of the bool-vector, the effect is to store
+@c @code{t} there.  As with all arrays, bool-vector indices start from 0,
+@c and the length cannot be changed once the bool-vector is created.
+@c Bool-vectors are constants when evaluated.
+ブールベクトルはベクトルによく似ていますが、
+@code{t}と@code{nil}の値だけを保存できる点が異なります。
+ブールベクトルの要素に@code{nil}以外の値を保存しようとすると、
+その効果は@code{t}を保存することになります。
+すべての配列と同様に、ブールベクトルの添字は0から始まり、
+ブールベクトルをいったん作成すると長さは変更できません。
+評価時には、ブールベクトルは定数です。
+
+@c   There are two special functions for working with bool-vectors; aside
+@c from that, you manipulate them with same functions used for other kinds
+@c of arrays.
+ブールベクトルを操作する特別な関数は2つあります。
+それに加えて、他の種類の配列を扱う関数でも操作できます。
+
+@defun make-bool-vector length initial
+@tindex make-bool-vector
+@c Return a new book-vector of @var{length} elements,
+@c each one initialized to @var{initial}.
+@var{initial}に初期化した長さ@var{length}の新たなブールベクトルを返す。
+@end defun
+
+@defun bool-vector-p object
+@tindex bool-vector-p
+@c This returns @code{t} if @var{object} is a bool-vector,
+@c and @code{nil} otherwise.
+@var{object}がブールベクトルであれば@code{t}を返し、
+さもなければ@code{nil}を返す。
+@end defun
+

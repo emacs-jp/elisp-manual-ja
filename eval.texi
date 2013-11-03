@@ -1,0 +1,1090 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/eval
+@node Evaluation, Control Structures, Symbols, Top
+@c @chapter Evaluation
+@chapter 評価
+@c @cindex evaluation
+@c @cindex  interpreter
+@c @cindex interpreter
+@c @cindex value of expression
+@cindex 評価
+@cindex インタープリタ
+@cindex 式の値
+
+@c   The @dfn{evaluation} of expressions in Emacs Lisp is performed by the
+@c @dfn{Lisp interpreter}---a program that receives a Lisp object as input
+@c and computes its @dfn{value as an expression}.  How it does this depends
+@c on the data type of the object, according to rules described in this
+@c chapter.  The interpreter runs automatically to evaluate portions of
+@c your program, but can also be called explicitly via the Lisp primitive
+@c function @code{eval}.
+Emacs Lispにおける式の@dfn{評価}（evaluation）は、
+@dfn{Lispインタープリタ}（Lisp interpreter）が行います。
+これは、入力としてLispオブジェクトを受け取り、
+@dfn{式としての値}を計算するプログラムです。
+計算方法は、本章で述べる規則に従ってオブジェクトのデータ型に依存します。
+インタープリタは、読者のプログラムのある部分を評価するために
+自動的に動作しますが、Lisp基本関数@code{eval}を介して
+インタープリタを明示的に呼ぶ出すこともできます。
+
+@ifinfo
+@menu
+* Intro Eval::  Evaluation in the scheme of things.
+* Forms::       How various sorts of objects are evaluated.
+* Quoting::     Avoiding evaluation (to put constants in the program).
+* Eval::        How to invoke the Lisp interpreter explicitly.
+@end menu
+
+@node Intro Eval
+@c @section Introduction to Evaluation
+@section 評価とは
+
+@c   The Lisp interpreter, or evaluator, is the program that computes
+@c the value of an expression that is given to it.  When a function 
+@c written in Lisp is called, the evaluator computes the value of the
+@c function by evaluating the expressions in the function body.  Thus,
+@c running any Lisp program really means running the Lisp interpreter.
+Lispインタープリタ、つまり、エバリュエータは、
+与えられた式の値を計算するプログラムです。
+Lispで書いた関数を呼び出すと、エバリュエータは、その関数本体内の
+式を評価することで関数の値を計算します。
+したがって、どんなLispプログラムの実行でも、
+Lispインタープリタを実行することを意味します。
+
+@c   How the evaluator handles an object depends primarily on the data
+@c type of the object.
+エバリュエータによるオブジェクトの扱い方は、
+主にオブジェクトのデータ型に依存します。
+@end ifinfo
+
+@c @cindex forms
+@c @cindex expression
+@cindex フォーム
+@cindex 式
+@c   A Lisp object that is intended for evaluation is called an
+@c @dfn{expression} or a @dfn{form}.  The fact that expressions are data
+@c objects and not merely text is one of the fundamental differences
+@c between Lisp-like languages and typical programming languages.  Any
+@c object can be evaluated, but in practice only numbers, symbols, lists
+@c and strings are evaluated very often.
+評価することを意図したLispオブジェクトを
+@dfn{式}（expression）とか@dfn{フォーム}（form）と呼びます。
+式はデータオブジェクトであり単なるテキストではないという事実は、
+Lisp様言語と典型的なプログラム言語との基本的な違いの1つです。
+どんなオブジェクトでも評価できますが、実用上は、
+数、シンボル、リスト、文字列を評価することが多いのです。
+
+@c   It is very common to read a Lisp expression and then evaluate the
+@c expression, but reading and evaluation are separate activities, and
+@c either can be performed alone.  Reading per se does not evaluate
+@c anything; it converts the printed representation of a Lisp object to the
+@c object itself.  It is up to the caller of @code{read} whether this
+@c object is a form to be evaluated, or serves some entirely different
+@c purpose.  @xref{Input Functions}.
+Lisp式を読み取りその式を評価することはとても一般的なことですが、
+読み取りと評価は別々の動作であり、それぞれを別々に実行することもできます。
+読み取り自体では、なにも評価しません。
+Lispオブジェクトの表示表現をオブジェクトそのものに変換します。
+このオブジェクトを評価すべきフォームとするか、
+まったく別の目的に使うかは、@code{read}の呼び出し側で決まります。
+
+@c   Do not confuse evaluation with command key interpretation.  The
+@c editor command loop translates keyboard input into a command (an
+@c interactively callable function) using the active keymaps, and then
+@c uses @code{call-interactively} to invoke the command.  The execution of
+@c the command itself involves evaluation if the command is written in
+@c Lisp, but that is not a part of command key interpretation itself.
+@c @xref{Command Loop}.
+評価とコマンドキーの解釈を混同しないでください。
+エディタコマンドループは、有効なキーマップを用いて
+キーボード入力をコマンド（対話的に呼び出し可能な関数）に変換し、
+@code{call-interactively}を使ってコマンドを起動します。
+コマンドがLispで書いてあれば、
+コマンド自体の実行には評価が関わってきますが、
+そのことは、コマンドキーの解釈自体には含まれていません。
+
+@c @cindex recursive evaluation
+@cindex 再帰的評価
+@c   Evaluation is a recursive process.  That is, evaluation of a form may
+@c call @code{eval} to evaluate parts of the form.  For example, evaluation
+@c of a function call first evaluates each argument of the function call,
+@c and then evaluates each form in the function body.  Consider evaluation
+@c of the form @code{(car x)}: the subform @code{x} must first be evaluated
+@c recursively, so that its value can be passed as an argument to the
+@c function @code{car}.
+評価は再帰的な処理です。
+つまり、フォームの評価では、
+@code{eval}を呼び出してそのフォームの一部分を評価することもあります。
+たとえば、関数呼び出しの評価においては、まず、
+関数呼び出しの各引数を評価してから、関数本体の各フォームを評価します。
+@code{(car x)}の評価を考えてみましょう。
+まず最初に@code{x}を再帰的に評価する必要があります。
+その値を関数@code{car}の引数として渡せるようにするのです。
+
+@c   Evaluation of a function call ultimately calls the function specified
+@c in it.  @xref{Functions}.  The execution of the function may itself work
+@c by evaluating the function definition; or the function may be a Lisp
+@c primitive implemented in C, or it may be a byte-compiled function
+@c (@pxref{Byte Compilation}).
+関数呼び出しの評価においては、最終的に指定した関数を呼び出します。
+@xref{Functions}。
+関数の実行そのものも、関数定義を評価する場合もあります。
+あるいは、関数はC言語で実装されたLisp基本関数かもしれませんし、
+バイトコード関数かもしれません（@pxref{Byte Compilation}）。
+
+@c @cindex environment
+@cindex 環境
+@c   The evaluation of forms takes place in a context called the
+@c @dfn{environment}, which consists of the current values and bindings of
+@c all Lisp variables.@footnote{This definition of ``environment'' is
+@c specifically not intended to include all the data that can affect the
+@c result of a program.}  Whenever a form refers to a variable without
+@c creating a new binding for it, the value of the variable's binding in
+@c the current environment is used.  @xref{Variables}.
+フォームの評価は、@dfn{環境}（environment）と呼ばれる文脈において
+行われます。
+環境とは、すべてのLisp変数の現在値と束縛です
+@footnote{『環境』のこの定義は、プログラムの結果に影響する
+すべてのデータを含むことは意図していない。}。
+フォームが新たな束縛を作らずに変数を参照する場合には、
+現在の環境におけるその変数の束縛の値を使います。
+@xref{Variables}。
+
+@c @cindex side effect
+@cindex 副作用
+@c   Evaluation of a form may create new environments for recursive
+@c evaluation by binding variables (@pxref{Local Variables}).  These
+@c environments are temporary and vanish by the time evaluation of the form
+@c is complete.  The form may also make changes that persist; these changes
+@c are called @dfn{side effects}.  An example of a form that produces side
+@c effects is @code{(setq foo 1)}.
+フォームを評価すると、変数（@pxref{Local Variables}）を束縛して、
+再帰的評価のための新たな環境を作ることがあります。
+これらの環境は一時的なもので、そのフォームの評価を完了すると
+消えてしまいます。
+フォームは恒久的な変更を行ってもかまいません。
+このような変更を@dfn{副作用}（side effects）と呼びます。
+副作用を持つフォームの例は、@code{(setq foo 1)}です。
+
+@c   The details of what evaluation means for each kind of form are
+@c described below (@pxref{Forms}).
+フォームの各種類ごとの評価の意味の詳細は、
+以下で説明します（@pxref{Forms}）。
+
+@node Forms
+@c @section Kinds of Forms
+@section フォームの種類
+
+@c   A Lisp object that is intended to be evaluated is called a @dfn{form}.
+@c How Emacs evaluates a form depends on its data type.  Emacs has three
+@c different kinds of form that are evaluated differently: symbols, lists,
+@c and ``all other types''.  This section describes all three kinds, one by
+@c one, starting with the ``all other types'' which are self-evaluating
+@c forms.
+評価することを意図したLispオブジェクトを@dfn{フォーム}（form）と呼びます。
+Emacsがどのようにフォームを評価するかは、そのデータ型に依存します。
+Emacsには、評価方法が異なる3種類のフォームがあります。
+シンボル、リスト、および、『その他すべての型』です。
+本節では、3種類すべてについて1つ1つ説明します。
+まず、自己評価型フォームである『その他すべての型』から説明します。
+
+@menu
+* Self-Evaluating Forms::   Forms that evaluate to themselves.
+* Symbol Forms::            Symbols evaluate as variables.
+* Classifying Lists::       How to distinguish various sorts of list forms.
+* Function Indirection::    When a symbol appears as the car of a list,
+			      we find the real function via the symbol.
+* Function Forms::          Forms that call functions.
+* Macro Forms::             Forms that call macros.
+* Special Forms::           ``Special forms'' are idiosyncratic primitives,
+                              most of them extremely important.
+* Autoloading::             Functions set up to load files
+                              containing their real definitions.
+@end menu
+
+@node Self-Evaluating Forms
+@c @subsection Self-Evaluating Forms
+@subsection 自己評価型フォーム
+@c @cindex vector evaluation
+@c @cindex literal evaluation
+@c @cindex self-evaluating form
+@cindex ベクトルの評価
+@cindex 評価、ベクトル
+@cindex リテラルの評価
+@cindex 評価、リテラル
+@cindex 自己評価型フォーム
+
+@c   A @dfn{self-evaluating form} is any form that is not a list or symbol.
+@c Self-evaluating forms evaluate to themselves: the result of evaluation
+@c is the same object that was evaluated.  Thus, the number 25 evaluates to
+@c 25, and the string @code{"foo"} evaluates to the string @code{"foo"}.
+@c Likewise, evaluation of a vector does not cause evaluation of the
+@c elements of the vector---it returns the same vector with its contents
+@c unchanged.
+@dfn{自己評価型フォーム}（self-evaluating form）とは、
+リストでもシンボルでもない任意のフォームのことです。
+自己評価型フォームはそれ自身に評価され、
+評価結果は評価されるオブジェクトと同じものです。
+つまり、数25は25と評価され、
+文字列@code{"foo"}は文字列@code{"foo"}と評価されます。
+同様に、ベクトルを評価してもベクトルの個々の要素を評価することはありません。
+その内容をまったく変更することなく、同じベクトルを返します。
+
+@example
+@group
+@c '123               ; @r{A number, shown without evaluation.}
+'123               ; @r{評価していない数}
+     @result{} 123
+@end group
+@group
+@c 123                ; @r{Evaluated as usual---result is the same.}
+123                ; @r{普通どおり評価。結果は同じ}
+     @result{} 123
+@end group
+@group
+@c (eval '123)        ; @r{Evaluated ``by hand''---result is the same.}
+(eval '123)        ; @r{『手で』評価。結果は同じ}
+     @result{} 123
+@end group
+@group
+@c (eval (eval '123)) ; @r{Evaluating twice changes nothing.}
+(eval (eval '123)) ; @r{2回評価してもなにも変わらない}
+     @result{} 123
+@end group
+@end example
+
+@c   It is common to write numbers, characters, strings, and even vectors
+@c in Lisp code, taking advantage of the fact that they self-evaluate.
+@c However, it is quite unusual to do this for types that lack a read
+@c syntax, because there's no way to write them textually.  It is possible
+@c to construct Lisp expressions containing these types by means of a Lisp
+@c program.  Here is an example:
+Lispコードにおいては、数、文字、文字列、さらにベクトルでさえも、
+それらが自己評価型である事実を利用して書くのが普通です。
+しかし、入力構文を持たない型については、このようにしません。
+というのは、それらをテキストとして書く方法がないからです。
+そのような型を含むLisp式を構成するには、Lispプログラムを使います。
+
+@example
+@group
+@c ;; @r{Build an expression containing a buffer object.}
+;; @r{バッファオブジェクトを含む式を作る}
+(setq print-exp (list 'print (current-buffer)))
+     @result{} (print #<buffer eval.texi>)
+@end group
+@group
+@c ;; @r{Evaluate it.}
+;; @r{それを評価する}
+(eval print-exp)
+     @print{} #<buffer eval.texi>
+     @result{} #<buffer eval.texi>
+@end group
+@end example
+
+@node Symbol Forms
+@c @subsection Symbol Forms
+@subsection シンボルフォーム
+@c @cindex symbol evaluation
+@cindex シンボルの評価
+@cindex 評価、シンボル
+
+@c   When a symbol is evaluated, it is treated as a variable.  The result
+@c is the variable's value, if it has one.  If it has none (if its value
+@c cell is void), an error is signaled.  For more information on the use of
+@c variables, see @ref{Variables}.
+シンボルを評価するときには、シンボルを変数として扱います。
+その結果は、値があれば、変数の値です。
+（値セルが空であり）値がなければ、エラーを通知します。
+変数の使い方について詳しくは、@xref{Variables}。
+
+@c   In the following example, we set the value of a symbol with
+@c @code{setq}.  Then we evaluate the symbol, and get back the value that
+@c @code{setq} stored.
+つぎの例では、@code{setq}を使ってシンボルの値を設定します。
+そのあとでシンボルを評価すると、@code{setq}で保存した値を取り出せます。
+
+@example
+@group
+(setq a 123)
+     @result{} 123
+@end group
+@group
+(eval 'a)
+     @result{} 123
+@end group
+@group
+a
+     @result{} 123
+@end group
+@end example
+
+@c   The symbols @code{nil} and @code{t} are treated specially, so that the
+@c value of @code{nil} is always @code{nil}, and the value of @code{t} is
+@c always @code{t}; you cannot set or bind them to any other values.  Thus,
+@c these two symbols act like self-evaluating forms, even though
+@c @code{eval} treats them like any other symbol.  A symbol whose name
+@c starts with @samp{:} also self-evaluates in the same way; likewise,
+@c its value ordinarily cannot be changed.  @xref{Constant Variables}.
+シンボル@code{nil}と@code{t}は特別に扱い、
+@code{nil}の値はつねに@code{nil}であり、
+@code{t}の値はつねに@code{t}です。
+これらに別の値を設定したり、別の値を束縛することはできません。
+したがって、@code{eval}はこれらを他のシンボルと同様に扱いますが、
+これら2つのシンボルは自己評価型フォームのようにふるまいます。
+@samp{:}で始まる名前のシンボルも同じ意味で自己評価型であり、
+同様に、その値を変更できません。
+@xref{Constant Variables}。
+
+@node Classifying Lists
+@c @subsection Classification of List Forms
+@subsection リストフォームの分類
+@c @cindex list form evaluation
+@cindex リストフォームの評価
+@cindex 評価、リストフォーム
+
+@c   A form that is a nonempty list is either a function call, a macro
+@c call, or a special form, according to its first element.  These three
+@c kinds of forms are evaluated in different ways, described below.  The
+@c remaining list elements constitute the @dfn{arguments} for the function,
+@c macro, or special form.
+フォームが空ではないリストならば、その最初の要素に依存して、
+関数呼び出し、マクロ呼び出し、スペシャルフォームのいずれかです。
+これらの3種類のフォームは、以下に説明するように、異なる方法で評価されます。
+リストの残りの要素は、関数、マクロ、スペシャルフォームの
+@dfn{引数}（arguments）になります。
+
+@c   The first step in evaluating a nonempty list is to examine its first
+@c element.  This element alone determines what kind of form the list is
+@c and how the rest of the list is to be processed.  The first element is
+@c @emph{not} evaluated, as it would be in some Lisp dialects such as
+@c Scheme.
+空ではないリストを評価する最初の手順は、
+その先頭要素を調べることです。
+この要素は、それだけで、空ではないリストのフォームの種類を決定し、
+リストの残りをどのように処理するかを決定します。
+SchemeなどのLispの一部の方言と違って、先頭要素は評価@emph{しません}。
+
+@node Function Indirection
+@c @subsection Symbol Function Indirection
+@subsection シンボルの関数間接
+@c @cindex symbol function indirection
+@c @cindex indirection
+@c @cindex void function
+@cindex シンボルの関数間接
+@cindex 関数間接、シンボル
+@cindex 間接
+@cindex 空関数
+
+@c   If the first element of the list is a symbol then evaluation examines
+@c the symbol's function cell, and uses its contents instead of the
+@c original symbol.  If the contents are another symbol, this process,
+@c called @dfn{symbol function indirection}, is repeated until it obtains a
+@c non-symbol.  @xref{Function Names}, for more information about using a
+@c symbol as a name for a function stored in the function cell of the
+@c symbol.
+リストの先頭要素がシンボルであると、
+評価処理ではシンボルの関数セルを調べ、
+もとのシンボルのかわりにその内容を使います。
+その内容が別のシンボルであると、
+@dfn{シンボルの関数間接}（symbol function indirection）と呼ばれる
+この処理をシンボルでないものを得るまで繰り返します。
+シンボルの関数セルに格納された関数名としてのシンボルの使い方について
+詳しくは、@xref{Function Names}。
+
+@c   One possible consequence of this process is an infinite loop, in the
+@c event that a symbol's function cell refers to the same symbol.  Or a
+@c symbol may have a void function cell, in which case the subroutine
+@c @code{symbol-function} signals a @code{void-function} error.  But if
+@c neither of these things happens, we eventually obtain a non-symbol,
+@c which ought to be a function or other suitable object.
+この処理の結果、無限ループになる場合もあります。
+つまり、シンボルの関数セルが同じシンボルを指している場合です。
+あるいは、シンボルの関数セルが空の場合もありえます。
+その場合、サブルーティン@code{symbol-function}は、
+エラー@code{void-function}を通知します。
+いずれの場合でもなければ、最終的にはシンボルでないものを取得し、
+それは関数などの適切なオブジェクトであるはずです。
+
+@kindex invalid-function
+@c @cindex invalid function
+@cindex 不正な関数
+@c   More precisely, we should now have a Lisp function (a lambda
+@c expression), a byte-code function, a primitive function, a Lisp macro, a
+@c special form, or an autoload object.  Each of these types is a case
+@c described in one of the following sections.  If the object is not one of
+@c these types, the error @code{invalid-function} is signaled.
+より正確にいえば、Lisp関数（ラムダ式）、バイトコード関数、
+基本関数、Lispマクロ、スペシャルフォーム、自動ロードオブジェクトの
+いずれかを取得しているはずです。
+これらの各種類ごとに、以下の1つ1つの節で説明します。
+オブジェクトがこれらのいずれの型でもない場合には、
+エラー@code{invalid-function}を通知します。
+
+@c   The following example illustrates the symbol indirection process.  We
+@c use @code{fset} to set the function cell of a symbol and
+@c @code{symbol-function} to get the function cell contents
+@c (@pxref{Function Cells}).  Specifically, we store the symbol @code{car}
+@c into the function cell of @code{first}, and the symbol @code{first} into
+@c the function cell of @code{erste}.
+つぎの例は、シンボルの関数間接の処理を図示したものです。
+@code{fset}を使ってシンボルの関数セルに設定し、
+@code{symbol-function}を使って関数セルの内容を取り出します
+（@pxref{Function Cells}）。
+具体的には、シンボル@code{car}を@code{first}の関数セルに格納し、
+シンボル@code{first}を@code{erste}の関数セルに格納します。
+
+@smallexample
+@group
+@c ;; @r{Build this function cell linkage:}
+;; @r{このような関数セルのリンクを作る}
+;;   -------------       -----        -------        -------
+;;  | #<subr car> | <-- | car |  <-- | first |  <-- | erste |
+;;   -------------       -----        -------        -------
+@end group
+@end smallexample
+
+@smallexample
+@group
+(symbol-function 'car)
+     @result{} #<subr car>
+@end group
+@group
+(fset 'first 'car)
+     @result{} car
+@end group
+@group
+(fset 'erste 'first)
+     @result{} first
+@end group
+@group
+@c (erste '(1 2 3))   ; @r{Call the function referenced by @code{erste}.}
+(erste '(1 2 3))   ; @r{@code{erste}が指す関数を呼び出す}
+     @result{} 1
+@end group
+@end smallexample
+
+@c   By contrast, the following example calls a function without any symbol
+@c function indirection, because the first element is an anonymous Lisp
+@c function, not a symbol.
+一方、つぎの例では、シンボルの関数間接を使わずに関数を呼び出します。
+というのは、先頭引数はLispの無名関数であって、
+シンボルではないからです。
+
+@smallexample
+@group
+((lambda (arg) (erste arg))
+ '(1 2 3)) 
+     @result{} 1
+@end group
+@end smallexample
+
+@noindent
+@c Executing the function itself evaluates its body; this does involve
+@c symbol function indirection when calling @code{erste}.
+関数を実行することは、その本体を評価することです。
+この過程では、@code{erste}を呼び出すときにシンボルの関数間接が関わります。
+
+@c   The built-in function @code{indirect-function} provides an easy way to
+@c perform symbol function indirection explicitly.
+組み込み関数@code{indirect-function}は、
+明示的にシンボルの関数間接を行う簡単な方法です。
+
+@c Emacs 19 feature
+@defun indirect-function function
+@c This function returns the meaning of @var{function} as a function.  If
+@c @var{function} is a symbol, then it finds @var{function}'s function
+@c definition and starts over with that value.  If @var{function} is not a
+@c symbol, then it returns @var{function} itself.
+この関数は、関数としての@var{function}の意味を返す。
+@var{function}がシンボルであれば@var{function}の関数定義を探し、
+その値から再度繰り返す。
+@var{function}がシンボルでなければ@var{function}そのものを返す。
+
+@c Here is how you could define @code{indirect-function} in Lisp:
+Lispで@code{indirect-function}を定義するとつぎのようになる。
+
+@smallexample
+(defun indirect-function (function)
+  (if (symbolp function)
+      (indirect-function (symbol-function function))
+    function))
+@end smallexample
+@end defun
+
+@node Function Forms
+@c @subsection Evaluation of Function Forms
+@subsection 関数フォームの評価
+@c @cindex function form evaluation
+@c @cindex function call
+@cindex 関数フォームの評価
+@cindex 評価、関数フォーム
+@cindex 関数呼び出し
+
+@c   If the first element of a list being evaluated is a Lisp function
+@c object, byte-code object or primitive function object, then that list is
+@c a @dfn{function call}.  For example, here is a call to the function
+@c @code{+}:
+評価すべきリストの先頭要素が、Lisp関数オブジェクト、
+バイトコードオブジェクト、基本関数オブジェクトの場合、
+そのリストは@dfn{関数呼び出し}（function call）です。
+たとえば、つぎは、関数@code{+}の呼び出しです。
+
+@example
+(+ 1 x)
+@end example
+
+@c   The first step in evaluating a function call is to evaluate the
+@c remaining elements of the list from left to right.  The results are the
+@c actual argument values, one value for each list element.  The next step
+@c is to call the function with this list of arguments, effectively using
+@c the function @code{apply} (@pxref{Calling Functions}).  If the function
+@c is written in Lisp, the arguments are used to bind the argument
+@c variables of the function (@pxref{Lambda Expressions}); then the forms
+@c in the function body are evaluated in order, and the value of the last
+@c body form becomes the value of the function call.
+関数呼び出しを評価する最初の手順は、
+リストの残りの要素を左から右へ順に評価することです。
+その結果は実引数の値になり、1つの値がリストの1つの要素に対応します。
+つぎの手順は、引数のリストで関数を呼び出すことで、
+実質的には、関数@code{apply}（@pxref{Calling Functions}）を使います。
+関数がLispで書いてあれば、関数の引数変数を束縛するために引数を使います
+（@pxref{Lambda Expressions}）。
+そして、関数本体のフォーム群を順番に評価し、
+本体の最後のフォームの値が関数呼び出しの値になります。
+
+@node Macro Forms
+@c @subsection Lisp Macro Evaluation
+@subsection Lispマクロの評価
+@c @cindex macro call evaluation
+@cindex マクロ呼び出しの評価
+@cindex 評価、マクロ呼び出し
+
+@c   If the first element of a list being evaluated is a macro object, then
+@c the list is a @dfn{macro call}.  When a macro call is evaluated, the
+@c elements of the rest of the list are @emph{not} initially evaluated.
+@c Instead, these elements themselves are used as the arguments of the
+@c macro.  The macro definition computes a replacement form, called the
+@c @dfn{expansion} of the macro, to be evaluated in place of the original
+@c form.  The expansion may be any sort of form: a self-evaluating
+@c constant, a symbol, or a list.  If the expansion is itself a macro call,
+@c this process of expansion repeats until some other sort of form results.
+評価すべきリストの先頭要素がマクロオブジェクトの場合、
+そのリストは@dfn{マクロ呼び出し}（macro call）です。
+マクロ呼び出しを評価するときは、リストの残りの要素を評価@emph{しません}。
+そのかわりに、要素そのものをマクロの引数として使います。
+マクロ定義は、
+マクロの@dfn{展開形}（expansion）と呼ばれる置換フォームを計算し、
+もとのフォームのかわりに展開形を評価します。
+展開形は、どんな種類のフォームでもかまいません。
+自己評価型の定数、シンボル、あるいは、リストです。
+展開形そのものがマクロ呼び出しであると、
+マクロ呼び出し以外のフォームを得られるまで、
+展開形を得る処理を繰り返します。
+
+@c   Ordinary evaluation of a macro call finishes by evaluating the
+@c expansion.  However, the macro expansion is not necessarily evaluated
+@c right away, or at all, because other programs also expand macro calls,
+@c and they may or may not evaluate the expansions.
+通常のマクロ呼び出しの評価は、展開形を評価することで完了します。
+しかし、マクロの展開形を必ずしもただちに評価する必要はなく、
+まったく評価しなくてもかまいません。
+というのは、別のプログラムもマクロ呼び出しを展開し、
+それらは展開形を評価するものもあれば、評価しないものもあるからです。
+
+@c   Normally, the argument expressions are not evaluated as part of
+@c computing the macro expansion, but instead appear as part of the
+@c expansion, so they are computed when the expansion is evaluated.
+普通、引数の式は、マクロ展開の計算過程では評価せず、
+展開形の一部として現れます。
+そして、展開形を評価するときに引数が計算されます。
+
+@c   For example, given a macro defined as follows:
+たとえば、つぎのようなマクロ定義があったとします。
+
+@example
+@group
+(defmacro cadr (x)
+  (list 'car (list 'cdr x)))
+@end group
+@end example
+
+@noindent
+@c an expression such as @code{(cadr (assq 'handler list))} is a macro
+@c call, and its expansion is:
+@code{(cadr (assq 'handler list))}のような式はマクロ呼び出しであり、
+つぎのような展開形になります。
+
+@example
+(car (cdr (assq 'handler list)))
+@end example
+
+@noindent
+@c Note that the argument @code{(assq 'handler list)} appears in the
+@c expansion.
+引数@code{(assq 'handler list)}が展開形に現れていることに
+注意してください。
+
+@c @xref{Macros}, for a complete description of Emacs Lisp macros.
+Emacs Lispのマクロに関する完全な記述は、@xref{Macros}。
+
+@node Special Forms
+@c @subsection Special Forms
+@subsection スペシャルフォーム
+@c @cindex special form evaluation
+@cindex スペシャルフォームの評価
+@cindex 評価、スペシャルフォーム
+
+@c   A @dfn{special form} is a primitive function specially marked so that
+@c its arguments are not all evaluated.  Most special forms define control
+@c structures or perform variable bindings---things which functions cannot
+@c do.
+@dfn{スペシャルフォーム}（special form）は、
+その引数を評価しないように特別な印が付いた基本関数です。
+ほとんどのスペシャルフォームは、制御構造を定義したり、
+変数を束縛したりします。
+これらはどれも関数ではできないことです。
+
+@c   Each special form has its own rules for which arguments are evaluated
+@c and which are used without evaluation.  Whether a particular argument is
+@c evaluated may depend on the results of evaluating other arguments.
+各スペシャルフォームには、どの引数は評価し、
+どの引数は評価せずに使うかといったそれぞれに独自の規則があります。
+特定の引数を評価するかどうかは、他の引数の評価結果に依存することもあります。
+
+@c   Here is a list, in alphabetical order, of all of the special forms in
+@c Emacs Lisp with a reference to where each is described.
+以下に、Emacs Lispのすべてのスペシャルフォームをアルファベット順に、
+参照箇所とともにあげておきます。
+
+@table @code
+@item and
+@pxref{Combining Conditions}
+
+@item catch
+@pxref{Catch and Throw}
+
+@item cond
+@pxref{Conditionals}
+
+@item condition-case
+@pxref{Handling Errors}
+
+@item defconst
+@pxref{Defining Variables}
+
+@item defmacro
+@pxref{Defining Macros}
+
+@item defun
+@pxref{Defining Functions}
+
+@item defvar
+@pxref{Defining Variables}
+
+@item function
+@pxref{Anonymous Functions}
+
+@item if
+@pxref{Conditionals}
+
+@item interactive
+@pxref{Interactive Call}
+
+@item let
+@itemx let*
+@pxref{Local Variables}
+
+@item or
+@pxref{Combining Conditions}
+
+@item prog1
+@itemx prog2
+@itemx progn
+@pxref{Sequencing}
+
+@item quote
+@pxref{Quoting}
+
+@item save-current-buffer
+@pxref{Current Buffer}
+
+@item save-excursion
+@pxref{Excursions}
+
+@item save-restriction
+@pxref{Narrowing}
+
+@item save-window-excursion
+@pxref{Window Configurations}
+
+@item setq
+@pxref{Setting Variables}
+
+@item setq-default
+@pxref{Creating Buffer-Local}
+
+@item track-mouse
+@pxref{Mouse Tracking}
+
+@item unwind-protect
+@pxref{Nonlocal Exits}
+
+@item while
+@pxref{Iteration}
+
+@item with-output-to-temp-buffer
+@pxref{Temporary Displays}
+@end table
+
+@c @cindex CL note---special forms compared
+@cindex CLに関した注意−−スペシャルフォームの比較
+@quotation
+@c @b{Common Lisp note:} Here are some comparisons of special forms in
+@c GNU Emacs Lisp and Common Lisp.  @code{setq}, @code{if}, and
+@c @code{catch} are special forms in both Emacs Lisp and Common Lisp.
+@c @code{defun} is a special form in Emacs Lisp, but a macro in Common
+@c Lisp.  @code{save-excursion} is a special form in Emacs Lisp, but
+@c doesn't exist in Common Lisp.  @code{throw} is a special form in
+@c Common Lisp (because it must be able to throw multiple values), but it
+@c is a function in Emacs Lisp (which doesn't have multiple
+@c values).@refill
+@b{Common Lispに関した注意：}@code{ }
+GNU Emacs LispとCommon Lispのスペシャルフォームを比較してみる。
+@code{setq}、@code{if}、および、@code{catch}は、Emacs Lispでも
+Common Lispでもスペシャルフォームである。
+@code{defun}は、Emacs Lispではスペシャルフォームであるが、
+Common Lispではマクロである。
+@code{save-excursion}は、Emacs Lispではスペシャルフォームであるが、
+Common Lispには存在しない。
+@code{throw}は、Common Lispでは（複数の値を返す必要があるため）
+スペシャルフォームであるが、
+Emacs Lispでは（複数の値はないため）関数である。
+@end quotation
+
+@node Autoloading
+@c @subsection Autoloading
+@subsection 自動ロード
+
+@c   The @dfn{autoload} feature allows you to call a function or macro
+@c whose function definition has not yet been loaded into Emacs.  It
+@c specifies which file contains the definition.  When an autoload object
+@c appears as a symbol's function definition, calling that symbol as a
+@c function automatically loads the specified file; then it calls the real
+@c definition loaded from that file.  @xref{Autoload}.
+@dfn{自動ロード}（autoload）は、
+関数やマクロの関数定義をEmacsにまだロードしていなくても、
+関数やマクロを呼び出せるようにする機構です。
+定義を収めたファイルを指定します。
+シンボルの関数定義に自動ロードオブジェクトあるとき、
+そのシンボルを関数として呼び出すと、指定したファイルを自動的にロードします。
+そうしてから、当該ファイルからロードした実際の定義を呼び出します。
+@xref{Autoload}。
+
+@node Quoting
+@c @section Quoting
+@section クォート
+@c @cindex quoting
+@cindex クォート
+
+@c   The special form @code{quote} returns its single argument, as written,
+@c without evaluating it.  This provides a way to include constant symbols
+@c and lists, which are not self-evaluating objects, in a program.  (It is
+@c not necessary to quote self-evaluating objects such as numbers, strings,
+@c and vectors.)
+スペシャルフォーム@code{quote}は、単一の引数を
+評価せずに書かれたとおりに返します。
+これは、自己評価型オブジェクトではない
+定数シンボルや定数リストをプログラム内に書く手段です。
+（数、文字列、ベクトルなどの自己評価型オブジェクトをクォートする必要はない。）
+
+@defspec quote object
+@c This special form returns @var{object}, without evaluating it.
+このフォームは@var{object}を評価せずに返す。
+@end defspec
+
+@c @cindex @samp{'} for quoting
+@c @cindex quoting using apostrophe
+@c @cindex apostrophe for quoting
+@cindex @samp{'}によるクォート
+@cindex クォート、@samp{'}
+@c Because @code{quote} is used so often in programs, Lisp provides a
+@c convenient read syntax for it.  An apostrophe character (@samp{'})
+@c followed by a Lisp object (in read syntax) expands to a list whose first
+@c element is @code{quote}, and whose second element is the object.  Thus,
+@c the read syntax @code{'x} is an abbreviation for @code{(quote x)}.
+@code{quote}はプログラム内で頻繁に使うので、
+Lispには便利な入力構文が用意してあります。
+アポストロフ文字（@samp{'}）に続けた（入力構文で書いた）Lispオブジェクトは、
+先頭要素が@code{quote}であり2番目の要素がそのオブジェクトである
+リストに展開されます。
+したがって、入力構文@code{'x}は、@code{(quote x)}の省略形です。
+
+@c Here are some examples of expressions that use @code{quote}:
+@code{quote}を使った式の例をいくつかあげておきます。
+
+@example
+@group
+(quote (+ 1 2))
+     @result{} (+ 1 2)
+@end group
+@group
+(quote foo)
+     @result{} foo
+@end group
+@group
+'foo
+     @result{} foo
+@end group
+@group
+''foo
+     @result{} (quote foo)
+@end group
+@group
+'(quote foo)
+     @result{} (quote foo)
+@end group
+@group
+['foo]
+     @result{} [(quote foo)]
+@end group
+@end example
+
+@c   Other quoting constructs include @code{function} (@pxref{Anonymous
+@c Functions}), which causes an anonymous lambda expression written in Lisp
+@c to be compiled, and @samp{`} (@pxref{Backquote}), which is used to quote
+@c only part of a list, while computing and substituting other parts.
+他のクォートの書き方には、@code{function}（@pxref{Anonymous Functions}）が
+あります。
+これは、Lispで書いた無名ラムダ式をコンパイルするようにします。
+また、@samp{`}（@pxref{Backquote}）は、
+リストの一部分をクォートし、他の部分は計算結果で置き換えるために使います。
+
+@node Eval
+@c @section Eval
+@section 評価（eval）
+
+@c   Most often, forms are evaluated automatically, by virtue of their
+@c occurrence in a program being run.  On rare occasions, you may need to
+@c write code that evaluates a form that is computed at run time, such as
+@c after reading a form from text being edited or getting one from a
+@c property list.  On these occasions, use the @code{eval} function.
+ほとんどの場合、実行中のプログラムにフォームが現れると
+フォームは自動的に評価されます。
+稀なことですが、実行時に計算したフォームを評価するように
+コードを書く必要があるかもしれません。
+たとえば、編集中のテキストからフォームを読み取ったり、
+属性リストからフォームを取り出した場合などです。
+このような場合には、関数@code{eval}を使います。
+
+@c   The functions and variables described in this section evaluate forms,
+@c specify limits to the evaluation process, or record recently returned
+@c values.  Loading a file also does evaluation (@pxref{Loading}).
+本節で説明した関数や変数は、フォームを評価したり、
+評価処理に制限を課したり、最後の戻り値を記録したりします。
+ファイルをロードしても評価が行われます（@pxref{Loading}）。
+
+@c   @strong{Note:} it is generally cleaner and more flexible to store a
+@c function in a data structure, and call it with @code{funcall} or
+@c @code{apply}, than to store an expression in the data structure and
+@c evaluate it.  Using functions provides the ability to pass information
+@c to them as arguments.
+@strong{注意：}@code{ }
+データ構造の中に関数を格納して
+それを@code{funcall}や@code{apply}で呼び出すほうが、
+データ構造の中に式を格納してそれを評価するより、
+一般に明確で柔軟性があります。
+関数を使うとそれらに引数として情報を渡すことができます。
+
+@defun eval form
+@c This is the basic function evaluating an expression.  It evaluates
+@c @var{form} in the current environment and returns the result.  How the
+@c evaluation proceeds depends on the type of the object (@pxref{Forms}).
+この関数は、式を評価する基本的な関数である。
+@var{form}を現在の環境において評価し、その結果を返す。
+評価処理はオブジェクトの型に依存する（@pxref{Forms}）。
+
+@c Since @code{eval} is a function, the argument expression that appears
+@c in a call to @code{eval} is evaluated twice: once as preparation before
+@c @code{eval} is called, and again by the @code{eval} function itself.
+@c Here is an example:
+@code{eval}は関数なので、@code{eval}の呼び出しに現れる
+引数の式は2度評価される。
+@code{eval}を呼び出すまえの準備で1回、
+関数@code{eval}自身による評価でもう1回である。
+例を示す。
+
+@example
+@group
+(setq foo 'bar)
+     @result{} bar
+@end group
+@group
+(setq bar 'baz)
+     @result{} baz
+@c ;; @r{Here @code{eval} receives argument @code{foo}}
+;; @r{@code{eval}は引数@code{foo}を受け取る}
+(eval 'foo)
+     @result{} bar
+@c ;; @r{Here @code{eval} receives argument @code{bar}, which is the value of @code{foo}}
+;; @r{@code{eval}は引数@code{bar}を受け取る。それは@code{foo}の値}
+(eval foo)
+     @result{} baz
+@end group
+@end example
+
+@c The number of currently active calls to @code{eval} is limited to
+@c @code{max-lisp-eval-depth} (see below).
+@code{eval}の呼び出しの深さは、
+@code{max-lisp-eval-depth}（下記参照）に制限される。
+@end defun
+
+@c @deffn Command eval-region start end &optional stream read-function
+@deffn コマンド eval-region start end &optional stream read-function
+@c This function evaluates the forms in the current buffer in the region
+@c defined by the positions @var{start} and @var{end}.  It reads forms from
+@c the region and calls @code{eval} on them until the end of the region is
+@c reached, or until an error is signaled and not handled.
+この関数は、カレントバッファの@var{start}と@var{end}で指定した
+リージョン内のフォーム群を評価する。
+リージョンからフォームを読み取り、
+それらに対して@code{eval}を呼び出すことを
+リージョンの末尾に達するまで、あるいは、処理されないエラーが通知されるまで
+繰り返す。
+
+@c If @var{stream} is non-@code{nil}, the values that result from
+@c evaluating the expressions in the region are printed using @var{stream}.
+@c @xref{Output Streams}.
+@var{stream}が@code{nil}以外ならば、
+リージョン内の式を評価した結果の値は@var{stream}を使って表示する。
+@pxref{Output Streams}。
+
+@c If @var{read-function} is non-@code{nil}, it should be a function, which
+@c is used instead of @code{read} to read expressions one by one.  This
+@c function is called with one argument, the stream for reading input.  You
+@c can also use the variable @code{load-read-function} (@pxref{How Programs
+@c Do Loading}) to specify this function, but it is more robust to use the
+@c @var{read-function} argument.
+@var{read-function}が@code{nil}以外にならば、
+それは関数である必要があり、
+@code{read}のかわりに式を1つ1つ読むために使われる。
+この関数は、入力用のストリームである1つの引数で呼び出される。
+変数@code{load-read-function}（@pxref{How Programs Do Loading}）を
+使ってこの関数を指定することもできるが、
+引数@var{read-function}を用いたほうが堅牢である。
+
+@c @code{eval-region} always returns @code{nil}.
+@code{eval-region}はつねに@code{nil}を返す。
+@end deffn
+
+@c @cindex evaluation of buffer contents
+@cindex バッファ内容の評価
+@cindex 評価、バッファ内容
+@c @deffn Command eval-current-buffer &optional stream
+@deffn コマンド eval-current-buffer &optional stream
+@c This is like @code{eval-region} except that it operates on the whole
+@c buffer.
+これは@code{eval-region}と同様だが、バッファ全体に作用する。
+@end deffn
+
+@defvar max-lisp-eval-depth
+@c This variable defines the maximum depth allowed in calls to @code{eval},
+@c @code{apply}, and @code{funcall} before an error is signaled (with error
+@c message @code{"Lisp nesting exceeds max-lisp-eval-depth"}).  This limit,
+@c with the associated error when it is exceeded, is one way that Lisp
+@c avoids infinite recursion on an ill-defined function.
+この変数は、
+（エラーメッセージ@code{"Lisp nesting exceeds max-lisp-eval-depth"}で）
+エラーを通知までの@code{eval}、@code{apply}、@code{funcall}の呼び出しの
+最大の深さを制限する。
+この制限、および、これを超えたときのエラーは、
+不正に定義された関数によってLispが無限に再帰することを防止する
+1つの方法である。
+@c @cindex Lisp nesting error
+@cindex Lispの入れ子のエラー
+@cindex エラー、Lispの入れ子
+
+@c The depth limit counts internal uses of @code{eval}, @code{apply}, and
+@c @code{funcall}, such as for calling the functions mentioned in Lisp
+@c expressions, and recursive evaluation of function call arguments and
+@c function body forms, as well as explicit calls in Lisp code.
+深さ制限は、Lispコードによる明示的な呼び出しに加えて、
+Lisp式で書かれた関数の呼び出しや関数呼び出しの引数や関数本体のフォームの
+再帰的な評価などの内部的な@code{eval}、@code{apply}、@code{funcall}の
+呼び出しも数える。
+
+@c The default value of this variable is 300.  If you set it to a value
+@c less than 100, Lisp will reset it to 100 if the given value is reached.
+@c Entry to the Lisp debugger increases the value, if there is little room
+@c left, to make sure the debugger itself has room to execute.
+この変数のデフォルト値は300。
+これに100未満の値を設定すると、指定した値に達するとLispは100に設定し直す。
+Lispデバッガに入ったとき、
+制限に近い場合にはデバッガ自身が実行できることを保証するために値を増やす。
+
+@c @code{max-specpdl-size} provides another limit on nesting.
+@c @xref{Local Variables}.
+@code{max-specpdl-size}は、入れ子の深さを制限する別の方法である。
+@pxref{Local Variables}。
+@end defvar
+
+@defvar values
+@c The value of this variable is a list of the values returned by all the
+@c expressions that were read, evaluated, and printed from buffers
+@c (including the minibuffer) by the standard Emacs commands which do this.
+@c The elements are ordered most recent first.
+この変数の値は、
+バッファから式を読み取り、評価し、結果を表示するEmacsの標準コマンドが行った
+すべての式の戻り値のリストである。
+リストの順序は、最新のものが最初にくる。
+
+@example
+@group
+(setq x 1)
+     @result{} 1
+@end group
+@group
+(list 'A (1+ 2) auto-save-default)
+     @result{} (A 3 t)
+@end group
+@group
+values
+     @result{} ((A 3 t) 1 @dots{})
+@end group
+@end example
+
+@c This variable is useful for referring back to values of forms recently
+@c evaluated.  It is generally a bad idea to print the value of
+@c @code{values} itself, since this may be very long.  Instead, examine
+@c particular elements, like this:
+この変数は、最近評価したフォームの値を参照するのに便利である。
+@code{values}そのものの値の表示は非常に長くなる可能性があるので、
+その値を表示するのはよくない。
+そのかわりに、つぎのようにして特定の要素を調べる。
+
+@example
+@group
+@c ;; @r{Refer to the most recent evaluation result.}
+;; @r{もっとも最近の評価結果を参照する}
+(nth 0 values)
+     @result{} (A 3 t)
+@end group
+@group
+@c ;; @r{That put a new element on,}
+@c ;;   @r{so all elements move back one.}
+;; @r{こうすると、新たな要素が追加され、}
+;;   @r{すべての要素が1つうしろへさがる}
+(nth 1 values)
+     @result{} (A 3 t)
+@end group
+@group
+@c ;; @r{This gets the element that was next-to-most-recent}
+@c ;;   @r{before this example.}
+;; @r{この例を実行するまえの最新のもののつぎの要素を取得する}
+(nth 3 values)
+     @result{} 1
+@end group
+@end example
+@end defvar

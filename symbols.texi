@@ -1,0 +1,868 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/symbols
+@node Symbols, Evaluation, Sequences Arrays Vectors, Top
+@c @chapter Symbols
+@chapter シンボル
+@c @cindex symbol
+@cindex シンボル
+
+@c   A @dfn{symbol} is an object with a unique name.  This chapter
+@c describes symbols, their components, their property lists, and how they
+@c are created and interned.  Separate chapters describe the use of symbols
+@c as variables and as function names; see @ref{Variables}, and
+@c @ref{Functions}.  For the precise read syntax for symbols, see
+@c @ref{Symbol Type}.
+@dfn{シンボル}（symbol）とは、一意な名前が付いたオブジェクトです。
+本章では、シンボル、その構成要素、属性リスト、作成方法とインターン方法に
+ついて説明します。
+シンボルの変数としての使用方法、関数名としての使用方法について説明した
+別の章もあります。
+@ref{Variables}と@xref{Functions}。
+シンボルの正確な入力構文については、@xref{Symbol Type}。
+
+@c   You can test whether an arbitrary Lisp object is a symbol
+@c with @code{symbolp}:
+@code{symbolp}で、任意のLispオブジェクトがシンボルかどうか調べられます。
+
+@defun symbolp object
+@c This function returns @code{t} if @var{object} is a symbol, @code{nil}
+@c otherwise.
+この関数は、@var{object}がシンボルならば@code{t}を返し、
+さもなければ@code{nil}を返す。
+@end defun
+
+@menu
+* Symbol Components::        Symbols have names, values, function definitions
+                               and property lists.
+* Definitions::              A definition says how a symbol will be used.
+* Creating Symbols::         How symbols are kept unique.
+* Property Lists::           Each symbol has a property list
+                               for recording miscellaneous information.
+@end menu
+
+@node Symbol Components, Definitions, Symbols, Symbols
+@c @section Symbol Components
+@section シンボルの構成要素
+@c @cindex symbol components
+@cindex シンボルの構成要素
+
+@c   Each symbol has four components (or ``cells''), each of which
+@c references another object:
+各シンボルには4つの構成要素（つまり、『セル』）があり、
+それぞれで別のオブジェクトを参照します。
+
+@table @asis
+@c @item Print name
+@item 表示名（print name）
+@c @cindex print name cell
+@cindex 表示名
+@c The @dfn{print name cell} holds a string that names the symbol for
+@c reading and printing.  See @code{symbol-name} in @ref{Creating Symbols}.
+@dfn{表示名セル}（print name cell）には、
+シンボルの入力や表示に使う名前である文字列が入っている。
+@ref{Creating Symbols}の@code{symbol-name}を参照。
+
+@c @item Value
+@item 値（value）
+@c @cindex value cell
+@cindex 値セル
+@c The @dfn{value cell} holds the current value of the symbol as a
+@c variable.  When a symbol is used as a form, the value of the form is the
+@c contents of the symbol's value cell.  See @code{symbol-value} in
+@c @ref{Accessing Variables}.
+@dfn{値セル}（value cell）には、
+シンボルの変数としての現在値が入っている。
+シンボルをフォームとして使用したとき、
+フォームの値はシンボルの値セルの内容である。
+@ref{Accessing Variables}の@code{symbol-value}を参照。
+
+@c @item Function
+@item 関数（function）
+@c @cindex function cell
+@cindex 関数セル
+@c The @dfn{function cell} holds the function definition of the symbol.
+@c When a symbol is used as a function, its function definition is used in
+@c its place.  This cell is also used to make a symbol stand for a keymap
+@c or a keyboard macro, for editor command execution.  Because each symbol
+@c has separate value and function cells, variables and function names do
+@c not conflict.  See @code{symbol-function} in @ref{Function Cells}.
+@dfn{関数セル}（function cell）には、シンボルの関数定義が入っている。
+シンボルを関数として使用したとき、その関数定義を使う。
+シンボルが、編集コマンドを実行するためのキーマップやキーボードマクロを
+表すときもこのセルを使う。
+各シンボルには値セルと関数セルが別々にあるので、
+変数名と関数名は衝突しない。
+@ref{Function Cells}の@code{symbol-function}を参照。
+
+@c @item Property list
+@item 属性リスト（property list）
+@c @cindex property list cell
+@cindex 属性リストセル
+@c The @dfn{property list cell} holds the property list of the symbol.  See
+@c @code{symbol-plist} in @ref{Property Lists}.
+@dfn{属性リストセル}（property list cell）には、
+シンボルの属性リストが入っている。
+@ref{Property Lists}の@code{symbol-plist}を参照。
+@end table
+
+@c   The print name cell always holds a string, and cannot be changed.  The
+@c other three cells can be set individually to any specified Lisp object.
+表示名セルはつねに文字列を保持していて、変更できません。
+他の3つのセルには、任意の指定したLispオブジェクトを個別に設定できます。
+
+@c   The print name cell holds the string that is the name of the symbol.
+@c Since symbols are represented textually by their names, it is important
+@c not to have two symbols with the same name.  The Lisp reader ensures
+@c this: every time it reads a symbol, it looks for an existing symbol with
+@c the specified name before it creates a new one.  (In GNU Emacs Lisp,
+@c this lookup uses a hashing algorithm and an obarray; see @ref{Creating
+@c Symbols}.)
+表示名セルは、シンボルの名前である文字列を保持しています。
+シンボルはテキスト上はその名前で表現されるので、
+2つのシンボルが同じ名前を持たないことが重要です。
+Lispリーダがこのことを保証します。
+シンボルを読み取るたびに、新たにシンボルを作成するまえに、
+指定した名前のシンボルが存在するかどうか調べます。
+（GNU Emacs Lispでは、これにはハッシュアルゴリズムと
+オブジェクト配列obarrayを使う。
+@pxref{Creating Symbols}。）
+
+@c   In normal usage, the function cell usually contains a function
+@c (@pxref{Functions}) or a macro (@pxref{Macros}), as that is what the
+@c Lisp interpreter expects to see there (@pxref{Evaluation}).  Keyboard
+@c macros (@pxref{Keyboard Macros}), keymaps (@pxref{Keymaps}) and autoload
+@c objects (@pxref{Autoloading}) are also sometimes stored in the function
+@c cells of symbols.  We often refer to ``the function @code{foo}'' when we
+@c really mean the function stored in the function cell of the symbol
+@c @code{foo}.  We make the distinction only when necessary.
+普通の使い方では、関数セルには関数（@pxref{Functions}）や
+マクロ（@pxref{Macros}）が入っていて、
+Lispインタープリタはそのように仮定します（@pxref{Evaluation}）。
+シンボルの関数セルには、
+キーボードマクロ（@pxref{Keyboard Macros}）、キーマップ（@pxref{Keymaps}）、
+自動ロードオブジェクト（@pxref{Autoloading}）が入っていることもあります。
+『関数@code{foo}』といった場合、実際には、シンボル@code{foo}の関数セルに
+入っている関数を意味します。
+必要な場合に限って区別します。
+
+@c   The property list cell normally should hold a correctly formatted
+@c property list (@pxref{Property Lists}), as a number of functions expect
+@c to see a property list there.
+属性リストセルは、通常、正しい形式の属性リスト（@pxref{Property Lists}）が
+入っている必要があり、さまざまな関数がそのように仮定しています。
+
+@c   The function cell or the value cell may be @dfn{void}, which means
+@c that the cell does not reference any object.  (This is not the same
+@c thing as holding the symbol @code{void}, nor the same as holding the
+@c symbol @code{nil}.)  Examining a function or value cell that is void
+@c results in an error, such as @samp{Symbol's value as variable is void}.
+関数セルや値セルは@dfn{空}（void）でもかまいません。
+つまり、セルはどんなオブジェクトも指していません。
+（このことは、シンボル@code{void}を保持しているとか、
+シンボル@code{nil}を保持しているのとは違う。）
+空である関数セルや値セルを参照すると、
+その結果は@samp{Symbol's value as variable is void}
+（「変数としてのシンボルの値は空」）のようなエラーになります。
+
+@c   The four functions @code{symbol-name}, @code{symbol-value},
+@c @code{symbol-plist}, and @code{symbol-function} return the contents of
+@c the four cells of a symbol.  Here as an example we show the contents of
+@c the four cells of the symbol @code{buffer-file-name}:
+4つの関数、@code{symbol-name}、@code{symbol-value}、
+@code{symbol-plist}、@code{symbol-function}は、
+シンボルの4つのセルの内容を返します。
+以下に、シンボル@code{buffer-file-name}の
+4つのセルの内容を表示する例を示します。
+
+@example
+(symbol-name 'buffer-file-name)
+     @result{} "buffer-file-name"
+(symbol-value 'buffer-file-name)
+     @result{} "/gnu/elisp/symbols.texi"
+(symbol-plist 'buffer-file-name)
+     @result{} (variable-documentation 29529)
+(symbol-function 'buffer-file-name)
+     @result{} #<subr buffer-file-name>
+@end example
+
+@noindent
+@c Because this symbol is the variable which holds the name of the file
+@c being visited in the current buffer, the value cell contents we see are
+@c the name of the source file of this chapter of the Emacs Lisp Manual.
+@c The property list cell contains the list @code{(variable-documentation
+@c 29529)} which tells the documentation functions where to find the
+@c documentation string for the variable @code{buffer-file-name} in the
+@c @file{DOC-@var{version}} file.  (29529 is the offset from the beginning
+@c of the @file{DOC-@var{version}} file to where that documentation string
+@c begins---see @ref{Documentation Basics}.)  The function cell contains
+@c the function for returning the name of the file.
+@c @code{buffer-file-name} names a primitive function, which has no read
+@c syntax and prints in hash notation (@pxref{Primitive Function Type}).  A
+@c symbol naming a function written in Lisp would have a lambda expression
+@c (or a byte-code object) in this cell.
+このシンボルは、カレントバッファで訪問しているファイルの名前を保持するので、
+値セルの内容は本書Emacs Lispマニュアルの本章のソースファイルの名前です。
+属性リストセルには、リスト@code{(variable-documentation 29529)}が入っていて、
+ドキュメント関数に対してファイル@file{DOC-@var{version}}のどこに
+変数@code{buffer-file-name}の説明文字列が入っているか伝えます。
+（29529は、当該説明文字列の開始位置を表す
+@file{DOC-@var{version}}の先頭からのオフセット。
+@ref{Documentation Basics}を参照。）
+関数セルには、ファイルの名前を返す関数が入っています。
+@code{buffer-file-name}は基本関数の名前です。
+これには入力構文はなく、
+ハッシュ記法（@pxref{Primitive Function Type}）で表示されています。
+Lispで書いた関数を表すシンボルでは、
+このセルにラムダ式（あるいはバイトコードオブジェクト）が入っています。
+
+@node Definitions, Creating Symbols, Symbol Components, Symbols
+@c @section Defining Symbols
+@section シンボルを定義する
+@c @cindex definition of a symbol
+@cindex シンボルを定義する
+
+@c   A @dfn{definition} in Lisp is a special form that announces your
+@c intention to use a certain symbol in a particular way.  In Emacs Lisp,
+@c you can define a symbol as a variable, or define it as a function (or
+@c macro), or both independently.
+Lispにおける@dfn{定義}（definition）とは、
+特定のシンボルをどのように使うかを意思表示するスペシャルフォームです。
+Emacs Lispでは、シンボルを変数と定義したり、
+関数（あるいはマクロ）と定義したり、あるいは、それらを独立に定義できます。
+
+@c   A definition construct typically specifies a value or meaning for the
+@c symbol for one kind of use, plus documentation for its meaning when used
+@c in this way.  Thus, when you define a symbol as a variable, you can
+@c supply an initial value for the variable, plus documentation for the
+@c variable.
+定義を行う構文では、典型的には、値を指定したり、
+シンボルを特定の使い方をすると指定したりし、
+さらに、そのような使い方をしたときの意味を表すための説明文字列を指定します。
+したがって、シンボルを変数として定義するときには、
+変数に初期値を与え、その変数の説明文字列を指定できます。
+
+@c   @code{defvar} and @code{defconst} are special forms that define a
+@c symbol as a global variable.  They are documented in detail in
+@c @ref{Defining Variables}.  For defining user option variables that can
+@c be customized, use @code{defcustom} (@pxref{Customization}).
+@code{defvar}と@code{defconst}は、シンボルをグローバル変数として定義する
+スペシャルフォームです。
+これらは@ref{Defining Variables}で詳しく説明してあります。
+カスタマイズ可能なようにユーザーオプション用の変数を定義するには、
+@code{defcustom}（@pxref{Customization}）を使います。
+
+@c   @code{defun} defines a symbol as a function, creating a lambda
+@c expression and storing it in the function cell of the symbol.  This
+@c lambda expression thus becomes the function definition of the symbol.
+@c (The term ``function definition'', meaning the contents of the function
+@c cell, is derived from the idea that @code{defun} gives the symbol its
+@c definition as a function.)  @code{defsubst} and @code{defalias} are two
+@c other ways of defining a function.  @xref{Functions}.
+@code{defun}は、シンボルを関数として定義し、
+ラムダ式を作ってシンボルの関数セルに格納します。
+したがって、このラムダ式がシンボルの関数定義になります。
+（用語『関数定義』は、関数セルの内容を意味し、
+@code{defun}がシンボルに関数としての定義を与えることからきている。）
+@code{defsubst}と@code{defalias}は、関数を定義する別の2つの方法です。
+@xref{Functions}。
+
+@c   @code{defmacro} defines a symbol as a macro.  It creates a macro
+@c object and stores it in the function cell of the symbol.  Note that a
+@c given symbol can be a macro or a function, but not both at once, because
+@c both macro and function definitions are kept in the function cell, and
+@c that cell can hold only one Lisp object at any given time.
+@c @xref{Macros}.
+@code{defmacro}は、シンボルをマクロとして定義します。
+マクロオブジェクトを作ってシンボルの関数セルに格納します。
+シンボルは、マクロか関数のいずれかであって、
+同時に両方にはならないことに注意してください。
+というのは、マクロ定義も関数定義も関数セルに収められ、
+そのセルにはどんなときでもたった1つのLispオブジェクトしか
+保持できないからです。
+@xref{Macros}。
+
+@c   In Emacs Lisp, a definition is not required in order to use a symbol
+@c as a variable or function.  Thus, you can make a symbol a global
+@c variable with @code{setq}, whether you define it first or not.  The real
+@c purpose of definitions is to guide programmers and programming tools.
+@c They inform programmers who read the code that certain symbols are
+@c @emph{intended} to be used as variables, or as functions.  In addition,
+@c utilities such as @file{etags} and @file{make-docfile} recognize
+@c definitions, and add appropriate information to tag tables and the
+@c @file{DOC-@var{version}} file.  @xref{Accessing Documentation}.
+Emacs Lispでは、シンボルを変数や関数として使うための
+定義は必須ではありません。
+したがって、シンボルをあらかじめ定義しようがしまいが、
+@code{setq}を使ってシンボルをグローバル変数にできます。
+定義の真の目的は、プログラマに対する指針であり、プログラミングツールなのです。
+これらは、コードを読むプログラマに対して、
+特定のシンボルを変数として使うのか関数として使うのか、
+その@emph{意図}を伝えます。
+さらに、@file{etags}や@file{make-docfile}などのユーティリティは、
+定義を認識してタグテーブルやファイル@file{DOC-@var{version}}に
+適切な情報を追加します。
+@xref{Accessing Documentation}。
+
+@node Creating Symbols, Property Lists, Definitions, Symbols
+@c @section Creating and Interning Symbols
+@section シンボルの作成とインターン
+@c @cindex reading symbols
+@cindex シンボルを読む
+
+@c   To understand how symbols are created in GNU Emacs Lisp, you must know
+@c how Lisp reads them.  Lisp must ensure that it finds the same symbol
+@c every time it reads the same set of characters.  Failure to do so would
+@c cause complete confusion.
+GNU Emacs Lispにおいて、どのようにシンボルを作成するかを理解するには、
+Lispがそれらをどのように読むかを知る必要があります。
+Lispは、同じ文字群を読み取るたびに、同じシンボルをみつけることを保証する
+必要があります。
+これに失敗すると完全に混乱します。
+
+@c @cindex symbol name hashing
+@c @cindex hashing
+@c @cindex obarray
+@cindex シンボル名のハッシュ化
+@cindex ハッシュ化
+@cindex オブジェクト配列（obarray）
+@cindex obarray（オブジェクト配列）
+@c @cindex bucket (in obarray)
+@cindex バケット（オブジェクト配列）
+@c   When the Lisp reader encounters a symbol, it reads all the characters
+@c of the name.  Then it ``hashes'' those characters to find an index in a
+@c table called an @dfn{obarray}.  Hashing is an efficient method of
+@c looking something up.  For example, instead of searching a telephone
+@c book cover to cover when looking up Jan Jones, you start with the J's
+@c and go from there.  That is a simple version of hashing.  Each element
+@c of the obarray is a @dfn{bucket} which holds all the symbols with a
+@c given hash code; to look for a given name, it is sufficient to look
+@c through all the symbols in the bucket for that name's hash code.
+Lispリーダがシンボルに出会うと、名前の文字群をすべて読み取ります。
+そして、これらの文字群を『ハッシュ化』して、
+@dfn{オブジェクト配列}（obarray）と呼ばれる表の添字を探します。
+ハッシュ化は効率的に探索する手法です。
+たとえば、Jan Jonesを電話番号簿の表紙から1ページずつ順に探すかわりに、
+Jのページから探し始めます。
+これは単純なハッシュ化です。
+オブジェクト配列の各要素は、
+あるハッシュコードを有するすべてのシンボルを格納した
+@dfn{バケット}（bucket）です。
+ある名前を探すには、その名前のハッシュコードに対応するバケット内の
+すべてのシンボルを調べるだけで十分です。
+
+@c @cindex interning
+@cindex インターン
+@c   If a symbol with the desired name is found, the reader uses that
+@c symbol.  If the obarray does not contain a symbol with that name, the
+@c reader makes a new symbol and adds it to the obarray.  Finding or adding
+@c a symbol with a certain name is called @dfn{interning} it, and the
+@c symbol is then called an @dfn{interned symbol}.
+目的の名前のシンボルがみつかれば、リーダはそのシンボルを使います。
+オブジェクト配列に目的の名前のシンボルがなければ、
+リーダは新たなシンボルを作成し、それをオブジェクト配列に追加します。
+ある名前のシンボルを探したり追加することをシンボルを
+@dfn{インターン}（interning）するといい、
+そのシンボルを@dfn{インターンしたシンボル}（interned symbol）と呼びます。
+
+@c   Interning ensures that each obarray has just one symbol with any
+@c particular name.  Other like-named symbols may exist, but not in the
+@c same obarray.  Thus, the reader gets the same symbols for the same
+@c names, as long as you keep reading with the same obarray.
+インターンすることで、各オブジェクト配列には
+特定の名前のシンボルが1個だけあることを保証します。
+他の似たような名前のシンボルが存在しても、
+同じオブジェクト配列には入っていません。
+したがって、同じオブジェクト配列を使って読む限り、
+リーダは同じ名前に対して同じシンボルを得ることができます。
+
+@c @cindex symbol equality
+@c @cindex uninterned symbol
+@cindex シンボルの同値性
+@cindex 同値性、シンボル
+@cindex インターンしてないシンボル
+@c   No obarray contains all symbols; in fact, some symbols are not in any
+@c obarray.  They are called @dfn{uninterned symbols}.  An uninterned
+@c symbol has the same four cells as other symbols; however, the only way
+@c to gain access to it is by finding it in some other object or as the
+@c value of a variable.
+すべてのシンボルがオブジェクト配列に入っているとは限りません。
+実際、どのオブジェクト配列にも属さないシンボルがいくつかあります。
+これらを@dfn{インターンしてないシンボル}（uninterned symbols）と呼びます。
+インターンしてないシンボルにも、他のシンボルと同様に4つのセルがあります。
+しかし、それを参照する手段は、他のオブジェクトを介して探すか、
+変数の値として探すしかありません。
+
+@c   In Emacs Lisp, an obarray is actually a vector.  Each element of the
+@c vector is a bucket; its value is either an interned symbol whose name
+@c hashes to that bucket, or 0 if the bucket is empty.  Each interned
+@c symbol has an internal link (invisible to the user) to the next symbol
+@c in the bucket.  Because these links are invisible, there is no way to
+@c find all the symbols in an obarray except using @code{mapatoms} (below).
+@c The order of symbols in a bucket is not significant.
+Emacs Lispでは、オブジェクト配列は実際にはベクトルです。
+ベクトルの各要素はバケットです。
+その値は、そのバケットにハッシュ化される名前のインターンしたシンボルであるか、
+そのバケットが空ならば0です。
+インターンした各シンボルには、バケットのつぎのシンボルを指す
+（ユーザーには見えない）内部的なリンクがあります。
+このリンクは見えないので、@code{mapatoms}（下記）を使う以外には、
+オブジェクト配列内のすべてのシンボルを探す方法はありません。
+バケット内でのシンボルの順序は関係ありません。
+
+@c   In an empty obarray, every element is 0, and you can create an obarray
+@c with @code{(make-vector @var{length} 0)}.  @strong{This is the only
+@c valid way to create an obarray.}  Prime numbers as lengths tend
+@c to result in good hashing; lengths one less than a power of two are also
+@c good.
+空のオブジェクト配列では、各要素は0です。
+@code{(make-vector @var{length} 0)}でオブジェクト配列を作成できます。
+@strong{これは、オブジェクト配列を作成する唯一の正当な方法です。}
+長さとして素数を用いると、ハッシュ化の結果がよい傾向があります。
+2の巾より1小さい長さもよい結果になります。
+
+@c   @strong{Do not try to put symbols in an obarray yourself.}  This does
+@c not work---only @code{intern} can enter a symbol in an obarray properly.
+@strong{読者自身でオブジェクト配列にシンボルを入れないでください。}
+うまくいきません。
+オブジェクト配列にシンボルを正しく入れられるのは@code{intern}だけです。
+
+@c @cindex CL note---symbol in obarrays
+@cindex CLに関した注意−−オブジェクト配列内のシンボル
+@quotation
+@c @b{Common Lisp note:} In Common Lisp, a single symbol may be interned in
+@c several obarrays.
+@b{Common Lispに関した注意：}@code{ }
+Common Lispでは、1つのシンボルを複数のオブジェクト配列に入れることができる。
+@end quotation
+
+@c   Most of the functions below take a name and sometimes an obarray as
+@c arguments.  A @code{wrong-type-argument} error is signaled if the name
+@c is not a string, or if the obarray is not a vector.
+下記の関数のほとんどは、引数に名前を取り、
+場合によってはオブジェクト配列を引数に取ります。
+名前が文字列でなかったり、オブジェクト配列がベクトルでないと、
+エラー@code{wrong-type-argument}を通知します。
+
+@defun symbol-name symbol
+@c This function returns the string that is @var{symbol}'s name.  For example:
+この関数は、@var{symbol}の名前を表す文字列を返す。
+たとえば、つぎのとおり。
+
+@example
+@group
+(symbol-name 'foo)
+     @result{} "foo"
+@end group
+@end example
+
+@c @strong{Warning:} Changing the string by substituting characters does
+@c change the name of the symbol, but fails to update the obarray, so don't
+@c do it!
+@strong{警告：}@code{ }
+文字列の文字を置き換えるとシンボルの名前を変更するが、
+オブジェクト配列は更新できないので変更しないこと！
+@end defun
+
+@defun make-symbol name
+@c This function returns a newly-allocated, uninterned symbol whose name is
+@c @var{name} (which must be a string).  Its value and function definition
+@c are void, and its property list is @code{nil}.  In the example below,
+@c the value of @code{sym} is not @code{eq} to @code{foo} because it is a
+@c distinct uninterned symbol whose name is also @samp{foo}.
+この関数は、@var{name}（文字列であること）を名前とする
+新たに割り付けたインターンしていないシンボルを返す。
+その値と関数定義は空であり、属性リストは@code{nil}である。
+以下の例では、@code{sym}の値は@code{foo}と@code{eq}ではない。
+なぜなら、名前は@samp{foo}ではあるが、
+インターンしていない別のシンボルであるため。
+
+@example
+(setq sym (make-symbol "foo"))
+     @result{} foo
+(eq sym 'foo)
+     @result{} nil
+@end example
+@end defun
+
+@defun intern name &optional obarray
+@c This function returns the interned symbol whose name is @var{name}.  If
+@c there is no such symbol in the obarray @var{obarray}, @code{intern}
+@c creates a new one, adds it to the obarray, and returns it.  If
+@c @var{obarray} is omitted, the value of the global variable
+@c @code{obarray} is used.
+この関数は、@var{name}を名前とするインターンしたシンボルを返す。
+そのようなシンボルがオブジェクト配列@var{obarray}に存在しなければ、
+@code{intern}は新たなものを作成し、それをオブジェクト配列に追加してから、
+それを返す。
+@var{obarray}を省略すると、グローバル変数@code{obarray}の値を使う。
+
+@example
+(setq sym (intern "foo"))
+     @result{} foo
+(eq sym 'foo)
+     @result{} t
+
+(setq sym1 (intern "foo" other-obarray))
+     @result{} foo
+(eq sym 'foo)
+     @result{} nil
+@end example
+@end defun
+
+@c @cindex CL note---interning existing symbol
+@cindex CLに関した注意−−既存シンボルのインターン
+@quotation
+@c @b{Common Lisp note:} In Common Lisp, you can intern an existing symbol
+@c in an obarray.  In Emacs Lisp, you cannot do this, because the argument
+@c to @code{intern} must be a string, not a symbol.
+@b{Common Lispに関した注意：}@code{ }
+Common Lispでは、既存のシンボルをオブジェクト配列にインターンできる。
+Emacs Lispでは、これはできない。
+なぜなら、@code{intern}の引数は文字列である必要があり、
+シンボルではない。
+@end quotation
+
+@defun intern-soft name &optional obarray
+@c This function returns the symbol in @var{obarray} whose name is
+@c @var{name}, or @code{nil} if @var{obarray} has no symbol with that name.
+@c Therefore, you can use @code{intern-soft} to test whether a symbol with
+@c a given name is already interned.  If @var{obarray} is omitted, the
+@c value of the global variable @code{obarray} is used.
+この関数は、@var{obarray}内の@var{name}を名前とするシンボルを返す。
+ただし、その名前のシンボルが@var{obarray}になければ@code{nil}を返す。
+したがって、@code{intern-soft}を用いて、指定した名前のシンボルが
+インターンされているかどうか調べられる。
+@var{obarray}を省略すると、グローバル変数@code{obarray}の値を使う。
+
+@smallexample
+@c (intern-soft "frazzle")        ; @r{No such symbol exists.}
+(intern-soft "frazzle")        ; @r{そのようなシンボルは存在しない}
+     @result{} nil
+@c (make-symbol "frazzle")        ; @r{Create an uninterned one.}
+(make-symbol "frazzle")        ; @r{インターンしないものを作る}
+     @result{} frazzle
+@group
+@c (intern-soft "frazzle")        ; @r{That one cannot be found.}
+(intern-soft "frazzle")        ; @r{そのようなものはみつからない}
+     @result{} nil
+@end group
+@group
+@c (setq sym (intern "frazzle"))  ; @r{Create an interned one.}
+(setq sym (intern "frazzle"))  ; @r{インターンしたものを作る}
+     @result{} frazzle
+@end group
+@group
+@c (intern-soft "frazzle")        ; @r{That one can be found!}
+(intern-soft "frazzle")        ; @r{そのようなものがみつかった！}
+     @result{} frazzle
+@end group
+@group
+@c (eq sym 'frazzle)              ; @r{And it is the same one.}
+(eq sym 'frazzle)              ; @r{しかも、それらは同一}
+     @result{} t
+@end group
+@end smallexample
+@end defun
+
+@defvar obarray
+@c This variable is the standard obarray for use by @code{intern} and
+@c @code{read}.
+この変数は、@code{intern}や@code{read}が使う標準のオブジェクト配列。
+@end defvar
+
+@defun mapatoms function &optional obarray
+@c This function calls @var{function} once with each symbol in the obarray
+@c @var{obarray}.  Then it returns @code{nil}.  If @var{obarray} is
+@c omitted, it defaults to the value of @code{obarray}, the standard
+@c obarray for ordinary symbols.
+この関数は、オブジェクト配列@var{obarray}の各シンボルについて、
+1回ずつ@var{function}を呼び出す。
+そして、@code{nil}を返す。
+@var{obarray}を省略すると、通常のシンボル向けの標準のオブジェクト配列である
+@code{obarray}の値をデフォルトにする。
+
+@smallexample
+(setq count 0)
+     @result{} 0
+(defun count-syms (s)
+  (setq count (1+ count)))
+     @result{} count-syms
+(mapatoms 'count-syms)
+     @result{} nil
+count
+     @result{} 1871
+@end smallexample
+
+@c See @code{documentation} in @ref{Accessing Documentation}, for another
+@c example using @code{mapatoms}.
+@code{mapatoms}を使った別の例については、
+@ref{Accessing Documentation}の@code{documentation}を参照。
+@end defun
+
+@defun unintern symbol &optional obarray
+@c This function deletes @var{symbol} from the obarray @var{obarray}.  If
+@c @code{symbol} is not actually in the obarray, @code{unintern} does
+@c nothing.  If @var{obarray} is @code{nil}, the current obarray is used.
+この関数は、オブジェクト配列@var{obarray}から@var{symbol}を削除する。
+@code{symbol}が実際にはオブジェクト配列内になければ、
+@code{unintern}はなにもしない。
+@var{obarray}が@code{nil}であると、現在のオブジェクト配列を使う。
+
+@c If you provide a string instead of a symbol as @var{symbol}, it stands
+@c for a symbol name.  Then @code{unintern} deletes the symbol (if any) in
+@c the obarray which has that name.  If there is no such symbol,
+@c @code{unintern} does nothing.
+@var{symbol}のシンボルのかわりに文字列を指定すると、
+それはシンボルの名前を表す。
+そして、@code{unintern}はその名前のシンボルを（あれば）オブジェクト配列から
+削除する。
+そのようなシンボルがなければ、@code{unintern}はなにもしない。
+
+@c If @code{unintern} does delete a symbol, it returns @code{t}.  Otherwise
+@c it returns @code{nil}.
+@code{unintern}は、シンボルを削除したときには@code{t}を返す。
+さもなければ@code{nil}を返す。
+@end defun
+
+@node Property Lists,, Creating Symbols, Symbols
+@c @section Property Lists
+@section 属性リスト
+@c @cindex property list
+@c @cindex plist
+@cindex 属性リスト（plist）
+@cindex plist（属性リスト）
+
+@c   A @dfn{property list} (@dfn{plist} for short) is a list of paired
+@c elements stored in the property list cell of a symbol.  Each of the
+@c pairs associates a property name (usually a symbol) with a property or
+@c value.  Property lists are generally used to record information about a
+@c symbol, such as its documentation as a variable, the name of the file
+@c where it was defined, or perhaps even the grammatical class of the
+@c symbol (representing a word) in a language-understanding system.
+@dfn{属性リスト}（property list、略して@dfn{plist}）とは、
+シンボルの属性リストセルに格納された対になった要素から成るリストです。
+各対は、属性名（通常、シンボル）を属性、すなわち、属性値に対応付けます。
+属性リストは、一般に、シンボルに関する情報を記録します。
+変数としての説明文字列、定義されているファイルの名前、
+言語理解システムにおいては（語を表す）シンボルの文法クラスなどです。
+
+@c   Character positions in a string or buffer can also have property lists.
+@c @xref{Text Properties}.
+文字列内やバッファ内の文字位置も属性リストを持てます。
+@xref{Text Properties}。
+
+@c   The property names and values in a property list can be any Lisp
+@c objects, but the names are usually symbols.  Property list functions
+@c compare the property names using @code{eq}.  Here is an example of a
+@c property list, found on the symbol @code{progn} when the compiler is
+@c loaded:
+属性リスト内の属性名と属性値は、任意のLispオブジェクトでかまいませんが、
+普通、属性名はシンボルです。
+属性リスト関数は、@code{eq}を使って属性名を比較します。
+コンパイラをロードした際のシンボル@code{progn}の属性リストをつぎに示します。
+
+@example
+(lisp-indent-function 0 byte-compile byte-compile-progn)
+@end example
+
+@noindent
+@c Here @code{lisp-indent-function} and @code{byte-compile} are property
+@c names, and the other two elements are the corresponding values.
+ここで、@code{lisp-indent-function}や@code{byte-compile}は属性名であり、
+他の2つの要素は対応する属性値です。
+
+@menu
+* Plists and Alists::           Comparison of the advantages of property
+                                  lists and association lists.
+* Symbol Plists::               Functions to access symbols' property lists.
+* Other Plists::                Accessing property lists stored elsewhere.
+@end menu
+
+@node Plists and Alists
+@c @subsection Property Lists and Association Lists
+@subsection 属性リストと連想リスト
+
+@c @cindex property lists vs association lists
+@cindex 属性リストと連想リスト
+@cindex 連想リストと属性リスト
+@c   Association lists (@pxref{Association Lists}) are very similar to
+@c property lists.  In contrast to association lists, the order of the
+@c pairs in the property list is not significant since the property names
+@c must be distinct.
+連想リスト（@pxref{Association Lists}）は、
+属性リストに非常によく似ています。
+連想リストと異なり、属性名は一意である必要があるので、
+属性リスト内での対の出現順序は関係ありません。
+
+@c   Property lists are better than association lists for attaching
+@c information to various Lisp function names or variables.  If your
+@c program keeps all of its associations in one association list, it will
+@c typically need to search that entire list each time it checks for an
+@c association.  This could be slow.  By contrast, if you keep the same
+@c information in the property lists of the function names or variables
+@c themselves, each search will scan only the length of one property list,
+@c which is usually short.  This is why the documentation for a variable is
+@c recorded in a property named @code{variable-documentation}.  The byte
+@c compiler likewise uses properties to record those functions needing
+@c special treatment.
+さまざまなLisp関数やLisp変数に情報を付加するには、
+属性リストは連想リストより優れています。
+読者のプログラムで1つの連想リストにすべての連想を入れておいたとすると、
+1つの連想を探すたびに、リスト全体を探索する必要があります。
+これには時間がかかります。
+一方、同じ情報を関数名や変数自身の属性リストに保持しておけば、
+各探索では1つの属性リストを走査するだけでよく、
+属性リストは、普通、短いものです。
+このため、変数の説明文字列を@code{variable-documentation}という名前の
+属性に記録しているのです。
+同様に、バイトコンパイラも、
+特別な処理が必要な関数を属性を使って記録しています。
+
+@c   However, association lists have their own advantages.  Depending on
+@c your application, it may be faster to add an association to the front of
+@c an association list than to update a property.  All properties for a
+@c symbol are stored in the same property list, so there is a possibility
+@c of a conflict between different uses of a property name.  (For this
+@c reason, it is a good idea to choose property names that are probably
+@c unique, such as by beginning the property name with the program's usual
+@c name-prefix for variables and functions.)  An association list may be
+@c used like a stack where associations are pushed on the front of the list
+@c and later discarded; this is not possible with a property list.
+しかしながら、連想リストにもそれ独自の利点があります。
+読者のアプリケーションに依存しますが、
+属性を更新するより、連想リストの先頭に連想を追加するほうが速いです。
+あるシンボルのすべての属性は同一の属性リストに格納してあるので、
+1つの属性名を異なる目的に使うと衝突します。
+（この理由から、プログラムで普通に使う
+変数名や関数名の接頭辞で始まる属性名を選ぶなどして、
+一意な属性名を選ぶのがよい。）
+連想リストは、リストの先頭に要素を追加し、先頭から要素を削除するので、
+スタックのように使えます。
+属性リストでは、これは不可能です。
+
+@node Symbol Plists
+@c @subsection Property List Functions for Symbols
+@subsection シンボル向け属性リスト関数
+
+@defun symbol-plist symbol
+@c This function returns the property list of @var{symbol}.
+この関数は@var{symbol}の属性リストを返す。
+@end defun
+
+@defun setplist symbol plist
+@c This function sets @var{symbol}'s property list to @var{plist}.
+@c Normally, @var{plist} should be a well-formed property list, but this is
+@c not enforced.
+この関数は、@var{symbol}の属性リストを@var{plist}とする。
+通常、@var{plist}は正しい形の属性リストであるべきだが強要されない。
+
+@smallexample
+(setplist 'foo '(a 1 b (2 3) c nil))
+     @result{} (a 1 b (2 3) c nil)
+(symbol-plist 'foo)
+     @result{} (a 1 b (2 3) c nil)
+@end smallexample
+
+@c For symbols in special obarrays, which are not used for ordinary
+@c purposes, it may make sense to use the property list cell in a
+@c nonstandard fashion; in fact, the abbrev mechanism does so
+@c (@pxref{Abbrevs}).
+普通の使い方を意図していない特別なオブジェクト配列内のシンボルに対しては、
+属性リストセルの非標準な使い方にも意味があろう。
+実際、略語機構（@pxref{Abbrevs}）ではそのようにしている。
+@end defun
+
+@defun get symbol property
+@c This function finds the value of the property named @var{property} in
+@c @var{symbol}'s property list.  If there is no such property, @code{nil}
+@c is returned.  Thus, there is no distinction between a value of
+@c @code{nil} and the absence of the property.
+この関数は、@var{symbol}の属性リストから
+@var{property}という名前の属性の値を探す。
+そのような属性がなければ、@code{nil}を返す。
+つまり、@code{nil}という値と属性の欠如を区別できない。
+
+@c The name @var{property} is compared with the existing property names
+@c using @code{eq}, so any object is a legitimate property.
+名前@var{property}は既存の属性名と@code{eq}で比較するため、
+どんなオブジェクトでも正当な属性である。
+
+@c See @code{put} for an example.
+例については、@code{put}を参照。
+@end defun
+
+@defun put symbol property value
+@c This function puts @var{value} onto @var{symbol}'s property list under
+@c the property name @var{property}, replacing any previous property value.
+@c The @code{put} function returns @var{value}.
+この関数は、@var{symbol}の属性リストにおいて、
+属性名@var{property}の古い属性値を@var{value}で置き換える。
+関数@code{put}は@var{value}を返す。
+
+@smallexample
+(put 'fly 'verb 'transitive)
+     @result{}'transitive
+(put 'fly 'noun '(a buzzing little bug))
+     @result{} (a buzzing little bug)
+(get 'fly 'verb)
+     @result{} transitive
+(symbol-plist 'fly)
+     @result{} (verb transitive noun (a buzzing little bug))
+@end smallexample
+@end defun
+
+@node Other Plists
+@c @subsection Property Lists Outside Symbols
+@subsection シンボルの外部の属性リスト
+
+@c   These two functions are useful for manipulating property lists
+@c that are stored in places other than symbols:
+シンボル以外の場所に保存した属性リストの操作に便利な2つの関数があります。
+
+@defun plist-get plist property
+@c This returns the value of the @var{property} property
+@c stored in the property list @var{plist}.  For example,
+これは、属性リスト@var{plist}に保存されている属性@var{property}の値を返す。
+たとえば、つぎのとおり。
+
+@example
+(plist-get '(foo 4) 'foo)
+     @result{} 4
+@end example
+@end defun
+
+@defun plist-put plist property value
+@c This stores @var{value} as the value of the @var{property} property in
+@c the property list @var{plist}.  It may modify @var{plist} destructively,
+@c or it may construct a new list structure without altering the old.  The
+@c function returns the modified property list, so you can store that back
+@c in the place where you got @var{plist}.  For example,
+これは、属性リスト@var{plist}に、
+@var{property}の値として@var{value}を格納する。
+これは@var{plist}を破壊的に変更するか、あるいは、
+古いものを変更せずに新たなリスト構造を構築する。
+関数は変更した属性リストを返すので、
+@var{plist}を保持していたところへ保存し直せる。
+たとえば、つぎのとおり。
+
+@example
+(setq my-plist '(bar t foo 4))
+     @result{} (bar t foo 4)
+(setq my-plist (plist-put my-plist 'foo 69))
+     @result{} (bar t foo 69)
+(setq my-plist (plist-put my-plist 'quux '(a)))
+     @result{} (bar t foo 69 quux (a))
+@end example
+@end defun
+
+@c   You could define @code{put} in terms of @code{plist-put} as follows:
+つぎのようにして、@code{plist-put}を用いて@code{put}を定義できます。
+
+@example
+(defun put (symbol prop value)
+  (setplist symbol
+            (plist-put (symbol-plist symbol) prop value)))
+@end example

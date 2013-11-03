@@ -1,0 +1,1878 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/characters
+@node Non-ASCII Characters, Searching and Matching, Text, Top
+@c @chapter Non-ASCII Characters
+@chapter 非ASCII文字
+@c @cindex multibyte characters
+@c @cindex non-ASCII characters
+@cindex マルチバイト文字
+@cindex 非ASCII文字
+
+@c   This chapter covers the special issues relating to non-@sc{ASCII}
+@c characters and how they are stored in strings and buffers.
+本章では、非@sc{ASCII}に関連する特別なことがらと
+それらが文字列やバッファにどのように保存されるかについて述べます。
+
+@menu
+* Text Representations::
+* Converting Representations::
+* Selecting a Representation::
+* Character Codes::
+* Character Sets::
+* Chars and Bytes::
+* Splitting Characters::
+* Scanning Charsets::
+* Translation of Characters::
+* Coding Systems::
+* Input Methods::
+@end menu
+
+@node Text Representations
+@c @section Text Representations
+@section テキスト表現
+@c @cindex text representations
+@cindex テキスト表現
+
+@c   Emacs has two @dfn{text representations}---two ways to represent text
+@c in a string or buffer.  These are called @dfn{unibyte} and
+@c @dfn{multibyte}.  Each string, and each buffer, uses one of these two
+@c representations.  For most purposes, you can ignore the issue of
+@c representations, because Emacs converts text between them as
+@c appropriate.  Occasionally in Lisp programming you will need to pay
+@c attention to the difference.
+Emacsには2つの@dfn{テキスト表現}、つまり、
+文字列やバッファでテキストを表す方法が2つあります。
+これらは、@dfn{ユニバイト}（unibyte）と
+@dfn{マルチバイト}（multibyte）と呼ばれます。
+各文字列や各バッファでは、これらの2つの表現の一方を使います。
+ほとんどの目的には、Emacsがこれらのあいだで適切に変換するので、
+読者はこれらの表現に関しては無視できます。
+Lispプログラムでは、これらの違いに注意する必要がしばしばあります。
+
+@c @cindex unibyte text
+@cindex ユニバイトテキスト
+@c   In unibyte representation, each character occupies one byte and
+@c therefore the possible character codes range from 0 to 255.  Codes 0
+@c through 127 are @sc{ASCII} characters; the codes from 128 through 255
+@c are used for one non-@sc{ASCII} character set (you can choose which
+@c character set by setting the variable @code{nonascii-insert-offset}).
+ユニバイト表現では、各文字は1バイトを占め、
+そのため、可能な文字コードの範囲は0から255です。
+コード0から127は@sc{ASCII}文字です。
+コード128から255は非@sc{ASCII}文字集合の1つ
+（変数@code{nonascii-insert-offset}に設定して文字集合を選べる）
+に使われます。
+
+@c @cindex leading code
+@c @cindex multibyte text
+@c @cindex trailing codes
+@cindex リーディングコード
+@cindex マルチバイトテキスト
+@cindex トレイリングコード
+@c   In multibyte representation, a character may occupy more than one
+@c byte, and as a result, the full range of Emacs character codes can be
+@c stored.  The first byte of a multibyte character is always in the range
+@c 128 through 159 (octal 0200 through 0237).  These values are called
+@c @dfn{leading codes}.  The second and subsequent bytes of a multibyte
+@c character are always in the range 160 through 255 (octal 0240 through
+@c 0377); these values are @dfn{trailing codes}.
+マルチバイト表現では、1文字は1バイト以上を占め、
+そのため、Emacsの文字コードの範囲全体を格納できるのです。
+マルチバイト文字の最初のバイトはつねに128から159（8進数で0200から0237）の
+範囲にあります。
+これらの値を@dfn{リーディングコード}（leading code）と呼びます。
+マルチバイト文字の2バイト以降はつねに160から255（8進数で0240から0377）の
+範囲にあります。
+これらの値を@dfn{トレイリングコード}（trailing code）と呼びます。
+
+@c   In a buffer, the buffer-local value of the variable
+@c @code{enable-multibyte-characters} specifies the representation used.
+@c The representation for a string is determined based on the string
+@c contents when the string is constructed.
+バッファでは、変数@code{enable-multibyte-characters}の
+バッファローカルな値が使用する表現を指定します。
+文字列の表現は、文字列を作成するときの文字列の内容に基づいて決定されます。
+
+@defvar enable-multibyte-characters
+@tindex enable-multibyte-characters
+@c This variable specifies the current buffer's text representation.
+@c If it is non-@code{nil}, the buffer contains multibyte text; otherwise,
+@c it contains unibyte text.
+この変数は、バッファのテキスト表現を指定する。
+これが@code{nil}以外であると、バッファはマルチバイトテキストを保持する。
+さもなければユニバイトテキストを保持する。
+
+@c You cannot set this variable directly; instead, use the function
+@c @code{set-buffer-multibyte} to change a buffer's representation.
+この変数に直接設定することはできない。
+そのかわりに、バッファの表現を変更するには、
+関数@code{set-buffer-multibyte}を使う。
+@end defvar
+
+@defvar default-enable-multibyte-characters
+@tindex default-enable-multibyte-characters
+@c This variable's value is entirely equivalent to @code{(default-value
+@c 'enable-multibyte-characters)}, and setting this variable changes that
+@c default value.  Setting the local binding of
+@c @code{enable-multibyte-characters} in a specific buffer is not allowed,
+@c but changing the default value is supported, and it is a reasonable
+@c thing to do, because it has no effect on existing buffers.
+この変数の値は、
+@code{(default-value 'enable-multibyte-characters)}に完全に等価であり、
+この変数に設定するとデフォルト値を変更する。
+バッファの@code{enable-multibyte-characters}のローカルな束縛に設定することは
+許されていないが、デフォルト値を変更することは可能であり、
+そうしても既存のバッファには影響しないので理にかなっている。
+
+@c The @samp{--unibyte} command line option does its job by setting the
+@c default value to @code{nil} early in startup.
+コマンド行オプション@samp{--unibyte}は、
+起動時の早い段階でデフォルト値に@code{nil}を設定することで役目を果たす。
+@end defvar
+
+@defun multibyte-string-p string
+@tindex multibyte-string-p
+@c Return @code{t} if @var{string} contains multibyte characters.
+文字列@var{string}にマルチバイト文字が含まれると@code{t}を返す。
+@end defun
+
+@node Converting Representations
+@c @section Converting Text Representations
+@section テキスト表現の変換
+
+@c   Emacs can convert unibyte text to multibyte; it can also convert
+@c multibyte text to unibyte, though this conversion loses information.  In
+@c general these conversions happen when inserting text into a buffer, or
+@c when putting text from several strings together in one string.  You can
+@c also explicitly convert a string's contents to either representation.
+Emacsはユニバイトテキストをマルチバイトに変換できます。
+マルチバイトテキストをユニバイトにも変換できますが、
+この変換では情報が欠落します。
+バッファにテキストを挿入するとき、あるいは、
+複数の文字列から1つの文字列にテキストを収めるときに、
+一般にこれらの変換が行われます。
+文字列の内容をどちらかの表現に明示的にも変換できます。
+
+@c   Emacs chooses the representation for a string based on the text that
+@c it is constructed from.  The general rule is to convert unibyte text to
+@c multibyte text when combining it with other multibyte text, because the
+@c multibyte representation is more general and can hold whatever
+@c characters the unibyte text has.
+Emacsは、文字列を作成するときにはその内容に基づいて
+文字列の表現を選びます。
+一般則は、ユニバイトテキストを他のマルチバイトテキストに組み入れるときには
+ユニバイトテキストをマルチバイトテキストに変換します。
+マルチバイト表現のほうが汎用であり、
+ユニバイトテキストのどんな文字でも保持できるからです。
+
+@c   When inserting text into a buffer, Emacs converts the text to the
+@c buffer's representation, as specified by
+@c @code{enable-multibyte-characters} in that buffer.  In particular, when
+@c you insert multibyte text into a unibyte buffer, Emacs converts the text
+@c to unibyte, even though this conversion cannot in general preserve all
+@c the characters that might be in the multibyte text.  The other natural
+@c alternative, to convert the buffer contents to multibyte, is not
+@c acceptable because the buffer's representation is a choice made by the
+@c user that cannot be overridden automatically.
+バッファにテキストを挿入するときには、Emacsは、
+当該バッファの@code{enable-multibyte-characters}の指定に従った
+バッファの表現にテキストを変換します。
+特に、ユニバイトバッファにマルチバイトテキストを挿入するときには、
+マルチバイトテキスト内のすべての文字を一般には保存できなくても、
+Emacsはテキストをユニバイトに変換します。
+自然な代替案はバッファ内容をマルチバイトに変換することですが、
+これは受け入れられません。
+バッファの表現はユーザーが選択したものであり自動的には無視できないからです。
+
+@c   Converting unibyte text to multibyte text leaves @sc{ASCII} characters
+@c unchanged, and likewise 128 through 159.  It converts the non-@sc{ASCII}
+@c codes 160 through 255 by adding the value @code{nonascii-insert-offset}
+@c to each character code.  By setting this variable, you specify which
+@c character set the unibyte characters correspond to (@pxref{Character
+@c Sets}).  For example, if @code{nonascii-insert-offset} is 2048, which is
+@c @code{(- (make-char 'latin-iso8859-1) 128)}, then the unibyte
+@c non-@sc{ASCII} characters correspond to Latin 1.  If it is 2688, which
+@c is @code{(- (make-char 'greek-iso8859-7) 128)}, then they correspond to
+@c Greek letters.
+ユニバイトテキストをマルチバイトテキストに変換しても
+@sc{ASCII}文字は無変更であり、128から159も同様です。
+160から255の非@sc{ASCII}については、
+各文字に@code{nonascii-insert-offset}の値を加算することで変換します。
+この変数に設定すると、ユニバイト文字がどの文字集合に対応するかを指定できます
+（@pxref{Character Sets}）。
+たとえば、@code{nonascii-insert-offset}が
+@code{(- (make-char 'latin-iso8859-1) 128)}の2048であると、
+非@sc{ASCII}のユニバイトはLatin 1に対応します。
+@code{(- (make-char 'greek-iso8859-7) 128)}の2688であると、
+ギリシャ文字に対応します。
+
+@c   Converting multibyte text to unibyte is simpler: it performs
+@c logical-and of each character code with 255.  If
+@c @code{nonascii-insert-offset} has a reasonable value, corresponding to
+@c the beginning of some character set, this conversion is the inverse of
+@c the other: converting unibyte text to multibyte and back to unibyte
+@c reproduces the original unibyte text.
+マルチバイトテキストをユニバイトに変換するのは簡単で、
+各文字コードと255の論理積をとります。
+@code{nonascii-insert-offset}に
+文字集合の始まりに対応する合理的な値が設定されていれば、
+この変換は逆変換になります。
+つまり、ユニバイトテキストをマルチバイトに変換し、
+それをユニバイトに戻すともとのユニバイトテキストになります。
+
+@defvar nonascii-insert-offset
+@tindex nonascii-insert-offset
+@c This variable specifies the amount to add to a non-@sc{ASCII} character
+@c when converting unibyte text to multibyte.  It also applies when
+@c @code{self-insert-command} inserts a character in the unibyte
+@c non-@sc{ASCII} range, 128 through 255.  However, the function
+@c @code{insert-char} does not perform this conversion.
+この変数は、ユニバイトテキストをマルチバイトに変換するときに
+非@sc{ASCII}文字に加算する値を指定する。
+これは、128から255のユニバイトの非@sc{ASCII}の範囲の文字を挿入する
+@code{self-insert-command}にも適用される。
+しかし、関数@code{insert-char}はこの変換を行わない。
+
+@c The right value to use to select character set @var{cs} is @code{(-
+@c (make-char @var{cs}) 128)}.  If the value of
+@c @code{nonascii-insert-offset} is zero, then conversion actually uses the
+@c value for the Latin 1 character set, rather than zero.
+文字集合@var{cs}を選択する正しい値は、
+@code{(- (make-char @var{cs}) 128)}である。
+@code{nonascii-insert-offset}の値が0であると、
+実際の変換には0ではなくLatin 1文字集合に対する値を使う。
+@end defvar
+
+@defvar nonascii-translation-table
+@tindex nonascii-translation-table
+@c This variable provides a more general alternative to
+@c @code{nonascii-insert-offset}.  You can use it to specify independently
+@c how to translate each code in the range of 128 through 255 into a
+@c multibyte character.  The value should be a vector, or @code{nil}.
+@c If this is non-@code{nil}, it overrides @code{nonascii-insert-offset}.
+この変数は、@code{nonascii-insert-offset}のより一般的な代替を提供する。
+128から255の範囲の各コードをマルチバイト文字に変換する方法を
+独立して指定するために使える。
+その値はベクトルか@code{nil}であること。
+これが@code{nil}以外であると、@code{nonascii-insert-offset}に優先する。
+@end defvar
+
+@defun string-make-unibyte string
+@tindex string-make-unibyte
+@c This function converts the text of @var{string} to unibyte
+@c representation, if it isn't already, and returns the result.  If
+@c @var{string} is a unibyte string, it is returned unchanged.
+この関数は、@var{string}のテキストがすでにユニバイトでなければ
+ユニバイト表現に変換してから結果を返す。
+@var{string}がユニバイトであれば無変更で返す。
+@end defun
+
+@defun string-make-multibyte string
+@tindex string-make-multibyte
+@c This function converts the text of @var{string} to multibyte
+@c representation, if it isn't already, and returns the result.  If
+@c @var{string} is a multibyte string, it is returned unchanged.
+この関数は、@var{string}のテキストがすでにマルチバイトでなければ
+マルチバイト表現に変換してから結果を返す。
+@var{string}がマルチバイトであれば無変更で返す。
+@end defun
+
+@node Selecting a Representation
+@c @section Selecting a Representation
+@section 表現の選択
+
+@c   Sometimes it is useful to examine an existing buffer or string as
+@c multibyte when it was unibyte, or vice versa.
+既存のバッファや文字列がユニバイトであるときに
+マルチバイトとして調べたり、その逆のように調べるのが
+有用なこともあります
+
+@defun set-buffer-multibyte multibyte
+@tindex set-buffer-multibyte
+@c Set the representation type of the current buffer.  If @var{multibyte}
+@c is non-@code{nil}, the buffer becomes multibyte.  If @var{multibyte}
+@c is @code{nil}, the buffer becomes unibyte.
+カレントバッファの表現方法を設定する。
+@var{multibyte}が@code{nil}以外であると、バッファはマルチバイトになる。
+@var{multibyte}が@code{nil}であると、バッファはユニバイトになる。
+
+@c This function leaves the buffer contents unchanged when viewed as a
+@c sequence of bytes.  As a consequence, it can change the contents viewed
+@c as characters; a sequence of two bytes which is treated as one character
+@c in multibyte representation will count as two characters in unibyte
+@c representation.
+この関数は、バイト列としてみたバッファ内容を変更しない。
+その結果、文字として見たときの内容を変更できる。
+マルチバイト表現では1文字とみなされる2バイトの列は、
+ユニバイト表現では2文字になる。
+
+@c This function sets @code{enable-multibyte-characters} to record which
+@c representation is in use.  It also adjusts various data in the buffer
+@c (including overlays, text properties and markers) so that they cover the
+@c same text as they did before.
+この関数は、@code{enable-multibyte-characters}に
+どちらの表現を使用しているかを記録する。
+さらに（オーバレイ、テキスト属性、マーカなどの）バッファ内のさまざまな
+データを調整して、それ以前と同様に同じテキストに及ぶようにする。
+@end defun
+
+@defun string-as-unibyte string
+@tindex string-as-unibyte
+@c This function returns a string with the same bytes as @var{string} but
+@c treating each byte as a character.  This means that the value may have
+@c more characters than @var{string} has.
+この関数は、各バイトを1文字とみなして
+@var{string}と同じバイトの文字列を返す。
+つまり、値には@var{string}より多くの文字が含まれることがある。
+
+@c If @var{string} is unibyte already, then the value is @var{string}
+@c itself.
+@var{string}がすでにユニバイトであると、
+値は@var{string}そのものである。
+@end defun
+
+@defun string-as-multibyte string
+@tindex string-as-multibyte
+@c This function returns a string with the same bytes as @var{string} but
+@c treating each multibyte sequence as one character.  This means that the
+@c value may have fewer characters than @var{string} has.
+この関数は、マルチバイトの各列を1文字とみなして
+@var{string}と同じバイトの文字列を返す。
+つまり、値には@var{string}より少ない文字が含まれることがある。
+
+@c If @var{string} is multibyte already, then the value is @var{string}
+@c itself.
+@var{string}がすでにマルチバイトであると、
+値は@var{string}そのものである。
+@end defun
+
+@node Character Codes
+@c @section Character Codes
+@section 文字コード
+@c @cindex character codes
+@cindex 文字コード
+
+@c   The unibyte and multibyte text representations use different character
+@c codes.  The valid character codes for unibyte representation range from
+@c 0 to 255---the values that can fit in one byte.  The valid character
+@c codes for multibyte representation range from 0 to 524287, but not all
+@c values in that range are valid.  In particular, the values 128 through
+@c 255 are not legitimate in multibyte text (though they can occur in ``raw
+@c bytes''; @pxref{Explicit Encoding}).  Only the @sc{ASCII} codes 0
+@c through 127 are fully legitimate in both representations.
+ユニバイトとマルチバイトのテキスト表現では、
+異なる文字コードを使っています。
+ユニバイト表現において正しい文字コードは0から255の範囲であり、
+これらの値は1バイトに収まります。
+マルチバイト表現において正しい文字コードは0から524287の範囲ですが、
+この範囲のすべての値が正しいとは限りません。
+特に、値128から255は
+（『生のバイト』にはありうる。@pxref{Explicit Encoding}）、
+マルチバイトテキストでは正しくありません。
+0から127の@sc{ASCII}コードのみが、どちらの表現でも完全に正しいのです。
+
+@defun char-valid-p charcode
+@c This returns @code{t} if @var{charcode} is valid for either one of the two
+@c text representations.
+この関数は、@var{charcode}が2つのテキスト表現のどちらか一方で
+正しければ@code{t}を返す。
+
+@example
+(char-valid-p 65)
+     @result{} t
+(char-valid-p 256)
+     @result{} nil
+(char-valid-p 2248)
+     @result{} t
+@end example
+@end defun
+
+@node Character Sets
+@c @section Character Sets
+@section 文字集合
+@c @cindex character sets
+@cindex 文字集合
+
+@c   Emacs classifies characters into various @dfn{character sets}, each of
+@c which has a name which is a symbol.  Each character belongs to one and
+@c only one character set.
+Emacsは文字をさまざまな@dfn{文字集合}（character set）に分類します。
+文字集合にはシンボルである名前があります。
+各文字はたった1つの文字集合に属します。
+
+@c   In general, there is one character set for each distinct script.  For
+@c example, @code{latin-iso8859-1} is one character set,
+@c @code{greek-iso8859-7} is another, and @code{ascii} is another.  An
+@c Emacs character set can hold at most 9025 characters; therefore, in some
+@c cases, characters that would logically be grouped together are split
+@c into several character sets.  For example, one set of Chinese
+@c characters, generally known as Big 5, is divided into two Emacs
+@c character sets, @code{chinese-big5-1} and @code{chinese-big5-2}.
+一般に、異なる文字体系ごとに1つの文字集合があります。
+たとえば、@code{latin-iso8859-1}は1つの文字集合であり、
+@code{greek-iso8859-7}は別の文字集合であり、
+@code{ascii}も別の文字集合です。
+Emacsの1つの文字集合には最大9025個の文字を保持できます。
+したがって、論理的には1つの文字集合にまとめられる文字群を、
+複数の文字集合に分割する場合もあります。
+たとえば、Big 5として一般には知られている中国文字の1つの集合は、
+Emacsの2つの文字集合、@code{chinese-big5-1}と@code{chinese-big5-2}に
+分割されます。
+
+@defun charsetp object
+@tindex charsetp
+@c Return @code{t} if @var{object} is a character set name symbol,
+@c @code{nil} otherwise.
+@var{object}が文字集合の名前のシンボルであれば@code{t}を返す。
+さもなければ@code{nil}を返す。
+@end defun
+
+@defun charset-list
+@tindex charset-list
+@c This function returns a list of all defined character set names.
+この関数は、定義されているすべての文字集合の名前のリストを返す。
+@end defun
+
+@defun char-charset character
+@tindex char-charset
+@c This function returns the name of the character
+@c set that @var{character} belongs to.
+この関数は文字@var{character}が属する文字集合の名前を返す。
+@end defun
+
+@node Chars and Bytes
+@c @section Characters and Bytes
+@section 文字とバイト
+@c @cindex bytes and characters
+@cindex バイトと文字
+
+@c @cindex introduction sequence
+@c @cindex dimension (of character set)
+@cindex 導入列
+@cindex 次元（文字集合）
+@c   In multibyte representation, each character occupies one or more
+@c bytes.  Each character set has an @dfn{introduction sequence}, which is
+@c normally one or two bytes long.  (Exception: the @sc{ASCII} character
+@c set has a zero-length introduction sequence.)  The introduction sequence
+@c is the beginning of the byte sequence for any character in the character
+@c set.  The rest of the character's bytes distinguish it from the other
+@c characters in the same character set.  Depending on the character set,
+@c there are either one or two distinguishing bytes; the number of such
+@c bytes is called the @dfn{dimension} of the character set.
+マルチバイト表現では、各文字は1バイトかそれ以上のバイトを占めます。
+各文字集合には、通常は1バイト長か2バイト長の
+@dfn{導入列}（introduction sequence）があります
+（例外：@sc{ASCII}の導入列は0バイト長である）。
+導入列は、文字集合の任意の文字のバイト列の始まりです。
+文字のバイト列の残りの部分は、同じ文字集合内で他の文字とその文字を区別します。
+文字集合に依存して、区別するためのバイトは1バイトか2バイトです。
+そのようなバイト数を文字集合の@dfn{次元}（dimension）と呼びます。
+
+@defun charset-dimension charset
+@tindex charset-dimension
+@c This function returns the dimension of @var{charset};
+@c at present, the dimension is always 1 or 2.
+この関数は、文字集合@var{charset}の次元を返す。
+現在、次元はつねに1か2である。
+@end defun
+
+@c   This is the simplest way to determine the byte length of a character
+@c set's introduction sequence:
+文字集合の導入列のバイト長を判定するもっとも簡単な方法はつぎのとおりです。
+
+@example
+(- (char-bytes (make-char @var{charset}))
+   (charset-dimension @var{charset}))
+@end example
+
+@node Splitting Characters
+@c @section Splitting Characters
+@section 文字の分割
+
+@c   The functions in this section convert between characters and the byte
+@c values used to represent them.  For most purposes, there is no need to
+@c be concerned with the sequence of bytes used to represent a character,
+@c because Emacs translates automatically when necessary.
+本節の関数は、文字とそれを表現するために用いられるバイト値のあいだの
+変換を行います。
+ほとんどの目的に関しては、Emacsが必要に応じて自動的に行うため、
+文字を表現するためのバイト列を扱う必要はありません。
+
+@defun char-bytes character
+@tindex char-bytes
+@c This function returns the number of bytes used to represent the
+@c character @var{character}.  This depends only on the character set that
+@c @var{character} belongs to; it equals the dimension of that character
+@c set (@pxref{Character Sets}), plus the length of its introduction
+@c sequence.
+この関数は、文字@var{character}を表現するために必要なバイト数を返す。
+これは、文字@var{character}が属する文字集合だけに依存し、
+その文字集合（@pxref{Character Sets}）の次元とその導入列の和に等しい。
+
+@example
+(char-bytes 2248)
+     @result{} 2
+(char-bytes 65)
+     @result{} 1
+(char-bytes 192)
+     @result{} 1
+@end example
+
+@c The reason this function can give correct results for both multibyte and
+@c unibyte representations is that the non-@sc{ASCII} character codes used
+@c in those two representations do not overlap.
+マルチバイト表現とユニバイト表現のどちらに対しても
+この関数で正しい結果を得られるのは、
+2つの表現で用いられる非@sc{ASCII}文字コードに重なりがないからである。
+@end defun
+
+@defun split-char character
+@tindex split-char
+@c Return a list containing the name of the character set of
+@c @var{character}, followed by one or two byte values (integers) which
+@c identify @var{character} within that character set.  The number of byte
+@c values is the character set's dimension.
+文字@var{character}の文字集合の名前に続けて、
+その文字集合で@var{character}を識別する1バイトか2バイトの値（整数）から
+成るリストを返す。
+バイト値の個数はその文字集合の次元である。
+
+@example
+(split-char 2248)
+     @result{} (latin-iso8859-1 72)
+(split-char 65)
+     @result{} (ascii 65)
+@end example
+
+@c Unibyte non-@sc{ASCII} characters are considered as part of
+@c the @code{ascii} character set:
+ユニバイトの非@sc{ASCII}文字は、
+文字集合@code{ascii}の一部とみなす。
+
+@example
+(split-char 192)
+     @result{} (ascii 192)
+@end example
+@end defun
+
+@defun make-char charset &rest byte-values
+@tindex make-char
+@c This function returns the character in character set @var{charset}
+@c identified by @var{byte-values}.  This is roughly the inverse of
+@c @code{split-char}.  Normally, you should specify either one or two
+@c @var{byte-values}, according to the dimension of @var{charset}.  For
+@c example,
+この関数は、文字集合@var{charset}において
+@var{byte-values}で識別される文字を返す。
+これは、@code{split-char}のほぼ逆関数にあたる。
+通常、文字集合@var{charset}の次元に応じて、
+1つか2つの@var{byte-values}を指定する。
+たとえばつぎのとおり。
+
+@example
+(make-char 'latin-iso8859-1 72)
+     @result{} 2248
+@end example
+@end defun
+
+@c @cindex generic characters
+@cindex 汎用文字
+@c   If you call @code{make-char} with no @var{byte-values}, the result is
+@c a @dfn{generic character} which stands for @var{charset}.  A generic
+@c character is an integer, but it is @emph{not} valid for insertion in the
+@c buffer as a character.  It can be used in @code{char-table-range} to
+@c refer to the whole character set (@pxref{Char-Tables}).
+@c @code{char-valid-p} returns @code{nil} for generic characters.
+@c For example:
+@var{byte-values}を指定せずに@code{make-char}を呼び出すと、
+その結果は文字集合@var{charset}を代表する
+@dfn{汎用文字}（generic character）である。
+汎用文字は整数であるが、文字としてバッファに挿入するには
+正しく@emph{ない}ものである。
+1つの文字集合全体を表すために@code{char-table-range}で使える
+（@pxref{Char-Tables}）。
+@code{char-valid-p}は汎用文字に対しては@code{nil}を返す。
+たとえばつぎのとおり。
+
+@example
+(make-char 'latin-iso8859-1)
+     @result{} 2176
+(char-valid-p 2176)
+     @result{} nil
+(split-char 2176)
+     @result{} (latin-iso8859-1 0)
+@end example
+
+@node Scanning Charsets
+@c @section Scanning for Character Sets
+@section 文字集合の走査
+
+@c   Sometimes it is useful to find out which character sets appear in a
+@c part of a buffer or a string.  One use for this is in determining which
+@c coding systems (@pxref{Coding Systems}) are capable of representing all
+@c of the text in question.
+バッファや文字列の一部分にどの文字集合が現れるかを
+調べられると有用なことがあります。
+その1つの用途は、当該テキストすべてを表現する能力がある
+コーディングシステム（@pxref{Coding Systems}）を探すことです。
+
+@defun find-charset-region beg end &optional translation
+@tindex find-charset-region
+@c This function returns a list of the character sets that appear in the
+@c current buffer between positions @var{beg} and @var{end}.
+この関数は、カレントバッファの@var{beg}と@var{end}のあいだに
+現れる文字集合のリストを返す。
+
+@c The optional argument @var{translation} specifies a translation table to
+@c be used in scanning the text (@pxref{Translation of Characters}).  If it
+@c is non-@code{nil}, then each character in the region is translated
+@c through this table, and the value returned describes the translated
+@c characters instead of the characters actually in the buffer.
+省略可能な引数@var{translation}は、
+テキストを走査するときに使用する変換表を指定する
+（@pxref{Translation of Characters}）。
+これが@code{nil}以外であると、領域内の各文字をこの表を介して変換し、
+戻り値は、バッファ内の実際の文字のかわりに変換した文字に関する情報を与える。
+@end defun
+
+@defun find-charset-string string &optional translation
+@tindex find-charset-string
+@c This function returns a list of the character sets
+@c that appear in the string @var{string}.
+この関数は、文字列@var{string}に現れる文字集合のリストを返す。
+
+@c The optional argument @var{translation} specifies a
+@c translation table; see @code{find-charset-region}, above.
+省略可能な引数@var{translation}は変換表を指定する。
+上記の@code{find-charset-region}を参照。
+@end defun
+
+@node Translation of Characters
+@c @section Translation of Characters
+@section 文字の変換
+@c @cindex character translation tables
+@c @cindex translation tables
+@cindex 文字変換表
+@cindex 変換表
+
+@c   A @dfn{translation table} specifies a mapping of characters
+@c into characters.  These tables are used in encoding and decoding, and
+@c for other purposes.  Some coding systems specify their own particular
+@c translation tables; there are also default translation tables which
+@c apply to all other coding systems.
+@dfn{変換表}（translation table）は、文字群を文字群へ対応付けます。
+これらの表は、符号化と復号化、他の目的に使われます。
+独自の変換表を指定するコーディングシステムもあります。
+他のすべてのコーディングシステムに適用される
+デフォルトの変換表もあります。
+
+@defun make-translation-table translations
+@c This function returns a translation table based on the arguments
+@c @var{translations}.  Each argument---each element of
+@c @var{translations}---should be a list of the form @code{(@var{from}
+@c . @var{to})}; this says to translate the character @var{from} into
+@c @var{to}.
+この関数は、引数@var{translations}に基づいた変換表を返す。
+引数@var{translations}の各要素は、
+@code{(@var{from} . @var{to})}の形であり、
+文字@var{from}を@var{to}へ変換することを意味する。
+
+@c You can also map one whole character set into another character set with
+@c the same dimension.  To do this, you specify a generic character (which
+@c designates a character set) for @var{from} (@pxref{Splitting Characters}).
+@c In this case, @var{to} should also be a generic character, for another
+@c character set of the same dimension.  Then the translation table
+@c translates each character of @var{from}'s character set into the
+@c corresponding character of @var{to}'s character set.
+1つの文字集合全体を同じ次元の別の文字集合へ対応付けることも可能である。
+それには、@var{from}に（文字集合を表す）汎用文字を指定する
+（@pxref{Splitting Characters}）。
+この場合、@var{to}も、同じ次元の別の文字集合の汎用文字であること。
+こうすると、この変換表は、@var{from}の文字集合の各文字を
+@var{to}の文字集合の対応する文字へ変換する。
+@end defun
+
+@c   In decoding, the translation table's translations are applied to the
+@c characters that result from ordinary decoding.  If a coding system has
+@c property @code{character-translation-table-for-decode}, that specifies
+@c the translation table to use.  Otherwise, if
+@c @code{standard-character-translation-table-for-decode} is
+@c non-@code{nil}, decoding uses that table.
+復号化では、もとの復号化結果の文字に変換表による変換を適用します。
+コーディングシステムに属性@code{character-translation-table-for-decode}が
+あれば、これは使用する変換表を指定します。
+さもなければ、@code{standard-character-translation-table-for-decode}が
+@code{nil}以外であれば、復号化ではその表を使います。
+
+@c   In encoding, the translation table's translations are applied to the
+@c characters in the buffer, and the result of translation is actually
+@c encoded.  If a coding system has property
+@c @code{character-translation-table-for-encode}, that specifies the
+@c translation table to use.  Otherwise the variable
+@c @code{standard-character-translation-table-for-encode} specifies the
+@c translation table.
+符号化では、バッファ内の文字に変換表による変換を適用し、
+変換結果を実際に符号化します。
+コーディングシステムに属性@code{character-translation-table-for-encode}が
+あれば、これは使用する変換表を指定します。
+さもなければ、変数@code{standard-character-translation-table-for-encode}が
+使用する変換表を指定します。
+
+@defvar standard-character-translation-table-for-decode
+@c This is the default translation table for decoding, for
+@c coding systems that don't specify any other translation table.
+これは、変換表を指定しないコーディングシステムに対する
+復号化時のデフォルトの変換表である。
+@end defvar
+
+@defvar standard-character-translation-table-for-encode
+@c This is the default translation table for encoding, for
+@c coding systems that don't specify any other translation table.
+これは、変換表を指定しないコーディングシステムに対する
+符号化時のデフォルトの変換表である。
+@end defvar
+
+@node Coding Systems
+@c @section Coding Systems
+@section コーディングシステム
+
+@c @cindex coding system
+@cindex コーディングシステム
+@c   When Emacs reads or writes a file, and when Emacs sends text to a
+@c subprocess or receives text from a subprocess, it normally performs
+@c character code conversion and end-of-line conversion as specified
+@c by a particular @dfn{coding system}.
+Emacsがファイルを読み書きしたり、
+Emacsがサブプロセスへテキストを送ったり
+サブプロセスからテキストを受け取るときには、
+@dfn{コーディングシステム}（coding system）で指定される
+文字コード変換と行末変換を行います。
+
+@menu
+* Coding System Basics::
+* Encoding and I/O::
+* Lisp and Coding Systems::
+* User-Chosen Coding Systems::
+* Default Coding Systems::
+* Specifying Coding Systems::
+* Explicit Encoding::
+* Terminal I/O Encoding::
+* MS-DOS File Types::
+@end menu
+
+@node Coding System Basics
+@c @subsection Basic Concepts of Coding Systems
+@subsection コーディングシステムの基本概念
+
+@c @cindex character code conversion
+@cindex 文字コード変換
+@c   @dfn{Character code conversion} involves conversion between the encoding
+@c used inside Emacs and some other encoding.  Emacs supports many
+@c different encodings, in that it can convert to and from them.  For
+@c example, it can convert text to or from encodings such as Latin 1, Latin
+@c 2, Latin 3, Latin 4, Latin 5, and several variants of ISO 2022.  In some
+@c cases, Emacs supports several alternative encodings for the same
+@c characters; for example, there are three coding systems for the Cyrillic
+@c (Russian) alphabet: ISO, Alternativnyj, and KOI8.
+@dfn{文字コード変換}（character code conversion）とは、
+Emacsの内部で使用する符号と他の符号とのあいだでの変換のことです。
+Emacsでは、相互に変換できる多くの異なる符号を扱えます。
+たとえば、Emacsは、Latin 1、Latin 2、Latin 3、Latin 4、Latin 5、
+ISO 2022のいくつかの変種を相互に変換できます。
+同じ文字集合に対する異なる符号を扱うこともできます。
+たとえば、キリル（ロシア語）文字に対しては
+ISO、Alternativnyj、KOI8の3つのコーディングシステムがあります。
+
+@c   Most coding systems specify a particular character code for
+@c conversion, but some of them leave this unspecified---to be chosen
+@c heuristically based on the data.
+ほとんどのコーディングシステムでは変換する文字コードを特定しますが、
+指定せずにデータに基づいて発見的手法で選ぶものもあります。
+
+@c @cindex end of line conversion
+@cindex 行末変換
+@c   @dfn{End of line conversion} handles three different conventions used
+@c on various systems for representing end of line in files.  The Unix
+@c convention is to use the linefeed character (also called newline).  The
+@c DOS convention is to use the two character sequence, carriage-return
+@c linefeed, at the end of a line.  The Mac convention is to use just
+@c carriage-return.
+@dfn{行末変換}（end of line conversion）は、
+ファイル内の行の終りを表すさまざまなシステムで
+使われている3つの異なる慣習を扱います。
+UNIXの慣習では、行送り文字（改行文字とも呼ぶ）を使います。
+DOSの慣習では、行末には復帰と行送りの2文字の列を使います。
+Macの慣習では、復帰のみを使います。
+
+@c @cindex base coding system
+@c @cindex variant coding system
+@cindex 基底コーディングシステム
+@cindex 変種コーディングシステム
+@c   @dfn{Base coding systems} such as @code{latin-1} leave the end-of-line
+@c conversion unspecified, to be chosen based on the data.  @dfn{Variant
+@c coding systems} such as @code{latin-1-unix}, @code{latin-1-dos} and
+@c @code{latin-1-mac} specify the end-of-line conversion explicitly as
+@c well.  Most base coding systems have three corresponding variants whose
+@c names are formed by adding @samp{-unix}, @samp{-dos} and @samp{-mac}.
+@code{latin-1}のような@dfn{基底コーディングシステム}（base coding system）
+では、行末変換を指定せずにデータに基づいて選びます。
+@code{latin-1-unix}、@code{latin-1-dos}、@code{latin-1-mac}のような
+@dfn{変種コーディングシステム}（variant coding system）では、
+明示的に行末変換も指定します。
+ほとんどの基底コーディングシステムには、
+@samp{-unix}、@samp{-dos}、@samp{-mac}を付加して作られる名前の
+対応する3つの変種があります。
+
+@c   The coding system @code{raw-text} is special in that it prevents
+@c character code conversion, and causes the buffer visited with that
+@c coding system to be a unibyte buffer.  It does not specify the
+@c end-of-line conversion, allowing that to be determined as usual by the
+@c data, and has the usual three variants which specify the end-of-line
+@c conversion.  @code{no-conversion} is equivalent to @code{raw-text-unix}:
+@c it specifies no conversion of either character codes or end-of-line.
+コーディングシステム@code{raw-text}は
+文字コード変換を行わない特別なもので、
+このコーディングシステムで訪問したバッファはユニバイトバッファになります。
+行末変換も指定しないので内容に基づいて決定でき、
+行末変換を指定する3つの変種もあります。
+@code{no-conversion}は@code{raw-text-unix}に等価であり、
+文字コードも行末も変換しないことを指定します。
+
+@c   The coding system @code{emacs-mule} specifies that the data is
+@c represented in the internal Emacs encoding.  This is like
+@c @code{raw-text} in that no code conversion happens, but different in
+@c that the result is multibyte data.
+コーディングシステム@code{emacs-mule}は、
+Emacs内部での符号でデータを表現することを指定します。
+これは、コード変換を行わないという意味では@code{raw-text}に似ていますが、
+結果がマルチバイトデータになる点が異なります。
+
+@defun coding-system-get coding-system property
+@tindex coding-system-get
+@c This function returns the specified property of the coding system
+@c @var{coding-system}.  Most coding system properties exist for internal
+@c purposes, but one that you might find useful is @code{mime-charset}.
+@c That property's value is the name used in MIME for the character coding
+@c which this coding system can read and write.  Examples:
+この関数は、コーディングシステム@var{coding-system}の指定した属性を返す。
+コーディングシステムのほとんどの属性は内部目的用であるが、
+読者が有用と思うものが1つ、@code{mime-charset}がある。
+この属性の値は、当該コーディングシステムで読み書きする
+文字コード向けのMIMEに使用する名前である。
+
+@example
+(coding-system-get 'iso-latin-1 'mime-charset)
+     @result{} iso-8859-1
+(coding-system-get 'iso-2022-cn 'mime-charset)
+     @result{} iso-2022-cn
+(coding-system-get 'cyrillic-koi8 'mime-charset)
+     @result{} koi8-r
+@end example
+
+@c The value of the @code{mime-charset} property is also defined
+@c as an alias for the coding system.
+属性@code{mime-charset}の値は、
+コーディングシステムの別名としても定義されている。
+@end defun
+
+@node Encoding and I/O
+@c @subsection Encoding and I/O
+@subsection 符号化と入出力
+
+@c   The principal purpose of coding systems is for use in reading and
+@c writing files.  The function @code{insert-file-contents} uses
+@c a coding system for decoding the file data, and @code{write-region}
+@c uses one to encode the buffer contents.
+コーディングシステムの主目的は、ファイルの読み書きに使うことです。
+関数@code{insert-file-contents}はファイルのデータを復号化するために
+コーディングシステムを使い、
+@code{write-region}はバッファ内容を符号化するために
+コーディングシステムを使います。
+
+@c   You can specify the coding system to use either explicitly
+@c (@pxref{Specifying Coding Systems}), or implicitly using the defaulting
+@c mechanism (@pxref{Default Coding Systems}).  But these methods may not
+@c completely specify what to do.  For example, they may choose a coding
+@c system such as @code{undefined} which leaves the character code
+@c conversion to be determined from the data.  In these cases, the I/O
+@c operation finishes the job of choosing a coding system.  Very often
+@c you will want to find out afterwards which coding system was chosen.
+使用するコーディングシステムを明示する（@pxref{Specifying Coding Systems}）
+こともできるし、
+デフォルトの機構（@pxref{Default Coding Systems}）を暗に使うこともできます。
+しかし、これらの方式ではすべきことを完全に指定しきれないこともあります。
+たとえば、@code{undefined}のようなコーディングシステムを選んで、
+データに基づいて文字コード変換を行うようにするかもしれません。
+そのような場合、コーディングシステムの選択は
+入出力操作によって完了します。
+しばしば、選択されたコーディングシステムをあとで知りたくなります。
+
+@defvar buffer-file-coding-system
+@tindex buffer-file-coding-system
+@c This variable records the coding system that was used for visiting the
+@c current buffer.  It is used for saving the buffer, and for writing part
+@c of the buffer with @code{write-region}.  When those operations ask the
+@c user to specify a different coding system,
+@c @code{buffer-file-coding-system} is updated to the coding system
+@c specified.
+この変数は、カレントバッファで訪問するときに使用した
+コーディングシステムを記録する。
+これは、バッファを保存したり、
+@code{write-region}でバッファの一部を書くときに使われる。
+これらの操作において、ユーザーに別のコーディングシステムを指定するように
+問い合わせた場合には、@code{buffer-file-coding-system}は
+指定された別のコーディングシステムに更新される。
+@end defvar
+
+@defvar save-buffer-coding-system
+@tindex save-buffer-coding-system
+@c This variable specifies the coding system for saving the buffer---but it
+@c is not used for @code{write-region}.  When saving the buffer asks the
+@c user to specify a different coding system, and
+@c @code{save-buffer-coding-system} was used, then it is updated to the
+@c coding system that was specified.
+この変数は、@code{write-region}には使わないが、
+バッファを保存するために使うコーディングシステムを指定する。
+バッファを保存する際に、ユーザーに別のコーディングシステムを指定するように
+問い合わせ、かつ、@code{save-buffer-coding-system}を用いている場合には、
+これは指定された別のコーディングシステムに更新される。
+@end defvar
+
+@defvar last-coding-system-used
+@tindex last-coding-system-used
+@c I/O operations for files and subprocesses set this variable to the
+@c coding system name that was used.  The explicit encoding and decoding
+@c functions (@pxref{Explicit Encoding}) set it too.
+ファイルやサブプロセスに対する入出力操作では、
+使用したコーディングシステム名をこの変数に設定する。
+明示的に符号化／復号化する関数（@pxref{Explicit Encoding}）も
+この変数に設定する。
+
+@c @strong{Warning:} Since receiving subprocess output sets this variable,
+@c it can change whenever Emacs waits; therefore, you should use copy the
+@c value shortly after the function call which stores the value you are
+@c interested in.
+@strong{警告：}@code{ }
+サブプロセスから出力を受け取るとこの変数が設定されるため、
+Emacsが待つたびに変化する可能性がある。
+したがって、読者の興味がある値を保存するような関数を呼び出した直後に
+その値をコピーして使うこと。
+@end defvar
+
+@c   The variable @code{selection-coding-system} specifies how to encode
+@c selections for the window system.  @xref{Window System Selections}.
+変数@code{selection-coding-system}は、
+ウィンドウシステムのセレクションを符号化する方法を指定します。
+@xref{Window System Selections}。
+
+@node Lisp and Coding Systems
+@c @subsection Coding Systems in Lisp
+@subsection Lispにおけるコーディングシステム
+
+@c   Here are Lisp facilities for working with coding systems;
+コーディングシステムを扱うLispの機能について述べます。
+
+@defun coding-system-list &optional base-only
+@tindex coding-system-list
+@c This function returns a list of all coding system names (symbols).  If
+@c @var{base-only} is non-@code{nil}, the value includes only the
+@c base coding systems.  Otherwise, it includes variant coding systems as well.
+この関数は、すべてのコーディングシステム名（シンボル）のリストを返す。
+@var{base-only}が@code{nil}以外であると、
+値には基底コーディングシステムのみを含める。
+さもなければ、値には変種コーディングシステムも含まれる。
+@end defun
+
+@defun coding-system-p object
+@tindex coding-system-p
+@c This function returns @code{t} if @var{object} is a coding system
+@c name.
+この関数は、@var{object}がコーディングシステム名であると@code{t}を返す。
+@end defun
+
+@defun check-coding-system coding-system
+@tindex check-coding-system
+@c This function checks the validity of @var{coding-system}.
+@c If that is valid, it returns @var{coding-system}.
+@c Otherwise it signals an error with condition @code{coding-system-error}.
+この関数は、@var{coding-system}の正当性を調べる。
+正しいものならば@var{coding-system}を返す。
+さもなければ、条件@code{coding-system-error}付きのエラーを通知する。
+@end defun
+
+@defun coding-system-change-eol-conversion coding-system eol-type
+@tindex coding-system-change-eol-conversion
+@c This function returns a coding system which is like @var{coding-system}
+@c except for its eol conversion, which is specified by @code{eol-type}.
+@c @var{eol-type} should be @code{unix}, @code{dos}, @code{mac}, or
+@c @code{nil}.  If it is @code{nil}, the returned coding system determines
+@c the end-of-line conversion from the data.
+この関数は、@var{coding-system}に類似のコーディングシステムを返すが、
+@code{eol-type}で指定された行末変換のものである。
+@var{eol-type}は、@code{unix}、@code{dos}、@code{mac}、@code{nil}の
+いずれかであること。
+@code{nil}であると、返されたコーディングシステムは、
+データから行末変換を決定する。
+@end defun
+
+@defun coding-system-change-text-conversion eol-coding text-coding
+@tindex coding-system-change-text-conversion
+@c This function returns a coding system which uses the end-of-line
+@c conversion of @var{eol-coding}, and the text conversion of
+@c @var{text-coding}.  If @var{text-coding} is @code{nil}, it returns
+@c @code{undecided}, or one of its variants according to @var{eol-coding}.
+この関数は、行末変換に@var{eol-coding}を使い、
+テキストの変換に@var{text-coding}を使っているコーディングシステムを返す。
+@var{text-coding}が@code{nil}であると、
+@code{undecided}か@var{eol-coding}に応じた@code{undecided}の変種の1つを返す。
+@end defun
+
+@defun find-coding-systems-region from to
+@tindex find-coding-systems-region
+@c This function returns a list of coding systems that could be used to
+@c encode a text between @var{from} and @var{to}.  All coding systems in
+@c the list can safely encode any multibyte characters in that portion of
+@c the text.
+この関数は、@var{from}と@var{to}のあいだのテキストの符号化に使用できる
+コーディングシステムのリストを返す。
+リスト内のすべてのコーディングシステムは、当該部分のテキストの
+どんなマルチバイト文字も安全に符号化できる。
+
+@c If the text contains no multibyte characters, the function returns the
+@c list @code{(undecided)}.
+テキストにマルチバイト文字が含まれない場合、
+関数はリスト@code{(undecided)}を返す。
+@end defun
+
+@defun find-coding-systems-string string
+@tindex find-coding-systems-string
+@c This function returns a list of coding systems that could be used to
+@c encode the text of @var{string}.  All coding systems in the list can
+@c safely encode any multibyte characters in @var{string}.  If the text
+@c contains no multibyte characters, this returns the list
+@c @code{(undecided)}.
+この関数は、文字列@var{string}のテキストの符号化に使用できる
+コーディングシステムのリストを返す。
+リスト内のすべてのコーディングシステムは、@var{string}の
+どんなマルチバイト文字も安全に符号化できる。
+テキストにマルチバイト文字が含まれない場合、
+これはリスト@code{(undecided)}を返す。
+@end defun
+
+@defun find-coding-systems-for-charsets charsets
+@tindex find-coding-systems-for-charsets
+@c This function returns a list of coding systems that could be used to
+@c encode all the character sets in the list @var{charsets}.
+この関数は、リスト@var{charsets}内のすべての文字集合の符号化に使用できる
+コーディングシステムのリストを返す。
+@end defun
+
+@defun detect-coding-region start end &optional highest
+@tindex detect-coding-region
+@c This function chooses a plausible coding system for decoding the text
+@c from @var{start} to @var{end}.  This text should be ``raw bytes''
+@c (@pxref{Explicit Encoding}).
+この関数は、@var{start}から@var{end}までのテキストを復号化する
+もっともらしいコーディングシステムを選ぶ。
+このテキストは『生のバイト』（@pxref{Explicit Encoding}）であること。
+
+@c Normally this function returns a list of coding systems that could
+@c handle decoding the text that was scanned.  They are listed in order of
+@c decreasing priority.  But if @var{highest} is non-@code{nil}, then the
+@c return value is just one coding system, the one that is highest in
+@c priority.
+この関数は、通常、走査したテキストの復号化を扱える
+コーディングシステムのリストを返す。
+それらは優先順位の降順に並ぶ。
+しかし、@var{highest}が@code{nil}以外であると、
+戻り値はもっとも順位の高い1つのコーディングシステムである。
+
+@c If the region contains only @sc{ASCII} characters, the value
+@c is @code{undecided} or @code{(undecided)}.
+領域に@sc{ASCII}文字だけが含まれる場合、
+値は@code{undecided}か@code{(undecided)}である。
+@end defun
+
+@defun detect-coding-string string highest
+@tindex detect-coding-string
+@c This function is like @code{detect-coding-region} except that it
+@c operates on the contents of @var{string} instead of bytes in the buffer.
+この関数は@code{detect-coding-region}と同様であるが、
+バッファ内のバイトのかわりに文字列@var{string}の内容に作用する。
+@end defun
+
+@c   @xref{Process Information}, for how to examine or set the coding
+@c systems used for I/O to a subprocess.
+サブプロセスとの入出力に使用されるコーディングシステムを
+調べたり設定する方法については、@xref{Process Information}。
+
+@node User-Chosen Coding Systems
+@c @subsection User-Chosen Coding Systems
+@subsection ユーザー指定のコーディングシステム
+
+@tindex select-safe-coding-system
+@defun select-safe-coding-system from to &optional preferred-coding-system
+@c This function selects a coding system for encoding the text between
+@c @var{from} and @var{to}, asking the user to choose if necessary.
+この関数は@var{from}と@var{to}のあいだのテキストを符号化する
+コーディングシステムを選ぶが、
+必要ならばユーザーに問い合わせる。
+
+@c The optional argument @var{preferred-coding-system} specifies a coding
+@c system to try first.  If that one can handle the text in the specified
+@c region, then it is used.  If this argument is omitted, the current
+@c buffer's value of @code{buffer-file-coding-system} is tried first.
+省略可能な引数@var{preferred-coding-system}は、
+最初に試すコーディングシステムを指定する。
+それが指定領域のテキストを処理できるならば、それを使う。
+この引数を省略すると、
+@code{buffer-file-coding-system}のカレントバッファでの値をまず試す。
+
+@c If the region contains some multibyte characters that the preferred
+@c coding system cannot encode, this function asks the user to choose from
+@c a list of coding systems which can encode the text, and returns the
+@c user's choice.
+領域内に@var{preferred-coding-system}で符号化できない
+マルチバイト文字がある場合、
+この関数は、当該テキストを符号化可能なコーディングシステム一覧から
+ユーザーに選択してもらい、ユーザーが選択したものを返す。
+
+@c One other kludgy feature: if @var{from} is a string, the string is the
+@c target text, and @var{to} is ignored.
+特殊機能：@code{ }@var{from}が文字列であると、
+文字列を調べる対象とし、@var{to}は無視する。
+@end defun
+
+@c   Here are two functions you can use to let the user specify a coding
+@c system, with completion.  @xref{Completion}.
+補完を用いてユーザーにコーディングシステムを指定させるために使える
+2つの関数はつぎのとおりです。
+@xref{Completion}。
+
+@defun read-coding-system prompt &optional default
+@tindex read-coding-system
+@c This function reads a coding system using the minibuffer, prompting with
+@c string @var{prompt}, and returns the coding system name as a symbol.  If
+@c the user enters null input, @var{default} specifies which coding system
+@c to return.  It should be a symbol or a string.
+この関数は、文字列@var{prompt}をプロンプトとして
+ミニバッファを使ってコーディングシステムを読み取り、
+コーディングシステム名をシンボルとして返す。
+ユーザーの入力が空であると、
+@var{default}は返すべきコーディングシステムを指定する。
+それはシンボルか文字列であること。
+@end defun
+
+@defun read-non-nil-coding-system prompt
+@tindex read-non-nil-coding-system
+@c This function reads a coding system using the minibuffer, prompting with
+@c string @var{prompt}, and returns the coding system name as a symbol.  If
+@c the user tries to enter null input, it asks the user to try again.
+@c @xref{Coding Systems}.
+この関数は、文字列@var{prompt}をプロンプトとして
+ミニバッファを使ってコーディングシステムを読み取り、
+コーディングシステム名をシンボルとして返す。
+ユーザーが空を入力しようとすると再度問い合わせる。
+@pxref{Coding Systems}。
+@end defun
+
+@node Default Coding Systems
+@c @subsection Default Coding Systems
+@subsection デフォルトのコーディングシステム
+
+@c   This section describes variables that specify the default coding
+@c system for certain files or when running certain subprograms, and the
+@c function that I/O operations use to access them.
+本節では、特定のファイルや特定のサブプログラムを実行するときの
+デフォルトのコーディングシステムを指定する変数と、
+それらを使った入出力操作を行う関数について述べます。
+
+@c   The idea of these variables is that you set them once and for all to the
+@c defaults you want, and then do not change them again.  To specify a
+@c particular coding system for a particular operation in a Lisp program,
+@c don't change these variables; instead, override them using
+@c @code{coding-system-for-read} and @code{coding-system-for-write}
+@c (@pxref{Specifying Coding Systems}).
+これらの変数の目的は、読者が望むデフォルトをいったんこれらに設定しておけば、
+再度変更する必要がないようにすることです。
+Lispプログラムの特定の操作向けに特定のコーディングシステムを指定するには、
+これらの変数を変更しないでください。
+かわりに、@code{coding-system-for-read}や@code{coding-system-for-write}を
+使って上書きします（@pxref{Specifying Coding Systems}）。
+
+@defvar file-coding-system-alist
+@tindex file-coding-system-alist
+@c This variable is an alist that specifies the coding systems to use for
+@c reading and writing particular files.  Each element has the form
+@c @code{(@var{pattern} . @var{coding})}, where @var{pattern} is a regular
+@c expression that matches certain file names.  The element applies to file
+@c names that match @var{pattern}.
+この変数は、特定のファイルの読み書きに使用する
+コーディングシステムを指定する連想リストである。
+各要素は@code{(@var{pattern} . @var{coding})}の形であり、
+@var{pattern}は特定のファイル名に一致する正規表現である。
+@var{pattern}に一致するファイル名に当該要素を適用する。
+
+@c = 誤植 @var{val}は@var{coding}
+@c The @sc{cdr} of the element, @var{coding}, should be either a coding
+@c system, a cons cell containing two coding systems, or a function symbol.
+@c If @var{val} is a coding system, that coding system is used for both
+@c reading the file and writing it.  If @var{val} is a cons cell containing
+@c two coding systems, its @sc{car} specifies the coding system for
+@c decoding, and its @sc{cdr} specifies the coding system for encoding.
+要素の@sc{cdr}、@var{coding}はコーディングシステムであるか、
+2つのコーディングシステムを収めたコンスセルであるか、
+関数シンボルであること。
+@var{coding}がコーディングシステムであると、
+ファイルの読み書きの両方にそのコーディングシステムを使う。
+@var{coding}が2つのコーディングシステムを収めたコンスセルであると、
+その@sc{car}は復号化に使うコーディングシステムを指定し、
+その@sc{cdr}は符号化に使うコーディングシステムを指定する。
+
+@c If @var{val} is a function symbol, the function must return a coding
+@c system or a cons cell containing two coding systems.  This value is used
+@c as described above.
+@var{coding}が関数シンボルであると、
+その関数は、コーディングシステムか、
+2つのコーディングシステムを収めたコンスセルを返すこと。
+その値は上に述べたように使われる。
+@end defvar
+
+@defvar process-coding-system-alist
+@tindex process-coding-system-alist
+@c This variable is an alist specifying which coding systems to use for a
+@c subprocess, depending on which program is running in the subprocess.  It
+@c works like @code{file-coding-system-alist}, except that @var{pattern} is
+@c matched against the program name used to start the subprocess.  The coding
+@c system or systems specified in this alist are used to initialize the
+@c coding systems used for I/O to the subprocess, but you can specify
+@c other coding systems later using @code{set-process-coding-system}.
+この変数は、サブプロセスで実行しているプログラムに依存して
+サブプロセスに使うコーディングシステムを指定する連想リストである。
+@code{file-coding-system-alist}と同様に働くが、
+@var{pattern}はサブプロセスを始めるために用いたプログラム名に対して
+一致を取る点が異なる。
+この連想リストに指定したコーディングシステムは、
+サブプロセスとの入出力に使用するコーディングシステムの初期化に用いれるが、
+@code{set-process-coding-system}を使って、
+あとで別のコーディングシステムを指定できる。
+@end defvar
+
+@c   @strong{Warning:} Coding systems such as @code{undecided} which
+@c determine the coding system from the data do not work entirely reliably
+@c with asynchronous subprocess output.  This is because Emacs handles
+@c asynchronous subprocess output in batches, as it arrives.  If the coding
+@c system leaves the character code conversion unspecified, or leaves the
+@c end-of-line conversion unspecified, Emacs must try to detect the proper
+@c conversion from one batch at a time, and this does not always work.
+@strong{警告：}@code{ }
+データからコーディングシステムを決定する@code{undecided}のような
+コーディングシステムは、非同期サブプロセスの出力に対しては
+完全に信頼性のある動作はできない。
+これは、Emacsが非同期サブプロセスの出力が
+到着するたびに一塊で処理するからである。
+コーディングシステムが文字コード変換や行末変換を未指定にしていると、
+Emacsは1つの塊から正しい変換を検出しようと試みるが、
+これがつねに動作するとは限らない。
+
+@c   Therefore, with an asynchronous subprocess, if at all possible, use a
+@c coding system which determines both the character code conversion and
+@c the end of line conversion---that is, one like @code{latin-1-unix},
+@c rather than @code{undecided} or @code{latin-1}.
+したがって、非同期サブプロセスでは、可能な限り
+文字コード変換と行末変換の両方を指定したコーディングシステムを使います。
+つまり、@code{undecided}や@code{latin-1}などではなく、
+@code{latin-1-unix}のようなものを使います。
+
+@defvar network-coding-system-alist
+@tindex network-coding-system-alist
+@c This variable is an alist that specifies the coding system to use for
+@c network streams.  It works much like @code{file-coding-system-alist},
+@c with the difference that the @var{pattern} in an element may be either a
+@c port number or a regular expression.  If it is a regular expression, it
+@c is matched against the network service name used to open the network
+@c stream.
+この変数は、ネットワークストリームに使用するコーディングシステムを
+指定する連想リストである。
+@code{file-coding-system-alist}と同様に働くが、
+要素内の@var{pattern}はポート番号か正規表現である点が異なる。
+それが正規表現であると、ネットワークストリームを開くために
+使用したネットワークサービス名に対して一致をとる。
+@end defvar
+
+@defvar default-process-coding-system
+@tindex default-process-coding-system
+@c This variable specifies the coding systems to use for subprocess (and
+@c network stream) input and output, when nothing else specifies what to
+@c do.
+この変数は、なにも指定されていないサブプロセス（やネットワークストリーム）
+の入出力に使用するコーディングシステムを指定する。
+
+@c The value should be a cons cell of the form @code{(@var{input-coding}
+@c . @var{output-coding})}.  Here @var{input-coding} applies to input from
+@c the subprocess, and @var{output-coding} applies to output to it.
+値は、@code{(@var{input-coding} . @var{output-coding})}の形の
+コンスセルであること。
+ここで、@var{input-coding}はサブプロセスからの入力に適用され、
+@var{output-coding}はそれへの出力に適用される。
+@end defvar
+
+@defun find-operation-coding-system operation &rest arguments
+@tindex find-operation-coding-system
+@c This function returns the coding system to use (by default) for
+@c performing @var{operation} with @var{arguments}.  The value has this
+@c form:
+この関数は、@var{arguments}を指定して@var{operation}を行うときに
+（デフォルトで）使用されるコーディングシステムを返す。
+その値はつぎの形である。
+
+@example
+(@var{decoding-system} @var{encoding-system})
+@end example
+
+@c The first element, @var{decoding-system}, is the coding system to use
+@c for decoding (in case @var{operation} does decoding), and
+@c @var{encoding-system} is the coding system for encoding (in case
+@c @var{operation} does encoding).
+第1要素@var{decoding-system}は
+（@var{operation}が復号化を行う場合には）復号化に用いる
+コーディングシステムであり、
+@var{encoding-system}は
+（@var{operation}が符号化を行う場合には）符号化に用いる
+コーディングシステムである。
+
+@c The argument @var{operation} should be an Emacs I/O primitive:
+@c @code{insert-file-contents}, @code{write-region}, @code{call-process},
+@c @code{call-process-region}, @code{start-process}, or
+@c @code{open-network-stream}.
+引数@var{operation}は、Emacsの入出力基本関数の
+@code{insert-file-contents}、@code{write-region}、@code{call-process}、
+@code{call-process-region}、@code{start-process}、
+@code{open-network-stream}のいずれかであること。
+
+@c The remaining arguments should be the same arguments that might be given
+@c to that I/O primitive.  Depending on which primitive, one of those
+@c arguments is selected as the @dfn{target}.  For example, if
+@c @var{operation} does file I/O, whichever argument specifies the file
+@c name is the target.  For subprocess primitives, the process name is the
+@c target.  For @code{open-network-stream}, the target is the service name
+@c or port number.
+残りの引数は、これらの入出力基本関数に指定するであろう引数と同じであること。
+基本関数に依存して、引数の1つを@dfn{対象}として選ぶ。
+たとえば、@var{operation}がファイル入出力を行う場合、
+ファイル名を指定する引数が対象である。
+サブプロセスの基本関数では、プロセス名が対象である。
+@code{open-network-stream}では、サービス名やポート番号が対象である。
+
+@c This function looks up the target in @code{file-coding-system-alist},
+@c @code{process-coding-system-alist}, or
+@c @code{network-coding-system-alist}, depending on @var{operation}.
+@c @xref{Default Coding Systems}.
+この関数は、@var{operation}に応じて当該対象を
+@code{file-coding-system-alist}や
+@code{process-coding-system-alist}や
+@code{network-coding-system-alist}で探す。
+@pxref{Default Coding Systems}。
+@end defun
+
+@node Specifying Coding Systems
+@c @subsection Specifying a Coding System for One Operation
+@subsection 1つの操作向けにコーディングシステムを指定する
+
+@c   You can specify the coding system for a specific operation by binding
+@c the variables @code{coding-system-for-read} and/or
+@c @code{coding-system-for-write}.
+変数@code{coding-system-for-read}と／や@code{coding-system-for-write}を
+束縛することで、特定の1つの操作向けのコーディングシステムを指定できます。
+
+@defvar coding-system-for-read
+@tindex coding-system-for-read
+@c If this variable is non-@code{nil}, it specifies the coding system to
+@c use for reading a file, or for input from a synchronous subprocess.
+この変数が@code{nil}以外であると、
+ファイルを読むときや同期プロセスからの入力に用いる
+コーディングシステムを指定する。
+
+@c It also applies to any asynchronous subprocess or network stream, but in
+@c a different way: the value of @code{coding-system-for-read} when you
+@c start the subprocess or open the network stream specifies the input
+@c decoding method for that subprocess or network stream.  It remains in
+@c use for that subprocess or network stream unless and until overridden.
+これは非同期プロセスやネットワークストリームにも適用されるが、
+異なった方法で適用される。
+サブプロセスを開始したりネットワークストリームを開いたときの
+@code{coding-system-for-read}の値は、
+そのサブプロセスやネットワークストリームの入力の復号化方法を指定する。
+変更されない限り、そのサブプロセスやネットワークストリームに
+対して使われ続ける。
+
+@c The right way to use this variable is to bind it with @code{let} for a
+@c specific I/O operation.  Its global value is normally @code{nil}, and
+@c you should not globally set it to any other value.  Here is an example
+@c of the right way to use the variable:
+この変数の正しい使い方は、特定の入出力操作に対して
+@code{let}で束縛することである。
+そのグローバルな値は通常は@code{nil}であり、
+グローバルにこれ以外の値を設定するべきではない。
+この変数の正しい使い方の例をつぎに示す。
+
+@example
+@c ;; @r{Read the file with no character code conversion.}
+@c ;; @r{Assume @sc{crlf} represents end-of-line.}
+;; @r{文字コード変換せずにファイルから読む}
+;; @r{@sc{crlf}が行末を表すと仮定する}
+(let ((coding-system-for-write 'emacs-mule-dos))
+  (insert-file-contents filename))
+@end example
+
+@c When its value is non-@code{nil}, @code{coding-system-for-read} takes
+@c precedence over all other methods of specifying a coding system to use for
+@c input, including @code{file-coding-system-alist},
+@c @code{process-coding-system-alist} and
+@c @code{network-coding-system-alist}.
+その値が@code{nil}以外であると、
+@code{coding-system-for-read}は、
+@code{file-coding-system-alist}、
+@code{process-coding-system-alist}、@code{network-coding-system-alist}、
+を含めて入力に用いるコーディングシステムの
+他のすべての指定方法に優先する。
+@end defvar
+
+@defvar coding-system-for-write
+@tindex coding-system-for-write
+@c This works much like @code{coding-system-for-read}, except that it
+@c applies to output rather than input.  It affects writing to files,
+@c subprocesses, and net connections.
+これは@code{coding-system-for-read}と同様に働くが、
+入力ではなく出力に適用される点が異なる。
+ファイル、サブプロセス、ネットワーク接続へ書くことに影響する。
+
+@c When a single operation does both input and output, as do
+@c @code{call-process-region} and @code{start-process}, both
+@c @code{coding-system-for-read} and @code{coding-system-for-write}
+@c affect it.
+@code{call-process-region}と@code{start-process}のように、
+1つの操作で入力と出力を行うときには、
+@code{coding-system-for-read}と@code{coding-system-for-write}の
+両方が影響する。
+@end defvar
+
+@defvar inhibit-eol-conversion
+@tindex inhibit-eol-conversion
+@c When this variable is non-@code{nil}, no end-of-line conversion is done,
+@c no matter which coding system is specified.  This applies to all the
+@c Emacs I/O and subprocess primitives, and to the explicit encoding and
+@c decoding functions (@pxref{Explicit Encoding}).
+この変数が@code{nil}以外であると、
+コーディングシステムでなにが指定されていようと行末変換を行わない。
+これは、Emacsの入出力とサブプロセスのすべての基本関数、
+明示的な符号化／復号化関数（@pxref{Explicit Encoding}）に適用される。
+@end defvar
+
+@node Explicit Encoding
+@c @subsection Explicit Encoding and Decoding
+@subsection 明示的な符号化と復号化
+@c @cindex encoding text
+@c @cindex decoding text
+@cindex テキストの符号化
+@cindex テキストの復号化
+
+@c   All the operations that transfer text in and out of Emacs have the
+@c ability to use a coding system to encode or decode the text.
+@c You can also explicitly encode and decode text using the functions
+@c in this section.
+Emacsへ／からテキストを転送するすべての操作には、
+テキストを符号化したり復号化するコーディングシステムを使う能力があります。
+本節に述べる関数を用いてテキストを明示的に符号化したり復号化できます。
+
+@c @cindex raw bytes
+@cindex 生のバイト
+@c   The result of encoding, and the input to decoding, are not ordinary
+@c text.  They are ``raw bytes''---bytes that represent text in the same
+@c way that an external file would.  When a buffer contains raw bytes, it
+@c is most natural to mark that buffer as using unibyte representation,
+@c using @code{set-buffer-multibyte} (@pxref{Selecting a Representation}),
+@c but this is not required.  If the buffer's contents are only temporarily
+@c raw, leave the buffer multibyte, which will be correct after you decode
+@c them.
+符号化の結果と復号化する入力は、通常のEmacsのテキストではありません。
+それらは『生のバイト』、つまり、外部ファイルと同じ方法で
+テキストを表現するバイト列です。
+バッファに生のバイトが収められている場合、
+@code{set-buffer-multibyte}（@pxref{Selecting a Representation}）を用いて
+バッファはユニバイト表現であると印を付けるのがもっとも自然ですが、
+これは必須ではありません。
+バッファの内容が単に一時的に生のバイトであるときには、
+バッファはマルチバイトのままにしておきます。
+バッファ内容を復号化すれば正しくなります。
+
+@c   The usual way to get raw bytes in a buffer, for explicit decoding, is
+@c to read them from a file with @code{insert-file-contents-literally}
+@c (@pxref{Reading from Files}) or specify a non-@code{nil} @var{rawfile}
+@c argument when visiting a file with @code{find-file-noselect}.
+明示的に復号化するためにバッファに生のバイトを入れる普通の方法は、
+@code{insert-file-contents-literally}（@pxref{Reading from Files}）で
+ファイルから読むか、
+@code{find-file-noselect}でファイルを訪問するときに引数@var{rawfile}に
+@code{nil}以外を指定します。
+
+@c   The usual way to use the raw bytes that result from explicitly
+@c encoding text is to copy them to a file or process---for example, to
+@c write them with @code{write-region} (@pxref{Writing to Files}), and
+@c suppress encoding for that @code{write-region} call by binding
+@c @code{coding-system-for-write} to @code{no-conversion}.
+テキストの明示的な符号化で得た結果である生のバイトを使う普通の方法は、
+ファイルやプロセスへそれらをコピーします。
+たとえば、@code{write-region}（@pxref{Writing to Files}）でそれらを書くには、
+@code{coding-system-for-write}に@code{no-conversion}を束縛して
+@code{write-region}の符号化を抑制します。
+
+@c   Raw bytes sometimes contain overlong byte-sequences that look like a
+@c proper multibyte character plus extra bytes containing trailing codes.
+@c For most purposes, Emacs treats such a sequence in a buffer or string as
+@c a single character, and if you look at its character code, you get the
+@c value that corresponds to the multibyte character sequence---the extra
+@c bytes are disregarded.  This behavior is not quite clean, but raw bytes
+@c are used only in limited places in Emacs, so as a practical matter
+@c problems can be avoided.
+生のバイトには、正しいマルチバイト文字に
+余分なトレイリングコードが付いたように見える長すぎるバイト列が
+含まれる場合があります。
+ほとんどの目的には、バッファや文字列のそのような列をEmacsは1文字として扱い、
+その文字コードを調べるとマルチバイト文字の列に対応した値を得るはずです。
+余分なバイト列は無視されます。
+このふるまいは透明性がよくありませんが、
+生のバイトはEmacsの限定された場面でのみ使われ、実用上の問題は回避できます。
+
+@defun encode-coding-region start end coding-system
+@tindex encode-coding-region
+@c This function encodes the text from @var{start} to @var{end} according
+@c to coding system @var{coding-system}.  The encoded text replaces the
+@c original text in the buffer.  The result of encoding is ``raw bytes,''
+@c but the buffer remains multibyte if it was multibyte before.
+この関数は、コーディングシステム@var{coding-system}に従って
+@var{start}から@var{end}のテキストを符号化する。
+符号化結果はバッファ内のもとのテキストを置き換える。
+符号化結果は『生のバイト』であるが、
+マルチバイトであったバッファはマルチバイトのままである。
+@end defun
+
+@defun encode-coding-string string coding-system
+@tindex encode-coding-string
+@c This function encodes the text in @var{string} according to coding
+@c system @var{coding-system}.  It returns a new string containing the
+@c encoded text.  The result of encoding is a unibyte string of ``raw bytes.''
+この関数は、コーディングシステム@var{coding-system}に従って
+文字列@var{string}のテキストを符号化する。
+符号化したテキストを含む新たな文字列を返す。
+符号化結果は『生のバイト』のユニバイト文字列である。
+@end defun
+
+@defun decode-coding-region start end coding-system
+@tindex decode-coding-region
+@c This function decodes the text from @var{start} to @var{end} according
+@c to coding system @var{coding-system}.  The decoded text replaces the
+@c original text in the buffer.  To make explicit decoding useful, the text
+@c before decoding ought to be ``raw bytes.''
+この関数は、コーディングシステム@var{coding-system}に従って
+@var{start}から@var{end}のテキストを復号化する。
+復号化結果はバッファ内のもとのテキストを置き換える。
+明示的な復号化が有用であるためには、
+復号化前のテキストは『生のバイト』であること。
+@end defun
+
+@defun decode-coding-string string coding-system
+@tindex decode-coding-string
+@c This function decodes the text in @var{string} according to coding
+@c system @var{coding-system}.  It returns a new string containing the
+@c decoded text.  To make explicit decoding useful, the contents of
+@c @var{string} ought to be ``raw bytes.''
+この関数は、コーディングシステム@var{coding-system}に従って
+文字列@var{string}のテキストを復号化する。
+復号化したテキストを含む新たな文字列を返す。
+明示的な復号化が有用であるためには、
+復号化前の@var{string}の内容は『生のバイト』であること。
+@end defun
+
+@node Terminal I/O Encoding
+@c @subsection Terminal I/O Encoding
+@subsection 端末入出力の符号化
+
+@c   Emacs can decode keyboard input using a coding system, and encode
+@c terminal output.  This is useful for terminals that transmit or display
+@c text using a particular encoding such as Latin-1.  Emacs does not set
+@c @code{last-coding-system-used} for encoding or decoding for the
+@c terminal.
+Emacsは、コーディングシステムを用いてキーボード入力を復号化したり、
+端末出力を符号化できます。
+Latin-1などの特定の符号を用いてテキストを送信したり表示する
+端末に対しては、これは有用です。
+Emacsは、端末に対する符号化や復号化では
+@code{last-coding-system-used}に設定しません。
+
+@defun keyboard-coding-system
+@tindex keyboard-coding-system
+@c This function returns the coding system that is in use for decoding
+@c keyboard input---or @code{nil} if no coding system is to be used.
+この関数は、キーボード入力の復号化に用いている
+コーディングシステムを返す。
+コーディングシステムを使用していなければ@code{nil}を返す。
+@end defun
+
+@defun set-keyboard-coding-system coding-system
+@tindex set-keyboard-coding-system
+@c This function specifies @var{coding-system} as the coding system to
+@c use for decoding keyboard input.  If @var{coding-system} is @code{nil},
+@c that means do not decode keyboard input.
+この関数は、キーボード入力の復号化に使用するコーディングシステムとして
+@var{coding-system}を指定する。
+@var{coding-system}が@code{nil}であると、
+キーボード入力に復号化を用いないことを意味する。
+@end defun
+
+@defun terminal-coding-system
+@tindex terminal-coding-system
+@c This function returns the coding system that is in use for encoding
+@c terminal output---or @code{nil} for no encoding.
+この関数は、端末出力の符号化に用いている
+コーディングシステムを返す。
+コーディングシステムを使用していなければ@code{nil}を返す。
+@end defun
+
+@defun set-terminal-coding-system coding-system
+@tindex set-terminal-coding-system
+@c This function specifies @var{coding-system} as the coding system to use
+@c for encoding terminal output.  If @var{coding-system} is @code{nil},
+@c that means do not encode terminal output.
+この関数は、端末出力の符号化に使用するコーディングシステムとして
+@var{coding-system}を指定する。
+@var{coding-system}が@code{nil}であると、
+端末出力に符号化を用いないことを意味する。
+@end defun
+
+@node MS-DOS File Types
+@c @subsection MS-DOS File Types
+@subsection MS-DOSのファイル型
+@c @cindex DOS file types
+@c @cindex MS-DOS file types
+@c @cindex Windows file types
+@c @cindex file types on MS-DOS and Windows
+@c @cindex text files and binary files
+@c @cindex binary files and text files
+@cindex DOSのファイル型
+@cindex MS-DOSのファイル型
+@cindex Windowsのファイル型
+@cindex ファイル型、MS-DOSとWindows
+@cindex テキストファイルとバイナリファイル
+@cindex バイナリファイルとテキストファイル
+
+@c   Emacs on MS-DOS and on MS-Windows recognizes certain file names as
+@c text files or binary files.  By ``binary file'' we mean a file of
+@c literal byte values that are not necessary meant to be characters.
+@c Emacs does no end-of-line conversion and no character code conversion
+@c for a binary file.  Meanwhile, when you create a new file which is
+@c marked by its name as a ``text file'', Emacs uses DOS end-of-line
+@c conversion.
+MS-DOSやMS-Windows上のEmacsは、
+特定のファイル名をテキストファイルやバイナリファイルとして認識します。
+『バイナリファイル』とは、必ずしも文字を意味しないバイト値のファイルです。
+Emacsは、バイナリファイルに対しては行末変換や文字コード変換を行いません。
+一方、その名前から『テキストファイル』と印が付いた
+新規ファイルを作成すると、EmacsはDOSの行末変換を行います。
+
+@defvar buffer-file-type
+@c This variable, automatically buffer-local in each buffer, records the
+@c file type of the buffer's visited file.  When a buffer does not specify
+@c a coding system with @code{buffer-file-coding-system}, this variable is
+@c used to determine which coding system to use when writing the contents
+@c of the buffer.  It should be @code{nil} for text, @code{t} for binary.
+@c If it is @code{t}, the coding system is @code{no-conversion}.
+@c Otherwise, @code{undecided-dos} is used.
+この変数は、各バッファで自動的にバッファローカルになり、
+バッファで訪問したファイルのファイル型を記録する。
+バッファが@code{buffer-file-coding-system}で
+コーディングシステムを指定しない場合、
+バッファ内容を書き出すときに用いるコーディングシステムを
+この変数を用いて決定する。
+テキストに対しては@code{nil}、バイナリに対して@code{t}であること。
+これが@code{t}であると、コーディングシステムは@code{no-conversion}である。
+さもなければ、@code{undecided-dos}を用いる。
+
+@c Normally this variable is set by visiting a file; it is set to
+@c @code{nil} if the file was visited without any actual conversion.
+通常、この変数はファイルを訪問すると設定される。
+いかなる変換も行わずにファイルを訪問すると@code{nil}に設定される。
+@end defvar
+
+@defopt file-name-buffer-file-type-alist
+@c This variable holds an alist for recognizing text and binary files.
+@c Each element has the form (@var{regexp} . @var{type}), where
+@c @var{regexp} is matched against the file name, and @var{type} may be
+@c @code{nil} for text, @code{t} for binary, or a function to call to
+@c compute which.  If it is a function, then it is called with a single
+@c argument (the file name) and should return @code{t} or @code{nil}.
+この変数は、テキスト／バイナリファイルを認識するための連想リストを保持する。
+各要素は(@var{regexp} . @var{type})の形である。
+ここで、@var{regexp}はファイル名に対して一致をとり、
+@var{type}は、テキストファイルでは@code{nil}、
+バイナリファイルでは@code{t}、あるいは、
+どちらであるかを計算するために呼び出す関数である。
+それが関数であると、1つの引数（ファイル名）で呼ばれ、
+@code{t}か@code{nil}を返すこと。
+
+@c Emacs when running on MS-DOS or MS-Windows checks this alist to decide
+@c which coding system to use when reading a file.  For a text file,
+@c @code{undecided-dos} is used.  For a binary file, @code{no-conversion}
+@c is used.
+MS-DOSやMS-Windowsで動作しているEmacsは、
+この連想リストを調べて、ファイルを読む際に使用する
+コーディングシステムを決定する。
+テキストファイルでは@code{undecided-dos}が使われる。
+バイナリファイルでは@code{no-conversion}が使われる。
+
+@c If no element in this alist matches a given file name, then
+@c @code{default-buffer-file-type} says how to treat the file.
+指定したファイルがこの連想リストの要素に一致しないと、
+@code{default-buffer-file-type}がファイルの扱い方を指定する。
+@end defopt
+
+@defopt default-buffer-file-type
+@c This variable says how to handle files for which
+@c @code{file-name-buffer-file-type-alist} says nothing about the type.
+この変数は、@code{file-name-buffer-file-type-alist}が指定しない型の
+ファイルの扱い方を指定する。
+
+@c If this variable is non-@code{nil}, then these files are treated as
+@c binary: the coding system @code{no-conversion} is used.  Otherwise,
+@c nothing special is done for them---the coding system is deduced solely
+@c from the file contents, in the usual Emacs fashion.
+この変数が@code{nil}以外であると、そのようなファイルはバイナリとして扱われ、
+コーディングシステム@code{no-conversion}を用いる。
+さもなければそれらに対して特別なことを行わずに、
+Emacsの通常のとおりにファイル内容からコーディングシステムを決定する。
+@end defopt
+
+@node Input Methods
+@c @section Input Methods
+@section 入力方式
+@c @cindex input methods
+@cindex 入力方式
+
+@c   @dfn{Input methods} provide convenient ways of entering non-@sc{ASCII}
+@c characters from the keyboard.  Unlike coding systems, which translate
+@c non-@sc{ASCII} characters to and from encodings meant to be read by
+@c programs, input methods provide human-friendly commands.  (@xref{Input
+@c Methods,,, emacs, The GNU Emacs Manual}, for information on how users
+@c use input methods to enter text.)  How to define input methods is not
+@c yet documented in this manual, but here we describe how to use them.
+@dfn{入力方式}（input method）は、
+キーボードから非@sc{ASCII}文字を入力する簡便な方法を提供します。
+プログラムが読み取るための非@sc{ASCII}文字の符号変換を行う
+コーディングシステムと異なり、
+入力方式は人間向けのコマンドを提供します。
+（テキストを入力するための入力方式の使い方については、
+@pxref{Input Methods,, 入力方式, emacs, GNU Emacs マニュアル}。）
+入力方式の定義方法については本書ではまだ明文化してありませんが、
+ここではそれらの使い方について述べます。
+
+@c   Each input method has a name, which is currently a string;
+@c in the future, symbols may also be usable as input method names.
+各入力方式には名前があります。
+それは現在のところ文字列ですが、
+将来は入力方式名としてシンボルも使えるようになります。
+
+@tindex current-input-method
+@defvar current-input-method
+@c This variable holds the name of the input method now active in the
+@c current buffer.  (It automatically becomes local in each buffer when set
+@c in any fashion.)  It is @code{nil} if no input method is active in the
+@c buffer now.
+この変数は、カレントバッファで現在活性な入力方式の名前を保持する。
+（この変数に設定すると自動的にバッファローカルになる。）
+@code{nil}であると、バッファでは入力方式が活性ではない。
+@end defvar
+
+@tindex default-input-method
+@defvar default-input-method
+@c This variable holds the default input method for commands that choose an
+@c input method.  Unlike @code{current-input-method}, this variable is
+@c normally global.
+この変数は、入力方式を選ぶコマンド向けのデフォルトの入力方式を保持する。
+@code{current-input-method}と異なり、この変数は通常はグローバルである。
+@end defvar
+
+@tindex set-input-method
+@defun set-input-method input-method
+@c This function activates input method @var{input-method} for the current
+@c buffer.  It also sets @code{default-input-method} to @var{input-method}.
+@c If @var{input-method} is @code{nil}, this function deactivates any input
+@c method for the current buffer.
+この関数は、カレントバッファにおいて
+入力方式@var{input-method}を活性にする。
+@code{default-input-method}にも@var{input-method}を設定する。
+@var{input-method}が@code{nil}であると、
+この関数はカレントバッファの入力方式を不活性にする。
+@end defun
+
+@tindex read-input-method-name
+@defun read-input-method-name prompt &optional default inhibit-null
+@c This function reads an input method name with the minibuffer, prompting
+@c with @var{prompt}.  If @var{default} is non-@code{nil}, that is returned
+@c by default, if the user enters empty input.  However, if
+@c @var{inhibit-null} is non-@code{nil}, empty input signals an error.
+この関数は、プロンプト@var{prompt}を用いてミニバッファで入力方式名を読む。
+@var{default}が@code{nil}以外であると、
+ユーザーが空の入力をするとデフォルトでこれを返す。
+しかし、@var{inhibit-null}が@code{nil}以外であると、
+空の入力はエラーを通知する。
+
+@c The returned value is a string.
+戻り値は文字列である。
+@end defun
+
+@tindex input-method-alist
+@defvar input-method-alist
+@c This variable defines all the supported input methods.
+@c Each element defines one input method, and should have the form:
+この変数は、使用可能なすべての入力方式を定義する。
+各要素は1つの入力方式を定義し、つぎの形であること。
+
+@example
+(@var{input-method} @var{language-env} @var{activate-func}
+ @var{title} @var{description} @var{args}...)
+@end example
+
+@c Here @var{input-method} is the input method name, a string;
+@c @var{language-env} is another string, the name of the language
+@c environment this input method is recommended for.  (That serves only for
+@c documentation purposes.)
+ここで、@var{input-method}は入力方式名であり文字列である。
+@var{language-env}も別の文字列であり当該入力方式を
+推奨する言語環境の名前である。
+（これは説明文目的のためだけである。）
+
+@c @var{title} is a string to display in the mode line while this method is
+@c active.  @var{description} is a string describing this method and what
+@c it is good for.
+@var{title}は、この入力方式が活性である場合に
+モード行に表示される文字列である。
+@var{description}はこの入力方式と何向きであるかを
+説明する文字列である。
+
+@c @var{activate-func} is a function to call to activate this method.  The
+@c @var{args}, if any, are passed as arguments to @var{activate-func}.  All
+@c told, the arguments to @var{activate-func} are @var{input-method} and
+@c the @var{args}.
+@var{activate-func}は、この入力方式を活性にするために呼び出す関数である。
+@var{args}があれば@var{activate-func}への引数として渡される。
+つまり、@var{activate-func}の引数は@var{input-method}と@var{args}である。
+@end defvar
+
+@c   The fundamental interface to input methods is through the
+@c variable @code{input-method-function}.  @xref{Reading One Event}.
+入力方式に対する基本的なインターフェイスは
+変数@code{input-method-function}を介して行います。
+@xref{Reading One Event}。

@@ -1,0 +1,445 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1999 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+
+@c This node must have no pointers.
+
+@node Antinews
+@appendix Emacs 20 Antinews @emph{(2003/10/30)}
+
+@uref{http://www.sodan.org/~knagano/emacs/emacs21-emacs20-antinews-j.html,Emacs
+20 Antinewsの翻訳} を参考に翻訳しています。上記文書の翻訳をされた方に深く感謝し
+ます。
+
+@c For those users who live backwards in time, here is information about
+@c downgrading to Emacs version 20.4.  We hope you will enjoy the greater
+@c simplicity that results from the absence of many Emacs 21 features.  In
+@c the following section, we carry this information back to Emacs
+@c 20.3, for which the previous printed edition of this manual was made.
+時代に逆行する皆さんへ、Emacsヴァージョン20.4へのダウングレード情報を
+お届けします。Emacs 21のさまざまな機能が省かれたことによる単純さをお楽
+しみください。後述する節では、Emacs 20.3へダウングレードするための情報
+をお届けします。
+
+@menu
+* Antinews Emacs 20::           
+* Antinews Emacs 203::          
+@end menu
+
+@node Antinews Emacs 20, Antinews Emacs 203, Antinews, Antinews
+@section Old Lisp Features in Emacs 20 @emph{(2003/10/30)}
+
+@itemize @bullet
+@item
+@c The @code{push} and @code{pop} macros are not defined.
+@c Neither are @code{dolist} and @code{dotimes}.
+マクロの @code{push} と @code{pop} は削除されました。@code{dolist} と
+@code{dotimes}も同様です。
+
+@item
+@c You can't display images in buffers.  (Emacs is meant for editing text.)
+@c With no images, there are no display margins, and no tool bars.
+Emacsは画像を表示しません。(Emacsがはテキストを編集するためのものですの
+で、)画像もマージンもツールバーも表示しません。
+
+@item
+@c The @code{display} text property has no special meaning; you can use it
+@c freely in Lisp programs, with no effects except what you implement for
+@c yourself.  With no images, who needs the @code{display} text property?
+テキストプロパティの@code{display}は特別な意味を持たなくなりました。こ
+のため、自分でコードを書かない限り、特別な効果はありませんので、Lispプ
+ログラムで自由に利用できます。ところで、画像を表示しないのであれば、
+@code{display} なんてテキストプロパティは必要なのかい？
+
+@item
+@c The @code{field} text property has no special meaning; buffers are no
+@c longer subdivided into fields.  (The division of information into
+@c fields is always rather arbitrary.)
+テキストプロパティの @code{field} はもはや特別な意味を持たなくなりまし
+た。バッファはもはや「領域」には分割されません(「領域」で情報を分ける
+と意図しない動作をしてしまいますから)。
+
+コメント：テキストプロパティにfieldが追加されたそう
+な。例えば、M-x shellでプロンプトにfieldを設定しておけば、
+入力されたコマンドかプロンプトかが判断できるので、
+@kbd{C-a}などの挙動を制御できるわけです。
+
+@item
+@c Faces have fewer attributes.  The attributes @code{:family},
+@c @code{:height}, @code{:width}, @code{:weight}, and @code{:slant},
+@c have been replaced with a font name, a ``bold'' flag, and an
+@c ``italic'' flag.
+フェイスの属性がシンプルになりました。@code{:family}や@code{:height}、
+@code{:width}、@code{:weight}、@code{:slant}はなくなり、フォント名や太
+字、斜体字かどうかの指定になりました。
+
+@c The attributes @code{:overline}, @code{:strike-through} and @code{:box}
+@c have been eliminated too.  Underlining now always has the same color as
+@c the text---using any other color would be bad taste.
+フェイスの@code{:overline}や@code{:strike-through}、@code{:box}といっ
+た属性も削除されました。下線は常にテキストと同じ色になりました。他の色
+を使うなんて悪趣味ですよ。
+
+@c With fewer font attributes, there are no functions
+@c @code{set-face-attribute} and @code{face-attribute}.  Instead, you
+@c access these attributes using functions such as @code{face-font}, and
+@c set them with functions such as @code{set-face-font}.  (These functions
+@c were available in Emacs 21, but are not as useful there.)
+属性の単純化と合わせて、@code{set-face-attribute} や
+@code{face-attribute} も削除しました。フェイスの属性は
+@code{face-font} などの関数で得ることができますし、
+@code{set-face-font} で値を変更することもできます(これらの関数はEmacs
+21で利用できますが、それほど便利ではありませんでした)。
+
+@item
+@c The standard faces @code{scroll-bar}, @code{menu}, @code{border},
+@c @code{cursor}, and @code{mouse} have been eliminated.  They are rather
+@c strange, as faces, and therefore shouldn't really exist.  You can use
+@c @code{set-border-color}, @code{set-cursor-color} and
+@c @code{set-mouse-color} to specify the colors for the frame border, the
+@c text cursor, and the mouse cursor.  To specify menu colors, use X
+@c resources.
+標準のフェイスである @code{scroll-bar}、@code{menu}、@code{border}、
+@code{cursor} や @code{mouse} は削除されました。フェイスでメニューなど
+の色を変えたりするのは、むしろ奇妙な方法ですので、あるべきではないので
+す。フレームの境界やカーソル、マウスカーソルの色を変えるには、
+@code{set-border-color}、@code{set-cursor-color} や
+@code{set-mouse-color} が利用できます。メニューの色はXのリソースを利用
+できます。
+
+@item
+@c Colors and other face attributes are no longer supported on character
+@c terminals, so you no longer have to worry about terminals making faces
+@c at you.
+もはやテキスト端末では色や他のフェイス属性を表示できません。したがって、
+端末がフェイスを表示できるかどうかを心配する必要はないのです。
+
+@item
+@c Emacs will respect your peace and quiet, aside from occasional beeps,
+@c because there are no facilities for playing sounds.
+ビープ音以外には音を鳴らす機能はありません。そのため、Emacsはあなたの
+平穏と静寂を乱しません。
+
+@item
+@c Emacs 20 provides a complex and badly designed method for handling
+@c character composition for languages such as Thai that display several
+@c letters as a single combined image.  We are too ashamed of it to tell
+@c you any more than that.
+タイ語などでは、いくつかの文字は重ね合わせて作られた画像として表示しま
+す。Emacs20でこのような言語の合成文字を表示する方法は複雑で練られてい
+ません。恥ずかしいのでこれくらいの説明にしておきます。
+
+@item
+@c @code{delete-and-extract-region} has been deleted; instead, use
+@c @code{buffer-substring} to extract the text, then use
+@c @code{delete-region} to delete it.
+@code{delete-and-extract-region} (リージョン内のテキストをカットする関
+数)は削除されました。テキストを得るのには@code{buffer-substring}が使え
+ますし、削除するのには@code{delete-region} が利用できます。
+
+@item
+@c Regular expressions do not support the POSIX character classes
+@c such as @samp{[:alpha:]}.  All characters are created equal.
+正規表現は@samp{[:alpha:]}(アルファベットを表す)のようなPOSIX使用の文字をサポートしていませ
+ん。これにより、すべての文字は同じように表現されます。
+
+@item
+@c Hash tables have been eliminated; use alists instead.
+ハッシュテーブルは削除されました。連想リストを利用します。
+
+@item
+@c The Lisp printer does not detect and report circular structure.  That is
+@c ok, because the Lisp reader cannot recreate circular structure anyway.
+@c However, there is a library @samp{cust-print.el} which can report
+@c circular structure.
+Lispプリンタは循環構造を検出や出力をしません。とにかくLispリーダは循環
+構造を再現できないので、それでいいのです。しかし、循環構造を出力できる
+@samp{cust-print.el} というライブラリはあります。
+
+@item
+@c Emacs provides its own implementation of scroll bars, instead
+@c of using those of the X toolkit.  They always use the frame foreground
+@c and background colors, so you cannot specify different colors for
+@c the scroll bars.
+EmacsはX toolkitのツールバーを使わずに、Emacs自身で実現します。そして、常にフレー
+ムの前景色は背景色を使います。そのため、スクロールバーに異なる色を指定することは
+できません。
+
+@item
+@c For simplicity, all @sc{ascii} characters now have the same height and width.
+@c (Certain characters, such as Chinese characters, always have twice
+@c the standard width.)  All characters are created equal.
+単純にするために、すべての@sc{ascii}文字は同じ高さと幅を持ちます(中国語のように
+ある種の文字は常に@sc{ascii}の2倍の幅になります)。すべての文字は同じように作られ
+表示されるのです。
+
+@item
+@c You can now resize any Emacs window, and size changes in one window can
+@c propagate to all others.  Windows can no longer use
+@c @code{window-size-fixed} to get special privileges.
+Emacsのウィンドウサイズを変更でき、あるウィンドウでのサイズ変更は他のすべてのウィ
+ンドウに影響します。Windowsでは@code{window-size-fixed}を利用できなくなりました。
+
+@item
+@c The function @code{intern-soft} no longer accepts a symbol as argument.
+@code{intern-soft}はシンボルを引数として受け取らなくなりました。
+
+@item
+@c The function @code{bitmap-spec-p} has been renamed to
+@c @code{pixmap-spec-p} to encourage users to practice Emacs' help system
+@c while trying to find it.
+@code{bitmap-spec-p}は@code{pixmap-spec-p}に名前を変更しました。この変更を調べる
+ことでEmacsのヘルプシステムを使う練習になります。
+
+@item
+@c Tooltips operate using ordinary Emacs frames.
+ツールチップは通常のフレームを使って処理されます。
+
+@item
+@c Areas of the mode line are not mouse-sensitive; however, some mouse
+@c commands are available for the mode line as a whole.
+モードラインの部分はマウスには反応しません。しかし、マウスによるコマンドの一部は
+利用できます。
+
+@item
+@c Windows cannot have header lines.  Conversely, there is no way to turn
+@c off the mode line of a window unless it is a minibuffer.
+Windowsはヘッダを表示できません。逆にモードラインは消すことはできません。
+
+@item
+@c Plain dashes are the only separators you can use in a menu.
+メニューの区切りとして点線のみを利用できます。
+
+@item
+@c Vertical fractional scrolling does not exist.
+縦方向の断片的なスクロールは存在しません。
+
+@item
+@c The functions @code{format} and @code{message} ignore and discard text
+@c properties.
+関数 @code{format} や @code{message} はテキストプロパティを無視します。
+
+@item
+@c The function @code{propertize} does not exist;
+@c you can get the job done using @code{set-text-properties}.
+@code{propertize}(文字列にテキストプロパティを付けて返す関数)は存在しません。
+@code{set-text-properties}を用います。
+
+@item
+@c Colors are supported only on window systems, not on text-only terminals.
+@c So the support functions for colors on text-only terminals are
+@c not needed, and have been eliminated.
+色はウィンドウシステムでのみサポートされ、テキスト端末ではサポートされません。テ
+キスト端末の色に関連する関数は不要になりましたので、削除しました。
+
+@item
+@c The functions @code{color-values}, @code{color-defined-p} and
+@c @code{defined-colors} have been renamed to @code{x-color-values},
+@c @code{x-color-defined-p} and @code{x-defined-colors}.
+関数 @code{color-values}や@code{color-defined-p}、@code{defined-colors} はそれぞ
+れ @code{x-color-values}、@code{x-color-defined-p}、@code{x-defined-colors} に名
+前が変わりました。
+
+@item
+@c Windows cannot be made fixed-width or fixed-height;
+@c Emacs will adjust the size of all windows when it needs to.
+ウィンドウは固定された幅や高さにすることはできません。Emacsは必要な時、すべての
+ウィンドウのサイズを調整します。
+
+@item
+@c The string used as the value of the @code{before-string} or
+@c @code{after-string} property must contain only characters that display
+@c as a single column---control characters, including tabs and newlines,
+@c will give strange results.
+プロパティの @code{before-string} や @code{after-string} の値として使わ
+れる文字はシングルコラムとして表示される文字を含まなければいけません。タブや改行
+などの制御文字だと変な結果になるでしょう。
+
+@item
+@c The minibuffer prompt does not actually appear in content of the
+@c minibuffer; it is displayed specially in the minibuffer window.
+ミニバッファのプロンプトは実はミニバッファの内容には表れません。プロンプトはミニ
+バッファウィンドウに特別な方法で表示しているのです。
+
+コメント：ミニバッファでC-aを行うと、プロンプトの後にカーソルが移動します。Emacs
+21では左カーソルでこれより前に行くことができます。単なる文字なわけですから、当然
+ですね。しかし、Emacs 20.4では不可能です。これは、単なる文字ではないのでプロンプ
+ト以降のみしか触ることができないのです。
+
+@item
+@c The ``exclusive open'' feature of @code{write-region}
+@c has been eliminated; any non-@code{nil} value for the seventh
+@c argument now means to ask the user for confirmation.
+@code{write-region}の排他的に開く機能は削除されました。このため、7番目の引数が
+@code{nil} でない場合は、ユーザに確認を求めます。
+
+@item
+@c The function @code{buffer-size} always reports on the
+@c current buffer.
+@code{buffer-size}のオプション引数は削除され、常にカレントバッファの文字数を返し
+ます。
+
+@item
+@c The function @code{assq-delete-all} has itself been deleted. 
+@c So there!
+@code{assq-delete-all} は削除されました。
+
+@item
+@c The keyword @code{:set-after} no longer does anything in
+@c @code{defcustom}.
+@code{:set-after}はもはや@code{defcustom}にはありません。
+
+@item
+@c The variable @code{small-temporary-file-directory} has no special
+@c meaning.  There's only one variable for specifying which directory to
+@c use for temporary files, @code{temporary-file-directory}, but not all
+@c Emacs features use it anyway.  Some use the @code{TMP} environment
+@c variable, and some use the @code{TMPDIR} environment variable.
+@code{small-temporary-file-directory}は特別な意味を持たなくなりました。これで
+@code{temporary-file-directory}というたった一つの変数のみで一時ファイルを作るディ
+レクトリを指定できます。しかし、Emacsのすべての機能がその変数を利用するわけでは
+ありません。あるものは環境変数@code{TMP}を使うでしょうし、あるものは
+環境変数@code{TMPDIR}を使うでしょう。
+
+@item
+@c If the second argument of @code{save-some-buffers}, @var{pred}, is not
+@c @code{nil}, then the precise value no longer matters.  Any
+@c non-@code{nil} value means the same as @code{t}: offer to save each
+@c non-file buffer that has a non-@code{nil} value for
+@c @code{buffer-offer-save}.
+@code{save-some-buffers}の2番目の引数@var{pred}が @code{nil} でなければ、正確に
+どのような値であるかは問題にならない。とにかく@code{nil}でないならば、@code{t}と
+同じことになり、ファイルでないバッファも保存する。
+
+@item
+@c The variable @code{inhibit-modification-hooks}
+@c has no special meaning.
+@code{inhibit-modification-hooks}は特別な意味を持たなくなりました。
+
+@item
+@c The hook @code{fontification-functions} has been eliminated,
+@c but there are other hooks, such as @code{window-scroll-functions},
+@c that you can use to do a similar job.
+@code{fontification-functions}は削除されました。@code{window-scroll-functions}の
+ような他のフックを使うことで、同じような処理を行うことができます。
+
+@item
+@c The variable  @code{redisplay-dont-pause}
+@c has no special meaning.
+@code{redisplay-dont-pause}は特別な意味を持たなくなりました。
+
+@item
+@c The hook @code{calendar-move-hook} has been deleted.
+@code{calendar-move-hook} は削除されました。
+
+@item
+@c The function @code{move-to-column} treats any non-@code{nil}
+@c second argument just like @code{t}.
+@end itemize
+@code{move-to-column}は2番目の引数が@code{nil}でなければ、@code{t}として扱います。
+
+@node Antinews Emacs 203,  , Antinews Emacs 20, Antinews
+@section Old Lisp Features in Emacs 20.3 @emph{(2003/10/30)}
+
+@c Here are the most important of the features that you will learn
+@c to do without in Emacs 20.3:
+ここではEmacs 20.3で削除される機能を紹介しましょう。
+
+@c Here are changes in the Lisp language itself:
+これらはLisp言語自身の変更です。
+
+@itemize @bullet
+@item
+@c The functions @code{line-beginning-position} and @code{line-end-position}
+@c have been eliminated.
+@code{line-beginning-position} と @code{line-end-position}は削除されました。
+
+@item
+@c The functions @code{directory-files-and-attributes},
+@c @code{file-attributes-lessp}, and @code{file-expand-wildcards}, have
+@c been eliminated.
+@code{directory-files-and-attributes}、@code{file-attributes-lessp}、
+@code{file-expand-wildcards} は削除されました。
+
+@item
+@c The functions @code{decode-coding-region} and @code{encode-coding-region}
+@c leave text properties untouched, in case that is useful.  (It rarely makes
+@c any sense, though.)
+@code{decode-coding-region} と @code{encode-coding-region}は後で役立つようにテキ
+ストプロパティをそのまま残します(もっともめったに役立たないですけど)。
+
+@item
+@c The functions @code{position-bytes} and @code{byte-to-position} have
+@c been eliminated.
+@code{position-bytes} と @code{byte-to-position} は削除されました。
+
+@item
+@c Temporary buffers made with @code{with-output-to-temp-buffer} are now
+@c modifiable by default, and use Fundamental mode rather than Help mode.
+@code{with-output-to-temp-buffer}で作られる一時バッファは書き込み可能です。
+Fundamental mode以外にしなければヘルプモードになります。
+
+@item
+@c The functions @code{sref} interprets its @var{index} argument as a
+@c number of bytes, not a number of characters.  And the function
+@c @code{char-bytes} actually tries to report on the number of bytes that a
+@c character occupies.
+@code{sref}は@var{index}を文字数ではなくバイト数として解釈します。そして、
+@code{char-bytes}は文字通り文字が占めるバイト数を返します。
+
+@item
+@c The function @code{process-running-child-p} has been eliminated.
+@code{process-running-child-p} は削除されました。
+
+@item
+@c The function @code{interrupt-process} and similar functions no longer do
+@c anything special when the second argument is @code{lambda}.
+@code{interrupt-process} とそれと似た関数は2番目の引数が@code{lambda}であれば特
+別なことはしません。
+
+@item
+@c The function @code{define-prefix-command} accepts only two arguments.
+@code{define-prefix-command}は2つの引数だけを受け取ります。
+
+@item
+@c The meaning of the second argument to @code{read-char},
+@c @code{read-event}, and @code{read-char-exclusive} has been reversed:
+@c they use the current input method if the argument is if @code{nil}.
+@code{read-char}、@code{read-event}、@code{read-char-exclusive}の2番目の引数の意
+味がこれまでとは逆になります。引数が@code{nil}であれば、現在の入力方法を用います。
+
+@item
+@c The function @code{with-temp-message} has been eliminated.
+@code{with-temp-message}は削除されました。
+
+@item
+@c The function @code{clear-this-command-keys} has been eliminated. 
+@code{clear-this-command-keys} は削除されました。
+
+@item
+@c The functions @code{gap-position} and @code{gap-size} have been eliminated. 
+@code{gap-position} と @code{gap-size}は削除されました。
+
+@item
+@c In @code{modify-face}, an argument of @code{(nil)} has no special
+@c meaning.
+@code{modify-face}で引数が@code{(nil)}であっても特別な意味は持ちません。
+
+@item
+@c The base64 conversion functions have been eliminated.
+base64の変換用関数は削除されました。
+
+@item
+@c Wildcard support has been eliminated from @code{find-file}
+@c and allied functions.
+@code{find-file}やそれを利用したような関数でワイルドカードを利用できなくなしまし
+た。
+
+@item
+@c @code{file-attributes} returns the file size and the file inode number
+@c only as a simple integer.
+@code{file-attributes}はファイルサイズを返します。これは、整数に収まるなら整数に
+なります。収まらないと浮動小数点になります。
+@end itemize
+

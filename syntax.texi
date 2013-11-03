@@ -1,0 +1,1532 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/syntax
+@node Syntax Tables, Abbrevs, Searching and Matching, Top
+@c @chapter Syntax Tables
+@chapter 構文テーブル
+@c @cindex parsing
+@c @cindex syntax table
+@c @cindex text parsing
+@cindex 構文解析
+@cindex 構文テーブル
+@cindex テキストの解析
+
+@c   A @dfn{syntax table} specifies the syntactic textual function of each
+@c character.  This information is used by the @dfn{parsing functions}, the
+@c complex movement commands, and others to determine where words, symbols,
+@c and other syntactic constructs begin and end.  The current syntax table
+@c controls the meaning of the word motion functions (@pxref{Word Motion})
+@c and the list motion functions (@pxref{List Motion}), as well as the
+@c functions in this chapter.
+@dfn{構文テーブル}（syntax table）は、
+各文字の構文的なテキスト上の機能を指定します。
+この情報は、@dfn{構文解析関数}や複雑な移動を行うコマンドなどが
+単語やシンボルなどの構文要素がどこで始まりどこで終るかを調べるために使います。
+現在の構文テーブルが、本章の関数に加えて、
+単語単位の移動関数（@pxref{Word Motion}）、
+リスト単位の移動関数（@pxref{List Motion}）の意味を制御します。
+
+@menu
+* Basics: Syntax Basics.     Basic concepts of syntax tables.
+* Desc: Syntax Descriptors.  How characters are classified.
+* Syntax Table Functions::   How to create, examine and alter syntax tables.
+* Syntax Properties::        Overriding syntax with text properties.
+* Motion and Syntax::	     Moving over characters with certain syntaxes.
+* Parsing Expressions::      Parsing balanced expressions
+                                using the syntax table.
+* Standard Syntax Tables::   Syntax tables used by various major modes.
+* Syntax Table Internals::   How syntax table information is stored.
+* Categories::               Another way of classifying character syntax.
+@end menu
+
+@node Syntax Basics
+@c @section Syntax Table Concepts
+@section 構文テーブルの概念
+
+@ifinfo
+@c   A @dfn{syntax table} provides Emacs with the information that
+@c determines the syntactic use of each character in a buffer.  This
+@c information is used by the parsing commands, the complex movement
+@c commands, and others to determine where words, symbols, and other
+@c syntactic constructs begin and end.  The current syntax table controls
+@c the meaning of the word motion functions (@pxref{Word Motion}) and the
+@c list motion functions (@pxref{List Motion}) as well as the functions in
+@c this chapter.
+@dfn{構文テーブル}（syntax table）は、
+バッファ内の各文字の構文上の用途に関する情報をEmacsに与えます。
+この情報は、@dfn{構文解析関数}や複雑な移動を行うコマンドなどが
+単語やシンボルなどの構文要素がどこで始まりどこで終るかを調べるために使います。
+現在の構文テーブルが、本章の関数に加えて、
+単語単位の移動関数（@pxref{Word Motion}）、
+リスト単位の移動関数（@pxref{List Motion}）の意味を制御します。
+@end ifinfo
+
+@c   A syntax table is a char-table (@pxref{Char-Tables}).  The element at
+@c index @var{c} describes the character with code @var{c}.  The element's
+@c value should be a list that encodes the syntax of the character in
+@c question.
+構文テーブルは文字テーブル（@pxref{Char-Tables}）です。
+@var{c}で添字付けられる要素は、コードが@var{c}である文字について記述します。
+要素の値は、当該文字の構文上の機能を符号化したリストです。
+
+@c   Syntax tables are used only for moving across text, not for the Emacs
+@c Lisp reader.  Emacs Lisp uses built-in syntactic rules when reading Lisp
+@c expressions, and these rules cannot be changed.  (Some Lisp systems
+@c provide ways to redefine the read syntax, but we decided to leave this
+@c feature out of Emacs Lisp for simplicity.)
+構文テーブルは、テキスト内を動き回るためにのみ使われ、
+EmacsのLispリーダはこれを使いません。
+Emacs LispがLisp式を読むときには、組み込みの構文規則を使います。
+（入力構文を再定義する方法を与えるLispシステムもあるが、
+単純であるようにEacs Lispではこの機能を省くことにした。）
+
+@c   Each buffer has its own major mode, and each major mode has its own
+@c idea of the syntactic class of various characters.  For example, in Lisp
+@c mode, the character @samp{;} begins a comment, but in C mode, it
+@c terminates a statement.  To support these variations, Emacs makes the
+@c choice of syntax table local to each buffer.  Typically, each major
+@c mode has its own syntax table and installs that table in each buffer
+@c that uses that mode.  Changing this table alters the syntax in all
+@c those buffers as well as in any buffers subsequently put in that mode.
+@c Occasionally several similar modes share one syntax table.
+@c @xref{Example Major Modes}, for an example of how to set up a syntax
+@c table.
+各バッファには独自のメジャーモードがあり、
+各メジャーモードはさまざまな文字の構文クラスを独自に扱います。
+たとえば、lispモードでは文字@samp{;}はコメントを始めますが、
+Cモードでは文を終らせます。
+このような多様性を扱うために、
+Emacsは各バッファごとにローカルな構文テーブルを選びます。
+典型的には、各メジャーモードに独自の構文テーブルがあり、
+そのモードを使っているバッファに当該構文テーブルをインストールします。
+この構文テーブルを変更すると、
+同じモードのバッファだけでなく将来そのモードになったバッファでも
+構文を変更してしまいます。
+類似したモードでは1つの構文テーブルを共有することがあります。
+構文テーブルの設定方法の例については、@xref{Example Major Modes}。
+
+@c A syntax table can inherit the data for some characters from the
+@c standard syntax table, while specifying other characters itself.  The
+@c ``inherit'' syntax class means ``inherit this character's syntax from
+@c the standard syntax table.''  Just changing the standard syntax for a
+@c characters affects all syntax tables which inherit from it.
+構文テーブルでは、標準の構文テーブルから文字のデータを継承し、
+一方でその他の文字に独自の指定を行えます。
+構文クラスの『継承』とは、
+『標準の構文テーブルから当該文字の構文を引き継ぐ』ことです。
+ある文字に対して標準の構文を変更すると、
+それを継承するすべての構文テーブルに影響します。
+
+@defun syntax-table-p object
+@c This function returns @code{t} if @var{object} is a syntax table.
+この関数は、@var{object}が構文テーブルならば@code{t}を返す。
+@end defun
+
+@node Syntax Descriptors
+@c @section Syntax Descriptors
+@section 構文記述子
+@c @cindex syntax classes
+@cindex 構文クラス
+
+@c   This section describes the syntax classes and flags that denote the
+@c syntax of a character, and how they are represented as a @dfn{syntax
+@c descriptor}, which is a Lisp string that you pass to
+@c @code{modify-syntax-entry} to specify the syntax you want.
+本節では、文字の構文を指定する構文クラスと構文フラグ、
+それらを@dfn{構文記述子}（syntax descriptor）としてどのように
+表現するかについて述べます。
+構文記述子はLisp文字列であり、
+望みの構文を指定するために@code{modify-syntax-entry}に渡します。
+
+@c   The syntax table specifies a syntax class for each character.  There
+@c is no necessary relationship between the class of a character in one
+@c syntax table and its class in any other table.
+構文テーブルは、各文字の構文クラスを指定します。
+ある構文テーブルでの文字のクラスと
+他の構文テーブルでの当該文字のクラスとのあいだにはなんの関係も必要ありません。
+
+@c   Each class is designated by a mnemonic character, which serves as the
+@c name of the class when you need to specify a class.  Usually the
+@c designator character is one that is frequently in that class; however,
+@c its meaning as a designator is unvarying and independent of what syntax
+@c that character currently has.
+各クラスはニーモニック文字（指定子）で区別します。
+ニーモニック文字は、
+クラスを指定する必要があるときにクラス名として働きます。
+通常、指定子の文字は当該クラスによく現れるものです。
+しかしながら、指定子としての意味は不変で、その文字の現在の構文とは独立です。
+
+@c @cindex syntax descriptor
+@cindex 構文記述子
+@c   A syntax descriptor is a Lisp string that specifies a syntax class, a
+@c matching character (used only for the parenthesis classes) and flags.
+@c The first character is the designator for a syntax class.  The second
+@c character is the character to match; if it is unused, put a space there.
+@c Then come the characters for any desired flags.  If no matching
+@c character or flags are needed, one character is sufficient.
+構文記述子は、構文クラス、（括弧のクラスの場合にのみ使われる）
+釣り合う文字、フラグを指定するLisp文字列です。
+最初の文字は、構文クラスを指定する文字（指定子）です。
+2番目の文字はその文字に釣り合う文字ですが、使用しない場合には空白です。
+そのあとに望みのフラグが続きます。
+釣り合う文字やフラグが必要なければ、文字1つだけで十分です。
+
+@c   For example, the syntax descriptor for the character @samp{*} in C
+@c mode is @samp{@w{. 23}} (i.e., punctuation, matching character slot
+@c unused, second character of a comment-starter, first character of an
+@c comment-ender), and the entry for @samp{/} is @samp{@w{. 14}} (i.e.,
+@c punctuation, matching character slot unused, first character of a
+@c comment-starter, second character of a comment-ender).
+たとえば、Cモードにおける文字@samp{*}の構文記述子は
+@samp{@w{. 23}}（句読点、釣り合う文字なし、
+コメント開始の2番目の文字、コメント終了の最初の文字）であり、
+@samp{/}は@samp{@w{. 14}}（句読点、釣り合う文字なし、
+コメント開始の最初の文字、コメント終了の2番目の文字）です。
+
+@menu
+* Syntax Class Table::      Table of syntax classes.
+* Syntax Flags::            Additional flags each character can have.
+@end menu
+
+@node Syntax Class Table
+@c @subsection Table of Syntax Classes
+@subsection 構文クラス一覧
+
+@c   Here is a table of syntax classes, the characters that stand for them,
+@c their meanings, and examples of their use.
+以下の一覧は、構文クラス、そのクラスを表す文字（指定子）、
+そのクラスの意味、その使用例です。
+
+@c @deffn {Syntax class} @w{whitespace character}
+@deffn {構文クラス} @w{白文字（whitespace character）}
+@c @dfn{Whitespace characters} (designated by @w{@samp{@ }} or @samp{-})
+@c separate symbols and words from each other.  Typically, whitespace
+@c characters have no other syntactic significance, and multiple whitespace
+@c characters are syntactically equivalent to a single one.  Space, tab,
+@c newline and formfeed are classified as whitespace in almost all major
+@c modes.
+@dfn{白文字}（@w{@samp{@ }}か@samp{-}で指定）は、
+シンボルや単語を互いに区切る。
+典型的には、白文字には他の構文上の意味はなく、
+複数個の白文字は1つの白文字と構文的には等価である。
+ほとんどすべてのメジャーモードでは、
+空白、タブ、改行、ページ送りは白文字である。
+@end deffn
+
+@c @deffn {Syntax class} @w{word constituent}
+@deffn {構文クラス} @w{単語構成文字（word constituent）}
+@c @dfn{Word constituents} (designated by @samp{w}) are parts of normal
+@c English words and are typically used in variable and command names in
+@c programs.  All upper- and lower-case letters, and the digits, are typically
+@c word constituents.
+@dfn{単語構成文字}（@samp{w}で指定）は普通の英単語の一部分であり、
+典型的には、プログラムの変数やコマンド名に使われる。
+すべての大英文字、小英文字、数字文字は、典型的には単語構成文字である。
+@end deffn
+
+@c @deffn {Syntax class} @w{symbol constituent}
+@deffn {構文クラス} @w{シンボル構成文字（symbol constituent）}
+@c @dfn{Symbol constituents} (designated by @samp{_}) are the extra
+@c characters that are used in variable and command names along with word
+@c constituents.  For example, the symbol constituents class is used in
+@c Lisp mode to indicate that certain characters may be part of symbol
+@c names even though they are not part of English words.  These characters
+@c are @samp{$&*+-_<>}.  In standard C, the only non-word-constituent
+@c character that is valid in symbols is underscore (@samp{_}).
+@dfn{シンボル構成文字}（@samp{_}で指定）は、
+単語構成文字に加えて、変数やコマンド名に使われる追加の文字である。
+たとえば、英単語の一部分ではないがシンボル名に使える特定の文字を指定
+するために、Lispモードではシンボル構成文字クラスを使う。
+このような文字は@samp{$&*+-_<>}である。
+標準のCでは、単語構成文字でなくてシンボルに使える唯一の文字は
+下線（@samp{_}）である。
+@end deffn
+
+@c @deffn {Syntax class} @w{punctuation character}
+@deffn {構文クラス} @w{句読点文字（punctuation character）}
+@c @dfn{Punctuation characters} (designated by @samp{.}) are those
+@c characters that are used as punctuation in English, or are used in some
+@c way in a programming language to separate symbols from one another.
+@c Most programming language modes, including Emacs Lisp mode, have no
+@c characters in this class since the few characters that are not symbol or
+@c word constituents all have other uses.
+@dfn{句読点文字}（@samp{.}で指定）は、
+英文の句読点として使われたり、
+プログラム言語でシンボルを区切るために使われる文字である。
+emacs-lispモードを含むほとんどのプログラム言語向けモードでは、
+シンボル構成文字でも単語構成文字でもない少数の文字には別の用途があるため、
+このクラスの文字はない。
+@end deffn
+
+@c @deffn {Syntax class} @w{open parenthesis character}
+@deffn {構文クラス} @w{開き括弧文字（open parenthesis character）}
+@c @deffnx {Syntax class} @w{close parenthesis character}
+@deffnx {構文クラス} @w{閉じ括弧文字（close parenthesis character）}
+@c @cindex parenthesis syntax
+@cindex 括弧の構文
+@c Open and close @dfn{parenthesis characters} are characters used in
+@c dissimilar pairs to surround sentences or expressions.  Such a grouping
+@c is begun with an open parenthesis character and terminated with a close.
+@c Each open parenthesis character matches a particular close parenthesis
+@c character, and vice versa.  Normally, Emacs indicates momentarily the
+@c matching open parenthesis when you insert a close parenthesis.
+@c @xref{Blinking}.
+開き／閉じ@dfn{括弧文字}は、文や式を囲む相異なる対として使われる文字である。
+そのようなグループ化は、開き括弧文字で始まり閉じ括弧文字で終る。
+各開き括弧文字は特定の閉じ括弧文字に対応し、その逆もいえる。
+Emacsは、通常、閉じ括弧文字を挿入すると
+対応する開き括弧文字を短時間指し示す。
+@pxref{Blinking}。
+
+@c The class of open parentheses is designated by @samp{(}, and that of
+@c close parentheses by @samp{)}.
+開き括弧文字クラスは@samp{(}で指定し、
+閉じ括弧文字クラスは@samp{)}で指定する。
+
+@c In English text, and in C code, the parenthesis pairs are @samp{()},
+@c @samp{[]}, and @samp{@{@}}.  In Emacs Lisp, the delimiters for lists and
+@c vectors (@samp{()} and @samp{[]}) are classified as parenthesis
+@c characters.
+英文向けのテキスト（text）モードとCモードでは、
+括弧の対は、@samp{()}、@samp{[]}、@samp{@{@}}である。
+Emacs Lispでは、リストとベクトルの区切り（@samp{()}と@samp{[]}）は、
+括弧文字としてクラス分けされる。
+@end deffn
+
+@c @deffn {Syntax class} @w{string quote}
+@deffn {構文クラス} @w{文字列クォート（string quote）}
+@c @dfn{String quote characters} (designated by @samp{"}) are used in
+@c many languages, including Lisp and C, to delimit string constants.  The
+@c same string quote character appears at the beginning and the end of a
+@c string.  Such quoted strings do not nest.
+@dfn{文字列クォート文字}（@samp{"}で指定）は、
+LispやCを含む多くの言語で文字列定数を区切るために使われる。
+同じ文字列クォート文字が文字列の最初と最後に現れる。
+
+@c The parsing facilities of Emacs consider a string as a single token.
+@c The usual syntactic meanings of the characters in the string are
+@c suppressed.
+Emacsの構文解析機能では、文字列を1つの字句とみなす。
+文字列内の文字の普通の構文的な意味は抑制される。
+
+@c The Lisp modes have two string quote characters: double-quote (@samp{"})
+@c and vertical bar (@samp{|}).  @samp{|} is not used in Emacs Lisp, but it
+@c is used in Common Lisp.  C also has two string quote characters:
+@c double-quote for strings, and single-quote (@samp{'}) for character
+@c constants.
+lisp向けのモードには文字列クォート文字が2つ、
+ダブルクォート（@samp{"}）と縦棒（@samp{|}）がある。
+@samp{|}はEmacs Lispでは使わないがCommon Lispで使う。
+Cにも2つの文字列クォート文字、
+文字列用のダブルクォートと文字定数用のシングルクォート（@samp{'}）がある。
+
+@c English text has no string quote characters because English is not a
+@c programming language.  Although quotation marks are used in English,
+@c we do not want them to turn off the usual syntactic properties of
+@c other characters in the quotation.
+英文はプログラム言語ではないので、英文には文字列クォート文字はない。
+英文でも引用符は用いるが、その内側の文字の普通の構文的な属性を
+抑制したくないのである。
+@end deffn
+
+@c @deffn {Syntax class} @w{escape}
+@deffn {構文クラス} @w{エスケープ（escape）}
+@c An @dfn{escape character} (designated by @samp{\}) starts an escape
+@c sequence such as is used in C string and character constants.  The
+@c character @samp{\} belongs to this class in both C and Lisp.  (In C, it
+@c is used thus only inside strings, but it turns out to cause no trouble
+@c to treat it this way throughout C code.)
+@dfn{エスケープ文字}（@samp{\}で指定）は、
+Cの文字列や文字定数で使われるようなエスケープシーケンスを開始する。
+CとLispでは、文字@samp{\}はこのクラスに属する。
+（Cではこの文字は文字列の内側だけで使われるが、
+Cモードでつねにこのように扱っても問題ないことがわかった。）
+
+@c Characters in this class count as part of words if
+@c @code{words-include-escapes} is non-@code{nil}.  @xref{Word Motion}.
+@code{words-include-escapes}が@code{nil}以外であると、
+このクラスの文字は単語の一部分と解釈される。
+@pxref{Word Motion}。
+@end deffn
+
+@c @deffn {Syntax class} @w{character quote}
+@deffn {構文クラス} @w{文字クォート（character quote）}
+@c A @dfn{character quote character} (designated by @samp{/}) quotes the
+@c following character so that it loses its normal syntactic meaning.  This
+@c differs from an escape character in that only the character immediately
+@c following is ever affected.
+@dfn{文字クォート文字}（@samp{/}で指定）は、
+後続の1文字をクォートし、通常の構文上の意味を抑制する。
+直後の1文字のみに影響するという点で、エスケープ文字と異なる。
+
+@c Characters in this class count as part of words if
+@c @code{words-include-escapes} is non-@code{nil}.  @xref{Word Motion}.
+@code{words-include-escapes}が@code{nil}以外であると、
+このクラスの文字は単語の一部分と解釈される。
+@pxref{Word Motion}。
+
+@c This class is used for backslash in @TeX{} mode.
+このクラスは、@TeX{}モードのバックスラッシュに使われる。
+@end deffn
+
+@c @deffn {Syntax class} @w{paired delimiter}
+@deffn {構文クラス} @w{対になった区切り（paired delimiter）}
+@c @dfn{Paired delimiter characters} (designated by @samp{$}) are like
+@c string quote characters except that the syntactic properties of the
+@c characters between the delimiters are not suppressed.  Only @TeX{} mode
+@c uses a paired delimiter presently---the @samp{$} that both enters and
+@c leaves math mode.
+@dfn{対になった区切り文字}（@samp{$}）は文字列クォート文字と同様であるが、
+区切り文字のあいだにある文字の構文上の属性を抑制しない点が異なる。
+現在、対になった区切りは@TeX{}モードのみで使い、
+数学モードに出入りする@samp{$}である。
+@end deffn
+
+@c @deffn {Syntax class} @w{expression prefix}
+@deffn {構文クラス} @w{式前置子（expression prefix）}
+@c An @dfn{expression prefix operator} (designated by @samp{'}) is used for
+@c syntactic operators that are considered as part of an expression if they
+@c appear next to one.  In Lisp modes, these characters include the
+@c apostrophe, @samp{'} (used for quoting), the comma, @samp{,} (used in
+@c macros), and @samp{#} (used in the read syntax for certain data types).
+@dfn{式前置演算子}（@samp{'}）は、式のまえに現れると
+式の一部であるとみなされる構文上の演算子に使われる。
+lisp向けのモードでは、（クォートする）アポストロフ@samp{'}、
+（マクロで使う）コンマ@samp{,}、
+（ある種のデータの入力構文に使われる）@samp{#}の文字がそうである。
+@end deffn
+
+@c @deffn {Syntax class} @w{comment starter}
+@c @deffnx {Syntax class} @w{comment ender}
+@c @cindex comment syntax
+@deffn {構文クラス} @w{コメント開始（comment starter）}
+@deffnx {構文クラス} @w{コメント終了（comment ender）}
+@cindex コメントの構文
+@c The @dfn{comment starter} and @dfn{comment ender} characters are used in
+@c various languages to delimit comments.  These classes are designated
+@c by @samp{<} and @samp{>}, respectively.
+@dfn{コメント開始}文字と@dfn{コメント終了}文字は、
+さまざまな言語でコメントを区切るために用いられる。
+これらのクラスは、それぞれ、@samp{<}と@samp{>}で指定する。
+
+@c English text has no comment characters.  In Lisp, the semicolon
+@c (@samp{;}) starts a comment and a newline or formfeed ends one.
+英文にはコメント文字はない。
+Lispでは、セミコロン（@samp{;}）でコメントが始まり、
+改行かページ送りで終る。
+@end deffn
+
+@c @deffn {Syntax class} @w{inherit}
+@deffn {構文クラス} @w{継承（inherit）}
+@c This syntax class does not specify a particular syntax.  It says to look
+@c in the standard syntax table to find the syntax of this character.  The
+@c designator for this syntax code is @samp{@@}.
+この構文クラスは特定の構文を指定しない。
+標準の構文テーブルで当該文字の構文を探す指定である。
+この構文クラスは@samp{@@}で指定する。
+@end deffn
+
+@c @deffn {Syntax class} @w{generic comment delimiter}
+@deffn {構文クラス} @w{汎用コメント区切り（generic comment delimiter）}
+@c A @dfn{generic comment delimiter} character starts or ends a special
+@c kind of comment.  @emph{Any} generic comment delimiter matches
+@c @emph{any} generic comment delimiter, but they cannot match a comment
+@c starter or comment ender; generic comment delimiters can only match each
+@c other.
+@dfn{汎用コメント区切り}文字は、特別な種類のコメントを
+始めて終える文字である。
+@emph{任意の}汎用コメント区切り文字は
+@emph{任意の}汎用コメント区切り文字に対応するが、
+普通のコメント開始文字／コメント終了文字には対応しない。
+汎用コメント区切り文字同士のみで対応する。
+
+@c This syntax class is primarily meant for use with the
+@c @code{syntax-table} text property (@pxref{Syntax Properties}).  You can
+@c mark any range of characters as forming a comment, by giving the first
+@c and last characters of the range @code{syntax-table} properties
+@c identifying them as generic comment delimiters.
+この構文クラスは、主にテキスト属性@code{syntax-table}
+（@pxref{Syntax Properties}）で使うことを意図したものである。
+任意の範囲の文字がコメントを形成すると印を付けるには、
+その範囲の先頭と末尾の文字にそれらが汎用コメント区切りであることを
+識別する属性@code{syntax-table}を与える。
+@end deffn
+
+@c @deffn {Syntax class} @w{generic string delimiter}
+@deffn {構文クラス} @w{汎用文字列区切り（generic string delimiter）}
+@c A @dfn{generic string delimiter} character starts or ends a string.
+@c This class differs from the string quote class in that @emph{any}
+@c generic string delimiter can match any other generic string delimiter;
+@c but they do not match ordinary string quote characters.
+@dfn{汎用文字列区切り}文字は、文字列を始めて終える。
+このクラスは文字列クォートクラスと異なり、
+汎用文字列区切りは他の汎用文字列区切りに対応し、
+普通の文字列クォート文字には対応しない。
+
+@c This syntax class is primarily meant for use with the
+@c @code{syntax-table} text property (@pxref{Syntax Properties}).  You can
+@c mark any range of characters as forming a string constant, by giving the
+@c first and last characters of the range @code{syntax-table} properties
+@c identifying them as generic string delimiters.
+この構文クラスは、主にテキスト属性@code{syntax-table}
+（@pxref{Syntax Properties}）で使うことを意図したものである。
+任意の範囲の文字が文字列定数を形成すると印を付けるには、
+その範囲の先頭と末尾の文字にそれらが汎用文字列区切りであることを
+識別する属性@code{syntax-table}を与える。
+@end deffn
+
+@node Syntax Flags
+@c @subsection Syntax Flags
+@subsection 構文フラグ
+@c @cindex syntax flags
+@cindex 構文フラグ
+
+@c   In addition to the classes, entries for characters in a syntax table
+@c can specify flags.  There are six possible flags, represented by the
+@c characters @samp{1}, @samp{2}, @samp{3}, @samp{4}, @samp{b} and
+@c @samp{p}.
+構文テーブルの各文字には、構文クラスに加えて、フラグも指定できます。
+文字@samp{1}、@samp{2}、@samp{3}、@samp{4}、@samp{b}、@samp{p}で
+表現される6つの可能なフラグがあります。
+
+@c   All the flags except @samp{p} are used to describe multi-character
+@c comment delimiters.  The digit flags indicate that a character can
+@c @emph{also} be part of a comment sequence, in addition to the syntactic
+@c properties associated with its character class.  The flags are
+@c independent of the class and each other for the sake of characters such
+@c as @samp{*} in C mode, which is a punctuation character, @emph{and} the
+@c second character of a start-of-comment sequence (@samp{/*}), @emph{and}
+@c the first character of an end-of-comment sequence (@samp{*/}).
+@samp{p}を除くすべてのフラグは、複数の文字から成るコメント区切りの記述に
+使います。
+数字フラグは、当該文字のクラスで表される構文上の属性に@emph{加えて}、
+コメント列の一部分でもあることを示します。
+フラグはクラスや他のフラグとは独立であり、
+Cモードの@samp{*}のような文字のためにあります。
+Cモードの@samp{*}は、句読点文字である@emph{とともに}、
+コメント開始列の2番目の文字@samp{/*}@emph{でも}あり、
+コメント終了列の最初の文字@samp{*/}@emph{でも}あります。
+
+@c   Here is a table of the possible flags for a character @var{c},
+@c and what they mean:
+文字@var{c}に対して可能なフラグとそれらの意味を以下に示します。
+
+@itemize @bullet
+@item
+@c @samp{1} means @var{c} is the start of a two-character comment-start
+@c sequence.
+@samp{1}は、@var{c}が2文字のコメント開始列を始めることを意味する。
+
+@item
+@c @samp{2} means @var{c} is the second character of such a sequence.
+@samp{2}は、@var{c}がそのような列の2番目の文字であることを意味する。
+
+@item
+@c @samp{3} means @var{c} is the start of a two-character comment-end
+@c sequence.
+@samp{3}は、@var{c}が2文字のコメント終了列を始めることを意味する。
+
+@item
+@c @samp{4} means @var{c} is the second character of such a sequence.
+@samp{4}は、@var{c}がそのような列の2番目の文字であることを意味する。
+
+@item
+@c @c Emacs 19 feature
+@c @samp{b} means that @var{c} as a comment delimiter belongs to the
+@c alternative ``b'' comment style.
+@samp{b}は、コメント区切りとしての@var{c}が
+もう1つの『b』形式のコメントに属することを意味する。
+
+@c Emacs supports two comment styles simultaneously in any one syntax
+@c table.  This is for the sake of C++.  Each style of comment syntax has
+@c its own comment-start sequence and its own comment-end sequence.  Each
+@c comment must stick to one style or the other; thus, if it starts with
+@c the comment-start sequence of style ``b'', it must also end with the
+@c comment-end sequence of style ``b''.
+Emacsでは、任意の1つの構文テーブルで2つの形式のコメントを同時に扱える。
+これはC++のためである。
+コメント構文の各形式には、独自の開始列と独自の終了列がある。
+各コメントはどちらか1つの形式である必要がある。
+したがって、『b』形式のコメント開始列で始まるものは、
+『b』形式のコメント終了列で終る必要がある。
+
+@c The two comment-start sequences must begin with the same character; only
+@c the second character may differ.  Mark the second character of the
+@c ``b''-style comment-start sequence with the @samp{b} flag.
+2つのコメント開始列は同じ文字で始まる必要があり、2文字目のみが異なる。
+『b』形式のコメント開始列の2番目の文字にフラグ@samp{b}を付ける。
+
+@c A comment-end sequence (one or two characters) applies to the ``b''
+@c style if its first character has the @samp{b} flag set; otherwise, it
+@c applies to the ``a'' style.
+（1文字か2文字の）コメント終了列は、
+その最初の文字にフラグ@samp{b}が付いていると『b』形式に適用する。
+さもなければ『a』形式に適用する。
+
+@c The appropriate comment syntax settings for C++ are as follows:
+C++向けの適切なコメント構文の設定はつぎのとおりである。
+
+@table @asis
+@item @samp{/}
+@samp{124b}
+@item @samp{*}
+@samp{23}
+@item newline
+@samp{>b}
+@end table
+
+@c This defines four comment-delimiting sequences:
+これは4つのコメント区切り列を定義する。
+
+@table @asis
+@item @samp{/*}
+@c This is a comment-start sequence for ``a'' style because the
+@c second character, @samp{*}, does not have the @samp{b} flag.
+2文字目の@samp{*}にはフラグ@samp{b}がないので、
+これは『a』形式のコメント開始列である。
+
+@item @samp{//}
+@c This is a comment-start sequence for ``b'' style because the second
+@c character, @samp{/}, does have the @samp{b} flag.
+2文字目の@samp{/}にはフラグ@samp{b}があるので、
+これは『b』形式のコメント開始列である。
+
+@item @samp{*/}
+@c This is a comment-end sequence for ``a'' style because the first
+@c character, @samp{*}, does not have the @samp{b} flag.
+2文字目の@samp{*}にはフラグ@samp{b}がないので、
+これは『a』形式のコメント終了列である。
+
+@item newline
+@c This is a comment-end sequence for ``b'' style, because the newline
+@c character has the @samp{b} flag.
+改行にはフラグ@samp{b}があるので、
+これは『b』形式のコメント終了列である。
+@end table
+
+@item
+@c @c Emacs 19 feature
+@c @samp{p} identifies an additional ``prefix character'' for Lisp syntax.
+@c These characters are treated as whitespace when they appear between
+@c expressions.  When they appear within an expression, they are handled
+@c according to their usual syntax codes.
+@samp{p}は、Lisp構文向けの追加の『前置文字』を示す。
+これらの文字は式のあいだに現れるときには白文字として扱う。
+式の内側に現れると、それらの通常の構文コードに従って扱われる。
+
+@c The function @code{backward-prefix-chars} moves back over these
+@c characters, as well as over characters whose primary syntax class is
+@c prefix (@samp{'}).  @xref{Motion and Syntax}.
+関数@code{backward-prefix-chars}は後方へ向けて移動するときには、
+構文クラスが式前置子（@samp{'}）である文字に加えて
+これらの文字も飛び越す。
+@pxref{Motion and Syntax}。
+@end itemize
+
+@node Syntax Table Functions
+@c @section Syntax Table Functions
+@section 構文テーブル向け関数
+
+@c   In this section we describe functions for creating, accessing and
+@c altering syntax tables.
+本節では、構文テーブルを作成／参照／変更するための関数について述べます。
+
+@defun make-syntax-table
+@c This function creates a new syntax table.  It inherits the syntax for
+@c letters and control characters from the standard syntax table.  For
+@c other characters, the syntax is copied from the standard syntax table.
+この関数は、新たな構文テーブルを作成する。
+英文字やコントロール文字の構文は標準の構文テーブルから継承する。
+他の文字の構文は標準の構文テーブルからコピーする。
+
+@c Most major mode syntax tables are created in this way.
+ほとんどのメジャーモードの構文テーブルはこのように作成する。
+@end defun
+
+@defun copy-syntax-table &optional table
+@c This function constructs a copy of @var{table} and returns it.  If
+@c @var{table} is not supplied (or is @code{nil}), it returns a copy of the
+@c current syntax table.  Otherwise, an error is signaled if @var{table} is
+@c not a syntax table.
+この関数は、構文テーブル@var{table}のコピーを作成しそれを返す。
+@var{table}を指定しないと（あるいは@code{nil}）、
+現在の構文テーブルのコピーを返す。
+@var{table}が構文テーブルでないとエラーを通知する。
+@end defun
+
+@c @deffn Command modify-syntax-entry char syntax-descriptor  &optional table
+@deffn コマンド modify-syntax-entry char syntax-descriptor  &optional table
+@c This function sets the syntax entry for @var{char} according to
+@c @var{syntax-descriptor}.  The syntax is changed only for @var{table},
+@c which defaults to the current buffer's syntax table, and not in any
+@c other syntax table.  The argument @var{syntax-descriptor} specifies the
+@c desired syntax; this is a string beginning with a class designator
+@c character, and optionally containing a matching character and flags as
+@c well.  @xref{Syntax Descriptors}.
+この関数は、文字@var{char}の構文指定を
+構文記述子@var{syntax-descriptor}とする。
+構文テーブル@var{table}においてのみ構文を変更し、
+他の構文テーブルは変更しない。
+@var{table}のデフォルトはカレントバッファの構文テーブルである。
+@var{syntax-descriptor}で望みの構文を指定する。
+これは、クラス指定子で始まり、
+必要に応じて釣り合う文字とフラグを含む文字列である。
+@pxref{Syntax Descriptors}。
+
+@c This function always returns @code{nil}.  The old syntax information in
+@c the table for this character is discarded.
+この関数はつねに@code{nil}を返す。
+当該構文テーブルにおけるこの文字に対する古い構文情報は破棄される。
+
+@c An error is signaled if the first character of the syntax descriptor is not
+@c one of the twelve syntax class designator characters.  An error is also
+@c signaled if @var{char} is not a character.
+構文記述子の最初の文字が12個の構文クラス指定子の1つでないとエラーを通知する。
+@var{char}が文字でなくてもエラーを通知する。
+
+@example
+@group
+@c @exdent @r{Examples:}
+@exdent @r{【例】}
+
+@c ;; @r{Put the space character in class whitespace.}
+;; @r{空白文字をクラス白文字にする}
+(modify-syntax-entry ?\  " ")
+     @result{} nil
+@end group
+
+@group
+@c ;; @r{Make @samp{$} an open parenthesis character,}
+@c ;;   @r{with @samp{^} as its matching close.}
+;; @r{@samp{$}を開き括弧文字にする}
+;;   @r{対応する閉じる文字は@samp{^}である}
+(modify-syntax-entry ?$ "(^")
+     @result{} nil
+@end group
+
+@group
+@c ;; @r{Make @samp{^} a close parenthesis character,}
+@c ;;   @r{with @samp{$} as its matching open.}
+;; @r{@samp{^}を閉じ括弧文字にする}
+;;   @r{対応する開く文字は{$}である}
+(modify-syntax-entry ?^ ")$")
+     @result{} nil
+@end group
+
+@group
+@c ;; @r{Make @samp{/} a punctuation character,}
+@c ;;   @r{the first character of a start-comment sequence,}
+@c ;;   @r{and the second character of an end-comment sequence.}
+@c ;;   @r{This is used in C mode.}
+;; @r{@samp{/}を句読点文字にする}
+;;   @r{コメント開始列の最初の文字、および、}
+;;   @r{コメント終了列の2番目の文字にもする}
+;;   @r{これはCモードで用いられる}
+(modify-syntax-entry ?/ ". 14")
+     @result{} nil
+@end group
+@end example
+@end deffn
+
+@defun char-syntax character
+@c This function returns the syntax class of @var{character}, represented
+@c by its mnemonic designator character.  This returns @emph{only} the
+@c class, not any matching parenthesis or flags.
+この関数は、文字@var{character}の構文クラスを指定子で表したもので返す。
+これは構文クラス@emph{のみ}を返し、釣り合う文字や構文フラグは返さない。
+
+@c An error is signaled if @var{char} is not a character.
+@var{char}が文字でないとエラーを通知する。
+
+@c The following examples apply to C mode.  The first example shows that
+@c the syntax class of space is whitespace (represented by a space).  The
+@c second example shows that the syntax of @samp{/} is punctuation.  This
+@c does not show the fact that it is also part of comment-start and -end
+@c sequences.  The third example shows that open parenthesis is in the class
+@c of open parentheses.  This does not show the fact that it has a matching
+@c character, @samp{)}.
+つぎの例はCモードにあてはまる。
+最初の例は、空白の構文クラスが（空白で表現される）白文字であることを示す。
+2番目の例は、@samp{/}の構文が句読点であることを示す。
+これは、この文字がコメント開始／終了の一部分でもあることは示さない。
+3番目の例は、開き括弧は開き括弧クラスであることを示す。
+これは、この文字に釣り合う文字が@samp{)}であることは示さない。
+
+@example
+@group
+(string (char-syntax ?\ ))
+     @result{} " "
+@end group
+
+@group
+(string (char-syntax ?/))
+     @result{} "."
+@end group
+
+@group
+(string (char-syntax ?\())
+     @result{} "("
+@end group
+@end example
+
+@c We use @code{string} to make it easier to see the character returned by
+@c @code{char-syntax}.
+ここでは、@code{char-syntax}が返す文字を
+見やすくするために@code{string}を用いた。
+@end defun
+
+@defun set-syntax-table table
+@c This function makes @var{table} the syntax table for the current buffer.
+@c It returns @var{table}.
+この関数は、@var{table}をカレントバッファの構文テーブルにする。
+@var{table}を返す。
+@end defun
+
+@defun syntax-table
+@c This function returns the current syntax table, which is the table for
+@c the current buffer.
+この関数は、現在の構文テーブル、つまり、
+カレントバッファの構文テーブルを返す。
+@end defun
+
+@node Syntax Properties
+@c @section Syntax Properties
+@section 構文属性
+@c @kindex syntax-table @r{(text property)}
+@kindex syntax-table @r{（テキスト属性）}
+
+@c When the syntax table is not flexible enough to specify the syntax of a
+@c language, you can use @code{syntax-table} text properties to override
+@c the syntax table for specific character occurrences in the buffer.
+@c @xref{Text Properties}.
+言語の構文を指定するに十分なほど構文テーブルに柔軟性がないときには、
+バッファ内の特定の文字の出現に対して構文テーブルに優先する
+テキスト属性@code{syntax-table}を指定できます。
+@xref{Text Properties}。
+
+@c The valid values of @code{syntax-table} text property are:
+テキスト属性@code{syntax-table}の正しい値はつぎのとおりです。
+
+@table @asis
+@item @var{syntax-table}
+@c If the property value is a syntax table, that table is used instead of
+@c the current buffer's syntax table to determine the syntax for this
+@c occurrence of the character.
+属性値が構文テーブルであると、
+文字のこの出現に対する構文を判定するために
+カレントバッファの構文テーブルのかわりにこのテーブルを用いる。
+
+@item @code{(@var{syntax-code} . @var{matching-char})}
+@c A cons cell of this format specifies the syntax for this
+@c occurrence of the character.
+この形のコンスセルは、文字のこの出現の構文を指定する。
+
+@item @code{nil}
+@c If the property is @code{nil}, the character's syntax is determined from
+@c the current syntax table in the usual way.
+属性が@code{nil}であると、通常どおり、
+現在の構文テーブルから文字の構文を判定する。
+@end table
+
+@defvar parse-sexp-lookup-properties
+@tindex parse-sexp-lookup-properties
+@c If this is non-@code{nil}, the syntax scanning functions pay attention
+@c to syntax text properties.  Otherwise they use only the current syntax
+@c table.
+これが@code{nil}以外であると、
+構文を解析する関数は、テキスト属性による構文指定に注意を払う。
+さもなければ、現在の構文テーブルのみを用いる。
+@end defvar
+
+@node Motion and Syntax
+@c @section Motion and Syntax
+@section 移動と構文
+
+@c   This section describes functions for moving across characters that
+@c have certain syntax classes.
+本節では、特定の構文クラスを持つ文字を越えて移動するための
+関数について述べます。
+
+@defun skip-syntax-forward syntaxes &optional limit
+@c This function moves point forward across characters having syntax classes
+@c mentioned in @var{syntaxes}.  It stops when it encounters the end of
+@c the buffer, or position @var{limit} (if specified), or a character it is
+@c not supposed to skip.
+@c The return value is the distance traveled, which is a nonnegative
+@c integer.
+この関数は、@var{syntaxes}で指定される構文クラスを持つ文字を越えて
+ポイントを前方へ向けて移動する。
+バッファの末尾、（指定されていれば）@var{limit}の位置、
+飛び越さない文字のいずれかに出会うと停止する。
+戻り値は移動距離であり非負整数である。
+@end defun
+
+@defun skip-syntax-backward syntaxes &optional limit
+@c This function moves point backward across characters whose syntax
+@c classes are mentioned in @var{syntaxes}.  It stops when it encounters
+@c the beginning of the buffer, or position @var{limit} (if specified), or a
+@c character it is not supposed to skip.
+この関数は、@var{syntaxes}で指定される構文クラスである文字を越えて
+ポイントを後方へ向けて移動する。
+バッファの先頭、（指定されていれば）@var{limit}の位置、
+飛び越さない文字のいずれかに出会うと停止する。
+
+@c The return value indicates the distance traveled.  It is an integer that
+@c is zero or less.
+戻り値は移動距離である。
+それはゼロか負の整数である。
+@end defun
+
+@defun backward-prefix-chars
+@c This function moves point backward over any number of characters with
+@c expression prefix syntax.  This includes both characters in the
+@c expression prefix syntax class, and characters with the @samp{p} flag.
+この関数は、式前置子構文の文字を飛び越えてポイントを後方へ向けて移動する。
+式前置子クラスやフラグ@samp{p}を持つ文字を飛び越す。
+@end defun
+
+@node Parsing Expressions
+@c @section Parsing Balanced Expressions
+@section 釣り合った式の解析
+
+@c   Here are several functions for parsing and scanning balanced
+@c expressions, also known as @dfn{sexps}, in which parentheses match in
+@c pairs.  The syntax table controls the interpretation of characters, so
+@c these functions can be used for Lisp expressions when in Lisp mode and
+@c for C expressions when in C mode.  @xref{List Motion}, for convenient
+@c higher-level functions for moving over balanced expressions.
+ここでは、括弧が対になっている@dfn{S式}（sexp）とも呼ばれる
+釣り合った式を解析したり走査する関数について述べます。
+構文テーブルで文字の解釈を制御することで、
+LispモードではLispの式に対して、CモードではCの式に対して
+これらの関数を用いることができます。
+釣り合った式を飛び越えて移動するための便利な上位レベルの関数については、
+@xref{List Motion}。
+
+@defun parse-partial-sexp start limit &optional target-depth stop-before state stop-comment
+@c This function parses a sexp in the current buffer starting at
+@c @var{start}, not scanning past @var{limit}.  It stops at position
+@c @var{limit} or when certain criteria described below are met, and sets
+@c point to the location where parsing stops.  It returns a value
+@c describing the status of the parse at the point where it stops.
+この関数は、カレントバッファの@var{start}から始まるS式を解析するが、
+@var{limit}を越えては走査しない。
+位置@var{limit}で止まるか、
+以下に述べる条件が満たされると解析を停止し、当該箇所にポイントを置く。
+ポイントを置いた箇所での解析状況を表す値を返す。
+
+@c If @var{state} is @code{nil}, @var{start} is assumed to be at the top
+@c level of parenthesis structure, such as the beginning of a function
+@c definition.  Alternatively, you might wish to resume parsing in the
+@c middle of the structure.  To do this, you must provide a @var{state}
+@c argument that describes the initial status of parsing.
+@var{state}が@code{nil}であると、
+位置@var{start}は、関数定義の先頭のような
+括弧の構造のトップレベルであると仮定する。
+あるいは、構造の途中から解析を再開したい場合もある。
+それには、解析の初期状態を引数@var{state}に指定する必要がある。
+
+@c @cindex parenthesis depth
+@cindex 括弧の深さ
+@c If the third argument @var{target-depth} is non-@code{nil}, parsing
+@c stops if the depth in parentheses becomes equal to @var{target-depth}.
+@c The depth starts at 0, or at whatever is given in @var{state}.
+3番目の引数@var{target-depth}が@code{nil}以外であると、
+括弧の深さが@var{target-depth}に等しくなると解析を停止する。
+深さは0、あるいは、@var{state}で指定された値から始まる。
+
+@c If the fourth argument @var{stop-before} is non-@code{nil}, parsing
+@c stops when it comes to any character that starts a sexp.  If
+@c @var{stop-comment} is non-@code{nil}, parsing stops when it comes to the
+@c start of a comment.  If @var{stop-comment} is the symbol
+@c @code{syntax-table}, parsing stops after the start of a comment or a
+@c string, or the end of a comment or a string, whichever comes first.
+4番目の引数@var{stop-before}が@code{nil}以外であると、
+S式を始める文字に出会うと解析を停止する。
+@var{stop-comment}が@code{nil}以外であると、
+コメントの始まりに出会うと解析を停止する。
+@var{stop-comment}がシンボル@code{syntax-table}であると、
+コメントや文字列の始まり、コメントや文字列の終りのいずれかに
+出会ったあとで解析を停止する。
+
+@c @cindex parse state
+@cindex 解析状態
+@c The fifth argument @var{state} is a nine-element list of the same form
+@c as the value of this function, described below.  (It is OK to omit the
+@c last element of the nine.)  The return value of one call may be used to
+@c initialize the state of the parse on another call to
+@c @code{parse-partial-sexp}.
+5番目の引数@var{state}は9要素のリストであり、
+以下に述べるようにこの関数の値と同じ形である。
+（9番目の最後の要素は省いてもよい。）
+@code{parse-partial-sexp}の呼び出しの戻り値を、
+別の@code{parse-partial-sexp}の呼び出しの解析状態の初期値に使ってよい。
+
+@c The result is a list of nine elements describing the final state of
+@c the parse:
+結果は、解析の最終状態を記述した9要素のリストである。
+
+@enumerate 0
+@item 
+@c The depth in parentheses, counting from 0.
+0から数えた括弧の深さ。
+
+@item 
+@c @cindex innermost containing parentheses
+@cindex もっとも内側の括弧式
+@c The character position of the start of the innermost parenthetical
+@c grouping containing the stopping point; @code{nil} if none.
+ポイントを停止した箇所を含むもっとも内側の括弧式の開始位置。
+なければ@code{nil}。
+
+@item 
+@c @cindex previous complete subexpression
+@cindex まえの完全な部分式
+@c The character position of the start of the last complete subexpression
+@c terminated; @code{nil} if none.
+閉じている最後の完全な部分式の開始位置。
+なければ@code{nil}。
+
+@item 
+@c @cindex inside string
+@cindex 文字列の内側
+@c Non-@code{nil} if inside a string.  More precisely, this is the
+@c character that will terminate the string, or @code{t} if a generic
+@c string delimiter character should terminate it.
+文字列の内側であると@code{nil}以外である。
+より正確には、これは文字列を終える文字である。
+あるいは、汎用文字列区切り文字で終えるときには@code{t}である。
+
+@item 
+@c @cindex inside comment
+@cindex コメントの内側
+@c @code{t} if inside a comment (of either style).
+（どちらかの形式の）コメントの内側であると@code{t}である。
+
+@item 
+@c @cindex quote character
+@cindex クォート文字
+@c @code{t} if point is just after a quote character.
+ポイントがクォート文字の直後であると@code{t}である。
+
+@item 
+@c The minimum parenthesis depth encountered during this scan.
+この解析中に出会った最小の括弧の深さ。
+
+@item
+@c What kind of comment is active: @code{nil} for a comment of style ``a'',
+@c @code{t} for a comment of style ``b'', and @code{syntax-table} for
+@c a comment that should be ended by a generic comment delimiter character.
+どの形式のコメントが活性であるかを表す。
+『a』形式であると@code{nil}、
+『b』形式であると@code{t}、
+汎用コメント区切り文字で終るコメントの場合には@code{syntax-table}である。
+
+@item
+@c The string or comment start position.  While inside a comment, this is
+@c the position where the comment began; while inside a string, this is the
+@c position where the string began.  When outside of strings and comments,
+@c this element is @code{nil}.
+文字列やコメントの開始位置。
+コメントの内側であるときにはこれはコメントの開始位置であり、
+文字列の内側であるときにはこれは文字列の開始位置である。
+文字列やコメントの外側では、この要素は@code{nil}である。
+@end enumerate
+
+@c Elements 0, 3, 4, 5 and 7 are significant in the argument @var{state}.
+引数@var{state}では、要素0、3、4、5、7は重要である。
+
+@c @cindex indenting with parentheses
+@cindex 括弧による字下げ
+@c This function is most often used to compute indentation for languages
+@c that have nested parentheses.
+この関数は、入れ子にあった括弧を持つ言語向けに
+字下げを計算するためにしばしば用いられる。
+@end defun
+
+@defun scan-lists from count depth
+@c This function scans forward @var{count} balanced parenthetical groupings
+@c from position @var{from}.  It returns the position where the scan stops.
+@c If @var{count} is negative, the scan moves backwards.
+この関数は、位置@var{from}から前方へ向けて@var{count}個の
+釣り合った括弧のグループを走査する。
+走査を停止した位置を返す。
+@var{count}が負であると、後方へ向けて走査する。
+
+@c If @var{depth} is nonzero, parenthesis depth counting begins from that
+@c value.  The only candidates for stopping are places where the depth in
+@c parentheses becomes zero; @code{scan-lists} counts @var{count} such
+@c places and then stops.  Thus, a positive value for @var{depth} means go
+@c out @var{depth} levels of parenthesis.
+@var{depth}が0以外であると、括弧の深さをその値から数え始める。
+停止箇所の候補位置は、括弧の深さが0になる箇所である。
+@code{scan-lists}は、そのような箇所を@var{count}回数えてから停止する。
+したがって、@var{depth}に正の値を指定すると、
+括弧のレベルを@var{depth}レベルだけ抜けることを意味する。
+
+@c Scanning ignores comments if @code{parse-sexp-ignore-comments} is
+@c non-@code{nil}.
+@code{parse-sexp-ignore-comments}が@code{nil}以外であると、
+コメントを無視して走査する。
+
+@c If the scan reaches the beginning or end of the buffer (or its
+@c accessible portion), and the depth is not zero, an error is signaled.
+@c If the depth is zero but the count is not used up, @code{nil} is
+@c returned.
+走査がバッファ（あるいはその参照可能部分）の先頭や末尾に達し、
+深さが0でないと、エラーを通知する。
+深さは0であるが指定個数だけ数えてない場合には、@code{nil}を返す。
+@end defun
+
+@defun scan-sexps from count
+@c This function scans forward @var{count} sexps from position @var{from}.
+@c It returns the position where the scan stops.  If @var{count} is
+@c negative, the scan moves backwards.
+この関数は、位置@var{from}から前方へ向けて@var{count}個のS式を走査する。
+走査を終えた位置を返す。
+@var{count}が負であると、後方へ向けて移動する。
+
+@c Scanning ignores comments if @code{parse-sexp-ignore-comments} is
+@c non-@code{nil}.
+@code{parse-sexp-ignore-comments}が@code{nil}以外であると、
+コメントを無視して走査する。
+
+@c If the scan reaches the beginning or end of (the accessible part of) the
+@c buffer while in the middle of a parenthetical grouping, an error is
+@c signaled.  If it reaches the beginning or end between groupings but
+@c before count is used up, @code{nil} is returned.
+走査が括弧によるグループの途中で
+バッファ（あるいはその参照可能部分）の先頭や末尾に達すると、
+エラーを通知する。
+指定個数だけ数えるまえに括弧によるグループのあいだで
+先頭や末尾に達した場合は@code{nil}を返す。
+@end defun
+
+@defvar parse-sexp-ignore-comments
+@c @cindex skipping comments
+@cindex コメントを飛び越える
+@c If the value is non-@code{nil}, then comments are treated as
+@c whitespace by the functions in this section and by @code{forward-sexp}.
+値が@code{nil}以外であると、
+本節の関数や@code{forward-sexp}は、コメントを白文字として扱う。
+
+@c In older Emacs versions, this feature worked only when the comment
+@c terminator is something like @samp{*/}, and appears only to end a
+@c comment.  In languages where newlines terminate comments, it was
+@c necessary make this variable @code{nil}, since not every newline is the
+@c end of a comment.  This limitation no longer exists.
+Emacsの古い版では、コメントの終了が@samp{*/}のような形であり、かつ、
+コメントの終了と思える場合にのみ、この機能は動作した。
+改行でコメントを終える言語では、改行すべてがコメントの終りではないために、
+この変数を@code{nil}にする必要があった。
+このような制限事項はすでにない。
+@end defvar
+
+@c You can use @code{forward-comment} to move forward or backward over
+@c one comment or several comments.
+@code{forward-comment}を使うと、
+1つのコメントや複数のコメントを飛び越えて前後に移動できます。
+
+@defun forward-comment count
+@c This function moves point forward across @var{count} comments (backward,
+@c if @var{count} is negative).  If it finds anything other than a comment
+@c or whitespace, it stops, leaving point at the place where it stopped.
+@c It also stops after satisfying @var{count}.
+この関数は、ポイントを前方へ向けて（@var{count}が負ならば後方へ向けて）
+@var{count}個のコメントを飛び越えて移動する。
+コメントか白文字以外のものに出会うと停止し、当該箇所にポイントを置く。
+@var{count}個だけ数えたあとにももちろん停止する。
+@end defun
+
+@c To move forward over all comments and whitespace following point, use
+@c @code{(forward-comment (buffer-size))}.  @code{(buffer-size)} is a good
+@c argument to use, because the number of comments in the buffer cannot
+@c exceed that many.
+ポイントに続くすべてのコメントと白文字を飛び越えるには、
+@code{(forward-comment (buffer-size))}を使います。
+バッファ内のコメントの個数は@code{(buffer-size)}を越えるはずがないので、
+引数に使うには@code{(buffer-size)}はよいものです。
+
+@node Standard Syntax Tables
+@c @section Some Standard Syntax Tables
+@section 標準的な構文テーブル
+
+@c   Most of the major modes in Emacs have their own syntax tables.  Here
+@c are several of them:
+Emacsのほとんどのメジャーモードにはそれ独自の構文テーブルがあります。
+それらのいくつかをつぎに示します。
+
+@defun standard-syntax-table
+@c This function returns the standard syntax table, which is the syntax
+@c table used in Fundamental mode.
+この関数は、基本（fundamental）モードで使用する構文テーブルである
+標準の構文テーブルを返す。
+@end defun
+
+@defvar text-mode-syntax-table
+@c The value of this variable is the syntax table used in Text mode.
+この変数の値は、テキスト（text）モードで使用する構文テーブルである。
+@end defvar
+
+@defvar c-mode-syntax-table
+@c The value of this variable is the syntax table for C-mode buffers.
+この変数の値は、Cモードのバッファ向けの構文テーブルである。
+@end defvar
+
+@defvar emacs-lisp-mode-syntax-table
+@c The value of this variable is the syntax table used in Emacs Lisp mode
+@c by editing commands.  (It has no effect on the Lisp @code{read}
+@c function.)
+この変数の値は、編集コマンドがemacs-lispモードで使用する構文テーブルである。
+（これはLispの関数@code{read}にはなんの効果もない。）
+@end defvar
+
+@node Syntax Table Internals
+@c @section Syntax Table Internals
+@section 構文テーブルの内部
+@c @cindex syntax table internals
+@cindex 構文テーブルの内部
+
+@c   Lisp programs don't usually work with the elements directly; the
+@c Lisp-level syntax table functions usually work with syntax descriptors
+@c (@pxref{Syntax Descriptors}).  Nonetheless, here we document the
+@c internal format.
+Lispプログラムでは普通は構文テーブルの要素を直接には操作しません。
+Lispレベルの構文テーブル関数は、
+普通は構文記述子（@pxref{Syntax Descriptors}）を操作します。
+ですが、内部形式を明文化しておきます。
+
+@c   Each element of a syntax table is a cons cell of the form
+@c @code{(@var{syntax-code} . @var{matching-char})}.  The @sc{car},
+@c @var{syntax-code}, is an integer that encodes the syntax class, and any
+@c flags.  The @sc{cdr}, @var{matching-char}, is non-@code{nil} if
+@c a character to match was specified.
+構文テーブルの各要素は、@code{(@var{syntax-code} . @var{matching-char})}の
+形のコンスセルです。
+@sc{car}の@var{syntax-code}は、構文クラスと構文フラグを符号化する整数です。
+釣り合う文字を指定してあると、
+@sc{cdr}の@var{matching-char}は@code{nil}以外です。
+
+@c   This table gives the value of @var{syntax-code} which corresponds
+@c to each syntactic type.
+つぎの表は、各構文クラスに対応する@var{syntax-code}の値です。
+
+@c = 日本語のコラムの先頭には全角スペースがある！
+@multitable @columnfractions .05 .3 .3 .3
+@item
+@tab
+@c @i{Integer} @i{Class}
+@i{整数} @i{クラス}
+@tab
+@c @i{Integer} @i{Class}
+@i{整数} @i{クラス}
+@tab
+@c @i{Integer} @i{Class}
+@i{整数} @i{クラス}
+@item
+@tab
+0 @ @  whitespace
+@tab
+5 @ @  close parenthesis
+@tab
+10 @ @  character quote
+@item
+@tab
+　@ @ 白文字
+@tab
+　@ @ 閉じ括弧
+@tab
+　@ @ 文字クォート
+@item
+@tab
+1 @ @  punctuation
+@tab
+6 @ @  expression prefix
+@tab
+11 @ @  comment-start
+@item
+@tab
+　@ @ 句読点
+@tab
+　@ @ 式前置子
+@tab
+　@ @ コメント開始
+@item
+@tab
+2 @ @  word
+@tab
+7 @ @  string quote
+@tab
+12 @ @  comment-end
+@item
+@tab
+　@ @ 単語
+@tab
+　@ @ 文字列クォート
+@tab
+　@ @ コメント終了
+@item
+@tab
+3 @ @  symbol
+@tab
+8 @ @  paired delimiter
+@tab
+13 @ @  inherit
+@item
+@tab
+　@ @ シンボル
+@tab
+　@ @ 対になった区切り
+@tab
+　@ @ 継承
+@item
+@tab
+4 @ @  open parenthesis
+@tab
+9 @ @  escape
+@tab
+14 @ @  comment-fence
+@item
+@tab
+　@ @ 開き括弧
+@tab
+　@ @ エスケープ
+@tab
+　@ @ コメント区切り
+@item
+@tab
+15 @  string-fence
+@ifinfo
+@tab
+@tab
+@end ifinfo
+@item
+@tab
+　@ @ 文字列区切り
+@ifinfo
+@tab
+@tab
+@end ifinfo
+@end multitable
+
+@c   For example, the usual syntax value for @samp{(} is @code{(4 . 41)}.
+@c (41 is the character code for @samp{)}.)
+たとえば、@samp{(}の普通の構文値は、@code{(4 . 41)}です。
+（41は@samp{)}の文字コード。）
+
+@c   The flags are encoded in higher order bits, starting 16 bits from the
+@c least significant bit.  This table gives the power of two which
+@c corresponds to each syntax flag.
+フラグは、最下位ビットから16番目のビットから始まる上位ビットに符号化します。
+つぎの表は、各構文フラグとそれに対応する2の巾です。
+
+@multitable @columnfractions .05 .3 .3 .3
+@item
+@tab
+@c @i{Prefix} @i{Flag}
+@i{フラグ} @i{2の巾}
+@tab
+@c @i{Prefix} @i{Flag}
+@i{フラグ} @i{2の巾}
+@tab
+@c @i{Prefix} @i{Flag}
+@i{フラグ} @i{2の巾}
+@item
+@tab
+@samp{1} @ @  @code{(lsh 1 16)}
+@tab
+@samp{3} @ @  @code{(lsh 1 18)}
+@tab
+@samp{p} @ @  @code{(lsh 1 20)}
+@item
+@tab
+@samp{2} @ @  @code{(lsh 1 17)}
+@tab
+@samp{4} @ @  @code{(lsh 1 19)}
+@tab
+@samp{b} @ @  @code{(lsh 1 21)}
+@end multitable
+
+@node Categories
+@c @section Categories
+@section カテゴリ
+@c @cindex categories of characters
+@cindex 文字のカテゴリ
+@cindex カテゴリ、文字
+
+@c   @dfn{Categories} provide an alternate way of classifying characters
+@c syntactically.  You can define several categories as needed, then
+@c independently assign each character to one or more categories.  Unlike
+@c syntax classes, categories are not mutually exclusive; it is normal for
+@c one character to belong to several categories.
+@dfn{カテゴリ}（category）は、文字を構文的に分類する別の方法です。
+必要に応じて複数のカテゴリを定義できて、
+そうすると各文字に1つか複数のカテゴリを独立に設定できます。
+構文クラスと異なり、カテゴリは互いに排他的ではありません。
+1つの文字が複数のカテゴリに属することは普通にあります。
+
+@c   Each buffer has a @dfn{category table} which records which categories
+@c are defined and also which characters belong to each category.  Each
+@c category table defines its own categories, but normally these are
+@c initialized by copying from the standard categories table, so that the
+@c standard categories are available in all modes.
+各バッファには@dfn{カテゴリテーブル}（category table）があり、
+どのカテゴリが定義済みでどの文字がどのカテゴリに属するかを記録しています。
+各カテゴリテーブルはそれ独自のカテゴリ群を定義しますが、
+それらは標準のカテゴリテーブルをコピーして普通は初期化されます。
+そのため、すべてのモードで標準のカテゴリを使えます。
+
+@c   Each category has a name, which is an @sc{ASCII} printing character in
+@c the range @w{@samp{ }} to @samp{~}.  You specify the name of a category
+@c when you define it with @code{define-category}.
+各カテゴリには名前があり、それは@w{@samp{ }}から@samp{~}までの
+範囲の@sc{ASCII}印字文字です。
+@code{define-category}でカテゴリを定義するときにその名前を指定します。
+
+@c   The category table is actually a char-table (@pxref{Char-Tables}).
+@c The element of the category table at index @var{c} is a @dfn{category
+@c set}---a bool-vector---that indicates which categories character @var{c}
+@c belongs to.  In this category set, if the element at index @var{cat} is
+@c @code{t}, that means category @var{cat} is a member of the set, and that
+@c character @var{c} belongs to category @var{cat}.
+カテゴリテーブルは実際には文字テーブル（@pxref{Char-Tables}）です。
+カテゴリテーブルの添字@var{c}の要素は、
+@dfn{カテゴリ集合}（category set）です。
+これはブールベクトルであり、文字@var{c}が属するカテゴリ群を表します。
+このカテゴリ集合において、添字@var{cat}の要素が@code{t}であると、
+@var{cat}は集合の要素であることを意味し、
+当該文字@var{c}はカテゴリ@var{cat}に属することを意味します。
+
+@defun define-category char docstring &optional table
+@c This function defines a new category, with name @var{char} and
+@c documentation @var{docstring}.
+この関数は、名前を@var{char}、説明文字列を@var{docstring}として
+新たなカテゴリを定義する。
+
+@c The new category is defined for category table @var{table}, which
+@c defaults to the current buffer's category table.
+新たなカテゴリは、カテゴリテーブル@var{table}に対して定義される。
+@var{table}のデフォルトは、カレントバッファのカテゴリテーブルである。
+@end defun
+
+@defun category-docstring category &optional table
+@c This function returns the documentation string of category @var{category}
+@c in category table @var{table}.
+この関数は、カテゴリテーブル@var{table}のカテゴリ@var{category}の
+説明文字列を返す。
+
+@example
+(category-docstring ?a)
+     @result{} "ASCII"
+(category-docstring ?l)
+     @result{} "Latin"
+@end example
+@end defun
+
+@defun get-unused-category table
+@c This function returns a category name (a character) which is not
+@c currently defined in @var{table}.  If all possible categories are in use
+@c in @var{table}, it returns @code{nil}.
+この関数は、カテゴリテーブル@var{table}で現在定義されていない
+新たなカテゴリ名（文字）を返す。
+@var{table}において可能なすべてのカテゴリが使用済みであると@code{nil}を返す。
+@end defun
+
+@defun category-table
+@c This function returns the current buffer's category table.
+この関数は、カレントバッファのカテゴリテーブルを返す。
+@end defun
+
+@defun category-table-p object
+@c This function returns @code{t} if @var{object} is a category table,
+@c otherwise @code{nil}.
+この関数は、@var{object}がカテゴリテーブルであると@code{t}を返し、
+さもなければ@code{nil}を返す。
+@end defun
+
+@defun standard-category-table
+@c This function returns the standard category table.
+この関数は、標準のカテゴリテーブルを返す。
+@end defun
+
+@defun copy-category-table &optional table
+@c This function constructs a copy of @var{table} and returns it.  If
+@c @var{table} is not supplied (or is @code{nil}), it returns a copy of the
+@c current category table.  Otherwise, an error is signaled if @var{table}
+@c is not a category table.
+この関数は、カテゴリテーブル@var{table}のコピーを作成しそれを返す。
+@var{table}を指定しない（あるいは@code{nil}）と、
+現在のカテゴリテーブルのコピーを返す。
+@var{table}がカテゴリテーブルでないとエラーを通知する。
+@end defun
+
+@defun set-category-table table
+@c This function makes @var{table} the category table for the current
+@c buffer.  It returns @var{table}.
+この関数は、カレントバッファのカテゴリテーブルを@var{table}とする。
+@var{table}を返す。
+@end defun
+
+@defun make-category-set categories
+@c This function returns a new category set---a bool-vector---whose initial
+@c contents are the categories listed in the string @var{categories}.  The
+@c elements of @var{categories} should be category names; the new category
+@c set has @code{t} for each of those categories, and @code{nil} for all
+@c other categories.
+この関数は、新たなカテゴリ集合、つまり、
+文字列@var{categories}に指定したカテゴリで
+内容を初期化したブールベクトルを返す。
+@var{categories}の要素はカテゴリ名であること。
+新たなカテゴリ集合では、@var{categories}の各カテゴリに対しては@code{t}を
+それ以外のカテゴリに対しては@code{nil}を設定する。
+
+@example
+(make-category-set "al")
+     @result{} #&128"\0\0\0\0\0\0\0\0\0\0\0\0\2\20\0\0"
+@end example
+@end defun
+
+@defun char-category-set char
+@c This function returns the category set for character @var{char}.  This
+@c is the bool-vector which records which categories the character
+@c @var{char} belongs to.  The function @code{char-category-set} does not
+@c allocate storage, because it returns the same bool-vector that exists in
+@c the category table.
+この関数は、文字@var{char}に対するカテゴリ集合を返す。
+これは、文字@var{char}が属するカテゴリ群を記録したブールベクトルである。
+関数@code{char-category-set}は、カテゴリテーブルに
+存在する同じブールベクトルを返すため、新たな領域を割り付けない。
+
+@example
+(char-category-set ?a)
+     @result{} #&128"\0\0\0\0\0\0\0\0\0\0\0\0\2\20\0\0"
+@end example
+@end defun
+
+@defun category-set-mnemonics category-set
+@c This function converts the category set @var{category-set} into a string
+@c containing the names of all the categories that are members of the set.
+この関数は、カテゴリ集合@var{category-set}を
+この集合に属するすべてのカテゴリの名前からなる文字列に変換する。
+
+@example
+(category-set-mnemonics (char-category-set ?a))
+     @result{} "al"
+@end example
+@end defun
+
+@defun modify-category-entry character category &optional table reset
+@c This function modifies the category set of @var{character} in category
+@c table @var{table} (which defaults to the current buffer's category
+@c table).
+この関数は、カテゴリテーブル@var{table}（デフォルトはカレントバッファの
+カテゴリテーブル）内の文字@var{character}のカテゴリ集合を変更する。
+
+@c Normally, it modifies the category set by adding @var{category} to it.
+@c But if @var{reset} is non-@code{nil}, then it deletes @var{category}
+@c instead.
+普通、カテゴリ集合に@var{category}を追加して変更する。
+しかし、@var{reset}が@code{nil}以外であると@var{category}を削除する。
+@end defun

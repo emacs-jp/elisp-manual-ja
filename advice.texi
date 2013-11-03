@@ -1,0 +1,1175 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Emacs Lisp Reference Manual.
+@c Copyright (C) 1998, 1999 Free Software Foundation, Inc. 
+@c See the file elisp.texi for copying conditions.
+@setfilename ../info/advising
+@node Advising Functions, Debugging, Byte Compilation, Top
+@c @chapter Advising Emacs Lisp Functions
+@c @cindex advising functions
+@chapter Emacs Lisp関数のアドバイス @emph{(2003/10/30)}
+@cindex アドバイス、関数
+
+@c   The @dfn{advice} feature lets you add to the existing definition of a
+@c function, by @dfn{advising the function}.  This is a clean method for a
+@c library to customize functions defined by other parts of Emacs---cleaner
+@c than redefining the whole function.
+@dfn{アドバイス}（advice）機能により、関数の既存の定義に追加できます。
+これは、Emacsの他の部分で定義された関数を
+ライブラリにおいてカスタマイズする見通しのよい方法です。
+関数全体を再定義するよりも見通しがよいのです。
+
+@c @cindex piece of advice
+@cindex アドバイス断片
+@c   Each function can have multiple @dfn{pieces of advice}, separately
+@c defined.  Each defined piece of advice can be @dfn{enabled} or
+@c disabled explicitly.  All the enabled pieces of advice for any given
+@c function actually take effect when you @dfn{activate} advice for that
+@c function, or when you define or redefine the function.  Note that
+@c enabling a piece of advice and activating advice for a function
+@c are not the same thing.
+各関数は、個別に定義した複数の@dfn{アドバイス断片}を持てます。
+それぞれのアドバイス断片は、明示的に@dfn{有効}にしたり無効にできます。
+任意の関数で有効にされたすべてのアドバイス断片が実際にその効果を発揮するのは、
+当該関数のアドバイスを@dfn{活性にした}ときか
+当該関数を定義したり再定義したときです。ここで、アドバイス断片を「有効にする
+こと」と「活性にすること」は同じことでないので注意が必要です。
+
+@c   @strong{Usage Note:} Advice is useful for altering the behavior of
+@c existing calls to an existing function.  If you want the new behavior
+@c for new calls, or for key bindings, it is cleaner to define a new
+@c function (or a new command) which uses the existing function.
+@strong{使用上の注意：}@code{ }
+アドバイスは、既存関数の既存の呼び出しのふるまいを変更するのに有用である。
+新たな呼び出しやキーバインドの新たなふるまいが必要な場合には、
+既存関数を使う新たな関数（や新たなコマンド）を定義するほうが
+見通しがよい。
+
+@menu
+* Simple Advice::           A simple example to explain the basics of advice.
+* Defining Advice::         Detailed description of @code{defadvice}.
+* Around-Advice::           Wrapping advice around a function's definition.
+* Computed Advice::         ...is to @code{defadvice} as @code{fset} is to @code{defun}.
+* Activation of Advice::    Advice doesn't do anything until you activate it.
+* Enabling Advice::         You can enable or disable each piece of advice.
+* Preactivation::           Preactivation is a way of speeding up the
+                              loading of compiled advice.
+* Argument Access in Advice:: How advice can access the function's arguments.
+* Subr Arguments::          Accessing arguments when advising a primitive.
+* Combined Definition::     How advice is implemented.
+@end menu
+
+@node Simple Advice
+@c @section A Simple Advice Example
+@section 単純なアドバイスの例 @emph{(2003/10/30)}
+
+@c   The command @code{next-line} moves point down vertically one or more
+@c lines; it is the standard binding of @kbd{C-n}.  When used on the last
+@c line of the buffer, this command inserts a newline to create a line to
+@c move to if @code{next-line-add-newlines} is non-@code{nil} (its default
+@c is @code{nil}.)
+コマンド@code{next-line}は、ポイントを垂直に複数行移動します。
+標準バインドは@kbd{C-n}です。
+バッファの最終行で使うと、
+@code{next-line-add-newlines}が@code{nil}以外の場合(デフォルトは@code{nil})
+このコマンドは行を作るために改行を挿入し、その行に移動します。
+
+@c   Suppose you wanted to add a similar feature to @code{previous-line},
+@c which would insert a new line at the beginning of the buffer for the
+@c command to move to.  How could you do this?
+同様な機能を@code{previous-line}に追加したいとします。
+つまり、バッファの先頭に新たな行を挿入し、その行へ移動するのです。
+どのようにすればよいでしょう？
+
+@c   You could do it by redefining the whole function, but that is not
+@c modular.  The advice feature provides a cleaner alternative: you can
+@c effectively add your code to the existing function definition, without
+@c actually changing or even seeing that definition.  Here is how to do
+@c this:
+当該関数を再定義すればできますが、それではモジュール性がよくありません。
+アドバイス機能が見通しのよい代替方法を提供します。
+既存の関数定義を実際に変更したりその定義を参照することなく、
+関数定義に読者のコードを実質的に追加できます。
+つぎのように行います。
+
+@example
+(defadvice previous-line (before next-line-at-end (arg))
+  "Insert an empty line when moving up from the top line."
+  (if (and next-line-add-newlines (= arg 1)
+           (save-excursion (beginning-of-line) (bobp)))
+      (progn
+        (beginning-of-line)
+        (newline))))
+@end example
+
+@c   This expression defines a @dfn{piece of advice} for the function
+@c @code{previous-line}.  This piece of advice is named
+@c @code{next-line-at-end}, and the symbol @code{before} says that it is
+@c @dfn{before-advice} which should run before the regular definition of
+@c @code{previous-line}.  @code{(arg)} specifies how the advice code can
+@c refer to the function's arguments.
+この式は、関数@code{previous-line}に対する@dfn{アドバイス断片}を定義します。
+このアドバイス断片には@code{next-line-at-end}という名前が付きます。
+シンボル@code{before}により、
+@code{previous-line}の通常の定義を実行するまえに実行する
+@dfn{事前アドバイス}（before-advice）であることを意味します。
+@code{(arg)}は、アドバイス断片がどのように関数の引数を参照するかを指定します。
+
+@c   When this piece of advice runs, it creates an additional line, in the
+@c situation where that is appropriate, but does not move point to that
+@c line.  This is the correct way to write the advice, because the normal
+@c definition will run afterward and will move back to the newly inserted
+@c line.
+このアドバイス断片が実行されると、必要な場面では新たに行を作りますが、
+その行へはポイントを移動しません。
+これはアドバイスを書く正しいやりかたです。
+というのは、通常の定義がこのあとに実行され、新たに挿入した行へ移動します。
+
+@c   Defining the advice doesn't immediately change the function
+@c @code{previous-line}.  That happens when you @dfn{activate} the advice,
+@c like this:
+アドバイスを定義しても関数@code{previous-line}をただちには変更しません。
+つぎのようにアドバイスを@dfn{活性にする}と変わります。
+
+@example
+(ad-activate 'previous-line)
+@end example
+
+@noindent
+@c This is what actually begins to use the advice that has been defined so
+@c far for the function @code{previous-line}.  Henceforth, whenever that
+@c function is run, whether invoked by the user with @kbd{C-p} or
+@c @kbd{M-x}, or called from Lisp, it runs the advice first, and its
+@c regular definition second.
+これにより、関数@code{previous-line}に対して定義してある
+アドバイスを使い始めます。
+これ以降、@kbd{C-p}や@kbd{M-x}でユーザーが起動したのか
+Lispから呼ばれたのかに関わらず、
+この関数を起動すると、まずアドバイスを実行してから
+関数の通常の定義を実行します。
+
+@c   This example illustrates before-advice, which is one @dfn{class} of
+@c advice: it runs before the function's base definition.  There are two
+@c other advice classes: @dfn{after-advice}, which runs after the base
+@c definition, and @dfn{around-advice}, which lets you specify an
+@c expression to wrap around the invocation of the base definition.
+この例は、アドバイスの1つの@dfn{クラス}である事前アドバイスの例であり、
+関数の元定義のまえに実行されます。
+他に2つのアドバイスクラスがあります。
+元定義のあとに実行される@dfn{事後アドバイス}（after-advice）と
+元定義の起動を包み込む式を指定する@dfn{包囲アドバイス}（around-advice）です。
+
+@node Defining Advice
+@c @section Defining Advice
+@section アドバイス定義 @emph{(2003/10/30)}
+@c @cindex defining advice
+@c @cindex advice, defining
+@cindex 定義、アドバイス
+@cindex アドバイス、定義
+
+@c   To define a piece of advice, use the macro @code{defadvice}.  A call
+@c to @code{defadvice} has the following syntax, which is based on the
+@c syntax of @code{defun} and @code{defmacro}, but adds more:
+アドバイス断片を定義するには、マクロ@code{defadvice}を使います。
+@code{defadvice}の呼び出しはつぎのような構文です。
+@code{defun}や@code{defmacro}の構文を基にしていますが、
+追加部分があります。
+
+@findex defadvice
+@example
+(defadvice @var{function} (@var{class} @var{name}
+                         @r{[}@var{position}@r{]} @r{[}@var{arglist}@r{]}
+                         @var{flags}...)
+  @r{[}@var{documentation-string}@r{]}
+  @r{[}@var{interactive-form}@r{]}
+  @var{body-forms}...)
+@end example
+
+@noindent
+@c Here, @var{function} is the name of the function (or macro or special
+@c form) to be advised.  From now on, we will write just ``function'' when
+@c describing the entity being advised, but this always includes macros and
+@c special forms.
+ここで、@var{function}はアドバイス対象となる関数
+（やマクロやスペシャルフォーム）です。
+以後、アドバイスする対象を単に『関数』と書きますが、
+これにはつねにマクロやスペシャルフォームを含みます。
+
+@c @cindex class of advice
+@c @cindex before-advice
+@c @cindex after-advice
+@c @cindex around-advice
+@cindex アドバイスクラス
+@cindex クラス、アドバイス
+@cindex 事前アドバイス（before-advice）
+@cindex アドバイス、事前
+@cindex 事後アドバイス（after-advice）
+@cindex アドバイス、事後
+@cindex 包囲アドバイス（around-advice）
+@cindex アドバイス、包囲
+@c @var{class} specifies the @dfn{class} of the advice---one of @code{before},
+@c @code{after}, or @code{around}.  Before-advice runs before the function
+@c itself; after-advice runs after the function itself; around-advice is
+@c wrapped around the execution of the function itself.  After-advice and
+@c around-advice can override the return value by setting
+@c @code{ad-return-value}.
+@var{class}はアドバイスの@dfn{クラス}を指定し、
+@code{before}、@code{after}、@code{around}のいずれかです。
+事前アドバイス（@code{before}）は関数そのもののまえに実行されます。
+事後アドバイス（@code{after}）は関数そのもののあとに実行されます。
+包囲アドバイス（@code{around}）は関数自身の実行を包み込みます。
+事後アドバイスと包囲アドバイスでは、
+@code{ad-return-value}に設定することで戻り値を変更できます。
+
+@defvar ad-return-value
+@c While advice is executing, after the function's original definition has
+@c been executed, this variable holds its return value, which will
+@c ultimately be returned to the caller after finishing all the advice.
+@c After-advice and around-advice can arrange to return some other value
+@c by storing it in this variable.
+アドバイスを実行しているとき、
+関数の元定義の実行を完了したあとでは、この変数はその戻り値を保持する。
+すべてのアドバイスを完了すると、最終的には、この値を呼び出し側へ返す。
+事後アドバイスと包囲アドバイスでは、この変数に別の値を設定することで
+戻り値を変更できる。
+@end defvar
+
+@c The argument @var{name} is the name of the advice, a non-@code{nil}
+@c symbol.  The advice name uniquely identifies one piece of advice, within all
+@c the pieces of advice in a particular class for a particular
+@c @var{function}.  The name allows you to refer to the piece of
+@c advice---to redefine it, or to enable or disable it.
+引数@var{name}はアドバイスの名前であり、@code{nil}以外のシンボルです。
+アドバイス名は、@var{function}の特定クラスのすべてのアドバイス断片から
+1つのアドバイス断片を一意に識別します。
+名前でアドバイス断片を参照でき、
+それを再定義したり有効にしたり無効にできます。
+
+@c In place of the argument list in an ordinary definition, an advice
+@c definition calls for several different pieces of information.
+通常の関数定義の引数リストのかわりに、
+アドバイス定義では異なる情報を必要とします。
+
+@c The optional @var{position} specifies where, in the current list of
+@c advice of the specified @var{class}, this new advice should be placed.
+@c It should be either @code{first}, @code{last} or a number that specifies
+@c a zero-based position (@code{first} is equivalent to 0).  If no position
+@c is specified, the default is @code{first}.  Position values outside the
+@c range of existing positions in this class are mapped to the beginning or
+@c the end of the range, whichever is closer.  The @var{position} value is
+@c ignored when redefining an existing piece of advice.
+省略可能な@var{position}は、指定した@var{class}の
+現在のアドバイスリストのどこに新たなアドバイスを置くかを指定します。
+@code{first}、@code{last}、あるいは、
+0から数え始める位置を指定する数である必要があります
+（@code{first}は0と等価）。
+位置を指定しないとデフォルトは@code{first}です。
+当該クラスの既存位置の範囲を超えている場合には、
+先頭か末尾のどちらか近いほうになります。
+既存のアドバイス断片を再定義する場合には、値@var{position}は無視されます。
+
+@c The optional @var{arglist} can be used to define the argument list for
+@c the sake of advice.  This becomes the argument list of the combined
+@c definition that is generated in order to run the advice (@pxref{Combined
+@c Definition}).  Therefore, the advice expressions can use the argument
+@c variables in this list to access argument values.
+省略可能な@var{arglist}は、
+アドバイスが使う引数リストを定義するために使います。
+これは、アドバイスを実行するために生成される結合定義
+（@pxref{Combined Definition}）の引数リストになります。
+その結果、アドバイスの式では、
+引数の値を参照するためにこのリストの引数変数を使えます。
+
+@c This argument list must be compatible with the argument list of the
+@c original function, so that it can handle the ways the function is
+@c actually called.  If more than one piece of advice specifies an argument
+@c list, then the first one (the one with the smallest position) found in
+@c the list of all classes of advice is used.
+この引数リストは、関数の実際の呼び出し方を扱えるように、
+もとの関数の引数リストと互換性がある必要があります。
+2つ以上のアドバイス断片で引数リストを指定している場合、
+すべてのアドバイスクラスの中で最初のもの（位置が最小のもの）を使います。
+
+@c The remaining elements, @var{flags}, are symbols that specify further
+@c information about how to use this piece of advice.  Here are the valid
+@c symbols and their meanings:
+残りの要素@var{flags}は、このアドバイス断片の使い方に関する情報を指定する
+シンボルです。
+正しいシンボルとそれらの意味はつぎのとおりです。
+
+@table @code
+@item activate
+@c Activate the advice for @var{function} now.  Changes in a function's
+@c advice always take effect the next time you activate advice for the
+@c function; this flag says to do so, for @var{function}, immediately after
+@c defining this piece of advice.
+@var{function}に対するアドバイスをただちに活性にする。
+関数のアドバイスに対する変更は、当該関数のアドバイスを活性にすると
+効果を持つようになる。
+このフラグは、@var{function}に対するこのアドバイス断片を定義した直後に
+そのようにすることを指示する。
+
+@c @cindex forward advice
+@cindex 未定義のアドバイス（forward advice）
+@c This flag has no immediate effect if @var{function} itself is not defined yet (a
+@c situation known as @dfn{forward advice}), because it is impossible to
+@c activate an undefined function's advice.  However, defining
+@c @var{function} will automatically activate its advice.
+@var{function}が未定義（@dfn{未定義のアドバイス}（forward advice）と呼ぶ状況）
+であるとこのフラグがすぐに効果を表すことはない。
+というのは、未定義関数のアドバイスは活性にできないからである。
+しかし、@var{function}を定義するとそのアドバイスは自動的に活性にされる。
+
+@item protect
+@c Protect this piece of advice against non-local exits and errors in
+@c preceding code and advice.  Protecting advice places it as a cleanup in
+@c an @code{unwind-protect} form, so that it will execute even if the
+@c previous code gets an error or uses @code{throw}.  @xref{Cleanups}.
+このアドバイス断片をそれよりまえに実行されるコードやアドバイスによる
+非ローカル脱出やエラーに対して保護する。
+保護したアドバイス断片は、
+フォーム@code{unwind-protect}の中に後始末として置かれ、
+それよりまえに実行されるコードでエラーが発生したり@code{throw}を使っても
+実行される。
+@pxref{Cleanups}。
+
+@item compile
+@c Compile the combined definition that is used to run the advice.  This
+@c flag is ignored unless @code{activate} is also specified.
+@c @xref{Combined Definition}.
+アドバイスの実行に使われる結合定義をコンパイルする。
+@code{activate}とともに指定しないと、このフラグは無視する。
+@pxref{Combined Definition}。
+
+@item disable
+@c Initially disable this piece of advice, so that it will not be used
+@c unless subsequently explicitly enabled.  @xref{Enabling Advice}.
+このアドバイス断片を当初は無効にしておき、
+のちに明示的に有効にしない限り使われない。
+@pxref{Enabling Advice}。
+
+@item preactivate
+@c Activate advice for @var{function} when this @code{defadvice} is
+@c compiled or macroexpanded.  This generates a compiled advised definition
+@c according to the current advice state, which will be used during
+@c activation if appropriate.
+この@code{defadvice}をコンパイルしたりマクロ展開したときに、
+@var{function}に対するアドバイスを活性にする。
+これにより現在のアドバイスの状態に応じたアドバイス定義をコンパイルし、
+必要に応じて使われるようになる。@xref{Preactivation}。
+
+@c This is useful only if this @code{defadvice} is byte-compiled.
+この@code{defadvice}をバイトコンパイルする場合にのみ意味を持つ。
+@end table
+
+@c The optional @var{documentation-string} serves to document this piece of
+@c advice.  When advice is active for @var{function}, the documentation for
+@c @var{function} (as returned by @code{documentation}) combines the
+@c documentation strings of all the advice for @var{function} with the
+@c documentation string of its original function definition.
+省略可能な@var{documentation-string}は、
+このアドバイス断片の説明文字列になります。
+@var{function}に対するアドバイスが活性であると、
+（@code{documentation}が返す）@var{function}の説明文は、
+関数の元定義の説明文字列と@var{function}のアドバイスすべての説明文字列の
+合成になります。
+
+@c The optional @var{interactive-form} form can be supplied to change the
+@c interactive behavior of the original function.  If more than one piece
+@c of advice has an @var{interactive-form}, then the first one (the one
+@c with the smallest position) found among all the advice takes precedence.
+省略可能な@var{interactive-form}は、
+元関数の対話的ふるまいを変更するために指定します。
+2つ以上のアドバイス断片で@var{interactive-form}を指定している場合、
+すべてのアドバイスの中で最初のもの（位置が最小のもの）が優先します。
+
+@c The possibly empty list of @var{body-forms} specifies the body of the
+@c advice.  The body of an advice can access or change the arguments, the
+@c return value, the binding environment, and perform any other kind of
+@c side effect.
+空リストでもかまわない@var{body-forms}は、アドバイスの本体です。
+アドバイスの本体では、引数、戻り値、束縛環境を参照／変更したり、
+いかなる種類の副作用を起こせます。
+
+@c @strong{Warning:} When you advise a macro, keep in mind that macros are
+@c expanded when a program is compiled, not when a compiled program is run.
+@c All subroutines used by the advice need to be available when the byte
+@c compiler expands the macro.
+@strong{警告：}@code{ }
+マクロをアドバイスする場合、
+マクロはプログラムのコンパイル時に展開されるのであって、
+コンパイルしたプログラムの実行時に展開されるのではないことに注意。
+アドバイスが使用するすべてのサブルーティンは、
+バイトコンパイラがマクロを展開するときに必要になる。
+
+@c @deffn Command ad-unadvise function
+@deffn コマンド ad-unadvise function
+@c This command deletes the advice from @var{function}.
+このコマンドは@var{function}からアドバイスを削除する。
+@end deffn
+
+@c @deffn Command ad-unadvise-all
+@deffn コマンド ad-unadvise-all
+@c This command deletes all pieces of advice from all functions.
+このコマンドはすべての関数からすべてのアドバイス断片を削除する。
+@end deffn
+
+@node Around-Advice
+@c @section Around-Advice
+@section 包囲アドバイス @emph{(2003/10/30)}
+
+@c   Around-advice lets you ``wrap'' a Lisp expression ``around'' the
+@c original function definition.  You specify where the original function
+@c definition should go by means of the special symbol @code{ad-do-it}.
+@c Where this symbol occurs inside the around-advice body, it is replaced
+@c with a @code{progn} containing the forms of the surrounded code.  Here
+@c is an example:
+包囲アドバイスにより、関数の元定義を包み込むLisp式を書けます。
+関数の元定義を実行する場所を特別なシンボル@code{ad-do-it}で指定します。
+包囲アドバイスの本体に現れたこのシンボルは、
+元定義（と内側の包囲アドバイス本体）のフォームを含んだ@code{progn}で
+置き換えられます。
+例を示しましょう。
+
+@example
+(defadvice foo (around foo-around)
+  "Ignore case in `foo'."
+  (let ((case-fold-search t))
+    ad-do-it))
+@end example
+
+@noindent
+@c Its effect is to make sure that case is ignored in
+@c searches when the original definition of @code{foo} is run.
+これは、@code{foo}の元定義を実行するときに
+大文字小文字を区別しないで探索することを保証します。
+
+@defvar ad-do-it
+@c This is not really a variable, but it is somewhat used like one
+@c in around-advice.  It specifies the place to run the function's
+@c original definition and other ``earlier'' around-advice.
+これは実際には変数ではないが、包囲アドバイス内では変数のように用いる。
+関数の元定義と『より内側の』包囲アドバイスを実行する場所を指定する。
+@end defvar
+
+@c If the around-advice does not use @code{ad-do-it}, then it does not run
+@c the original function definition.  This provides a way to override the
+@c original definition completely.  (It also overrides lower-positioned
+@c pieces of around-advice).
+包囲アドバイスで@code{ad-do-it}を用いなければ、関数の元定義を実行しません。
+これは、元定義を完全に無効にする手段です。
+（さらに、内側の包囲アドバイス断片も無効にする）
+
+@c If the around-advice uses @code{ad-do-it} more than once, the original
+@c definition is run at each place.  In this way, around-advice can execute
+@c the original definition (and lower-positioned pieces of around-advice)
+@c several times.  Another way to do that is by using @code{ad-do-it}
+@c inside of a loop.
+もし包囲アドバイスが@code{ad-do-it}を1つ以上用いていれば、関数の元定義
+がそれぞれの場所で実行される。これにより、包囲アドバイスは元の関数(と
+その中の関数に含まれる包囲アドバイス断片)を何度も実行できる。このよう
+に、元の関数を複数回実行するには、ループの中で@code{ad-do-it}を用いて
+も可能である。
+
+@node Computed Advice
+@c @section Computed Advice
+@section 計算アドバイス @emph{(2003/10/30)}
+
+@c The macro @code{defadvice} resembles @code{defun} in that the code for
+@c the advice, and all other information about it, are explicitly stated in
+@c the source code.  You can also create advice whose details are computed,
+@c using the function @code{ad-add-advice}.
+マクロ@code{defadvice}は@code{defun}に似ていて、
+アドバイスのコードやアドバイスに関する他のすべての情報を
+ソースコードで明示します。
+関数@code{ad-add-advice}を用いると、
+その詳細を計算で求めたアドバイスを作成できます。
+
+@defun ad-add-advice function advice class position
+@c Calling @code{ad-add-advice} adds @var{advice} as a piece of advice to
+@c @var{function} in class @var{class}.  The argument @var{advice}  has
+@c this form:
+@code{ad-add-advice}を呼び出すと、
+関数@var{function}に対するクラス@var{class}のアドバイス断片として
+@var{advice}を追加する。
+引数@var{advice}はつぎの形式である。
+
+@example
+(@var{name} @var{protected} @var{enabled} @var{definition})
+@end example
+
+@c Here @var{protected} and @var{enabled} are flags, and @var{definition}
+@c is the expression that says what the advice should do.  If @var{enabled}
+@c is @code{nil}, this piece of advice is initially disabled
+@c (@pxref{Enabling Advice}).
+ここで、@var{protected}と@var{enabled}はフラグであり、
+@var{definition}はアドバイスの動作を指定する式である。
+@var{enabled}が@code{nil}であると、
+このアドバイス断片は当初は無効になる
+（@pxref{Enabling Advice}）。
+
+@c If @var{function} already has one or more pieces of advice in the
+@c specified @var{class}, then @var{position} specifies where in the list
+@c to put the new piece of advice.  The value of @var{position} can either
+@c be @code{first}, @code{last}, or a number (counting from 0 at the
+@c beginning of the list).  Numbers outside the range are mapped to the
+@c beginning or the end of the range, whichever is closer.  The
+@c @var{position} value is ignored when redefining an existing piece of
+@c advice.
+@var{function}に指定したクラス@var{class}のアドバイス断片がすでにあると、
+@var{position}は新しいアドバイス断片をリストのどこに置くかを指定する。
+@var{position}の値は、@code{first}、@code{last}、あるいは、
+（リストの先頭を0から数えた）数である。
+範囲外の数はその範囲の先頭か末尾のどちらか近いほうになる。また、
+@var{position}の値はすでに存在するアドバイス断片を再定義した時には無視
+される。
+
+@c If @var{function} already has a piece of @var{advice} with the same
+@c name, then the position argument is ignored and the old advice is
+@c replaced with the new one.
+@var{function}に同じ名前のアドバイス断片@var{advice}がすでにあると、
+引数@var{position}は無視され、古いアドバイス断片を新しいもので置き換える。
+@end defun
+
+@node Activation of Advice
+@c @section Activation of Advice
+@section アドバイスの活性化 @emph{(2003/10/30)}
+@c @cindex activating advice
+@c @cindex advice, activating
+@cindex アドバイスの活性化
+@cindex 活性化、アドバイス
+
+@c By default, advice does not take effect when you define it---only when
+@c you @dfn{activate} advice for the function that was advised.  You can
+@c request the activation of advice for a function when you define the
+@c advice, by specifying the @code{activate} flag in the @code{defadvice}.
+@c But normally you activate the advice for a function by calling the
+@c function @code{ad-activate} or one of the other activation commands
+@c listed below.
+デフォルトでは、アドバイスを定義してもその効果は発揮されません。
+アドバイスした関数のアドバイスを@dfn{活性}にして始めて効果を発揮します。
+@code{defadvice}でフラグ@code{activate}を指定すれば、
+関数にアドバイスを定義したときに活性にできます。
+しかし、普通は、関数@code{ad-activate}や以下の活性化コマンドを
+呼び出すことで、関数のアドバイスを活性にします。
+
+@c Separating the activation of advice from the act of defining it permits
+@c you to add several pieces of advice to one function efficiently, without
+@c redefining the function over and over as each advice is added.  More
+@c importantly, it permits defining advice for a function before that
+@c function is actually defined.
+アドバイスの定義操作と活性化操作を区別することで、
+アドバイスを追加するたびに関数を再定義することなる、
+関数に複数のアドバイス断片を効率よく追加できます。
+さらに重要なことは、関数を実際に定義するまえでも
+関数にアドバイスを定義できることです。
+
+@c When a function's advice is first activated, the function's original
+@c definition is saved, and all enabled pieces of advice for that function
+@c are combined with the original definition to make a new definition.
+@c (Pieces of advice that are currently disabled are not used; see
+@c @ref{Enabling Advice}.)  This definition is installed, and optionally
+@c byte-compiled as well, depending on conditions described below.
+関数のアドバイスを初めて活性にすると、
+関数の元定義を保存してから、関数に対する有効なアドバイス断片すべてを
+元定義と結合して新たな定義を作り出します。
+（現在無効にしてあるアドバイス断片は使用しない。
+@pxref{Enabling Advice}。）
+この定義をインストールし、
+以下に述べる条件に応じてバイトコンパイルする場合もあります。
+
+@c In all of the commands to activate advice, if @var{compile} is @code{t},
+@c the command also compiles the combined definition which implements the
+@c advice.
+アドバイスを活性にするコマンドすべてにおいて、
+@var{compile}が@code{t}であると、
+アドバイスを実装する結合定義をコンパイルします。
+
+@c @deffn Command ad-activate function &optional compile
+@deffn コマンド ad-activate function &optional compile
+@c This command activates the advice for @var{function}.
+このコマンドは@var{function}に対するアドバイスを活性にする。
+@end deffn
+
+@c @deffn Command ad-deactivate function
+@deffn コマンド ad-deactivate function
+@c This command deactivates the advice for @var{function}.
+このコマンドは@var{function}のアドバイスを不活性にする。
+@c @cindex deactivating advice
+@c @cindex advice, deactivating
+@cindex アドバイスの不活性化
+@cindex 不活性化、アドバイス
+@end deffn
+
+@c @deffn Command ad-deactivate-all
+@deffn コマンド ad-deactivate-all
+@c This command deactivates the advice for all functions.
+このコマンドはすべての関数に対するアドバイスを不活性にする。
+@end deffn
+
+@c @deffn Command ad-update-all &optional compile
+@deffn コマンド ad-update-all &optional compile
+@c This command activates the advice for all functions
+@c whose advice is already activated.  This is useful
+@c if you change the advice of some functions.
+このコマンドは、すでにアドバイスが活性になっているすべて
+の関数のアドバイスを活性化させる。いくつかの関数のアドバイスを変更した
+時に役に立つ。
+@end deffn
+
+@c @deffn Command ad-activate-regexp regexp &optional compile
+@deffn コマンド ad-activate-regexp regexp &optional compile
+@c This command activates all pieces of advice whose names match
+@c @var{regexp}.  More precisely, it activates all advice for any function
+@c which has at least one piece of advice that matches @var{regexp}.
+このコマンドは@var{regexp}に一致する名前のすべてのアドバイス断片を活性にする。
+より正確には、@var{regexp}に一致する名前のアドバイス断片を持つ任意の
+関数のすべてのアドバイスを活性にする。
+@end deffn
+
+@c @deffn Command ad-deactivate-regexp regexp
+@deffn コマンド ad-deactivate-regexp regexp
+@c This command deactivates all pieces of advice whose names match
+@c @var{regexp}.  More precisely, it deactivates all advice for any
+@c function which has at least one piece of advice that matches
+@c @var{regexp}.
+このコマンドは@var{regexp}に一致する名前の
+すべてのアドバイス断片を不活性にする。
+より正確には、@var{regexp}に一致する名前のアドバイス断片を持つ任意の
+関数のすべてのアドバイスを不活性にする。
+@end deffn
+
+@c @deffn Command ad-update-regexp regexp &optional compile
+@deffn コマンド ad-update-regexp regexp &optional compile
+@c This command activates pieces of advice whose names match @var{regexp},
+@c but only those for functions whose advice is already activated.
+このコマンドは@var{regexp}に一致する名前のアドバイス断片を活性にするが、
+すでにアドバイスが活性になっている関数に対するものだけである。
+@c @cindex reactivating advice
+@cindex アドバイスの再活性化
+
+@c Reactivating a function's advice is useful for putting into effect all
+@c the changes that have been made in its advice (including enabling and
+@c disabling specific pieces of advice; @pxref{Enabling Advice}) since the
+@c last time it was activated.
+関数に対するアドバイスの再活性化は、
+アドバイスを活性にしたあとに行った当該アドバイスの変更すべて
+（有効にしたり無効にしたアドバイス断片を含む。
+@pxref{Enabling Advice}）が効果を持つようにするのに便利である。
+@end deffn
+
+@c @deffn Command ad-start-advice
+@deffn コマンド ad-start-advice
+@c Turn on automatic advice activation when a function is defined or
+@c redefined.  If you turn on this mode, then advice takes effect
+@c immediately when defined.
+関数を定義したり再定義したときにアドバイスを自動的に活性にする。
+このモードをオンにすると、アドバイスを定義するとただちに効果を持つようになる。
+@end deffn
+
+@c @deffn Command ad-stop-advice
+@deffn コマンド ad-stop-advice
+@c Turn off automatic advice activation when a function is defined or
+@c redefined.
+関数を定義したり再定義してもアドバイスを自動的には活性にしない。
+@end deffn
+
+@defopt ad-default-compilation-action
+@c This variable controls whether to compile the combined definition
+@c that results from activating advice for a function.
+この変数は、関数に対するアドバイスを活性にした結果作られる
+結合定義をコンパイルするかどうか制御します。
+
+@c A value of @code{always} specifies to compile unconditionally.
+@c A value of @code{nil} specifies never compile the advice.
+値が@code{always}であれば、無条件にコンパイルします。@code{nil}であれば
+常にコンパイルしない。
+
+@c A value of @code{maybe} specifies to compile if the byte-compiler is
+@c already loaded.  A value of @code{like-original} specifies to compile
+@c the advice if the original definition of the advised function is
+@c compiled or a built-in function.
+値が@code{maybe}であれば、バイトコンパイラがすでに読み込まれていればコ
+ンパイルを行う。値が@code{like-original}であれば、アドバイスされる関数
+の元定義がコンパイルされていたり、組み込み関数(built-in function)であ
+れば、コンパイルを行う。
+
+@c This variable takes effect only if the @var{compile} argument of
+@c @code{ad-activate} (or any of the above functions) was supplied as
+@c @code{nil}.  If that argument is non-@code{nil}, that means
+@c to compile the advice regardless.
+この変数は@code{ad-activate}(あるいは他の上記にあげた関数)の
+@var{compile}引数が@code{nil}の場合のみ有効になります。もしその引数が
+@code{nil}でなければ、そのアドバイスがこの変数の値に関わらずコンパイル
+されます。
+@end defopt
+
+@c   If the advised definition was constructed during ``preactivation''
+@c (@pxref{Preactivation}), then that definition must already be compiled,
+@c because it was constructed during byte-compilation of the file that
+@c contained the @code{defadvice} with the @code{preactivate} flag.
+『予約活性』（@pxref{Preactivation}）中にアドバイス定義を作成すると
+その定義はすでにコンパイルされているはずです。
+というのは、@code{preactivate}フラグを指定した@code{defadvice}を
+含むファイルをバイトコンパイル中にそれが定義されたはずだからです。
+
+@node Enabling Advice
+@c @section Enabling and Disabling Advice
+@section アドバイスの有効化と無効化 @emph{(2003/10/30)}
+@c @cindex enabling advice
+@c @cindex advice, enabling and disabling
+@c @cindex disabling advice
+@cindex アドバイスの有効化
+@cindex 有効化と無効化、アドバイス
+@cindex アドバイスの無効化
+
+@c   Each piece of advice has a flag that says whether it is enabled or
+@c not.  By enabling or disabling a piece of advice, you can turn it on
+@c and off without having to undefine and redefine it.  For example, here is
+@c how to disable a particular piece of advice named @code{my-advice} for
+@c the function @code{foo}:
+各アドバイス断片には、
+それを有効にするか無効にするかを指定するフラグがあります。
+アドバイス断片を有効にしたり無効にすることで、
+アドバイス断片を未定義にしたり再定義することなくオン／オフできます。
+たとえば、関数@code{foo}に対するアドバイス断片@code{my-advice}を
+無効にするには、つぎのようにします。
+
+@example
+(ad-disable-advice 'foo 'before 'my-advice)
+@end example
+
+@c   This function by itself only changes the enable flag for a piece of
+@c advice.  To make the change take effect in the advised definition, you
+@c must activate the advice for @code{foo} again:
+この関数自身は、アドバイス断片の有効化フラグを変更するだけです。
+アドバイスした関数でこの変更の効果を発揮するには、
+@code{foo}のアドバイスを再度活性にする必要があります。
+
+@example
+(ad-activate 'foo)
+@end example
+
+@c @deffn Command ad-disable-advice function class name
+@deffn コマンド ad-disable-advice function class name
+@c This command disables the piece of advice named @var{name} in class
+@c @var{class} on @var{function}.
+このコマンドは@var{function}に対するクラス@var{class}内の
+@var{name}で指名したアドバイス断片を無効にする。
+@end deffn
+
+@c @deffn Command ad-enable-advice function class name
+@deffn コマンド ad-enable-advice function class name
+@c This command enables the piece of advice named @var{name} in class
+@c @var{class} on @var{function}.
+このコマンドは@var{function}に対するクラス@var{class}内の
+@var{name}で指名したアドバイス断片を有効にする。
+@end deffn
+
+@c   You can also disable many pieces of advice at once, for various
+@c functions, using a regular expression.  As always, the changes take real
+@c effect only when you next reactivate advice for the functions in
+@c question.
+正規表現を用いて、さまざまな関数に対する
+多数のアドバイス断片を一度に無効にすることもできます。
+この場合も、当該関数のアドバイスを再度活性にすることで、
+その効果が発揮されます。
+
+@c @deffn Command ad-disable-regexp regexp
+@deffn コマンド ad-disable-regexp regexp
+@c This command disables all pieces of advice whose names match
+@c @var{regexp}, in all classes, on all functions.
+このコマンドは、すべての関数のすべてのクラスの
+@var{regexp}に一致するアドバイス断片すべてを無効にする。
+@end deffn
+
+@c @deffn Command ad-enable-regexp regexp
+@deffn コマンド ad-enable-regexp regexp
+@c This command enables all pieces of advice whose names match
+@c @var{regexp}, in all classes, on all functions.
+このコマンドは、すべての関数のすべてのクラスの
+@var{regexp}に一致するアドバイス断片すべてを有効にする。
+@end deffn
+
+@node Preactivation
+@c @section Preactivation
+@section 予約活性 @emph{(2003/10/30)}
+@c @cindex preactivating advice
+@c @cindex advice, preactivating
+@cindex 予約活性、アドバイス
+@cindex アドバイスの予約活性
+
+@c   Constructing a combined definition to execute advice is moderately
+@c expensive.  When a library advises many functions, this can make loading
+@c the library slow.  In that case, you can use @dfn{preactivation} to
+@c construct suitable combined definitions in advance.
+アドバイスを実行するための結合定義を作成することは、
+ある程度手間がかかります。
+ライブラリで多数の関数をアドバイスしていると、
+ライブラリのロードが遅くなります。
+そのような場合、あらかじめ適切な結合定義を作成する
+@dfn{予約活性}（preactivation）を使えます。
+
+@c   To use preactivation, specify the @code{preactivate} flag when you
+@c define the advice with @code{defadvice}.  This @code{defadvice} call
+@c creates a combined definition which embodies this piece of advice
+@c (whether enabled or not) plus any other currently enabled advice for the
+@c same function, and the function's own definition.  If the
+@c @code{defadvice} is compiled, that compiles the combined definition
+@c also.
+予約活性を使うには、@code{defadvice}でアドバイスを定義するときに
+フラグ@code{preactivate}を指定します。
+このような@code{defadvice}の呼び出しでは、
+（有効か無効に関わらず）このアドバイス断片と
+当該関数に対して現在有効になっている他のアドバイスを元定義
+に結合した定義を作成します。
+@code{defadvice}をコンパイルすると、その結合定義もコンパイルします。
+
+@c   When the function's advice is subsequently activated, if the enabled
+@c advice for the function matches what was used to make this combined
+@c definition, then the existing combined definition is used, thus avoiding
+@c the need to construct one.  Thus, preactivation never causes wrong
+@c results---but it may fail to do any good, if the enabled advice at the
+@c time of activation doesn't match what was used for preactivation.
+のちに関数のアドバイスを活性にしたとき、
+関数に対する有効にしたアドバイスがこの結合定義の作成に
+使用したものに一致すると既存の結合定義を使います。
+そのため、新たに結合定義を作成する必要がなくなります。
+したがって、予約活性はけっしてまちがった結果を生じませんが、
+予約活性に用いたアドバイスと活性にした有効なアドバイスが一致しないと
+利点はなくなります。
+
+@c   Here are some symptoms that can indicate that a preactivation did not
+@c work properly, because of a mismatch.
+不一致のために予約活性が正しく動作していない兆候の例を示します。
+
+@itemize @bullet
+@item
+@c Activation of the advised
+@c function takes longer than usual.
+アドバイスした関数の活性に通常より長くかかる。
+@item
+@c The byte-compiler gets
+@c loaded while an advised function gets activated.
+アドバイスした関数を活性にするとバイトコンパイラがロードされる。
+@item
+@c @code{byte-compile} is included in the value of @code{features} even
+@c though you did not ever explicitly use the byte-compiler.
+バイトコンパイラを意図して使っていないのに、
+@code{features}の値に@code{byte-compile}が含まれる。
+@end itemize
+
+@c Compiled preactivated advice works properly even if the function itself
+@c is not defined until later; however, the function needs to be defined
+@c when you @emph{compile} the preactivated advice.
+関数自体が定義されるまえであってもコンパイル済みの予約活性したアドバイスは
+正しく動作します。
+しかし、予約活性したアドバイスを@emph{コンパイル}するときには
+関数は定義済みである必要があります。
+
+@c There is no elegant way to find out why preactivated advice is not being
+@c used.  What you can do is to trace the function
+@c @code{ad-cache-id-verification-code} (with the function
+@c @code{trace-function-background}) before the advised function's advice
+@c is activated.  After activation, check the value returned by
+@c @code{ad-cache-id-verification-code} for that function: @code{verified}
+@c means that the preactivated advice was used, while other values give
+@c some information about why they were considered inappropriate.
+予約活性したアドバイスが使われない理由を調べるよい方法はありません。
+できることは、
+関数のアドバイスを活性にするまえに、
+（関数@code{trace-function-background}で）
+関数@code{ad-cache-id-verification-code}をトレースすることです。
+活性にしたあと、当該関数に対して@code{ad-cache-id-verification-code}が
+返した値を調べます。
+@code{verified}ならば予約活性したアドバイスが使われています。
+これ以外の値は、アドバイスが不適切と判断された理由に関する情報を
+与えます。
+
+@c   @strong{Warning:} There is one known case that can make preactivation
+@c fail, in that a preconstructed combined definition is used even though
+@c it fails to match the current state of advice.  This can happen when two
+@c packages define different pieces of advice with the same name, in the
+@c same class, for the same function.  But you should avoid that anyway.
+@strong{警告：}@code{ }
+予約活性が失敗する場合が1つ知られている。
+現在のアドバイスの状態に一致しなくても、
+あらかじめ作成した結合定義を使ってしまう。
+これは、同一関数に対する同じクラスの同一名称であるが異なるアドバイス断片を
+2つのパッケージで定義している場合に発生する。
+このようなことは避けること。
+
+@node Argument Access in Advice
+@c @section Argument Access in Advice
+@section アドバイスからの引数の参照 @emph{(2003/10/30)}
+
+@c   The simplest way to access the arguments of an advised function in the
+@c body of a piece of advice is to use the same names that the function
+@c definition uses.  To do this, you need to know the names of the argument
+@c variables of the original function.
+アドバイス断片の本体からアドバイスする関数の引数を参照する
+もっとも簡単な方法は、関数定義で用いているものと同じ名前を使うことです。
+これには、元関数の引数の変数名を知る必要があります。
+
+@c   While this simple method is sufficient in many cases, it has a
+@c disadvantage: it is not robust, because it hard-codes the argument names
+@c into the advice.  If the definition of the original function changes,
+@c the advice might break.
+多くの場合、この単純な方法で十分ですが、欠点もあります。
+アドバイス内に引数名を直接書き込むために、堅牢ではありません。
+関数の元定義が変更されると、アドバイスは動作しません。
+
+@c   Another method is to specify an argument list in the advice itself.
+@c This avoids the need to know the original function definition's argument
+@c names, but it has a limitation: all the advice on any particular
+@c function must use the same argument list, because the argument list
+@c actually used for all the advice comes from the first piece of advice
+@c for that function.
+他の方法は、アドバイスそのものに引数リストを指定することです。
+これは関数の元定義の引数名を知る必要はありませんが、制約もあります。
+関数に対するすべてのアドバイスで同一の引数リストを使う必要があります。
+なぜなら、すべてのアドバイスに実際に使われる引数リストは、
+当該関数のアドバイス断片の最初のものだからです。
+
+@c   A more robust method is to use macros that are translated into the
+@c proper access forms at activation time, i.e., when constructing the
+@c advised definition.  Access macros access actual arguments by position
+@c regardless of how these actual arguments get distributed onto the
+@c argument variables of a function.  This is robust because in Emacs Lisp
+@c the meaning of an argument is strictly determined by its position in the
+@c argument list.
+より堅牢な方法は、活性にするときに、
+つまり、アドバイスを結合した定義を作成するときに
+適切なフォームに展開されるマクロを使うことです。
+参照用マクロは、関数の引数変数への実引数の分配方法に依存しない
+実引数の位置で参照します。
+Emacs Lispにおいては、引数の意味は引数リスト内での位置で決まるため、
+これは堅牢です。
+
+@defmac ad-get-arg position
+@c This returns the actual argument that was supplied at @var{position}.
+位置@var{position}にある実引数を返す。
+@end defmac
+
+@defmac ad-get-args position
+@c This returns the list of actual arguments supplied starting at
+@c @var{position}.
+位置@var{position}から始まる実引数のリストを返す。
+@end defmac
+
+@defmac ad-set-arg position value
+@c This sets the value of the actual argument at @var{position} to
+@c @var{value}
+位置@var{position}にある実引数の値を設定する。
+@end defmac
+
+@defmac ad-set-args position value-list
+@c This sets the list of actual arguments starting at @var{position} to
+@c @var{value-list}.
+位置@var{position}から始まる実引数のリストに@var{value-list}を設定する。
+@end defmac
+
+@c   Now an example.  Suppose the function @code{foo} is defined as
+例を示します。
+関数@code{foo}の定義はつぎのとおりであり、
+
+@example
+(defun foo (x y &optional z &rest r) ...)
+@end example
+
+@noindent
+@c and is then called with
+つぎのように呼ばれるとします。
+
+@example
+(foo 0 1 2 3 4 5 6)
+@end example
+
+@noindent
+@c which means that @var{x} is 0, @var{y} is 1, @var{z} is 2 and @var{r} is
+@c @code{(3 4 5 6)} within the body of @code{foo}.  Here is what
+@c @code{ad-get-arg} and @code{ad-get-args} return in this case:
+そうすると、@code{foo}の本体では、
+@var{x}は0、@var{y}は1、@var{z}は2、@var{r}は@code{(3 4 5 6)}です。
+このとき、@code{ad-get-arg}や@code{ad-get-args}は、つぎの値を返します。
+
+@example
+(ad-get-arg 0) @result{} 0
+(ad-get-arg 1) @result{} 1
+(ad-get-arg 2) @result{} 2
+(ad-get-arg 3) @result{} 3
+(ad-get-args 2) @result{} (2 3 4 5 6)
+(ad-get-args 4) @result{} (4 5 6)
+@end example
+
+@c   Setting arguments also makes sense in this example:
+この例では、引数に値を設定できます。
+
+@example
+(ad-set-arg 5 "five")
+@end example
+
+@noindent
+@c has the effect of changing the sixth argument to @code{"five"}.  If this
+@c happens in advice executed before the body of @code{foo} is run, then
+@c @var{r} will be @code{(3 4 "five" 6)} within that body.
+の効果は、6番目の引数を@code{"five"}に変更します。
+@code{foo}の本体を実行するまえにこのアドバイスが実行されると、
+本体内では@var{r}は@code{(3 4 "five" 6)}になります。
+
+@c   Here is an example of setting a tail of the argument list:
+つぎは引数リストを変更する例です。
+
+@example
+(ad-set-args 0 '(5 4 3 2 1 0))
+@end example
+
+@noindent
+@c If this happens in advice executed before the body of @code{foo} is run,
+@c then within that body, @var{x} will be 5, @var{y} will be 4, @var{z}
+@c will be 3, and @var{r} will be @code{(2 1 0)} inside the body of
+@c @code{foo}.
+@code{foo}の本体を実行するまえにこのアドバイスが実行されると、
+@code{foo}の本体内では、
+@var{x}は5、@var{y}は4、@var{z}は3、@var{r}は@code{(2 1 0)}になります。
+
+@c   These argument constructs are not really implemented as Lisp macros.
+@c Instead they are implemented specially by the advice mechanism.
+これらの引数参照は、実際にはLispマクロとしての実装ではありません。
+アドバイス機構で特別に実装してあります。
+
+@node Subr Arguments
+@c @section Definition of Subr Argument Lists
+@section subr引数リストの定義 @emph{(2003/10/30)}
+
+@c   When the advice facility constructs the combined definition, it needs
+@c to know the argument list of the original function.  This is not always
+@c possible for primitive functions.  When advice cannot determine the
+@c argument list, it uses @code{(&rest ad-subr-args)}, which always works
+@c but is inefficient because it constructs a list of the argument values.
+@c You can use @code{ad-define-subr-args} to declare the proper argument
+@c names for a primitive function:
+アドバイス機能が結合定義を作成するとき、
+元関数の引数リストを知る必要があります。
+基本関数に対しては、これはつねに可能とは限りません。
+アドバイスが引数リストを決定できないときには、
+@code{(&rest ad-subr-args)}を使います。
+これはつねに動作しますが、
+引数値のリストを作成するために効率的ではありません。
+@code{ad-define-subr-args}を使って、
+基本関数に対する適当な引数名を宣言できます。
+
+@defun ad-define-subr-args function arglist
+@c This function specifies that @var{arglist} should be used as the
+@c argument list for function @var{function}.
+この関数は、関数@var{function}の引数リストとして
+@var{arglist}を使うことを指定する。
+@end defun
+
+@c For example,
+たとえば、
+
+@example
+(ad-define-subr-args 'fset '(sym newdef))
+@end example
+
+@noindent
+@c specifies the argument list for the function @code{fset}.
+は、関数@code{fset}の引数リストを指定します。
+
+@node Combined Definition
+@c @section The Combined Definition
+@section 結合定義 @emph{(2003/10/30)}
+
+@c   Suppose that a function has @var{n} pieces of before-advice
+@c (numbered from 0 through @var{n}@minus{}1), @var{m} pieces of
+@c around-advice and @var{k} pieces of after-advice.  Assuming no piece
+@c of advice is protected, the combined definition produced to implement
+@c the advice for a function looks like this:
+関数には、@var{n}個(0から@var{n}@minus{}1として数えられる)の事前アドバイス（before-advice）、
+@var{m}個の包囲アドバイス（around-advice）、
+@var{k}個の事後アドバイス（after-advice）があるとします。
+保護したアドバイス断片はないと仮定すると、
+関数のアドバイスを実装するために作成される結合定義は
+つぎのようになります。
+
+@example
+(lambda @var{arglist}
+  @r{[} @r{[}@var{advised-docstring}@r{]} @r{[}(interactive ...)@r{]} @r{]}
+  (let (ad-return-value)
+    @r{before-0-body-form}...
+         ....
+    @r{before-@var{n}@minus{}1-body-form}...
+    @r{around-0-body-form}...
+       @r{around-1-body-form}...
+             ....
+          @r{around-@var{m}@minus{}1-body-form}...
+             (setq ad-return-value
+                   @r{apply original definition to @var{arglist}})
+          @r{end-of-around-@var{m}@minus{}1-body-form}...
+             ....
+       @r{end-of-around-1-body-form}...
+    @r{end-of-around-0-body-form}...
+    @r{after-0-body-form}...
+          ....
+    @r{after-@var{k}@minus{}1-body-form}...
+    ad-return-value))
+@end example
+
+@c Macros are redefined as macros, which means adding @code{macro} to
+@c the beginning of the combined definition.
+マクロはマクロとして再定義します。
+つまり、結合定義の先頭に@code{macro}を追加します。
+
+@c The interactive form is present if the original function or some piece
+@c of advice specifies one.  When an interactive primitive function is
+@c advised, advice uses a special method: it calls the primitive with
+@c @code{call-interactively} so that it will read its own arguments.
+@c In this case, the advice cannot access the arguments.
+元関数やアドバイス断片のどれかに対話宣言があれば、
+対話宣言フォームが入ります。
+対話的な基本関数をアドバイスした場合には、
+アドバイスは特別な方法を使います。
+つまり、基本関数を@code{call-interactively}で呼び出して、
+基本関数自身が引数を読み取るようにします。
+この場合、アドバイスからは引数を参照できません。
+
+@c The body forms of the various advice in each class are assembled
+@c according to their specified order.  The forms of around-advice @var{l}
+@c are included in one of the forms of around-advice @var{l} @minus{} 1.
+各クラスのさまざまなアドバイスの本体フォームは、
+それらの指定された順に組み立てられます。
+包囲アドバイス@var{l}（around-advice @var{l}）のフォーム群は、
+包囲アドバイス@var{l} @minus{} 1（around-advice @var{l} @minus{} 1）の
+フォームの1つに入ります。
+
+@c The innermost part of the around advice onion is 
+包囲アドバイスのもっとも内側では、
+
+@display
+@c apply original definition to @var{arglist}
+元定義を@var{arglist}に適用
+@end display
+
+@noindent
+@c whose form depends on the type of the original function.  The variable
+@c @code{ad-return-value} is set to whatever this returns.  The variable is
+@c visible to all pieces of advice, which can access and modify it before
+@c it is actually returned from the advised function.
+しますが、そのフォームは元関数の種類に依存します。
+変数@code{ad-return-value}には、その戻り値が設定されます。
+この変数はすべてのアドバイス断片から見えるので、
+アドバイスした関数から実際に戻るまえに、
+これを参照したり変更できます。
+
+@c The semantic structure of advised functions that contain protected
+@c pieces of advice is the same.  The only difference is that
+@c @code{unwind-protect} forms ensure that the protected advice gets
+@c executed even if some previous piece of advice had an error or a
+@c non-local exit.  If any around-advice is protected, then the whole
+@c around-advice onion is protected as a result.
+保護したアドバイス断片を含むアドバイスした関数の構造も同じです。
+唯一の違いは、フォーム@code{unwind-protect}により、
+アドバイス断片でエラーを起こしたり非ローカル脱出を行っても、
+保護したアドバイスが実行されることを保証します。
+包囲アドバイスを1つでも保護していると、その結果として、
+包囲アドバイス全体が保護されます。
