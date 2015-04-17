@@ -1,25 +1,16 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1999
-@c   Free Software Foundation, Inc. 
+@c Copyright (C) 1990-1995, 1999, 2001-2015 Free Software Foundation,
+@c Inc.
 @c See the file elisp.texi for copying conditions.
-@setfilename ../info/backups
-@node Backups and Auto-Saving, Buffers, Files, Top
-@c @chapter Backups and Auto-Saving
-@chapter バックアップと自動保存 @emph{(2003/10/30)}
+@node Backups and Auto-Saving
+@chapter バックアップと自動保存
+@cindex backups and auto-saving
 
-@c   Backup files and auto-save files are two methods by which Emacs tries
-@c to protect the user from the consequences of crashes or of the user's
-@c own errors.  Auto-saving preserves the text from earlier in the current
-@c editing session; backup files preserve file contents prior to the
-@c current session.
-バックアップファイルと自動保存ファイルは、
-クラッシュやユーザー自身の誤りから
-Emacsがユーザーを保護するための2つの方式です。
-自動保存により、現在の編集セッションにおいて、
-まえの時点でのテキストを確保します。
-バックアップファイルにより、現在のセッション以前の
-ファイル内容を確保します。
+バックアップファイルと自動保存ファイルは、クラッシュやユーザー自身の誤り
+からEmacsがユーザーを保護するための2つの方式です。自動保存により、現在の
+編集セッションにおいて、まえの時点でのテキストを確保します。バックアップ
+ファイルにより、現在のセッション以前のファイル内容を確保します。
 
 @menu
 * Backup Files::   How backup files are made; how their names are chosen.
@@ -28,47 +19,26 @@ Emacsがユーザーを保護するための2つの方式です。
 @end menu
 
 @node Backup Files
-@c @section Backup Files
-@section バックアップファイル @emph{(2003/10/30)}
-@c @cindex backup file
+@section バックアップファイル
 @cindex バックアップファイル
 
-@c   A @dfn{backup file} is a copy of the old contents of a file you are
-@c editing.  Emacs makes a backup file the first time you save a buffer
-@c into its visited file.  Normally, this means that the backup file
-@c contains the contents of the file as it was before the current editing
-@c session.  The contents of the backup file normally remain unchanged once
-@c it exists.
-@dfn{バックアップファイル}（backup file）とは、
-読者が編集中のファイルの古い内容のコピーです。
-バッファを訪問しているファイルに初めて保存するときに、
-Emacsはバックアップファイルを作成します。
-通常これは、バックアップファイルは
-現在の編集セッションよりまえのファイルの内容を保持することを意味します。
+@dfn{バックアップファイル}（backup file）とは、読者が編集中のファイルの古
+い内容のコピーです。バッファを訪問しているファイルに初めて保存するときに、
+Emacsはバックアップファイルを作成します。通常これは、バックアップファイル
+は現在の編集セッションよりまえのファイルの内容を保持することを意味します。
 バックアップファイルの内容は、通常、それが作られると変更されません。
 
-@c   Backups are usually made by renaming the visited file to a new name.
-@c Optionally, you can specify that backup files should be made by copying
-@c the visited file.  This choice makes a difference for files with
-@c multiple names; it also can affect whether the edited file remains owned
-@c by the original owner or becomes owned by the user editing it.
-訪問したファイルを新たな名前に改名することで
-通常バックアップは作られます。
-訪問したファイルをコピーしてバックアップファイルを作るように
-指示することもできます。
-どちらを選ぶかによって、複数の名前を持つファイルでは違いがでます。
-また、編集したファイルの所有者が元所有者と同じであるか、
-それとも編集したユーザーが所有者になるかにも影響します。
+訪問したファイルを新たな名前に改名することで通常バックアップは作られます。
+訪問したファイルをコピーしてバックアップファイルを作るように指示すること
+もできます。どちらを選ぶかによって、複数の名前を持つファイルでは違いがで
+ます。また、編集したファイルの所有者が元所有者と同じであるか、それとも編
+集したユーザーが所有者になるかにも影響します。
 
-@c   By default, Emacs makes a single backup file for each file edited.
-@c You can alternatively request numbered backups; then each new backup
-@c file gets a new name.  You can delete old numbered backups when you
-@c don't want them any more, or Emacs can delete them automatically.
-デフォルトでは、Emacsは各編集ファイルに1つのバックアップファイルを作ります。
-番号付きのバックアップファイルを作るように指示することもでき、
-そうすると、新たなバックアップファイルごとに新たな名前が付きます。
-古い番号付きバックアップファイルは必要なくなれば削除できますし、
-Emacsがそれらを自動的に削除することも可能です。
+デフォルトでは、Emacsは各編集ファイルに1つのバックアップファイルを作りま
+す。番号付きのバックアップファイルを作るように指示することもでき、そうす
+ると、新たなバックアップファイルごとに新たな名前が付きます。古い番号付き
+バックアップファイルは必要なくなれば削除できますし、Emacsがそれらを自動的
+に削除することも可能です。
 
 @menu
 * Making Backups::     How Emacs makes backup files, and when.
@@ -78,47 +48,40 @@ Emacsがそれらを自動的に削除することも可能です。
 @end menu
 
 @node Making Backups
-@c @subsection Making Backup Files
-@subsection バックアップファイルの作成 @emph{(2003/10/30)}
+@subsection バックアップファイルの作成
+@cindex バックアップファイルの作成
 
 @defun backup-buffer
-@c   This function makes a backup of the file visited by the current
-@c buffer, if appropriate.  It is called by @code{save-buffer} before
-@c saving the buffer the first time.
-この関数は、必要ならば、カレントバッファで訪問しているファイルの
-バックアップを作成する。
-バッファを初めて保存するまえに@code{save-buffer}がこの関数を呼び出す。
+この関数は、必要ならば、カレントバッファで訪問しているファイルのバックアッ
+プを作成する。バッファを初めて保存するまえに@code{save-buffer}がこの関数
+を呼び出す。
+
+If a backup was made by renaming, the return value is a cons cell of
+the form (@var{modes} @var{extra-alist} @var{backupname}), where
+@var{modes} are the mode bits of the original file, as returned by
+@code{file-modes} (@pxref{Testing Accessibility}), @var{extra-alist}
+is an alist describing the original file's extended attributes, as
+returned by @code{file-extended-attributes} (@pxref{Extended
+Attributes}), and @var{backupname} is the name of the backup.
+
+In all other cases (i.e., if a backup was made by copying or if no
+backup was made), this function returns @code{nil}.
 @end defun
 
 @defvar buffer-backed-up
-@c   This buffer-local variable indicates whether this buffer's file has
-@c been backed up on account of this buffer.  If it is non-@code{nil}, then
-@c the backup file has been written.  Otherwise, the file should be backed
-@c up when it is next saved (if backups are enabled).  This is a
-@c permanent local; @code{kill-all-local-variables} does not alter it.
-このバッファローカルな変数は、
-当該バッファのもとで当該バッファのファイルの
-バックアップを作成済みかどうかを表す。
-@code{nil}以外であれば、バックアップファイルは作成済みであることを表す。
-さもなければ、（バックアップがオンになっていれば）つぎに保存するときに
-ファイルのバックアップを作成するべきであることを表す。
-これは恒久的にバッファローカルであり、
+このバッファローカルな変数は、当該バッファのもとで当該バッファのファイル
+のバックアップを作成済みかどうかを表す。@code{nil}以外であれば、バックアッ
+プファイルは作成済みであることを表す。さもなければ、（バックアップがオン
+になっていれば）つぎに保存するときにファイルのバックアップを作成するべき
+であることを表す。これは恒久的にバッファローカルであり、
 @code{kill-all-local-variables}によって変更されない。
 @end defvar
 
 @defopt make-backup-files
-@c This variable determines whether or not to make backup files.  If it
-@c is non-@code{nil}, then Emacs creates a backup of each file when it is
-@c saved for the first time---provided that @code{backup-inhibited}
-@c is @code{nil} (see below).
 この変数は、バックアップファイルを作成するかどうかを決定する。
 @code{nil}以外であると、@code{backup-inhibited}が@code{nil}ならば（下記参照）
 Emacsは初めて保存するときに各ファイルのバックアップを作成する。
 
-@c The following example shows how to change the @code{make-backup-files}
-@c variable only in the Rmail buffers and not elsewhere.  Setting it
-@c @code{nil} stops Emacs from making backups of these files, which may
-@c save disk space.  (You would put this code in your init file.)
 つぎの例は、rmailのバッファでのみ変数@code{make-backup-files}を
 変更する方法である。
 この変数を@code{nil}にすると、
@@ -138,11 +101,6 @@ Emacsはそれらのファイルのバックアップを作成しなくなり、
 @end defopt
 
 @defvar backup-enable-predicate
-@c This variable's value is a function to be called on certain occasions to
-@c decide whether a file should have backup files.  The function receives
-@c one argument, a file name to consider.  If the function returns
-@c @code{nil}, backups are disabled for that file.  Otherwise, the other
-@c variables in this section say whether and how to make backups.
 この変数の値は、ファイルをバックアップすべきかどうかを決定する
 ために特定の場面で呼び出される関数である。
 当該関数は、調べるべきファイルの名前を引数にとる。
@@ -151,9 +109,6 @@ Emacsはそれらのファイルのバックアップを作成しなくなり、
 バックアップするかどうかやバックアップ方法を指定する。
 
 @findex normal-backup-enable-predicate
-@c The default value is @code{normal-backup-enable-predicate}, which checks
-@c for files in @code{temporary-file-directory} and
-@c @code{small-temporary-file-directory}.
 この変数のデフォルト値は@code{normal-backup-enable-predicate}であり、
 @code{temporary-file-directory} や
 @code{small-temporary-file-directory} にあるファイルを確認し、バックアッ
@@ -161,12 +116,6 @@ Emacsはそれらのファイルのバックアップを作成しなくなり、
 @end defvar
 
 @defvar backup-inhibited
-@c If this variable is non-@code{nil}, backups are inhibited.  It records
-@c the result of testing @code{backup-enable-predicate} on the visited file
-@c name.  It can also coherently be used by other mechanisms that inhibit
-@c backups based on which file is visited.  For example, VC sets this
-@c variable non-@code{nil} to prevent making backups for files managed
-@c with a version control system.
 この変数が@code{nil}以外であると、バックアップを禁止する。
 この変数は、訪問したファイルの名前に対する@code{backup-enable-predicate}の
 検査結果を記録している。
@@ -175,19 +124,14 @@ Emacsはそれらのファイルのバックアップを作成しなくなり、
 たとえば、VCはこの変数に@code{nil}以外を設定し、
 版管理システムで管理されているファイルに対してバックアップの作成を禁止する。
 
-@c This is a permanent local, so that changing the major mode does not lose
-@c its value.  Major modes should not set this variable---they should set
-@c @code{make-backup-files} instead.
 これは恒久的にバッファローカルであり、
 メジャーモードを変更しても値は失われない。
 メジャーモードはこの変数に設定するべきではなく、
 かわりに、@code{make-backup-files}に設定するべきである。
 @end defvar
 
-@defvar backup-directory-alist
+@defopt backup-directory-alist
 @tindex backup-directory-alist
-@c This variable's value is an alist of filename patterns and backup
-@c directory names.  Each element looks like
 これはファイル名の正規表現とバックアップディレクトリの連想リストである。
 それぞれの要素は以下のようになる。
 @smallexample
@@ -195,74 +139,43 @@ Emacsはそれらのファイルのバックアップを作成しなくなり、
 @end smallexample
 
 @noindent
-@c Backups of files with names matching @var{regexp} will be made in
-@c @var{directory}.  @var{directory} may be relative or absolute.  If it is
-@c absolute, so that all matching files are backed up into the same
-@c directory, the file names in this directory will be the full name of the
-@c file backed up with all directory separators changed to @samp{!} to
-@c prevent clashes.  This will not work correctly if your filesystem
-@c truncates the resulting name.
 @var{regexp}に一致した名前を持つファイルのバックアップは
 @var{directory}に保存される。@var{directory}が相対パスか絶対パスである。
-絶対パスであれば、ある@var{regexp}に一致したファイルのバックアップはす
-べて同じディレクトリにできる。そして、そのバックアップファイルの名前は
+絶対パスであれば、一致したファイルのバックアップはすべて同じディレクトリにできる。
+そして、そのバックアップファイルの名前は
 衝突を防ぐために、ディレクトリの区切り文字を@samp{!}に変えたフルパスに
 なる。この方法はファイルシステムがファイル名を短縮して与える場合にはう
 まく動作しないだろう。
 
-@c For the common case of all backups going into one directory, the alist
-@c should contain a single element pairing @samp{"."} with the appropriate
-@c directory name.
 すべてのバックアップが1つのディレクトリにできるようにするには、
 @samp{"."}と適切なディレクトリのペアを持つ連想リストであればよい。
 
-@c If this variable is @code{nil}, or it fails to match a filename, the
-@c backup is made in the original file's directory.
 この変数が@code{nil}かファイル名に一致しなかった場合には、バックアップ
 ファイルは元ファイルと同じディレクトリにできる。
 
-@c On MS-DOS filesystems without long names this variable is always
-@c ignored.
 この変数は、MS-DOSのように長いファイル名に対応していないシステムでは無
 視される。
-@end defvar
+@end defopt
 
-@defvar make-backup-file-name-function
-@tindex make-backup-file-name-function
-@c This variable's value is a function to use for making backups instead of
-@c the default @code{make-backup-file-name}.  A value of nil gives the
-@c default @code{make-backup-file-name} behaviour.
-この変数の値は関数名である。この関数はバックアップファイル名を作る関数
-であり、デフォルト関数 @code{make-backup-file-name} のかわりに使われる。
-nilであれば、@code{make-backup-file-name} と同じことになる。
+@defopt make-backup-file-name-function
+この変数の値は、バックアップファイル名を作る関数である。
+@code{make-backup-file-name}が呼び出す。
+@xref{Backup Names,, Naming Backup Files}。
 
-@c This could be buffer-local to do something special for specific
-@c files.  If you define it, you may need to change
-@c @code{backup-file-name-p} and @code{file-name-sans-versions} too.
 ある種のファイルでは特別な処理ができるように、この変数はバッファローカ
 ルになっている。もしこれを設定した場合には、@code{backup-file-name-p}
 や @code{file-name-sans-versions} の変更も必要となる場合がある。
-@end defvar
+@end defopt
 
 
 @node Rename or Copy
-@c @subsection Backup by Renaming or by Copying?
-@subsection 改名によるバックアップかコピーによるバックアップか @emph{(2003/10/30)}
-@c @cindex backup files, how to make them
+@subsection 改名によるバックアップかコピーによるバックアップか
 @cindex バックアップファイルの作成方法
-@cindex 作成方法、バックアップファイル
 
-@c   There are two ways that Emacs can make a backup file: 
 Emacsは2つの方法でバックアップファイルを作れます。
 
 @itemize @bullet
 @item
-@c Emacs can rename the original file so that it becomes a backup file, and
-@c then write the buffer being saved into a new file.  After this
-@c procedure, any other names (i.e., hard links) of the original file now
-@c refer to the backup file.  The new file is owned by the user doing the
-@c editing, and its group is the default for new files written by the user
-@c in that directory.
 Emacsは、元ファイルを改名してバックアップファイルとしてから、
 保存すべきバッファを新たなファイルに書き出す。
 この処理のあとでは、元ファイルの他の名前（つまりハードリンク）は
@@ -271,11 +184,6 @@ Emacsは、元ファイルを改名してバックアップファイルとして
 当該ディレクトリでユーザーが新規にファイルを書いた場合のデフォルトである。
 
 @item
-@c Emacs can copy the original file into a backup file, and then overwrite
-@c the original file with new contents.  After this procedure, any other
-@c names (i.e., hard links) of the original file continue to refer to the
-@c current (updated) version of the file.  The file's owner and group will
-@c be unchanged.
 Emacsは元ファイルをバックアップファイルにコピーしてから、
 元ファイルを新たな内容で上書きする。
 この処理のあとでは、元ファイルの他の名前（つまりハードリンク）は
@@ -283,14 +191,8 @@ Emacsは元ファイルをバックアップファイルにコピーしてから
 ファイルの所有者とグループは変わらない。
 @end itemize
 
-@c   The first method, renaming, is the default.
 最初の改名による方式がデフォルトです。
 
-@c   The variable @code{backup-by-copying}, if non-@code{nil}, says to use
-@c the second method, which is to copy the original file and overwrite it
-@c with the new buffer contents.  The variable @code{file-precious-flag},
-@c if non-@code{nil}, also has this effect (as a sideline of its main
-@c significance).  @xref{Saving Buffers}.
 変数@code{backup-by-copying}が@code{nil}以外であると、
 2番目の方式、つまり、元ファイルをコピーしてから
 バッファの新たな内容で上書きすることを指示します。
@@ -298,86 +200,57 @@ Emacsは元ファイルをバックアップファイルにコピーしてから
 （その主目的の副作用として）同じ効果があります。
 @xref{Saving Buffers}。
 
-@defvar backup-by-copying
-@c If this variable is non-@code{nil}, Emacs always makes backup files by
-@c copying.
-この変数が@code{nil}以外であると、
+@defopt backup-by-copying
+この変数が@code{nil}でなければ、
 Emacsはつねにコピーしてバックアップファイルを作る。
-@end defvar
+デフォルトは@code{nil}である。
+@end defopt
 
-@c   The following two variables, when non-@code{nil}, cause the second
-@c method to be used in certain special cases.  They have no effect on the
-@c treatment of files that don't fall into the special cases.
 つぎの2つの変数が@code{nil}以外であると、
 特定の場面では2番目の方式を使うことになります。
 これらの変数は、特別な場面に該当しないファイルの扱い方には影響しません。
 
-@defvar backup-by-copying-when-linked
-@c If this variable is non-@code{nil}, Emacs makes backups by copying for
-@c files with multiple names (hard links).
+@defopt backup-by-copying-when-linked
 この変数が@code{nil}以外の場合、Emacsは、
 複数の名前（ハードリンク）を持つファイルはコピーしてバックアップする。
+デフォルトは@code{nil}である。
 
-@c This variable is significant only if @code{backup-by-copying} is
-@c @code{nil}, since copying is always used when that variable is
-@c non-@code{nil}.
 この変数は@code{backup-by-copying}が@code{nil}以外の場合にのみ意味を持つ。
 というのは、その変数が@code{nil}以外の場合にコピーを用いるからである。
-@end defvar
+@end defopt
 
-@defvar backup-by-copying-when-mismatch
-@c If this variable is non-@code{nil}, Emacs makes backups by copying in cases
-@c where renaming would change either the owner or the group of the file.
+@defopt backup-by-copying-when-mismatch
 この変数が@code{nil}以外の場合、Emacsは、
 改名するとファイルの所有者やグループを変更してしまう場合に
 コピーしてバックアップする。
 
-@c The value has no effect when renaming would not alter the owner or
-@c group of the file; that is, for files which are owned by the user and
-@c whose group matches the default for a new file created there by the
-@c user.
 改名してもファイルの所有者やグループを変更しなければ、
 この値は効果を持たない。
 つまり、ユーザーが所有しているファイルであり、
 そのグループが当該ユーザーが新規作成するファイルのデフォルトに一致する
 場合である。
 
-@c This variable is significant only if @code{backup-by-copying} is
-@c @code{nil}, since copying is always used when that variable is
-@c non-@code{nil}.
 この変数は@code{backup-by-copying}が@code{nil}以外の場合にのみ意味を持つ。
 というのは、その変数が@code{nil}以外の場合にコピーを用いるからである。
-@end defvar
+@end defopt
 
-@defvar backup-by-copying-when-privileged-mismatch
-@c This variable, if non-@code{nil}, specifies the same behavior as
-@c @code{backup-by-copying-when-mismatch}, but only for certain user-id
-@c values: namely, those less than or equal to a certain number.  You set
-@c this variable to that number.
+@defopt backup-by-copying-when-privileged-mismatch
 この変数が@code{nil}でなければ、
 @code{backup-by-copying-when-mismatch} と同じ動作になる。ただし、ある
 ユーザIDの値、すなわちある数以下のIDの場合に限られる。この変数には数整
 数を指定する。
 
-@c Thus, if you set @code{backup-by-copying-when-privileged-mismatch}
-@c to 0, backup by copying is done for the superuser only,
-@c when necessary to prevent a change in the owner of the file.
 そうして、@code{backup-by-copying-when-privileged-mismatch} に0を設定
 すると、コピーによるバックアップはスーパーユーザで、ファイルの所有者の
 変更を破棄する必要がある時にのみ、コピーによるバックアップが行われる。
 
-@c The default is 200.
 デフォルトは200である。
-@end defvar
+@end defopt
 
 @node Numbered Backups
-@c @subsection Making and Deleting Numbered Backup Files
 @subsection 番号付きバックアップファイルの作成と削除 @emph{(2003/10/30)}
+@cindex numbered backups
 
-@c   If a file's name is @file{foo}, the names of its numbered backup
-@c versions are @file{foo.~@var{v}~}, for various integers @var{v}, like
-@c this: @file{foo.~1~}, @file{foo.~2~}, @file{foo.~3~}, @dots{},
-@c @file{foo.~259~}, and so on.
 ファイル名が@file{foo}であると、
 その番号付きバックアップファイルの名前は@var{v}を整数として
 @file{foo.~@var{v}~}となります。
@@ -385,33 +258,23 @@ Emacsはつねにコピーしてバックアップファイルを作る。
 @file{foo.~259~}といった具合です。
 
 @defopt version-control
-@c This variable controls whether to make a single non-numbered backup
-@c file or multiple numbered backups.
 この変数は、番号なしの1つのバックアップファイルを作るのか
 複数の番号付きバックアップファイルを作るのかを制御する。
 
 @table @asis
 @item @code{nil}
-@c Make numbered backups if the visited file already has numbered backups;
-@c otherwise, do not.
 訪問したファイルにすでに番号付きバックアップファイルがあれば
 番号付きバックアップを作る。
 さもなければ作らない。
 
 @item @code{never}
-@c Do not make numbered backups.
 番号付きバックアップは作らない。
 
-@c @item @var{anything else}
 @item @var{その他}
-@c Make numbered backups.
 番号付きバックアップを作る。
 @end table
 @end defopt
 
-@c   The use of numbered backups ultimately leads to a large number of
-@c backup versions, which must then be deleted.  Emacs can do this
-@c automatically or it can ask the user whether to delete them.
 番号付きバックアップファイルを使うと、
 最終的には非常に多くのバックアップファイルができてしまい、
 それらは削除しなければなりません。
@@ -419,9 +282,6 @@ Emacsはそれらを自動的に削除したり、
 削除するかどうかユーザーに問い合わせることができます。
 
 @defopt kept-new-versions
-@c The value of this variable is the number of newest versions to keep
-@c when a new numbered backup is made.  The newly made backup is included
-@c in the count.  The default value is 2.
 この変数の値は、新たに番号付きバックアップを作成したときに
 保存すべき最新のバックアップの個数である。
 新たに作成したバックアップも数える。
@@ -429,19 +289,11 @@ Emacsはそれらを自動的に削除したり、
 @end defopt
 
 @defopt kept-old-versions
-@c The value of this variable is the number of oldest versions to keep
-@c when a new numbered backup is made.  The default value is 2.
 この変数の値は、新たに番号付きバックアップを作成したときに
 保存すべき最古のバックアップの個数である。
 デフォルト値は2である。
 @end defopt
 
-@c   If there are backups numbered 1, 2, 3, 5, and 7, and both of these
-@c variables have the value 2, then the backups numbered 1 and 2 are kept
-@c as old versions and those numbered 5 and 7 are kept as new versions;
-@c backup version 3 is excess.  The function @code{find-backup-file-name}
-@c (@pxref{Backup Names}) is responsible for determining which backup
-@c versions to delete, but does not delete them itself.
 1、2、3、5、7と番号が付いたバックアップがあり、
 これらのどちらの変数の値も2であるとすると、
 最古のものとして1と2の番号が付いたバックアップを保存し、
@@ -451,10 +303,6 @@ Emacsはそれらを自動的に削除したり、
 それ自身はそれらを削除しない。
 
 @defopt delete-old-versions
-@c If this variable is @code{t}, then saving a file deletes excess
-@c backup versions silently.  If it is @code{nil}, that means
-@c to ask for confirmation before deleting excess backups.
-@c Otherwise, they are not deleted at all.
 この変数が@code{t}であると、
 ファイルを保存すると黙って範囲外のバックアップを削除する。@code{nil}
 であれば、それを削除するかどうかユーザーに問い合わせる。さもなければ、
@@ -462,10 +310,6 @@ Emacsはそれらを自動的に削除したり、
 @end defopt
 
 @defopt dired-kept-versions
-@c This variable specifies how many of the newest backup versions to keep
-@c in the Dired command @kbd{.} (@code{dired-clean-directory}).  That's the
-@c same thing @code{kept-new-versions} specifies when you make a new backup
-@c file.  The default value is 2.
 この変数は、diredのコマンド@kbd{.}（@code{dired-clean-directory}）で
 最新のバックアップを何個保存するかを指定する。
 これは、新たなバックアップファイルの作成を指示したときに
@@ -474,20 +318,14 @@ Emacsはそれらを自動的に削除したり、
 @end defopt
 
 @node Backup Names
-@c @subsection Naming Backup Files
 @subsection バックアップファイルの命名方法 @emph{(2003/10/30)}
+@cindex naming backup files
 
-@c   The functions in this section are documented mainly because you can
-@c customize the naming conventions for backup files by redefining them.
-@c If you change one, you probably need to change the rest.
 本節の関数は、それらを再定義することでバックアップファイルの命名方法を
 カスタマイズできるため、ここで述べることにします。
 どれか1つを変更すると、残りのものも変更する必要があるでしょう。
 
 @defun backup-file-name-p filename
-@c This function returns a non-@code{nil} value if @var{filename} is a
-@c possible name for a backup file.  A file with the name @var{filename}
-@c need not exist; the function just checks the name.
 この関数は、@var{filename}がバックアップファイルの名前である
 可能性があると@code{nil}以外の値を返す。
 @var{filename}という名前のファイルが存在する必要はなく、
@@ -504,7 +342,6 @@ Emacsはそれらを自動的に削除したり、
 @end group
 @end smallexample
 
-@c The standard definition of this function is as follows:
 この関数の標準定義はつぎのとおりである。
 
 @smallexample
@@ -517,31 +354,20 @@ name (numeric or not)..."
 @end smallexample
 
 @noindent
-@c Thus, the function returns a non-@code{nil} value if the file name ends
-@c with a @samp{~}.  (We use a backslash to split the documentation
-@c string's first line into two lines in the text, but produce just one
-@c line in the string itself.)
 したがって、ファイル名が@samp{~}で終っていると、
 この関数は@code{nil}以外の値を返す。
 （説明文字列を2行に分けるためにバックスラッシュを使っているが、
 文字列としては1行になる。）
 
-@c This simple expression is placed in a separate function to make it easy
-@c to redefine for customization.
 カスタマイズのために再定義しやすいように、
 この単純な式を独立した関数にしてある。
 @end defun
 
 @defun make-backup-file-name filename
-@c This function returns a string that is the name to use for a
-@c non-numbered backup file for file @var{filename}.  On Unix, this is just
-@c @var{filename} with a tilde appended.
 この関数は、ファイル@var{filename}に対する
 番号なしバックアップファイルに使う名前を表す文字列を返す。
 UNIXでは、単に@var{filename}の末尾にティルダを付加したものである。
 
-@c The standard definition of this function, on most operating systems, is
-@c as follows:
 ほとんどのオペレーティングシステムでは、
 この関数の標準定義はつぎのとおりである。
 
@@ -553,9 +379,6 @@ UNIXでは、単に@var{filename}の末尾にティルダを付加したもの�
 @end group
 @end smallexample
 
-@c You can change the backup-file naming convention by redefining this
-@c function.  The following example redefines @code{make-backup-file-name}
-@c to prepend a @samp{.} in addition to appending a tilde:
 この関数を再定義すれば、バックアップファイルの命名方法を変更できる。
 つぎの例では、ティルダに加えて先頭に@samp{.}を付けるように
 @code{make-backup-file-name}を再定義する。
@@ -574,10 +397,6 @@ UNIXでは、単に@var{filename}の末尾にティルダを付加したもの�
 @end group
 @end smallexample
 
-@c Some parts of Emacs, including some Dired commands, assume that backup
-@c file names end with @samp{~}.  If you do not follow that convention, it
-@c will not cause serious problems, but these commands may give
-@c less-than-desirable results.
 diredコマンドを含めてEmacsには、
 バックアップファイルは@samp{~}で終ると仮定しているものがある。
 この慣習に従わない場合、重大な問題には至らないであろうが、
@@ -585,31 +404,20 @@ diredコマンドを含めてEmacsには、
 @end defun
 
 @defun find-backup-file-name filename
-@c This function computes the file name for a new backup file for
-@c @var{filename}.  It may also propose certain existing backup files for
-@c deletion.  @code{find-backup-file-name} returns a list whose @sc{car} is
-@c the name for the new backup file and whose @sc{cdr} is a list of backup
-@c files whose deletion is proposed.
 この関数は、@var{filename}に対する新たなバックアップファイルの
 ファイル名を計算する。
-さらに、削除すべき既存のバックアップファイルも計算する。
+さらに、削除すべき既存のバックアップファイルも提案する。
 @code{find-backup-file-name}は、
 @sc{car}に新たなバックアップファイルの名前、
 @sc{cdr}に削除すべきバックアップファイルのリストを持つリストを返す。
+この値が@code{nil}ならば、バックアップを作成しない。
 
-@c Two variables, @code{kept-old-versions} and @code{kept-new-versions},
-@c determine which backup versions should be kept.  This function keeps
-@c those versions by excluding them from the @sc{cdr} of the value.
-@c @xref{Numbered Backups}.
 2つの変数、@code{kept-old-versions}と@code{kept-new-versions}は、
 どのバックアップを保存すべきかを決定する。
 この関数は、値の@sc{cdr}ではそれらのバックアップファイルは
 除外してある。
-@pxref{Numbered Backups}。
+@xref{Numbered Backups}。
 
-@c In this example, the value says that @file{~rms/foo.~5~} is the name
-@c to use for the new backup file, and @file{~rms/foo.~3~} is an ``excess''
-@c version that the caller should consider deleting now.
 つぎの例の値では、@file{~rms/foo.~5~}が
 新たなバックアップファイルの名前であり、
 @file{~rms/foo.~3~}が『範囲外』のものであり、
@@ -625,33 +433,18 @@ diredコマンドを含めてEmacsには、
 
 @c Emacs 19 feature
 @defun file-newest-backup filename
-@c This function returns the name of the most recent backup file for
-@c @var{filename}, or @code{nil} if that file has no backup files.
 この関数は、@var{filename}の最新のバックアップファイルの名前を返す。
 当該ファイルにバックアップファイルがなければ@code{nil}を返す。
 
-@c Some file comparison commands use this function so that they can
-@c automatically compare a file with its most recent backup.
 ファイルを比較するコマンドのなかには、
 最新のバックアップファイルと自動的に比較できるように
 この関数を使うものがある。
-@end defun 
+@end defun
 
 @node Auto-Saving
-@c @section Auto-Saving
 @section 自動保存 @emph{(2003/10/30)}
-@c @cindex auto-saving
-@cindex 自動保存
+@c @cindex 自動保存
 
-@c   Emacs periodically saves all files that you are visiting; this is
-@c called @dfn{auto-saving}.  Auto-saving prevents you from losing more
-@c than a limited amount of work if the system crashes.  By default,
-@c auto-saves happen every 300 keystrokes, or after around 30 seconds of
-@c idle time.  @xref{Auto-Save, Auto-Save, Auto-Saving: Protection Against
-@c = 誤植?     @xref{Auto Save, Auto Save, Auto-Saving: Protection Against
-@c Disasters, emacs, The GNU Emacs Manual}, for information on auto-save
-@c for users.  Here we describe the functions used to implement auto-saving
-@c and the variables that control them.
 Emacsは編集中のすべてのファイルを定期的に保存します。
 これを@dfn{自動保存}（auto-savign）と呼びます。
 自動保存により、システムがクラッシュしても、
@@ -664,9 +457,6 @@ GNU Emacs マニュアル}。
 それらを制御する変数について述べます。
 
 @defvar buffer-auto-save-file-name
-@c This buffer-local variable is the name of the file used for
-@c auto-saving the current buffer.  It is @code{nil} if the buffer
-@c should not be auto-saved.
 このバッファローカルな変数は、カレントバッファの自動保存に
 用いるファイル名である。
 当該バッファを自動保存しない場合には@code{nil}である。
@@ -679,30 +469,18 @@ buffer-auto-save-file-name
 @end example
 @end defvar
 
-@c @deffn Command auto-save-mode arg
-@deffn コマンド auto-save-mode arg
 @deffn Command auto-save-mode arg
-@c When used interactively without an argument, this command is a toggle
-@c switch: it turns on auto-saving of the current buffer if it is off, and
-@c vice versa.  With an argument @var{arg}, the command turns auto-saving
-@c on if the value of @var{arg} is @code{t}, a nonempty list, or a positive
-@c integer.  Otherwise, it turns auto-saving off.
-引数なしに対話的に呼ばれると、
-このコマンドは自動保存機能をトグルする。
-つまり、カレントバッファの自動保存がオンであるとオフにし、
-オフならばオンにする。
-引数@var{arg}を指定すると、
-@var{arg}の値が@code{t}、空でないリスト、正整数のいずれかであれば、
-このコマンドは自動保存をオンにする。
-さもなければ自動保存をオフにする。
+This is the mode command for Auto Save mode, a buffer-local minor
+mode.  When Auto Save mode is enabled, auto-saving is enabled in the
+buffer.  The calling convention is the same as for other minor mode
+commands (@pxref{Minor Mode Conventions}).
+
+Unlike most minor modes, there is no @code{auto-save-mode} variable.
+Auto Save mode is enabled if @code{buffer-auto-save-file-name} is
+non-@code{nil} and @code{buffer-saved-size} (see below) is non-zero.
 @end deffn
 
 @defun auto-save-file-name-p filename
-@c This function returns a non-@code{nil} value if @var{filename} is a
-@c string that could be the name of an auto-save file.  It assumes
-@c the usual naming convention for auto-save files: a name that
-@c begins and ends with hash marks (@samp{#}) is a possible auto-save file
-@c name.  The argument @var{filename} should not contain a directory part.
 この関数は、@var{filename}が自動保存ファイルの名前であるならば、
 @code{nil}以外を返す。
 この関数は自動保存ファイルの通常の名前の慣習を仮定する。
@@ -725,7 +503,6 @@ buffer-auto-save-file-name
 @end group
 @end example
 
-@c The standard definition of this function is as follows:
 この関数の標準定義はつぎのとおりである。
 
 @example
@@ -736,10 +513,6 @@ buffer-auto-save-file-name
 @end group
 @end example
 
-@c This function exists so that you can customize it if you wish to
-@c change the naming convention for auto-save files.  If you redefine it,
-@c be sure to redefine the function @code{make-auto-save-file-name}
-@c correspondingly.
 この関数は、自動保存ファイルの名前の慣習を変更したい場合に
 当該関数をカスタマイズできるようにするためである。
 当該関数を再定義した場合には、関数@code{make-auto-save-file-name}も
@@ -747,11 +520,6 @@ buffer-auto-save-file-name
 @end defun
 
 @defun make-auto-save-file-name
-@c This function returns the file name to use for auto-saving the current
-@c buffer.  This is just the file name with hash marks (@samp{#}) prepended
-@c and appended to it.  This function does not look at the variable
-@c @code{auto-save-visited-file-name} (described below); callers of this
-@c function should check that variable first.
 この関数は、カレントバッファの自動保存に使うファイル名を返す。
 その名前は、単にファイル名の前後にハッシュマーク（@samp{#}）を
 付加するだけである。
@@ -762,18 +530,17 @@ buffer-auto-save-file-name
 @example
 @group
 (make-auto-save-file-name)
-     @result{} "/xcssun/users/rms/lewis/#backup.texi#"
+     @result{} "/xcssun/users/rms/lewis/#backups.texi#"
 @end group
 @end example
 
-@c The standard definition of this function is as follows:
 この関数の標準定義はつぎのとおりである。
 
 @example
 @group
 (defun make-auto-save-file-name ()
   "Return file name to use for auto-saves \
-of current buffer@enddots{}"
+of current buffer.."
   (if buffer-file-name
 @end group
 @group
@@ -787,59 +554,37 @@ of current buffer@enddots{}"
 @end group
 @end example
 
-@c This exists as a separate function so that you can redefine it to
-@c customize the naming convention for auto-save files.  Be sure to
-@c change @code{auto-save-file-name-p} in a corresponding way.
 自動保存ファイルの名前の慣習をカスタマイズするために
 関数を再定義できるように1つの関数にしてある。
 関数@code{auto-save-file-name-p}もそれに従って必ず変更すること。
 @end defun
 
-@defvar auto-save-visited-file-name
-@c If this variable is non-@code{nil}, Emacs auto-saves buffers in
-@c the files they are visiting.  That is, the auto-save is done in the same
-@c file that you are editing.  Normally, this variable is @code{nil}, so
-@c auto-save files have distinct names that are created by
-@c @code{make-auto-save-file-name}.
+@defopt auto-save-visited-file-name
 この変数が@code{nil}以外であると、
 Emacsは訪問しているファイルにバッファを自動保存する。
 つまり、読者が編集しているファイルと同じファイルに自動保存を行う。
 通常、この変数は@code{nil}であり、自動保存ファイルには
 @code{make-auto-save-file-name}で作成した別の名前がある。
 
-@c When you change the value of this variable, the new value does not take
-@c effect in an existing buffer until the next time auto-save mode is
-@c reenabled in it.  If auto-save mode is already enabled, auto-saves
-@c continue to go in the same file name until @code{auto-save-mode} is
-@c called again.
 この変数の値を変更しても、すでにあるバッファでは、
 バッファの自動保存をつぎにオンにするまで、新しい値は効果を発揮しない。
 自動保存がすでにオンであると、
 @code{auto-save-mode}を再度呼び出すまでは、
 同じファイルの名前に自動保存し続ける。
-@end defvar
+@end defopt
 
 @defun recent-auto-save-p
-@c This function returns @code{t} if the current buffer has been
-@c auto-saved since the last time it was read in or saved.
 カレントバッファに最後に読み込んだり保存してから以降に自動保存していると、
 この関数は@code{t}を返す。
 @end defun
 
 @defun set-buffer-auto-saved
-@c This function marks the current buffer as auto-saved.  The buffer will
-@c not be auto-saved again until the buffer text is changed again.  The
-@c function returns @code{nil}.
 この関数は、カレントバッファに自動保存済みであると印を付ける。
 バッファのテキストが再度変更されない限り、バッファは自動保存されない。
 この関数は@code{nil}を返す。
 @end defun
 
 @defopt auto-save-interval
-@c The value of this variable specifies how often to do auto-saving, in
-@c terms of number of input events.  Each time this many additional input
-@c events are read, Emacs does auto-saving for all buffers in which that is
-@c enabled.
 この変数の値は、つぎの自動保存までに
 Emacsがキーボードから読み取る文字の個数である。
 これだけの文字を読み取るたびに、自動保存をオンにしてあるすべてのバッファを
@@ -847,86 +592,60 @@ Emacsがキーボードから読み取る文字の個数である。
 @end defopt
 
 @defopt auto-save-timeout
-@c The value of this variable is the number of seconds of idle time that
-@c should cause auto-saving.  Each time the user pauses for this long,
-@c Emacs does auto-saving for all buffers in which that is enabled.  (If
-@c the current buffer is large, the specified timeout is multiplied by a
-@c factor that increases as the size increases; for a million-byte
-@c buffer, the factor is almost 4.)
 この変数の値は、自動保存を引き起こすまでのなにもしていない期間の秒数である。
 この時間だけユーザーがなにもしないと、
 Emacsは自動保存する必要があるすべてのバッファを自動保存する。
 （カレントバッファが大きい場合には、指定した時間にサイズに依存した係数
 を掛ける。これは100万バイトでおよそ4である）。
 
-@c If the value is zero or nil, then auto-saving is not done as a result
-@c of idleness, only after a certain number of input events
-@c as specified by @code{auto-save-interval}.
-この変数が0かnilの場合には、なにもしていなくても自動保存はさ
+この変数が0か@code{nil}の場合には、
+then auto-saving is not done as a
+result of idleness, only after a certain number of input events as
+specified by @code{auto-save-interval}.
 @end defopt
 
 @defvar auto-save-hook
-@c This normal hook is run whenever an auto-save is about to happen.
 このノーマルフックは、自動保存を行う直前に毎回実行される。
 @end defvar
 
 @defopt auto-save-default
-@c If this variable is non-@code{nil}, buffers that are visiting files
-@c have auto-saving enabled by default.  Otherwise, they do not.
 この変数が@code{nil}以外であると、
 ファイルを訪問しているバッファはデフォルトで自動保存をオンにする。
 さもなければ、そうしない。
 @end defopt
 
-@c @deffn Command do-auto-save &optional no-message current-only
-@deffn コマンド do-auto-save &optional no-message current-only
-@c This function auto-saves all buffers that need to be auto-saved.  It
-@c saves all buffers for which auto-saving is enabled and that have been
-@c changed since the previous auto-save.
+@deffn Command do-auto-save &optional no-message current-only
 この関数は、自動保存する必要があるすべてのバッファを自動保存する。
 自動保存がオンになっていて、かつ、以前の自動保存からあとで
 変更されているすべてのバッファを自動保存する。
 
-@c Normally, if any buffers are auto-saved, a message that says
-@c @samp{Auto-saving...} is displayed in the echo area while auto-saving is
-@c going on.  However, if @var{no-message} is non-@code{nil}, the message
-@c is inhibited.
-通常、バッファを自動保存すると、
-自動保存を実行中にはエコー領域にメッセージ@samp{Auto-saving...}が表示される。
+通常、バッファを自動保存すると、@code{do-auto-save}は
+自動保存を実行中に、エコー領域にメッセージ@samp{Auto-saving...}を表示する。
 しかし、@var{no-message}が@code{nil}以外であると、
 メッセージを表示しない。
 
-@c If @var{current-only} is non-@code{nil}, only the current buffer
-@c is auto-saved.
 @var{current-only}が@code{nil}以外であると、
 カレントバッファのみを自動保存する。
 @end deffn
 
-@defun delete-auto-save-file-if-necessary
-@c This function deletes the current buffer's auto-save file if
-@c @code{delete-auto-save-files} is non-@code{nil}.  It is called every
-@c time a buffer is saved.
+@defun delete-auto-save-file-if-necessary &optional force
 この関数は、@code{delete-auto-save-files}が@code{nil}以外であると、
 カレントバッファの自動保存ファイルを削除する。
 バッファを保存するたびに呼び出される。
+
+Unless @var{force} is non-@code{nil}, this function only deletes the
+file if it was written by the current Emacs session since the last
+true save.
 @end defun
 
-@defvar delete-auto-save-files
-@c This variable is used by the function
-@c @code{delete-auto-save-file-if-necessary}.  If it is non-@code{nil},
-@c Emacs deletes auto-save files when a true save is done (in the visited
-@c file).  This saves disk space and unclutters your directory.
+@defopt delete-auto-save-files
 この変数は、関数@code{delete-auto-save-file-if-necessary}が使う。
 @code{nil}以外であると、Emacsは（訪問しているファイルに）実際に
 保存すると自動保存ファイルを削除する。
 これによりディスクスペースを節約し、読者のディレクトリを整頓できる。
-@end defvar
+@end defopt
 
 @defun rename-auto-save-file
-@c This function adjusts the current buffer's auto-save file name if the
-@c visited file name has changed.  It also renames an existing auto-save
-@c file.  If the visited file name has not changed, this function does
-@c nothing.
 この関数は、訪問しているファイルの名前が変更されていると、
 カレントバッファの自動保存ファイルの名前を修正する。
 さらに、既存の自動保存ファイルも改名する。
@@ -935,35 +654,24 @@ Emacsは自動保存する必要があるすべてのバッファを自動保存
 @end defun
 
 @defvar buffer-saved-size
-@c The value of this buffer-local variable is the length of the current
-@c buffer, when it was last read in, saved, or auto-saved.  This is
-@c used to detect a substantial decrease in size, and turn off auto-saving
-@c in response.
 このバッファローカルな変数の値は、
 最後に読み込んだり保存したり自動保存したときの
 カレントバッファの長さである。
 サイズの大幅な変更を検知すると自動保存をオフにするために使われる。
 
-@c If it is @minus{}1, that means auto-saving is temporarily shut off in
-@c this buffer due to a substantial decrease in size.  Explicitly saving
-@c the buffer stores a positive value in this variable, thus reenabling
-@c auto-saving.  Turning auto-save mode off or on also updates this
-@c variable, so that the substantial decrease in size is forgotten.
 この変数が@minus{}1であると、
 大幅にサイズが減少したために一時的に自動保存をオフにしたことを意味する。
 明示的にバッファを保存すると、この変数に正の値が保存され、
 自動保存が再度オンになる。
 自動保存をオフにしたりオンにしても、この変数が変更される。つまり、大幅
 なサイズ減少の情報は消えてしまうことになる。
+
+If it is @minus{}2, that means this buffer should disregard changes in
+buffer size; in particular, it should not shut off auto-saving
+temporarily due to changes in buffer size.
 @end defvar
 
 @defvar auto-save-list-file-name
-@c This variable (if non-@code{nil}) specifies a file for recording the
-@c names of all the auto-save files.  Each time Emacs does auto-saving, it
-@c writes two lines into this file for each buffer that has auto-saving
-@c enabled.  The first line gives the name of the visited file (it's empty
-@c if the buffer has none), and the second gives the name of the auto-save
-@c file.
 この変数は（@code{nil}以外であると）、
 すべての自動保存ファイルの名前を記録するファイルを指定する。
 Emacsが自動保存を行うたびに、
@@ -971,63 +679,36 @@ Emacsが自動保存を行うたびに、
 1行目は訪問しているファイルの名前を与え（訪問していなければ空）、
 2行目は自動保存ファイルの名前を与える。
 
-@c When Emacs exits normally, it deletes this file; if Emacs crashes, you
-@c can look in the file to find all the auto-save files that might contain
-@c work that was otherwise lost.  The @code{recover-session} command uses
-@c this file to find them.
 Emacsが正常に終ると、このファイルは削除される。Emacsがクラッシュしたら、
 失われてしまう作業内容を含んでいるかもしれない自動保存ファイルを探すた
 めに読者はこのファイルを調べられる。コマンド@code{recover-session}は作
 業中だったファイルを探すために、このファイルを使う。
 
-@c The default name for this file specifies your home directory and starts
-@c with @samp{.saves-}.  It also contains the Emacs process @sc{id} and the
-@c host name.
 このファイルのデフォルト名は、
 読者のホームディレクトリにあり@samp{.saves-}で始まる。
 さらに、Emacsのプロセス@sc{id}とホスト名も含む。
 @end defvar
 
-@defvar auto-save-list-file-prefix
-@tindex auto-save-list-file-prefix
-@c After Emacs reads your init file, it initializes
-@c @code{auto-save-list-file-name} (if you have not already set it
-@c non- @code{nil}) based on this prefix, adding the host name and process
-@c ID.  If you set this to @code{nil} in your init file, then Emacs does
-@c not initialize @code{auto-save-list-file-name}.
+@defopt auto-save-list-file-prefix
 Emacsが初期化ファイルを読み込んだ後に、@code{auto-save-list-file-name}
 (すでに@code{nil}以外を設定していなければ)、この変数を基にホスト名やプ
 ロセスIDを加えて初期化される。初期化ファイルでこの変数に@code{nil}を設
 定すると、Emacsは@code{auto-save-list-file-name}を初期化しない。
-@end defvar
+@end defopt
 
 @node Reverting
-@c @section Reverting
 @section 復元 @emph{(2003/10/30)}
+@cindex reverting buffers
 
-@c   If you have made extensive changes to a file and then change your mind
-@c about them, you can get rid of them by reading in the previous version
-@c of the file with the @code{revert-buffer} command.  @xref{Reverting, ,
-@c Reverting a Buffer, emacs, The GNU Emacs Manual}.
 ファイルを大幅に変更したあとで、そのような変更をやめたい場合には、
 コマンド@code{revert-buffer}でファイルのまえの版を読み込めます。
 @xref{Reverting,, バッファを復元する, emacs, GNU Emacs マニュアル}。
 
-@c @deffn Command revert-buffer &optional ignore-auto noconfirm
-@deffn コマンド revert-buffer &optional ignore-auto noconfirm
-@c This command replaces the buffer text with the text of the visited
-@c file on disk.  This action undoes all changes since the file was visited
-@c or saved.
+@deffn Command revert-buffer &optional ignore-auto noconfirm preserve-modes
 このコマンドは、バッファのテキストを
 ディスク上の訪問しているファイルのテキストで置き換える。
 これにより、ファイルを訪問したり保存してから行った変更をすべて取り消せる。
 
-@c By default, if the latest auto-save file is more recent than the visited
-@c file, @code{revert-buffer} asks the user whether to use that instead.
-@c But if the argument @var{ignore-auto} is non-@code{nil}, then only the
-@c the visited file itself is used.  Interactively, @var{ignore-auto} is
-@c @code{t} unless there is a numeric prefix argument; thus, the
-@c interactive default is to check the auto-save file.
 デフォルトでは、最後の自動保存ファイルが
 訪問しているファイルよりも新しい場合には、
 @code{revert-buffer}は自動保存ファイルを使うかどうか
@@ -1038,20 +719,14 @@ Emacsが初期化ファイルを読み込んだ後に、@code{auto-save-list-fil
 @var{ignore-auto}は@code{t}である。
 したがって、対話的な場合のデフォルトでは、自動保存ファイルを検査する。
 
-@c Normally, @code{revert-buffer} asks for confirmation before it changes
-@c the buffer; but if the argument @var{noconfirm} is non-@code{nil},
-@c @code{revert-buffer} does not ask for confirmation.
 通常、バッファを変更するまえに@code{revert-buffer}は確認してくる。
 しかし、引数@var{noconfirm}が@code{nil}以外であると、
 @code{revert-buffer}は確認しない。
 
-@c Reverting tries to preserve marker positions in the buffer by using the
-@c replacement feature of @code{insert-file-contents}.  If the buffer
-@c contents and the file contents are identical before the revert
-@c operation, reverting preserves all the markers.  If they are not
-@c identical, reverting does change the buffer; then it preserves the
-@c markers in the unchanged text (if any) at the beginning and end of the
-@c buffer.  Preserving any additional markers would be problematical.
+Normally, this command reinitializes the buffer's major and minor modes
+using @code{normal-mode}.  But if @var{preserve-modes} is
+non-@code{nil}, the modes remain unchanged.
+
 復元作業では、
 @code{insert-file-contents}の置換機能を用いて
 バッファ内のマーカ位置を保存するように努める。
@@ -1062,42 +737,33 @@ Emacsが初期化ファイルを読み込んだ後に、@code{auto-save-list-fil
 それ以外のマーカを保存しても問題を引き起こすだけであろう。
 @end deffn
 
-@c You can customize how @code{revert-buffer} does its work by setting
-@c the variables described in the rest of this section.
+@defvar revert-buffer-in-progress-p
+@code{revert-buffer} binds this variable to a non-@code{nil} value
+while it is working.
+@end defvar
+
 この節の残りで述べる変数を設定することで、
 @code{revert-buffer}の動作をカスタマイズできます。
 
-@defvar revert-without-query
-@c This variable holds a list of files that should be reverted without
-@c query.  The value is a list of regular expressions.  If the visited file
-@c name matches one of these regular expressions, and the file has changed
-@c on disk but the buffer is not modified, then @code{revert-buffer}
-@c reverts the file without asking the user for confirmation.
+@defopt revert-without-query
 この変数は、問い合わせずに復元すべきファイルのリストを保持する。
 値は、正規表現のリストである。
 訪問中のファイル名がこれらの正規表現の1つに一致すると、
 ディスク上のファイルが変更されていて当該バッファが未変更であれば、
 @code{revert-buffer}はユーザーに確認せずに当該ファイルを復元する。
-@end defvar
+@end defopt
 
-@c   Some major modes customize @code{revert-buffer} by making
-@c buffer-local bindings for these variables:
 あるメジャーモードは これらの関数をバッファローカルで設定することで
 、@code{revert-buffer}をカスタマイズしています。
 
 @defvar revert-buffer-function
-@c The value of this variable is the function to use to revert this buffer.
-@c If non-@code{nil}, it is called as a function with no arguments to do
-@c the work of reverting.  If the value is @code{nil}, reverting works the
-@c usual way.
+@anchor{Definition of revert-buffer-function}
 この変数の値は、このバッファを復元するために使う関数である。
-@code{nil}以外であれば、復元を行う引数なしの関数として呼び出される。
-値が@code{nil}であると、復元操作は通常の方法で行われる。
+It should be a function with two optional
+arguments to do the work of reverting.  The two optional arguments,
+@var{ignore-auto} and @var{noconfirm}, are the arguments that
+@code{revert-buffer} received.
 
-@c Modes such as Dired mode, in which the text being edited does not
-@c consist of a file's contents but can be regenerated in some other
-@c fashion, can give this variable a buffer-local value that is a function to
-@c regenerate the contents.
 diredモードなどのモードでは、
 編集中のテキストはファイルの内容ではなく
 別の方法で再生成されたものなので、
@@ -1106,10 +772,6 @@ diredモードなどのモードでは、
 @end defvar
 
 @defvar revert-buffer-insert-file-contents-function
-@c The value of this variable, if non-@code{nil}, specifies the function to use to
-@c insert the updated contents when reverting this buffer.  The function
-@c receives two arguments: first the file name to use; second, @code{t} if
-@c the user has asked to read the auto-save file.
 この変数の値が@code{nil}以外であると、
 このバッファを復元するときに更新内容を挿入するために使われる関数である。
 当該関数は2つの引数をとる。
@@ -1117,11 +779,6 @@ diredモードなどのモードでは、
 第2引数は、ユーザーが自動保存ファイルを
 読むように指示していると@code{t}である。
 
-@c The reason for a mode to set this variable instead of
-@c @code{revert-buffer-function}  is to avoid duplicating or replacing the
-@c rest of what @code{revert-buffer} does: asking for confirmation,
-@c clearing the undo list, deciding the proper major mode, and running the
-@c hooks listed below.
 あるモードでこの変数を@code{revert-buffer-function}のかわりに設定する
 のは、@code{revert-buffer}が行う処理の残りが重複したり置き換わってしま
 うのを避けるためである。つまり、アンドゥ情報を消去する場合や適当なメ
@@ -1130,17 +787,29 @@ diredモードなどのモードでは、
 @end defvar
 
 @defvar before-revert-hook
-@c This normal hook is run by @code{revert-buffer} before
-@c inserting the modified contents---but only if
-@c @code{revert-buffer-function} is @code{nil}.
-このノーマルフックは、@code{revert-buffer-function}が@code{nil}である
-場合にのみ、変更内容を挿入するまえに@code{revert-buffer}が実行する。
+このノーマルフックは、@code{revert-buffer-function}が、
+変更内容を挿入する前に実行する。
+A custom @code{revert-buffer-function}
+may or may not run this hook.
 @end defvar
 
 @defvar after-revert-hook
-@c This normal hook is run by @code{revert-buffer} after inserting
-@c the modified contents---but only if @code{revert-buffer-function} is
-@c @code{nil}.
-このノーマルフックは、@code{revert-buffer-function}が@code{nil}である
-場合にのみ、変更内容を挿入したあとに@code{revert-buffer}が実行する。
+このノーマルフックは、@code{revert-buffer-function}が、
+変更内容を挿入したあとに実行する。
+A custom @code{revert-buffer-function}
+may or may not run this hook.
+@end defvar
+
+@c FIXME?  Move this section from arevert-xtra to here?
+@defvar buffer-stale-function
+The value of this variable specifies a function to call to check
+whether a buffer needs reverting.  The default value only handles
+buffers that are visiting files, by checking their modification time.
+Buffers that are not visiting files require a custom function
+@iftex
+(@pxref{Supporting additional buffers,,, emacs-xtra,  Specialized Emacs Features}).
+@end iftex
+@ifnottex
+(@pxref{Supporting additional buffers,,, emacs}).
+@end ifnottex
 @end defvar
