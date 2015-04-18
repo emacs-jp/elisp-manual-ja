@@ -1,556 +1,566 @@
 @c -*-texinfo-*-
 @c This is part of the GNU Emacs Lisp Reference Manual.
-@c Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1998 Free Software Foundation, Inc. 
+@c Copyright (C) 1990-1995, 1998-1999, 2001-2015 Free Software
+@c Foundation, Inc.
 @c See the file elisp.texi for copying conditions.
-@setfilename ../info/os
-@node System Interface, Tips, Calendar, Top
-@c @chapter Operating System Interface
+@node System Interface
 @chapter オペレーティングシステムとのインターフェイス
 
-@c   This chapter is about starting and getting out of Emacs, access to
-@c values in the operating system environment, and terminal input, output,
-@c and flow control.
-本章は、Emacsの起動と終了、
-オペレーティングシステムの環境に収められた値の参照方法、
-端末入出力とフロー制御についてです。
+本章は、Emacsの起動と終了、オペレーティングシステムの環境に収められた値の
+参照方法、端末入出力とフロー制御について述べる。
 
-@c   @xref{Building Emacs}, for related information.  See also
-@c @ref{Display}, for additional operating system status information
-@c pertaining to the terminal and the screen.
-関連情報については@xref{Building Emacs}。
-また、端末やスクリーンに関係する
-オペレーティングシステムの状態情報については、
-@ref{Display}も参照してください。
+関連情報については@xref{Building Emacs}。また、端末やスクリーンに関係する
+オペレーティングシステムの状態情報については、@xref{Display}。
 
 @menu
-* Starting Up::         Customizing Emacs start-up processing.
+* Starting Up::         Customizing Emacs startup processing.
 * Getting Out::         How exiting works (permanent or temporary).
 * System Environment::  Distinguish the name and kind of system.
 * User Identification:: Finding the name and user id of the user.
-* Time of Day::		Getting the current time.
-* Time Conversion::     Converting a time from numeric form to a string, or
-                          to calendrical data (or vice versa).
-* Timers::		Setting a timer to call a function at a certain time.
-* Terminal Input::      Recording terminal input for debugging.
-* Terminal Output::     Recording terminal output for debugging.
-* Special Keysyms::     Defining system-specific key symbols for X windows.
-* Flow Control::        How to turn output flow control on or off.
+* Time of Day::         Getting the current time.
+* Time Conversion::     Converting a time from numeric form to
+                          calendrical data and vice versa.
+* Time Parsing::        Converting a time from numeric form to text
+                          and vice versa.
+* Processor Run Time::  Getting the run time used by Emacs.
+* Time Calculations::   Adding, subtracting, comparing times, etc.
+* Timers::              Setting a timer to call a function at a certain time.
+* Idle Timers::         Setting a timer to call a function when Emacs has
+                          been idle for a certain length of time.
+* Terminal Input::      Accessing and recording terminal input.
+* Terminal Output::     Controlling and recording terminal output.
+* Sound Output::        Playing sounds on the computer's speaker.
+* X11 Keysyms::         Operating on key symbols for X Windows.
 * Batch Mode::          Running Emacs without terminal interaction.
+* Session Management::  Saving and restoring state with X Session Management.
+* Desktop Notifications:: Desktop notifications.
+* File Notifications::  File notifications.
+* Dynamic Libraries::   On-demand loading of support libraries.
 @end menu
 
 @node Starting Up
-@c @section Starting Up Emacs
 @section Emacsの始動
 
-@c   This section describes what Emacs does when it is started, and how you
-@c can customize these actions.
-本節では、Emacsが起動時になにを行うか、および、
-それらをカスタマイズする方法について述べます。
+本節では、Emacsが起動時になにを行うか、および、それらをカスタマイズする方
+法について述べる。
 
 @menu
-* Start-up Summary::        Sequence of actions Emacs performs at start-up.
-* Init File::               Details on reading the init file (@file{.emacs}).
+* Startup Summary::         Sequence of actions Emacs performs at startup.
+* Init File::               Details on reading the init file.
 * Terminal-Specific::       How the terminal-specific Lisp file is read.
-* Command Line Arguments::  How command line arguments are processed,
+* Command-Line Arguments::  How command-line arguments are processed,
                               and how you can customize them.
 @end menu
 
-@node Start-up Summary
-@c @subsection Summary: Sequence of Actions at Start Up
+@node Startup Summary
 @subsection 概要：始動時の動作手順
-@c @cindex initialization
-@c @cindex start up of Emacs
 @cindex 初期化
 @cindex Emacsの始動
-@cindex 始動、Emacs
 @cindex @file{startup.el}
 
-@c    The order of operations performed (in @file{startup.el}) by Emacs when
-@c it is started up is as follows:
-Emacsが始動したときに行う（@file{startup.el}での）
-処理の順序はつぎのとおりです。
+Emacsは、始動したときに以下の順序で処理を行う。
+(see @code{normal-top-level} in @file{startup.el}):
 
 @enumerate
 @item
-@c It adds subdirectories to @code{load-path}, by running the file
-@c named @file{subdirs.el} in each directory that is listed.
-@code{load-path}にある各ディレクトリファイルにおいて
-@file{subdirs.el}という名前のファイルを実行することで
-@code{load-path}にサブディレクトリを追加する。
+@code{load-path}にある各ディレクトリファイルにおいて、
+@file{subdirs.el}という名前のファイルを実行することで、
+サブディレクトリを追加する。
+Normally, this file
+adds the directory's subdirectories to the list, and those are scanned
+in their turn.  The files @file{subdirs.el} are normally generated
+automatically when Emacs is installed.
 
 @item
-@c It sets the language environment and the terminal coding system,
-@c if requested by environment variables such as @code{LANG}.
-@code{LANG}などの環境変数で要求されていれば、
-言語環境と端末のコーディングシステムを設定する。
+It loads any @file{leim-list.el} that it finds in the @code{load-path}
+directories.  This file is intended for registering input methods.
+The search is only for any personal @file{leim-list.el} files that you
+may have created; it skips the directories containing the standard Emacs
+libraries (these should contain only a single @file{leim-list.el} file,
+which is compiled into the Emacs executable).
+
+@vindex before-init-time
+@item
+It sets the variable @code{before-init-time} to the value of
+@code{current-time} (@pxref{Time of Day}).  It also sets
+@code{after-init-time} to @code{nil}, which signals to Lisp programs
+that Emacs is being initialized.
+
+@c set-locale-environment
+@item
+@env{LANG}などの環境変数で要求されていれば、言語環境と端末のコーディング
+システムを設定する。
 
 @item
-@c It loads the initialization library for the window system, if you are
-@c using a window system.  This library's name is
-@c @file{term/@var{windowsystem}-win.el}.
-ウィンドウシステムを使用している場合には、
-そのウィンドウシステム向けの初期化ライブラリをロードする。
-そのライブラリ名は@file{term/@var{windowsystem}-win.el}である。
+It does some basic parsing of the command-line arguments.
+
+@vindex initial-window-system@r{, and startup}
+@vindex window-system-initialization-alist
+@item
+If not running in batch mode, it initializes the window system that
+the variable @code{initial-window-system} specifies (@pxref{Window
+Systems, initial-window-system}).  The initialization function for
+each supported window system is specified by
+@code{window-system-initialization-alist}.  If the value
+of @code{initial-window-system} is @var{windowsystem}, then the
+appropriate initialization function is defined in the file
+@file{term/@var{windowsystem}-win.el}.  This file should have been
+compiled into the Emacs executable when it was built.
 
 @item
-@c It processes the initial options.  (Some of them are handled
-@c even earlier than this.)
-初期化オプションを処理する。
-（初期化オプションの一部は、これより初期の段階で扱われる。）
+It runs the normal hook @code{before-init-hook}.
 
 @item
-@c It initializes the window frame and faces, if appropriate.
-必要ならば、ウィンドウフレームとフェイスを初期化する。
+If appropriate, it creates a graphical frame.  This is not done if the
+options @samp{--batch} or @samp{--daemon} were specified.
 
 @item
-@c It runs the normal hook @code{before-init-hook}.
-ノーマルフック@code{before-init-hook}を実行する。
+It initializes the initial frame's faces, and sets up the menu bar
+and tool bar if needed.  If graphical frames are supported, it sets up
+the tool bar even if the current frame is not a graphical one, since a
+graphical frame may be created later on.
 
 @item
-@c It loads the library @file{site-start}, unless the option
-@c @samp{-no-site-file} was specified.  The library's file name is usually
-@c @file{site-start.el}.
-オプション@samp{-no-site-file}が指定されていなければ、
-ライブラリ@file{site-start}をロードする。
-このライブラリの名前は普通は@file{site-start.el}である。
+It use @code{custom-reevaluate-setting} to re-initialize the members
+of the list @code{custom-delayed-init-variables}.  These are any
+pre-loaded user options whose default value depends on the run-time,
+rather than build-time, context.
+@xref{Building Emacs, custom-initialize-delay}.
+
+@c @item
+@c It registers the colors available for tty frames.
+
+@item
+@file{site-start}が存在する場合はロードする。
+オプション@samp{-Q}または@samp{--no-site-file}が指定されていれば読み込まれない。
 @cindex @file{site-start.el}
 
-@item 
-@c It loads the file @file{~/.emacs}, unless @samp{-q} or @samp{-batch} was
-@c specified on the command line.  The @samp{-u} option can specify another
-@c user name whose home directory should be used instead of @file{~}.
-コマンド行で@samp{-q}や@samp{-batch}が指定されていなければ、
-ファイル@file{~/.emacs}をロードする。
-オプション@samp{-u}で、@file{~}のかわりに用いるホームディレクトリを持つ
-他のユーザー名を指定できる。
+@item
+読者の初期設定ファイルを読み込む（@pxref{Init File}）。ただし、
+コマンド行で@samp{-q}、@samp{-Q}または@samp{--batch}が指定されていれば読み込まれない。
+オプション@samp{-u}で、ホームディレクトリを持つ他のユーザー名を指定できる。
 
 @item 
-@c It loads the library @file{default}, unless @code{inhibit-default-init}
-@c is non-@code{nil}.  (This is not done in @samp{-batch} mode or if
-@c @samp{-q} was specified on the command line.)  The library's file name
-@c is usually @file{default.el}.
-@code{inhibit-default-init}が@code{nil}以外でなければ、
-ライブラリ@file{default}をロードする。
-（コマンド行で@samp{-q}を指定したり、
-@samp{-batch}モードでは、これを行わない。）
-ライブラリのファイル名は普通は@file{default.el}である。
+ライブラリ@file{default}が存在すればそれをロードする。ただし、
+@code{inhibit-default-init}が@code{nil}以外でなかったり、
+オプション@samp{-q}、@samp{-Q}、@samp{--batch}が指定されていなければ、
+読み込まれない
 @cindex @file{default.el}
 
 @item
-@c It runs the normal hook @code{after-init-hook}.
+It loads your abbrevs from the file specified by
+@code{abbrev-file-name}, if that file exists and can be read
+(@pxref{Abbrev Files, abbrev-file-name}).  This is not done if the
+option @samp{--batch} was specified.
+
+@item
+If @code{package-enable-at-startup} is non-@code{nil}, it calls the
+function @code{package-initialize} to activate any optional Emacs Lisp
+package that has been installed.  @xref{Packaging Basics}.
+
+@vindex after-init-time
+@item
+It sets the variable @code{after-init-time} to the value of
+@code{current-time}.  This variable was set to @code{nil} earlier;
+setting it to the current time signals that the initialization phase
+is over, and, together with @code{before-init-time}, provides the
+measurement of how long it took.
+
+@item
 ノーマルフック@code{after-init-hook}を実行する。
 
 @item
-@c It sets the major mode according to @code{initial-major-mode}, provided
-@c the buffer @samp{*scratch*} is still current and still in Fundamental
-@c mode.
-バッファ@samp{*scratch*}がカレントバッファであり
-基本（fundamental）モードであるならば、
-@code{initial-major-mode}に従ってメジャーモードを設定する。
-
-@item 
-@c It loads the terminal-specific Lisp file, if any, except when in batch
-@c mode or using a window system.
-バッチモードやウィンドウシステムを用いていなければ、
-あれば端末固有のLispファイルが存在するならロードする。
+バッファ@file{*scratch*}がカレントバッファであり基本（fundamental）モード
+であるならば、@code{initial-major-mode}に従ってメジャーモードを設定する。
 
 @item
-@c It displays the initial echo area message, unless you have suppressed
-@c that with @code{inhibit-startup-echo-area-message}.
+If started on a text terminal, it loads the terminal-specific
+Lisp library (@pxref{Terminal-Specific}), and runs the hook
+@code{tty-setup-hook}.  This is not done
+in @code{--batch} mode, nor if @code{term-file-prefix} is @code{nil}.
+
+@c Now command-line calls command-line-1.
+
+@item
 @code{inhibit-startup-echo-area-message}で抑制していなければ、
 初期メッセージをエコー領域に表示する。
 
-@item 
-@c It processes the action arguments from the command line.
-コマンド行の引数を処理する。
+@item
+以前に処理されていない任意のコマンド行の引数を処理する。
 
-@item 
-@c It runs @code{term-setup-hook}.
-@code{term-setup-hook}を実行する。
+@c This next one is back in command-line, but the remaining bits of
+@c command-line-1 are not done if noninteractive.
+@item
+It now exits if the option @code{--batch} was specified.
 
 @item
-@c It calls @code{frame-notice-user-settings}, which modifies the
-@c parameters of the selected frame according to whatever the init files
-@c specify.
-初期化ファイルの指定に従って
-選択されているフレームのパラメータを修正する
+If @code{initial-buffer-choice} is a string, it visits the file (or
+directory) with that name.  If it is a function, it calls the function
+with no arguments and selects the buffer that it returns.
+@ignore
+@c I do not think this should be mentioned.  AFAICS it is just a dodge
+@c around inhibit-startup-screen not being settable on a site-wide basis.
+If it is @code{t}, it selects the @file{*scratch*} buffer.
+@end ignore
+If the @file{*scratch*} buffer exists and is empty, it inserts
+@code{initial-scratch-message} into that buffer.
+
+@c To make things nice and confusing, the next three items can be
+@c called from two places.  If displaying a startup screen, they are
+@c called in command-line-1 before the startup screen is shown.
+@c inhibit-startup-hooks is then set and window-setup-hook set to nil.
+@c If not displaying a startup screen, they are are called in
+@c normal-top-level.
+@c FIXME?  So it seems they can be called before or after the
+@c daemon/session restore step?
+
+@item
+@code{emacs-startup-hook}を実行する。
+
+@item
+初期化ファイルの指定に従って選択されているフレームのパラメータを修正する
 @code{frame-notice-user-settings}を呼び出す。
 
-@item 
-@c It runs @code{window-setup-hook}.  @xref{Window Systems}.
+@item
 @code{window-setup-hook}を実行する。
-@pxref{Window Systems}。
+The only difference between this
+hook and @code{emacs-startup-hook} is that this one runs after the
+previously mentioned modifications to the frame parameters.
 
-@item 
-@c It displays copyleft, nonwarranty, and basic use information, provided
-@c there were no remaining command line arguments (a few steps above),
-@c the value of @code{inhibit-startup-message} is @code{nil}, and the
-@c buffer is still empty.
-未処理のコマンド行引数（上の数手順）がなく、
-@code{inhibit-startup-message}の値が@code{nil}であり、
-バッファが空であれば、
-コピーレフト／無保証／基本的な利用情報を表示する。
+@item
+@cindex startup screen
+It displays the @dfn{startup screen}, which is a special buffer that
+contains information about copyleft and basic Emacs usage.  This is
+not done if @code{inhibit-startup-screen} or @code{initial-buffer-choice}
+are non-@code{nil}, or if the @samp{--no-splash} or @samp{-Q} command-line
+options were specified.
+
+@c End of command-line-1.
+
+@c Back to command-line from command-line-1.
+
+@c This is the point at which we actually exit in batch mode, but the
+@c last few bits of command-line-1 are not done in batch mode.
+
+@item
+If the option @code{--daemon} was specified, it calls
+@code{server-start} and detaches from the controlling terminal.
+@xref{Emacs Server,,, emacs, The GNU Emacs Manual}.
+
+@item
+If started by the X session manager, it calls
+@code{emacs-session-restore} passing it as argument the ID of the
+previous session.  @xref{Session Management}.
+
+@c End of command-line.
+
+@c Back to normal-top-level from command-line.
+
 @end enumerate
 
-@defopt inhibit-startup-message
-@c This variable inhibits the initial startup messages (the nonwarranty,
-@c etc.).  If it is non-@code{nil}, then the messages are not printed.
-この変数は、（無保証などの）初期の始動メッセージを禁止する。
-これが@code{nil}以外であるとメッセージを表示しない。
+@noindent
+The following options affect some aspects of the startup sequence.
 
-@c This variable exists so you can set it in your personal init file, once
-@c you are familiar with the contents of the startup message.  Do not set
-@c this variable in the init file of a new user, or in a way that affects
-@c more than one user, because that would prevent new users from receiving
-@c the information they are supposed to see.
-始動メッセージの内容に十分慣れたら、
-読者個人の初期化ファイルで設定できるようにこの変数がある。
-新規ユーザーが受け取るはずである情報を隠してしまうため、
-新規ユーザーの初期化ファイルや複数のユーザーに影響するような方法で
+@defopt inhibit-startup-screen
+この変数は、@code{nil}以外であると（無保証などの）初期の始動メッセージを
+禁止する。
+In
+that case, Emacs typically displays the @file{*scratch*} buffer; but
+see @code{initial-buffer-choice}, below.
+
+始動メッセージの内容に十分慣れたら、読者個人の初期化ファイルで設定できる
+ようにこの変数がある。新規ユーザーが受け取るはずである情報を隠してしまう
+ため、新規ユーザーの初期化ファイルや複数のユーザーに影響するような方法で
 この変数に設定しないこと。
+
+@vindex inhibit-startup-message
+@vindex inhibit-splash-screen
+@code{inhibit-startup-message} and @code{inhibit-splash-screen} are
+aliases for this variable.
+@end defopt
+
+@defopt initial-buffer-choice
+If non-@code{nil}, this variable is a string that specifies a file or
+directory for Emacs to display after starting up, instead of the
+startup screen.
+@ignore
+If its value is @code{t}, Emacs displays the @file{*scratch*} buffer.
+@end ignore
 @end defopt
 
 @defopt inhibit-startup-echo-area-message
-@c This variable controls the display of the startup echo area message.
-@c You can suppress the startup echo area message by adding text with this
-@c form to your @file{.emacs} file:
 この変数は、エコー領域に表示する始動メッセージを制御する。
-個人のファイル@file{.emacs}につぎのフォームを追加することで
-エコー領域の始動メッセージを抑制できる。
+読者の初期設定ファイルに
+以下のフォームを追加することでエコー領域の始動メッセージを
+抑制できる。
 
 @example
 (setq inhibit-startup-echo-area-message
       "@var{your-login-name}")
 @end example
 
-@c Emacs explicitly checks for an expression as shown above in your
-@c @file{.emacs} file; your login name must appear in the expression as a
-@c Lisp string constant.  Other methods of setting
-@c @code{inhibit-startup-echo-area-message} to the same value do not
-@c inhibit the startup message.
-Emacsは、読者のファイル@file{.emacs}で上に示した式を明示的に検査する。
+Emacsは、読者の初期設定ファイルで上に示した式を明示的に検査する。
 読者のログイン名はLisp文字列定数として式に現れる必要がある。
-@code{inhibit-startup-echo-area-message}に同じ値を
-設定する別の方法では、始動メッセージを禁止できない。
-
-@c This way, you can easily inhibit the message for yourself if you wish,
-@c but thoughtless copying of your @file{.emacs} file will not inhibit the
-@c message for someone else.
+Customizeインタフェースでも値を設定できる。
+@code{inhibit-startup-echo-area-message}に同じ値を設定する別の方法では、
+始動メッセージを禁止できない。
 このように、望むならば自身のためにメッセージを簡単に禁止できるが、
-読者の@file{.emacs}をむやみにコピーしても、
-他人に対してはメッセージを禁止できない。
+読者の初期設定ファイルをむやみにコピーしても、他人に
+対してはメッセージを禁止できない。
 @end defopt
 
+@defopt initial-scratch-message
+This variable, if non-@code{nil}, should be a string, which is
+inserted into the @file{*scratch*} buffer when Emacs starts up.  If it
+is @code{nil}, the @file{*scratch*} buffer is empty.
+@end defopt
+
+@noindent
+The following command-line options affect some aspects of the startup
+sequence.  @xref{Initial Options,,, emacs, The GNU Emacs Manual}.
+
+@table @code
+@item --no-splash
+Do not display a splash screen.
+
+@item --batch
+Run without an interactive terminal.  @xref{Batch Mode}.
+
+@item --daemon
+Do not initialize any display; just start a server in the background.
+
+@item --no-init-file
+@itemx -Q
+Do not load either the init file, or the @file{default} library.
+
+@item --no-site-file
+Do not load the @file{site-start} library.
+
+@item --quick
+@itemx -Q
+Equivalent to @samp{-q --no-site-file --no-splash}.
+@c and --no-site-lisp, but let's not mention that here.
+@end table
+
+
 @node Init File
-@c @subsection The Init File: @file{.emacs}
-@subsection 初期化ファイル：@file{.emacs}
-@c @cindex init file
+@subsection 初期化ファイル
 @cindex 初期化ファイル
 @cindex @file{.emacs}
+@cindex @file{init.el}
 
-@c   When you start Emacs, it normally attempts to load the file
-@c @file{.emacs} from your home directory.  This file, if it exists, must
-@c contain Lisp code.  It is called your @dfn{init file}.  The command line
-@c switches @samp{-q} and @samp{-u} affect the use of the init file;
-@c @samp{-q} says not to load an init file, and @samp{-u} says to load a
-@c specified user's init file instead of yours.  @xref{Entering Emacs,,,
-@c emacs, The GNU Emacs Manual}.
-読者がEmacsを始動すると、Emacsは読者のホームディレクトリから
-ファイル@file{.emacs}を普通はロードしようとします。
-このファイルが存在すれば、これにはLispコードを入れておく必要があります。
-コマンド行オプション@samp{-q}と@samp{-u}は、
-初期化ファイルの使い方に影響します。
-@samp{-q}は初期化ファイルをロードしないように指示し、
-@samp{-u}は読者の初期化ファイルのかわりに指定したユーザーの初期化ファイルを
-ロードするように指示します。
-@xref{Entering Emacs,, Emacsの起動と終了, emacs, GNU Emacs マニュアル}。
+読者がEmacsを始動すると、Emacsは読者のホームディレクトリから@dfn{初期化ファイル}
+(init file)を普通はロードしようとします。
+This is either a file named @file{.emacs} or @file{.emacs.el}
+in your home directory, or a file named @file{init.el} in a
+subdirectory named @file{.emacs.d} in your home directory.
+@ignore
+Whichever place you use, you can also compile the file (@pxref{Byte
+Compilation}); then the actual file loaded will be @file{.emacs.elc}
+or @file{init.elc}.
+@end ignore
 
-@c @cindex default init file
+コマンド行オプション@samp{-q}、@samp{-Q}および@samp{-u}は、
+初期化ファイルの場所を制御する。
+@samp{-q}（およびより強い@samp{-Q}）は初期化ファイルを
+ロードしないように指示し、@samp{-u
+@var{user}}は読者の初期化ファイルのかわりに
+ユーザー@var{user}の初期化ファイルをロードするように指示する。
+@xref{Entering Emacs,,, emacs, The GNU Emacs Manual}。
+If neither
+option is specified, Emacs uses the @env{LOGNAME} environment
+variable, or the @env{USER} (most systems) or @env{USERNAME} (MS
+systems) variable, to find your home directory and thus your init
+file; this way, even if you have su'd, Emacs still loads your own init
+file.  If those environment variables are absent, though, Emacs uses
+your user-id to find your home directory.
+
 @cindex デフォルトの初期化ファイル
-@c   A site may have a @dfn{default init file}, which is the library named
-@c @file{default.el}.  Emacs finds the @file{default.el} file through the
-@c standard search path for libraries (@pxref{How Programs Do Loading}).
-@c The Emacs distribution does not come with this file; sites may provide
-@c one for local customizations.  If the default init file exists, it is
-@c loaded whenever you start Emacs, except in batch mode or if @samp{-q} is
-@c specified.  But your own personal init file, if any, is loaded first; if
-@c it sets @code{inhibit-default-init} to a non-@code{nil} value, then
-@c Emacs does not subsequently load the @file{default.el} file.
-@dfn{デフォルトの初期化ファイル}をサイトごとに持てます。
-これは@file{default.el}という名前のライブラリです。
-Emacsは、ライブラリを探索する標準パスから
-ファイル@file{default.el}を探します
-（@pxref{How Programs Do Loading}）。
-Emacsの配布には、このファイルは付属していません。
-ローカルなカスタマイズのためにサイトで用意します。
-バッチモードや@samp{-q}を指定してある場合を除いて、
-デフォルトの初期化ファイルが存在すると、
-読者がEmacsを始動するたびにそれをロードします。
-しかし、存在するなら、個人の初期化ファイルをさきにロードします。
-そこで@code{inhibit-default-init}に@code{nil}以外の値を設定してあると、
-Emacsはそのあとファイル@file{default.el}をロードしません。
+@dfn{デフォルトの初期化ファイル}として@file{default.el}という名前のライブラリを
+用意できる。
+Emacsは、ライブラリを探索する標準パスからこのファイルを探す（@pxref{How Programs Do
+Loading}）。
+Emacsの配布にはこのファイルは付属しておらず、ローカルなカスタマイズのためにサイトで用意する。
+バッチモードや@samp{-q}（または@samp{-Q}）を指定してある場合を除いて、
+デフォルトの初期化ファイルが存在すると、読者がEmacsを
+起動するたびにそれをロードする。
+ただし、（存在するなら）個人の初期化ファイルが先にロードされる。
+そこで@code{inhibit-default-init}に@code{nil}以外の値を設定すると、
+Emacsはそのあとファイル@file{default.el}をロードしない。
 
-@c   Another file for site-customization is @file{site-start.el}.  Emacs
-@c loads this @emph{before} the user's init file.  You can inhibit the
-@c loading of this file with the option @samp{-no-site-file}.
 サイトごとのカスタマイズ向けの別のファイルは@file{site-start.el}です。
-Emacsはユーザーの初期化ファイルをロードする@emph{まえ}に
-このファイルをロードします。
-このファイルのロードを禁止するには
-オプション@samp{-no-site-file}を使います。
+Emacsはユーザーの初期化ファイルをロードする@emph{まえ}にこのファイルをロー
+ドする。このファイルのロードを禁止するにはオプション
+@samp{--no-site-file}を使う。
 
-@defvar site-run-file
-@c This variable specifies the site-customization file to load before the
-@c user's init file.  Its normal value is @code{"site-start"}.  The only
-@c way you can change it with real effect is to do so before dumping
-@c Emacs.
-この変数は、ユーザーの初期化ファイルよりさきに
-ロードするべきサイトごとのカスタマイズファイルを指定する。
-普通の値は@code{"site-start"}である。
-実際に効果があるようにこれを変更する唯一の方法は、
-Emacsをダンプするまえに行うことである。
-@end defvar
+@defopt site-run-file
+この変数は、ユーザーの初期化ファイルよりさきにロードするべきサイトごとの
+カスタマイズファイルを指定する。通常の値は@code{"site-start"}である。実際
+に効果があるようにこれを変更する唯一の方法は、Emacsをダンプするまえに行う
+ことである。
+@c So why even mention it here.  I imagine it is almost never changed.
+@end defopt
 
-@c   If there is a great deal of code in your @file{.emacs} file, you
-@c should move it into another file named @file{@var{something}.el},
-@c byte-compile it (@pxref{Byte Compilation}), and make your @file{.emacs}
-@c file load the other file using @code{load} (@pxref{Loading}).
-読者のファイル@file{.emacs}に大量のコードがある場合には、
-@file{@var{something}.el}という名前の別のファイルへコピーして、
-それをバイトコンパイルし（@pxref{Byte Compilation}）、
-読者のファイル@file{.emacs}では、@code{load}（@pxref{Loading}）で
-そのファイルをロードするようにします。
-
-@c   @xref{Init File Examples,,, emacs, The GNU Emacs Manual}, for
-@c = 誤植? Init Examples,, Init File Examples,
-@c examples of how to make various commonly desired customizations in your
-@c @file{.emacs} file.
-読者のファイル@file{.emacs}でよく使われるであろう
-さまざまなカスタマイズを行う方法の例については、
-@xref{Init Examples,, 初期化ファイルの例, emacs, GNU Emacs マニュアル}。
+読者のファイル@file{.emacs}でよく使われるであろうさまざまなカスタマイズを
+行う方法の例については、
+@xref{Init Examples,, Init File Examples, emacs, The GNU Emacs Manual}。
 
 @defopt inhibit-default-init
-@c This variable prevents Emacs from loading the default initialization
-@c library file for your session of Emacs.  If its value is non-@code{nil},
-@c then the default library is not loaded.  The default value is
-@c @code{nil}.
-この変数は、読者のEmacsセッションにおいては、
-デフォルトの初期化ライブラリファイルをロードしないようにする。
-その値が@code{nil}以外であるとデフォルトライブラリをロードしない。
-デフォルト値は@code{nil}である。
+この変数は、読者のEmacsセッションにおいては、デフォルトの初期化ライブラリ
+ファイルをロードしないようにする。その値が@code{nil}以外であるとデフォル
+トライブラリをロードしない。デフォルト値は@code{nil}である。
 @end defopt
 
 @defvar before-init-hook
-@c This normal hook is run, once, just before loading all the init files
-@c (the user's init file, @file{default.el}, and/or @file{site-start.el}).
-@c (The only way to change it with real effect is before dumping Emacs.)
-すべての初期化ファイル
-（ユーザーの初期化ファイル、
-@file{default.el}と／あるいは@file{site-start.el}）を
-ロードする直前に一度だけ実行するノーマルフック。
-（実際の効果があるようにこれを変更する唯一の方法は、
-Emacsをダンプするまえに行うことである。）
+すべての初期化ファイル（ユーザーの初期化ファイル、@file{default.el}と／あ
+るいは@file{site-start.el}）をロードする直前に一度だけ実行するノーマルフッ
+ク。（実際の効果があるようにこれを変更する唯一の方法は、Emacsをダンプする
+まえに行うことである。）
 @end defvar
 
 @defvar after-init-hook
-@c This normal hook is run, once, just after loading all the init files
-@c (the user's init file, @file{default.el}, and/or @file{site-start.el}),
-@c before the terminal-specific initialization.
-すべての初期化ファイル
-（ユーザーの初期化ファイル、
-@file{default.el}と／あるいは@file{site-start.el}）をロード直後、
-端末固有の初期化のまえに一度だけ実行するノーマルフック。
+すべての初期化ファイル（ユーザーの初期化ファイル、@file{default.el}と／あ
+るいは@file{site-start.el}）をロード直後、端末固有の初期化のまえに一度だ
+け実行するノーマルフック。
+@end defvar
+
+@defvar emacs-startup-hook
+This normal hook is run, once, just after handling the command line
+arguments, just before @code{term-setup-hook}.  In batch mode, Emacs
+does not run either of these hooks.
+@end defvar
+
+@defvar window-setup-hook
+This normal hook is very similar to @code{emacs-startup-hook}.
+The only difference is that it runs slightly later, after setting
+of the frame parameters.  @xref{Startup Summary, window-setup-hook}.
+@end defvar
+
+@defvar user-init-file
+This variable holds the absolute file name of the user's init file.  If the
+actual init file loaded is a compiled file, such as @file{.emacs.elc},
+the value refers to the corresponding source file.
+@end defvar
+
+@defvar user-emacs-directory
+This variable holds the name of the @file{.emacs.d} directory.  It is
+@file{~/.emacs.d} on all platforms but MS-DOS.
 @end defvar
 
 @node Terminal-Specific
-@c @subsection Terminal-Specific Initialization
 @subsection 端末固有の初期化
-@c @cindex terminal-specific initialization
 @cindex 端末固有の初期化
 
-@c   Each terminal type can have its own Lisp library that Emacs loads when
-@c run on that type of terminal.  The library's name is constructed by
-@c concatenating the value of the variable @code{term-file-prefix} and the
-@c terminal type.  Normally, @code{term-file-prefix} has the value
-@c @code{"term/"}; changing this is not recommended.  Emacs finds the file
-@c in the normal manner, by searching the @code{load-path} directories, and
-@c trying the @samp{.elc} and @samp{.el} suffixes.
-端末の各種類ごとに、Emacsがその種類の端末で動作するときに
-Emacsがロードする専用Lispライブラリを持てます。
-ライブラリ名は、変数@code{term-file-prefix}の値と
-端末種類を連結して作ります。
+各端末種類ごとに、Emacsがその種類の端末で動作するときにEmacsが
+ロードする専用Lispライブラリを持つことができる。
+ライブラリ名は、変数@code{term-file-prefix}の値と端末種類
+（環境変数@env{TERM}）を連結して作られる。
 通常、@code{term-file-prefix}の値は@code{"term/"}であり、
-これを変更することは勧めません。
-Emacsは通常どおり、@code{load-path}のディレクトリ群において
-@samp{.elc}と@samp{.el}の接尾辞でファイルを探します。
-
-@c   The usual function of a terminal-specific library is to enable special
-@c keys to send sequences that Emacs can recognize.  It may also need to
-@c set or add to @code{function-key-map} if the Termcap entry does not
-@c specify all the terminal's function keys.  @xref{Terminal Input}.
-端末固有ライブラリの普通の機能は、
-Emacsが識別可能なキー列を送るように特別なキーを設定することです。
-端末のすべてのファンクションキーがtermcapに入っていない場合には、
-@code{function-key-map}を設定したり追加する必要もあります。
+これを変更することは推奨されない。
+@code{term-file-aliases}の連想リストに@env{TERM}にマッチする
+エントリがあれば、Emacsは@env{TERM}の代わりに連想値を用いる。
+Emacsはファイルを見つけるのに、通常どおり、
+@code{load-path}のディレクトリ群において
+@samp{.elc}と@samp{.el}の接尾辞でファイルを検索する。
 
 @cindex Termcap
-@c   When the name of the terminal type contains a hyphen, only the part of
-@c the name before the first hyphen is significant in choosing the library
-@c name.  Thus, terminal types @samp{aaa-48} and @samp{aaa-30-rv} both use
-@c the @file{term/aaa} library.  If necessary, the library can evaluate
-@c @code{(getenv "TERM")} to find the full name of the terminal
-@c type.@refill
-端末種類の名前にハイフンが含まれる場合、
-ライブラリ名を選ぶうえでは、最初のハイフンよりまえの名前の部分が有効です。
-したがって、@samp{aaa-48}と@samp{aaa-30-rv}のどちらも
-ライブラリ@file{term/aaa}を使います。
-必要ならば、ライブラリでは@code{(getenv "TERM")}を評価することで
+  The usual role of a terminal-specific library is to enable special
+keys to send sequences that Emacs can recognize.  It may also need to
+set or add to @code{input-decode-map} if the Termcap or Terminfo entry
+does not specify all the terminal's function keys.  @xref{Terminal Input}.
+
+端末種類の名前にハイフンまたはアンダースコア文字が含まれ、
+かつ端末名と一致するライブラリが見つからない場合、
+Emacsは端末名の最後のハイフンまたはアンダースコア文字より後の名前を除去して、
+再度ライブラリの検索を試みます。この過程は適合するライブラリが見つかるか、
+名前にハイフンまたはアンダースコア文字が無くなるまで（すなわち、端末特有の
+ライブラリが無いことが確定するまで）繰り返されます。
+例えば、端末名が @samp{xterm-256color}で、@file{term/xterm-256color.el}
+ライブラリが無い場合、Emacsは@file{term/xterm.el}を検索します。
+必要ならば、端末ライブラリは@code{(getenv "TERM")}を評価することで
 端末種類の完全な名前を得ることができます。
 
-@c   Your @file{.emacs} file can prevent the loading of the
-@c terminal-specific library by setting the variable
-@c @code{term-file-prefix} to @code{nil}.  This feature is useful when
-@c experimenting with your own peculiar customizations.
-読者のファイル@file{.emacs}で
-変数@code{term-file-prefix}に@code{nil}を設定すると、
+初期設定ファイルで変数@code{term-file-prefix}に@code{nil}を設定すると、
 端末固有ライブラリをロードしないようにできます。
-この機能は、読者独自のカスタマイズを試すときに有用です。
 
-@c   You can also arrange to override some of the actions of the
-@c terminal-specific library by setting the variable
-@c @code{term-setup-hook}.  This is a normal hook which Emacs runs using
-@c @code{run-hooks} at the end of Emacs initialization, after loading both
-@c your @file{.emacs} file and any terminal-specific libraries.  You can
-@c use this variable to define initializations for terminals that do not
-@c have their own libraries.  @xref{Hooks}.
-変数@code{term-setup-hook}に設定すれば、
-端末固有ライブラリの特定の動作に優先できます。
-これは、読者のファイル@file{.emacs}と端末固有ライブラリの両者を
-ロードしたあとの初期化後にEmacsが実行するノーマルフックです。
-端末専用ライブラリがない端末向けの初期化を定義するために
-この変数を使えます。
+変数@code{tty-setup-hook}を使うことで、端末固有ライブラリの特有の動作に
+を変更できます。これは、新しいテキスト端末を初期化した後に
+Emacsが実行するノーマルフックです。
+端末専用ライブラリがない端末向けの初期化を定義するのにこの変数を
+利用できます。
 @xref{Hooks}。
 
-@defvar term-file-prefix
-@c @cindex @code{TERM} environment variable
-@cindex @code{TERM}、環境変数
-@cindex 環境変数@code{TERM}
-@c If the @code{term-file-prefix} variable is non-@code{nil}, Emacs loads
-@c a terminal-specific initialization file as follows:
-変数@code{term-file-prefix}が@code{nil}以外であると、
-Emacsは、つぎのように端末固有の初期化ファイルをロードする。
+@defopt term-file-prefix
+@cindex 環境変数 @env{TERM}
+変数@code{term-file-prefix}が@code{nil}以外であると、Emacsは、つぎのよう
+に端末固有の初期化ファイルをロードする。
 
 @example
 (load (concat term-file-prefix (getenv "TERM")))
 @end example
 
 @noindent
-@c You may set the @code{term-file-prefix} variable to @code{nil} in your
-@c @file{.emacs} file if you do not wish to load the
-@c terminal-initialization file.  To do this, put the following in
-@c your @file{.emacs} file: @code{(setq term-file-prefix nil)}.
-端末固有の初期化ファイルをロードしたくない場合には、
-読者のファイル@file{.emacs}で
-変数@code{term-file-prefix}に@code{nil}を設定する。
-それには、読者のファイル@file{.emacs}に
-@code{(setq term-file-prefix nil)}を入れる。
+端末固有の初期化ファイルをロードしたくない場合には、読者のファイル
+@file{.emacs}で変数@code{term-file-prefix}に@code{nil}を設定する。それに
+は、読者のファイル@file{.emacs}に@code{(setq term-file-prefix nil)}を入れ
+る。
+
+On MS-DOS, Emacs sets the @env{TERM} environment variable to @samp{internal}.
+@end defopt
+
+@defopt term-file-aliases
+This variable is an an association list mapping terminal types to
+their aliases.  For example, an element of the form @code{("vt102"
+. "vt100")} means to treat a terminal of type @samp{vt102} like one of
+type @samp{vt100}.
+@end defopt
+
+@defvar tty-setup-hook
+この変数は、Emacsが新しい端末を初期化したあとにEmacsが実行するノーマルフッ
+クである。
+(This applies when Emacs starts up in non-windowed
+mode, and when making a tty @command{emacsclient} connection.)  The
+hook runs after loading your init file (if applicable) and the
+terminal-specific Lisp file, so you can use it to adjust the
+definitions made by that file.
+
+関連する機能については、@pxref{Init File, window-setup-hook}。
 @end defvar
 
-@defvar term-setup-hook 
-@c This variable is a normal hook that Emacs runs after loading your
-@c @file{.emacs} file, the default initialization file (if any) and the
-@c terminal-specific Lisp file.
-この変数は、読者のファイル@file{.emacs}、
-（あれば）デフォルトの初期化ファイル、
-端末固有のLispファイルをロードしたあとにEmacsが実行する
-ノーマルフックである。
-
-@c You can use @code{term-setup-hook} to override the definitions made by a
-@c terminal-specific file.
-端末固有ファイルの定義に優先するために@code{term-setup-hook}を使える。
-@end defvar
-
-@c   See @code{window-setup-hook} in @ref{Window Systems}, for a related
-@c feature.
-関連する機能については、
-@ref{Window Systems}の@code{window-setup-hook}を参照してください。
-
-@node Command Line Arguments
-@c @subsection Command Line Arguments
+@node Command-Line Arguments
 @subsection コマンド行引数
-@c @cindex command line arguments
 @cindex コマンド行引数
 
-@c   You can use command line arguments to request various actions when you
-@c start Emacs.  Since you do not need to start Emacs more than once per
-@c day, and will often leave your Emacs session running longer than that,
-@c command line arguments are hardly ever used.  As a practical matter, it
-@c is best to avoid making the habit of using them, since this habit would
-@c encourage you to kill and restart Emacs unnecessarily often.  These
-@c options exist for two reasons: to be compatible with other editors (for
-@c invocation by other programs) and to enable shell scripts to run
-@c specific Lisp programs.
-Emacsを始動するときにコマンド行引数を使ってさまざまな動作を要求できます。
-一日に一度より多くEmacsを始動する必要はないでしょうし、
-しばしばEmacsセッションをそれより長く動かし続けるでしょうから、
-コマンド行引数はほとんど使いません。
-実際、コマンド行引数を使う癖は避けたほうがよいです。
-そのような癖をつけると、Emacsを必要以上に終了したり再始動するからです。
-これらのオプションは2つの理由で存在します。
-（別のプログラムから起動される）他のエディタと互換性があるようにするのと、
-シェルスクリプトから特定のLispプログラムを実行できるようにするためです。
-
-@c   This section describes how Emacs processes command line arguments,
-@c and how you can customize them.
-本節では、Emacsがコマンド行引数を処理する方法と、
-それらをカスタマイズする方法について述べます。
-
-@ignore
-  (Note that some other editors require you to start afresh each time
-you want to edit a file.  With this kind of editor, you will probably
-specify the file as a command line argument.  The recommended way to
-use GNU Emacs is to start it only once, just after you log in, and do
-all your editing in the same Emacs process.  Each time you want to edit
-a different file, you visit it with the existing Emacs, which eventually
-comes to have many files in it ready for editing.  Usually you do not
-kill the Emacs until you are about to log out.)
-@end ignore
+Emacsの起動時にコマンド行引数を使ってさまざまな動作を要求できます。
+Emacsの推奨される使い方は、一度起動した後、全ての編集作業を
+同じセッションで行なうことです。
+（@pxref{Entering Emacs,,, emacs, The GNU Emacs Manual}）
+そのため、コマンド行引数はほとんど使いません。
+nonetheless, they can be useful when invoking Emacs from session
+scripts or debugging Emacs.
+本節では、Emacsがコマンド行引数を処理する方法について述べます。
 
 @defun command-line
-@c This function parses the command line that Emacs was called with,
-@c processes it, loads the user's @file{.emacs} file and displays the
-@c startup messages.
 この関数は、Emacsを呼び出すときに指定されたコマンド行引数を解析して処理し、
-ユーザーのファイル@file{.emacs}をロードし始動メッセージを表示する。
+ユーザーのファイル初期設定ファイルをロードし始動メッセージを表示する。
 @end defun
 
 @defvar command-line-processed
-@c The value of this variable is @code{t} once the command line has been
-@c processed.
 この変数の値は、コマンド行引数を一度処理し終えると@code{t}である。
 
-@c If you redump Emacs by calling @code{dump-emacs}, you may wish to set
-@c this variable to @code{nil} first in order to cause the new dumped Emacs
-@c to process its new command line arguments.
 @code{dump-emacs}を呼んでEmacsを再ダンプするときには、
 この変数に@code{nil}を設定すれば、
 新たにダンプしたEmacsでコマンド行引数を処理するようにできる。
 @end defvar
 
 @defvar command-switch-alist
-@c @cindex switches on command line
-@c @cindex options on command line
-@c @cindex command line options
+@cindex コマンド行のスイッチ
 @cindex コマンド行のオプション
 @cindex オプション、コマンド行
-@c The value of this variable is an alist of user-defined command-line
-@c options and associated handler functions.  This variable exists so you
-@c can add elements to it.
-この変数の値は、ユーザー定義のコマンド行オプションの連想リストである。
-この変数は、読者が要素を追加できるように存在する。
+この変数の値は、ユーザー定義のコマンド行オプションと、
+ハンドラ関数の連想リストである。
+デフォルトでは空だが、必要に応じて要素を追加できる。
 
-@c A @dfn{command line option} is an argument on the command line of the
-@c form:
 @dfn{コマンド行オプション}（command line option）は、
 つぎの形のコマンド行の引数である。
 
@@ -558,100 +568,65 @@ kill the Emacs until you are about to log out.)
 -@var{option}
 @end example
 
-@c The elements of the @code{command-switch-alist} look like this: 
 @code{command-switch-alist}の要素はつぎの形である。
 
 @example
 (@var{option} . @var{handler-function})
 @end example
 
-@c The @var{handler-function} is called to handle @var{option} and receives
-@c the option name as its sole argument.
+The @sc{car}の@var{option}はコマンド行オプションの名前を示す文字列である
+（オプション先頭のハイフンは含まれない）。
 @var{handler-function}は、オプション@var{option}を処理するために呼ばれ、
 オプション名を唯一の引数として受け取る。
 
-@c In some cases, the option is followed in the command line by an
-@c argument.  In these cases, the @var{handler-function} can find all the
-@c remaining command-line arguments in the variable
-@c @code{command-line-args-left}.  (The entire list of command-line
-@c arguments is in @code{command-line-args}.)
-コマンド行のオプションには引数が続く場合もある。
-そのような場合、@var{handler-function}は
-変数@code{command-line-args-left}からすべての残りのコマンド行引数を
-調べることができる。
-（コマンド行引数全体のリストは@code{command-line-args}にある。）
+コマンド行のオプションには引数が続く場合もある。そのような場合、
+@var{handler-function}は変数@code{command-line-args-left}からすべての残り
+のコマンド行引数を調べることができる。（コマンド行引数全体のリストは
+@code{command-line-args}にある。）
 
-@c The command line arguments are parsed by the @code{command-line-1}
-@c function in the @file{startup.el} file.  See also @ref{Command
-@c Switches, , Command Line Switches and Arguments, emacs, The GNU Emacs
-@c Manual}.
-@c = 誤植? @ref{Command Arguments,,
-@c = 誤植?      Command Line Arguments, emacs, The GNU Emacs Manual}
-コマンド行引数は、ファイル@file{startup.el}の
-関数@code{command-line-1}が解析する。
-@ref{Command Arguments,, コマンド行引数, emacs, GNU Emacs マニュアル}も参照。
+コマンド行引数は、ファイル@file{startup.el}の関数@code{command-line-1}が
+解析する。@ref{Emacs Invocation, , Command Line Arguments for Emacs
+Invocation, emacs, The GNU Emacs Manual}も参照。
 @end defvar
 
 @defvar command-line-args
-@c The value of this variable is the list of command line arguments passed
-@c to Emacs.
 この変数の値は、Emacsに渡されたコマンド行引数のリストである。
 @end defvar
 
+@defvar command-line-args-left
+@vindex argv
+The value of this variable is the list of command-line arguments that
+have not yet been processed.
+@c Don't mention this, since it is a "bad name for a dynamically bound variable"
+@c @code{argv} is an alias for this.
+@end defvar
+
 @defvar command-line-functions
-@c This variable's value is a list of functions for handling an
-@c unrecognized command-line argument.  Each time the next argument to be
-@c processed has no special meaning, the functions in this list are called,
-@c in order of appearance, until one of them returns a non-@code{nil}
-@c value.
 この変数の値は、認識できないコマンド行引数を処理する関数のリストである。
-つぎに処理する引数に特別な意味がないと、
-このリストの関数を@code{nil}以外の値を返すまで現れる順に呼び出す。
+つぎに処理する引数に特別な意味がないと、このリストの関数を@code{nil}以外
+の値を返すまで現れる順に呼び出す。
 
-@c These functions are called with no arguments.  They can access the
-@c command-line argument under consideration through the variable
-@c @code{argi}, which is bound temporarily at this point.  The remaining
-@c arguments (not including the current one) are in the variable
-@c @code{command-line-args-left}.
-これらの関数は引数なしで呼び出される。
-これらの関数では、呼び出し時に束縛される変数@code{argi}を介して
-対象となるコマンド行引数を参照できる。
-（いま対象となっている引数を除く）残りの引数は
-変数@code{command-line-args-left}にある。
+これらの関数は引数なしで呼び出される。これらの関数では、呼び出し時に束縛
+される変数@code{argi}を介して対象となるコマンド行引数を参照できる。（いま
+対象となっている引数を除く）残りの引数は変数
+@code{command-line-args-left}にある。
 
-@c When a function recognizes and processes the argument in @code{argi}, it
-@c should return a non-@code{nil} value to say it has dealt with that
-@c argument.  If it has also dealt with some of the following arguments, it
-@c can indicate that by deleting them from @code{command-line-args-left}.
-関数が@code{argi}を認識して処理したときには、
-その引数を処理したことを表すために@code{nil}以外の値を返すこと。
-後続の引数の一部も処理した場合には、
-@code{command-line-args-left}から
-それらを削除することで処理したことを示せる。
+関数が@code{argi}を認識して処理したときには、その引数を処理したことを表す
+ために@code{nil}以外の値を返すこと。後続の引数の一部も処理した場合には、
+@code{command-line-args-left}からそれらを削除することで処理したことを示せ
+る。
 
-@c If all of these functions return @code{nil}, then the argument is used
-@c as a file name to visit.
-これらの関数すべてが@code{nil}を返すと、
-訪問するファイル名として引数を用いる。
+これらの関数すべてが@code{nil}を返すと、訪問するファイル名として引数を用
+いる。
 @end defvar
 
 @node Getting Out
-@c @section Getting Out of Emacs
 @section Emacsから抜ける
-@c @cindex exiting Emacs
 @cindex Emacsの終了
-@cindex 終了、Emacs
 
-@c   There are two ways to get out of Emacs: you can kill the Emacs job,
-@c which exits permanently, or you can suspend it, which permits you to
-@c reenter the Emacs process later.  As a practical matter, you seldom kill
-@c Emacs---only when you are about to log out.  Suspending is much more
-@c common.
-Emacsから抜けるには2つの方法があります。
-Emacsを終了するためにEmacsジョブをキルするか、
-あとでEmacsを継続できるように休止します。
-実用上は、ログアウトするとき以外にはEmacsをほとんど終了しないでしょう。
-Emacsを休止するほうが一般的です。
+Emacsから抜けるには2つの方法がある。Emacsを終了するためにEmacsジョブをキ
+ルするか、あとでEmacsを継続できるように休止する。実用上は、ログアウトする
+とき以外にはEmacsをほとんど終了しない。Emacsを休止するほうが一般的である。
 
 @menu
 * Killing Emacs::        Exiting Emacs irreversibly.
@@ -659,181 +634,132 @@ Emacsを休止するほうが一般的です。
 @end menu
 
 @node Killing Emacs
-@comment  node-name,  next,  previous,  up
-@c @subsection Killing Emacs
 @subsection Emacsの終了
-@c @cindex killing Emacs
-@cindex Emacsの終了
 @cindex 終了、Emacs
 
-@c   Killing Emacs means ending the execution of the Emacs process.  The
-@c parent process normally resumes control.  The low-level primitive for
-@c killing Emacs is @code{kill-emacs}.
-Emacsを終了するとは、Emacsプロセスの実行を終らせることを意味します。
-親プロセスが普通は制御を取り戻します。
-Emacsを終了するための下位の基本関数は@code{kill-emacs}です。
+Emacsを終了するとは、Emacsプロセスの実行を終らせることを意味します。親プ
+ロセスが普通は制御を取り戻します。Emacsを終了するための下位の基本関数は
+@code{kill-emacs}です。
 
-@defun kill-emacs &optional exit-data
-@c This function exits the Emacs process and kills it.
-この関数は、Emacsプロセスを終了しEmacsを終える。
+@deffn Command kill-emacs &optional exit-data
+この関数は、@code{kill-emacs-hook}を呼び出し、
+Emacsプロセスを終了する。
 
-@c If @var{exit-data} is an integer, then it is used as the exit status
-@c of the Emacs process.  (This is useful primarily in batch operation; see
-@c @ref{Batch Mode}.)
 @var{exit-data}が整数であると、Emacsプロセスの終了状態として使われる。
-（これは主にバッチ処理で有用である。
-@ref{Batch Mode}を参照。）
+（これは主にバッチ処理で有用である。@ref{Batch Mode}を参照。）
 
-@c If @var{exit-data} is a string, its contents are stuffed into the
-@c terminal input buffer so that the shell (or whatever program next reads
-@c input) can read them.
-@var{exit-data}が文字列であると、
-その内容を端末入力バッファへ詰め込み、
-シェル（やつぎに入力を読むプログラム）がそれらを読み取れるようにする。
-@end defun
+@var{exit-data}が文字列であると、その内容を端末入力バッファへ詰め込み、シェ
+ル（やつぎに入力を読むプログラム）がそれらを読み取れるようにする。
+@end deffn
 
-@c   All the information in the Emacs process, aside from files that have
-@c been saved, is lost when the Emacs is killed.  Because killing Emacs
-@c inadvertently can lose a lot of work, Emacs queries for confirmation
-@c before actually terminating if you have buffers that need saving or
-@c subprocesses that are running.  This is done in the function
-@c @code{save-buffers-kill-emacs}.
-保存済みのファイルを除くEmacsプロセス内のすべての情報は、
-Emacsを終了すると失われます。
-Emacsを不注意に終了すると多くの作業を失うことになるので、
-保存する必要があるバッファがあったり動作中のサブプロセスがあると、
-Emacsは確認を求めます。
-これは関数@code{save-buffers-kill-emacs}が行います。
-
-@defvar kill-emacs-query-functions
-@c After asking the standard questions, @code{save-buffers-kill-emacs}
-@c calls the functions in the list @code{kill-emacs-query-functions}, in
-@c order of appearance, with no arguments.  These functions can ask for
-@c additional confirmation from the user.  If any of them returns
-@c @code{nil}, Emacs is not killed.
-標準的な問い合わせをしたあとで、
-@code{save-buffers-kill-emacs}は、
-リスト@code{kill-emacs-query-functions}内の関数を
-現れる順に引数なしで呼び出す。
-これらの関数では、ユーザーにさらなる確認を求めることができる。
-これらのどれかが@code{nil}を返すと、Emacsは終了しない。
-@end defvar
+@cindex SIGTERM
+@cindex SIGHUP
+@cindex SIGINT
+@cindex operating system signal
+  The @code{kill-emacs} function is normally called via the
+higher-level command @kbd{C-x C-c}
+(@code{save-buffers-kill-terminal}).  @xref{Exiting,,, emacs, The GNU
+Emacs Manual}.  It is also called automatically if Emacs receives a
+@code{SIGTERM} or @code{SIGHUP} operating system signal (e.g., when the
+controlling terminal is disconnected), or if it receives a
+@code{SIGINT} signal while running in batch mode (@pxref{Batch Mode}).
 
 @defvar kill-emacs-hook
-@c This variable is a normal hook; once @code{save-buffers-kill-emacs} is
-@c finished with all file saving and confirmation, it runs the functions in
-@c this hook.
-この変数はノーマルフックである。
-@code{save-buffers-kill-emacs}がファイルをすべて保存し確認し終えると、
-このフックの関数群を実行する。
+この変数は、@code{kill-emacs}がEmacsを終了する前に実行するノーマルフックである。
+
+Because @code{kill-emacs} can be called in situations where user
+interaction is impossible (e.g., when the terminal is disconnected),
+functions on this hook should not attempt to interact with the user.
+If you want to interact with the user when Emacs is shutting down, use
+@code{kill-emacs-query-functions}, described below.
+@end defvar
+
+Emacsを終了すると、
+保存済みのファイルを除くEmacsプロセス内のすべての情報は失われます。
+Emacsを不注意に終了すると多くの作業を失うことになるので、
+保存する必要があるバッファや、動作中のサブプロセスがあると、
+@code{save-buffers-kill-terminal}が確認を求めます。
+It also runs the abnormal hook @code{kill-emacs-query-functions}:
+
+@defvar kill-emacs-query-functions
+Emacsを終了する際、@code{save-buffers-kill-terminal}は、
+標準的な質問を行った後、@code{kill-emacs}を呼び出す前に、
+このフックにある関数を呼び出す。
+関数は、現れる順に引数なしで呼び出される。
+各関数では、ユーザーにさらなる確認を求めることができる。
+これらのどれかが@code{nil}を返すと、@code{save-buffers-kill-emacs}はEmacsは終了させず、
+またそれ以降の関数も実行しない。Calling @code{kill-emacs}
+directly does not run this hook.
 @end defvar
 
 @node Suspending Emacs
-@c @subsection Suspending Emacs
 @subsection Emacsの休止
-@c @cindex suspending Emacs
-@cindex Emacsの休止
 @cindex 休止、Emacs
 
-@c   @dfn{Suspending Emacs} means stopping Emacs temporarily and returning
-@c control to its superior process, which is usually the shell.  This
-@c allows you to resume editing later in the same Emacs process, with the
-@c same buffers, the same kill ring, the same undo history, and so on.  To
-@c resume Emacs, use the appropriate command in the parent shell---most
-@c likely @code{fg}.
-@dfn{Emacsを休止する}とは、Emacsを一時的に停止し、
-普通はシェルである親プロセスに制御を戻すことです。
-これにより、あとで同じEmacsプロセスで、つまり、同じバッファ群、
-同じキルリング、同じアンドゥ履歴などで編集を再開できます。
-Emacsを再開するには、親シェルにおいて
-ほとんどの場合@code{fg}などの適切なコマンドを使います。
+@dfn{Emacsを休止する}とは、Emacsを一時的に停止し、普通はシェルである親プ
+ロセスに制御を戻すことです。これにより、あとで同じEmacsプロセスで、つまり、
+同じバッファ群、同じキルリング、同じアンドゥ履歴などで編集を再開できます。
+Emacsを再開するには、親シェルにおいてほとんどの場合@code{fg}などの適切な
+コマンドを使います。
 
-@c   Some operating systems do not support suspension of jobs; on these
-@c systems, ``suspension'' actually creates a new shell temporarily as a
-@c subprocess of Emacs.  Then you would exit the shell to return to Emacs.
-ジョブの休止を扱えないオペレーティングシステムもあります。
-そのようなシステムでは、『休止』はEmacsのサブプロセスとして
-一時的に新たなシェルを実際には作成します。
-そのシェルを終了するとEmacsに戻ります。
+@cindex controlling terminal
+  Suspending works only on a terminal device from which the Emacs
+session was started.  We call that device the @dfn{controlling
+terminal} of the session.  Suspending is not allowed if the
+controlling terminal is a graphical terminal.  Suspending is usually
+not relevant in graphical environments, since you can simply switch to
+another application without doing anything special to Emacs.
 
-@c   Suspension is not useful with window systems, because the Emacs job
-@c may not have a parent that can resume it again, and in any case you can
-@c give input to some other job such as a shell merely by moving to a
-@c different window.  Therefore, suspending is not allowed when Emacs is using
-@c a window system.
-ウィンドウシステムを使っている場合には、
-Emacsジョブを再開する親プロセスがいないかもしれませんし、
-別のウィンドウへ移動すれば別のジョブへ入力できますから、
-Emacsの休止は有用ではありません。
-したがって、Emacsがウィンドウシステムを使っている場合には、
-休止できません。
+@c FIXME?  Are there any systems Emacs still supports that do not
+@c have SIGTSTP?
+@cindex SIGTSTP
+ジョブの休止（@code{SIGTSTP}）を扱えないオペレーティングシステムもあります。
+そのようなシステムでは、『休止』はEmacsのサブプロセスとして一時的に新たな
+シェルを実際には作成します。そのシェルを終了するとEmacsに戻ります。
 
-@defun suspend-emacs string
-@c This function stops Emacs and returns control to the superior process.
-@c If and when the superior process resumes Emacs, @code{suspend-emacs}
-@c returns @code{nil} to its caller in Lisp.
-この関数は、Emacsを休止し、親プロセスへ制御を戻す。
-親プロセスがEmacsを再開した場合にのみ、
-@code{suspend-emacs}はLisp内の呼び出し側へ@code{nil}を返す。
+@deffn Command suspend-emacs &optional string
+この関数は、Emacsを休止し、親プロセスへ制御を戻す。親プロセスがEmacsを再
+開した場合にのみ、@code{suspend-emacs}はLisp内の呼び出し側へ@code{nil}を
+返す。
 
-@c If @var{string} is non-@code{nil}, its characters are sent to be read
-@c as terminal input by Emacs's superior shell.  The characters in
-@c @var{string} are not echoed by the superior shell; only the results
-@c appear.
-@var{string}が@code{nil}以外であると、
-Emacsの親シェルが端末入力として読めるようにその文字群を送る。
-親シェルは@var{string}の文字群を表示せず、
-その結果のみが現れる。
+This function works only on the controlling terminal of the Emacs
+session; to relinquish control of other tty devices, use
+@code{suspend-tty} (see below).  If the Emacs session uses more than
+one terminal, you must delete the frames on all the other terminals
+before suspending Emacs, or this function signals an error.
+@xref{Multiple Terminals}.
 
-@c Before suspending, @code{suspend-emacs} runs the normal hook
-@c @code{suspend-hook}.
-休止するまえに、@code{suspend-emacs}は
-ノーマルフック@code{suspend-hook}を実行する。
+@var{string}が@code{nil}以外であると、Emacsの親シェルが端末入力として読め
+るようにその文字群を送る。
+@c FIXME?  It seems to me that shell does echo STRING.
+親シェルは@var{string}の文字群を表示せず、その結果のみが現れる。
 
-@c After the user resumes Emacs, @code{suspend-emacs} runs the normal hook
-@c @code{suspend-resume-hook}.  @xref{Hooks}.
-ユーザーがEmacsを再開すると、@code{suspend-emacs}は
-ノーマルフック@code{suspend-resume-hook}を実行する。
-@pxref{Hooks}。
+休止するまえに、@code{suspend-emacs}はノーマルフック@code{suspend-hook}を
+実行する。
+ユーザーがEmacsを再開すると、@code{suspend-emacs}はノーマルフック
+@code{suspend-resume-hook}を実行する。@xref{Hooks}。
 
-@c The next redisplay after resumption will redraw the entire screen,
-@c unless the variable @code{no-redraw-on-reenter} is non-@code{nil}
-@c (@pxref{Refresh Screen}).
-再開後のつぎの再表示では、
-変数@code{no-redraw-on-reenter}が@code{nil}ならば
-スクリーン全体を再描画する。
-（@pxref{Refresh Screen}）。
+再開後のつぎの再表示では、変数@code{no-redraw-on-reenter}が@code{nil}なら
+ばスクリーン全体を再描画する。@xref{Refresh Screen}。
 
-@c In the following example, note that @samp{pwd} is not echoed after
-@c Emacs is suspended.  But it is read and executed by the shell.
-つぎの例では、Emacsを休止しても@samp{pwd}は表示されないことに注意。
-しかし、シェルはそれを読み取って実行する。
+つぎの例では、Emacsを休止しても@samp{pwd}は表示されないことに注意。しかし、
+シェルはそれを読み取って実行する。
 
 @smallexample
 @group
-(suspend-emacs)
-     @result{} nil
-@end group
-
-@group
 (add-hook 'suspend-hook
-          (function (lambda ()
-                      (or (y-or-n-p
-                            "Really suspend? ")
-                          (error "Suspend cancelled")))))
-     @result{} (lambda nil
-          (or (y-or-n-p "Really suspend? ")
-              (error "Suspend cancelled")))
+          (lambda () (or (y-or-n-p "Really suspend? ")
+                         (error "Suspend canceled"))))
 @end group
-@group
-(add-hook 'suspend-resume-hook
-          (function (lambda () (message "Resumed!"))))
-     @result{} (lambda nil (message "Resumed!"))
-@end group
-@group
-(suspend-emacs "pwd")
-     @result{} nil
-@end group
+(add-hook 'suspend-resume-hook (lambda () (message "Resumed!")
+                                 (sit-for 2)))
+@end smallexample
+@c The sit-for prevents the @code{nil} that suspend-emacs returns
+@c hiding the message.
+
+Here is what you would see upon evaluating @code{(suspend-emacs "pwd")}:
+
+@smallexample
 @group
 ---------- Buffer: Minibuffer ----------
 Really suspend? @kbd{y}
@@ -842,8 +768,8 @@ Really suspend? @kbd{y}
 
 @group
 ---------- Parent Shell ----------
-lewis@@slug[23] % /user/lewis/manual
-lewis@@slug[24] % fg
+bash$ /home/username
+bash$ fg
 @end group
 
 @group
@@ -851,176 +777,159 @@ lewis@@slug[24] % fg
 Resumed!
 @end group
 @end smallexample
-@end defun
+
+@c FIXME?  AFAICS, it is echoed.
+Note that @samp{pwd} is not echoed after Emacs is suspended.  But it
+is read and executed by the shell.
+@end deffn
 
 @defvar suspend-hook
-@c This variable is a normal hook run before suspending.
 この変数は、休止するまえに実行されるノーマルフックである。
 @end defvar
 
 @defvar suspend-resume-hook
-@c This variable is a normal hook run after suspending.
 この変数は、再開後に実行されるノーマルフックである。
 @end defvar
 
+@defun suspend-tty &optional tty
+If @var{tty} specifies a terminal device used by Emacs, this function
+relinquishes the device and restores it to its prior state.  Frames
+that used the device continue to exist, but are not updated and Emacs
+doesn't read input from them.  @var{tty} can be a terminal object, a
+frame (meaning the terminal for that frame), or @code{nil} (meaning
+the terminal for the selected frame).  @xref{Multiple Terminals}.
+
+If @var{tty} is already suspended, this function does nothing.
+
+@vindex suspend-tty-functions
+This function runs the hook @code{suspend-tty-functions}, passing the
+terminal object as an argument to each function.
+@end defun
+
+@defun resume-tty &optional tty
+This function resumes the previously suspended terminal device
+@var{tty}; where @var{tty} has the same possible values as it does
+for @code{suspend-tty}.
+
+@vindex resume-tty-functions
+This function reopens the terminal device, re-initializes it, and
+redraws it with that terminal's selected frame.  It then runs the
+hook @code{resume-tty-functions}, passing the terminal object as an
+argument to each function.
+
+If the same device is already used by another Emacs terminal, this
+function signals an error.  If @var{tty} is not suspended, this
+function does nothing.
+@end defun
+
+@defun controlling-tty-p &optional tty
+This function returns non-@code{nil} if @var{tty} is the
+controlling terminal of the Emacs session; @var{tty} can be a
+terminal object, a frame (meaning the terminal for that frame), or
+@code{nil} (meaning the terminal for the selected frame).
+@end defun
+
+@deffn Command suspend-frame
+This command @dfn{suspends} a frame.  For GUI frames, it calls
+@code{iconify-frame} (@pxref{Visibility of Frames}); for frames on
+text terminals, it calls either @code{suspend-emacs} or
+@code{suspend-tty}, depending on whether the frame is displayed on the
+controlling terminal device or not.
+@end deffn
+
 @node System Environment
-@c @section Operating System Environment
 @section オペレーティングシステム環境
-@c @cindex operating system environment
 @cindex オペレーティングシステム環境
 
-@c   Emacs provides access to variables in the operating system environment
-@c through various functions.  These variables include the name of the
-@c system, the user's @sc{uid}, and so on.
 Emacsでは、さまざまな関数を介して
 オペレーティングシステム環境の変数を参照できます。
 これらの変数には、システムの名前、ユーザーの識別番号@sc{uid}などが
 含まれます。
 
 @defvar system-configuration
-@c This variable holds the GNU configuration name for the hardware/software
-@c configuration of your system, as a string.  The convenient way to test
-@c parts of this string is with @code{string-match}.
 この変数は、読者のシステムのハードウェア／ソフトウェア構成に対する
-GNUの構成名を文字列で保持している。
-この文字列の一部分を検査する簡便な方法は
-@code{string-match}を使うことである。
+GNUの構成名を文字列で保持している。For
+example, a typical value for a 64-bit GNU/Linux system is
+@samp{"x86_64-unknown-linux-gnu"}.
 @end defvar
 
+@cindex system type and name
 @defvar system-type
-@c The value of this variable is a symbol indicating the type of operating
-@c system Emacs is operating on.  Here is a table of the possible values:
 この変数の値は、Emacsが動作している
 オペレーティングシステムの種類を表すシンボルである。
 つぎに可能な値の一覧を示す。
 
 @table @code
-@item alpha-vms
-@c VMS on the Alpha.
-Alphaマシン上のVMS。
-
-@item aix-v3
-@c AIX.
-AIX。
+@item aix
+IBM's AIX。
 
 @item berkeley-unix
-@c Berkeley BSD.
 バークレーBSD。
 
-@item dgux
-@c Data General DGUX operating system.
-データジェネラルDGUXオペレーティングシステム。
+@item cygwin
+Cygwin, a Posix layer on top of MS-Windows.
+
+@item darwin
+Darwin (Mac OS X).
 
 @item gnu
-@c the GNU system (using the GNU kernel, which consists of the HURD and Mach).
 （HURDかMachから成るGNUカーネルを使っている）GNUシステム。
 
 @item gnu/linux
-@c A GNU/Linux system---that is, a variant GNU system, using the Linux
-@c kernel.  (These systems are the ones people often call ``Linux,'' but
-@c actually Linux is just the kernel, not the whole system.)
 GNU/Linuxシステム。
 つまり、Linuxカーネルを用いたGNUシステムの変種。
 （これらのシステムは人々が『Linux』と呼ぶものの1つであるが、
 Linxuは実際にはカーネルのみであり、システム全体ではない。）
 
+@item gnu/kfreebsd
+A GNU (glibc-based) system with a FreeBSD kernel.
+
 @item hpux
-@c Hewlett-Packard HPUX operating system.
 ヒューレットパッカードHPUXオペレーティングシステム。
 
 @item irix
-@c Silicon Graphics Irix system.
 シリコングラフィックスIrixシステム。
 
 @item ms-dos
-@c Microsoft MS-DOS ``operating system.''
-マイクロソフトMS-DOS『オペレーティングシステム』。
-
-@item next-mach
-@c NeXT Mach-based system.
-NeXTのMachベースのシステム。
-
-@item rtu
-@c Masscomp RTU, UCB universe.
-マスコンプRTU、UCBユニバース。
-
-@item unisoft-unix
-@c UniSoft UniPlus.
-ユニソフトUniPlus。
+マイクロソフトMS-DOS。  Emacs compiled with DJGPP for MS-DOS binds
+@code{system-type} to @code{ms-dos} even when you run it on MS-Windows.
 
 @item usg-unix-v
-@c AT&T System V.
 AT&T System V。
 
-@item vax-vms
-@c VAX VMS.
-VAX VMS。
-
 @item windows-nt
-@c Microsoft windows NT.
-マイクロソフトWindows NT。
+Microsoft Windows NT, 9X and later.  The value of @code{system-type}
+is always @code{windows-nt}, e.g., even on Windows 7.
 
-@item xenix
-@c SCO Xenix 386.
-SCO Xenix 386。
 @end table
 
-@c We do not wish to add new symbols to make finer distinctions unless it
-@c is absolutely necessary!  In fact, we hope to eliminate some of these
-@c alternatives in the future.  We recommend using
-@c @code{system-configuration} to distinguish between different operating
-@c systems.
-絶対に必要でない限り、細分類のために新たなシンボルを追加したくない！@code{ }
-実際、将来にはこれらのいくつかを削除することを願っている。
-オペレーティングシステムの違いを区別するには、
-@code{system-configuration}を使うことを勧める。
+絶対に必要でない限り、細分類のために新たなシンボルを追加したくない！
+実際、将来にはこれらのいくつかを削除することを願っている。@code{system-type}よりも
+細かいオペレーティングシステムの違いを区別するには、
+@code{system-configuration}を、正規表現等に対して使うことを勧める。
 @end defvar
 
 @defun system-name
-@c This function returns the name of the machine you are running on.
 この関数は読者が使っているマシンの名前を返す。
-@example
-(system-name)
-     @result{} "www.gnu.org"
-@end example
 @end defun
 
-@c   The symbol @code{system-name} is a variable as well as a function.  In
-@c fact, the function returns whatever value the variable
-@c @code{system-name} currently holds.  Thus, you can set the variable
-@c @code{system-name} in case Emacs is confused about the name of your
-@c system.  The variable is also useful for constructing frame titles
-@c (@pxref{Frame Titles}).
-シンボル@code{system-name}は、関数としても変数としても使えます。
-実際、関数としては、変数@code{system-name}が現在保持している値を返します。
-したがって、Emacsが読者のシステム名に関して混乱している場合には、
-変数@code{system-name}に設定できます。
-変数はフレームタイトルの作成にも有用です（@pxref{Frame Titles}）。
+@c FIXME seems like this section is not the best place for this option?
+@defopt mail-host-address
+この変数が@code{nil}以外であると、@code{system-name}のかわりに電子メイル
+アドレスの生成に使われる。たとえば、@code{user-mail-address}のデフォルト
+値の作成に使われる。@xref{User Identification}。（これはEmacsの始動時に
+行われるため、Emacsをダンプしたときの値が実際に使われる値である。
+@xref{Building Emacs}）。
+@c FIXME sounds like should probably give this a :set-after and some
+@c custom-initialize-delay voodoo.
+@end defopt
 
-@defvar mail-host-address
-@c If this variable is non-@code{nil}, it is used instead of
-@c @code{system-name} for purposes of generating email addresses.  For
-@c example, it is used when constructing the default value of
-@c @code{user-mail-address}.  @xref{User Identification}.  (Since this is
-@c done when Emacs starts up, the value actually used is the one saved when
-@c Emacs was dumped.  @xref{Building Emacs}.)
-この変数が@code{nil}以外であると、@code{system-name}のかわりに
-電子メイルアドレスの生成に使われる。
-たとえば、@code{user-mail-address}のデフォルト値の作成に使われる。
-@pxref{User Identification}。
-（これはEmacsの始動時に行われるため、
-Emacsをダンプしたときの値が実際に使われる値である。
-@pxref{Building Emacs}）。
-@end defvar
-
-@defun getenv var
-@c @cindex environment variable access
+@deffn Command getenv var &optional frame
 @cindex 環境変数の参照
-@cindex 参照、環境変数
-@c This function returns the value of the environment variable @var{var},
-@c as a string.  Within Emacs, the environment variable values are kept in
-@c the Lisp variable @code{process-environment}.
 この関数は、環境変数@var{var}の値を文字列で返す。
+@var{var} should be a string.  If @var{var} is undefined
+in the environment, @code{getenv} returns @code{nil}.  It returns
+@samp{""} if @var{var} is set but null.
 Emacs内部では、環境変数の値はLisp変数@code{process-environment}に
 保持されている。
 
@@ -1029,107 +938,135 @@ Emacs内部では、環境変数の値はLisp変数@code{process-environment}に
 (getenv "USER")
      @result{} "lewis"
 @end group
+@end example
 
+The shell command @code{printenv} prints all or part of the environment:
+
+@example
 @group
-lewis@@slug[10] % printenv
-PATH=.:/user/lewis/bin:/usr/bin:/usr/local/bin
+bash$ printenv
+PATH=/usr/local/bin:/usr/bin:/bin
 USER=lewis
 @end group
 @group
-TERM=ibmapa16
-SHELL=/bin/csh
-HOME=/user/lewis
+TERM=xterm
+SHELL=/bin/bash
+HOME=/home/lewis
 @end group
+@dots{}
 @end example
-@end defun
+@end deffn
 
-@c @c Emacs 19 feature
-@c @deffn Command setenv variable value
-@deffn コマンド setenv variable value
-@c This command sets the value of the environment variable named
-@c @var{variable} to @var{value}.  Both arguments should be strings.  This
-@c function works by modifying @code{process-environment}; binding that
-@c variable with @code{let} is also reasonable practice.
-このコマンドは、環境変数@var{variable}に値@var{value}を設定する。
-どちらの引数も文字列である。
-この関数は@code{process-environment}を修正することで動作する。
-この変数を@code{let}で束縛しても十分に実用的である。
+@deffn Command setenv variable &optional value substitute
+このコマンドは、環境変数@var{variable}に値@var{value}を設定する。@var{variable}
+は文字列である。
+Internally, Emacs Lisp can handle any string.  However, normally
+@var{variable} should be a valid shell identifier, that is, a sequence
+of letters, digits and underscores, starting with a letter or
+underscore.  Otherwise, errors may occur if subprocesses of Emacs try
+to access the value of @var{variable}.  If @var{value} is omitted or
+@code{nil} (or, interactively, with a prefix argument), @code{setenv}
+removes @var{variable} from the environment.  Otherwise, @var{value}
+should be a string.
+
+@c FIXME: Document 'substitute-env-vars'?  --xfq
+If the optional argument @var{substitute} is non-@code{nil}, Emacs
+calls the function @code{substitute-env-vars} to expand any
+environment variables in @var{value}.
+
+@code{setenv}は@code{process-environment}を修正することで
+動作する。この変数を@code{let}で束縛しても十分に実用的である。
+
+@code{setenv} returns the new value of @var{variable}, or @code{nil}
+if it removed @var{variable} from the environment.
 @end deffn
 
 @defvar process-environment
-@c This variable is a list of strings, each describing one environment
-@c variable.  The functions @code{getenv} and @code{setenv} work by means
-@c of this variable.
 この変数は、各要素が1つの環境変数を記述する文字列のリストである。
 関数@code{getenv}と@code{setenv}は、この変数を用いて動作する。
 
 @smallexample
 @group
 process-environment
-@result{} ("l=/usr/stanford/lib/gnuemacs/lisp"
-    "PATH=.:/user/lewis/bin:/usr/class:/nfsusr/local/bin"
-    "USER=lewis" 
+@result{} ("PATH=/usr/local/bin:/usr/bin:/bin"
+    "USER=lewis"
 @end group
 @group
-    "TERM=ibmapa16" 
-    "SHELL=/bin/csh"
-    "HOME=/user/lewis")
+    "TERM=xterm"
+    "SHELL=/bin/bash"
+    "HOME=/home/lewis"
+    @dots{})
 @end group
 @end smallexample
+
+If @code{process-environment} contains ``duplicate'' elements that
+specify the same environment variable, the first of these elements
+specifies the variable, and the other ``duplicates'' are ignored.
+@end defvar
+
+@defvar initial-environment
+This variable holds the list of environment variables Emacs inherited
+from its parent process when Emacs started.
 @end defvar
 
 @defvar path-separator
-@c This variable holds a string which says which character separates
-@c directories in a search path (as found in an environment variable).  Its
-@c value is @code{":"} for Unix and GNU systems, and @code{";"} for MS-DOS
-@c and Windows NT.
 この変数は、（環境変数などで）探索パスを
 区切る文字を指定する文字列を保持する。
 UNIXとGNUシステムではその値は@code{":"}であり、
 MS-DOSとWidows NTでは@code{";"}である。
 @end defvar
 
+@defun parse-colon-path path
+This function takes a search path string such as the value of
+the @env{PATH} environment variable, and splits it at the separators,
+returning a list of directory names.  @code{nil} in this list means
+the current directory.  Although the function's name says
+``colon'', it actually uses the value of @code{path-separator}.
+
+@example
+(parse-colon-path ":/foo:/bar")
+     @result{} (nil "/foo/" "/bar/")
+@end example
+@end defun
+
 @defvar invocation-name
-@c This variable holds the program name under which Emacs was invoked.  The
-@c value is a string, and does not include a directory name.
-この変数は、起動したEmacsのプログラム名を保持する。
-値は文字列であり、ディレクトリ名は含まない。
+この変数は、起動したEmacsのプログラム名を保持する。値は文字列であり、ディ
+レクトリ名は含まない。
 @end defvar
 
 @defvar invocation-directory
-@c This variable holds the directory from which the Emacs executable was
-@c invoked, or perhaps @code{nil} if that directory cannot be determined.
 この変数は、起動したEmacsの実行形式のディレクトリを保持する。
 ディレクトリを判別できない場合には@code{nil}である。
 @end defvar
 
 @defvar installation-directory
-@c If non-@code{nil}, this is a directory within which to look for the
-@c @file{lib-src} and @file{etc} subdirectories.  This is non-@code{nil}
-@c when Emacs can't find those directories in their standard installed
-@c locations, but can find them in a directory related somehow to the one
-@c containing the Emacs executable.
 @code{nil}以外であると、サブディレクトリ@file{lib-src}と@file{etc}を
 探すためのディレクトリである。
+通常、インストールされたEmacsではこの変数は@code{nil}である。
 Emacsがこれらのディレクトリを標準のインストールディレクトリで
-みつけられなくてもEmacsの実行形式になんらかの意味で
-関連するディレクトリでみつけられれば、@code{nil}以外である。
+みつけられなくてもEmacsの実行ファイルになんらかの意味で
+関連するディレクトリでみつけられれば（例えば@code{invocation-directory}）、
+この変数は@code{nil}以外になる。
 @end defvar
 
 @defun load-average &optional use-float
-@c This function returns the current 1-minute, 5-minute, and 15-minute load
-@c averages, in a list.
-この関数は、1分間／5分間／15分間のロードアベレッジ
-（負荷平均）をリストで返す。
+この関数は、1分間／5分間／15分間のロードアベレッジ（負荷平均）をリストで
+返す。The load average indicates the
+number of processes trying to run on the system.
 
-@c By default, the values are integers that are 100 times the system load
-@c averages, which indicate the average number of processes trying to run.
-@c If @var{use-float} is non-@code{nil}, then they are returned
-@c as floating point numbers and without multiplying by 100.
 デフォルトでは、これらの値は、動作しようとしてるプロセスの平均個数を表す
-システムのロードアベレッジを100倍した整数である。
-@var{use-float}が@code{nil}以外であると、
-100倍しない浮動小数点数で返す。
+システムのロードアベレッジを100倍した整数である。@var{use-float}が
+@code{nil}以外であると、100倍しない浮動小数点数で返す。
+
+If it is impossible to obtain the load average, this function signals
+an error.  On some platforms, access to load averages requires
+installing Emacs as setuid or setgid so that it can read kernel
+information, and that usually isn't advisable.
+@c FIXME which platforms are these?  Are they still relevant?
+
+If the 1-minute load average is available, but the 5- or 15-minute
+averages are not, this function returns a shortened list containing
+the available averages.
 
 @example
 @group
@@ -1140,213 +1077,169 @@ Emacsがこれらのディレクトリを標準のインストールディレク
 (load-average t)
      @result{} (1.69 0.48 0.36)
 @end group
-
-@group
-lewis@@rocky[5] % uptime
- 11:55am  up 1 day, 19:37,  3 users,
- load average: 1.69, 0.48, 0.36
-@end group
 @end example
+
+The shell command @code{uptime} returns similar information.
 @end defun
 
 @defun emacs-pid
-@c This function returns the process @sc{id} of the Emacs process.
 この関数は、Emacsプロセスのプロセス番号@sc{id}を返す。
 @end defun
 
 @defvar tty-erase-char
-@tindex tty-erase-char
-@c This variable holds the erase character that was selected
-@c in the system's terminal driver, before Emacs was started.
-この変数は、Emacsが始動するまえに
-システムの端末ドライバが選んでいた消去文字を保持する。
+この変数は、Emacsが始動するまえにシステムの端末ドライバが選んでいた消去文
+字を保持する。
+@c FIXME?  Seems untrue since 23.1.  For me, it is 0.
+@c The value is @code{nil} if Emacs is running under a window system.
 @end defvar
 
-@defun setprv privilege-name &optional setp getprv
-@c This function sets or resets a VMS privilege.  (It does not exist on
-@c Unix.)  The first arg is the privilege name, as a string.  The second
-@c argument, @var{setp}, is @code{t} or @code{nil}, indicating whether the
-@c privilege is to be turned on or off.  Its default is @code{nil}.  The
-@c function returns @code{t} if successful, @code{nil} otherwise.
-この関数は、（UNIX上には存在しない）VMS基本操作を設定／再設定する。
-最初の引数は文字列で表した基本操作の名前である。
-第2引数@var{setp}は@code{t}か@code{nil}であり、
-基本操作をオンにするかオフにするかを表す。
-デフォルトは@code{nil}である。
-関数は、成功すれば@code{t}を返し、さもなければ@code{nil}を返す。
-
-@c   If the third argument, @var{getprv}, is non-@code{nil}, @code{setprv}
-@c does not change the privilege, but returns @code{t} or @code{nil}
-@c indicating whether the privilege is currently enabled.
-第3引数@var{getprv}が@code{nil}以外であると、
-@code{setprv}は基本操作を変更しないが、
-その基本操作が現在オンであるかオフであるかを表す
-@code{t}か@code{nil}を返す。
-@end defun
-
 @node User Identification
-@c @section User Identification
 @section ユーザーの識別
+@cindex ユーザーの識別
 
 @defvar init-file-user
-@c This variable says which user's init files should be used by Emacs---or
-@c @code{nil} if none.  The value reflects command line options such as
-@c @samp{-q} or @samp{-u @var{user}}.
-この変数は、Emacsが使用すべきユーザー初期化ファイルを指定する。
-あるいは、そのようなものがなければ@code{nil}である。
-この値は、@samp{-q}や@samp{-u @var{user}}の
-コマンド行オプションを反映する。
+この変数は、Emacsが使用すべきユーザー初期化ファイルを指定する。あるいは、
+そのようなものがなければ@code{nil}である。
+@code{""}は、もとからログインしたユーザを意味する。
+この値は、@samp{-q}や@samp{-u @var{user}}のコマンド行オプションを反映する。
 
-@c Lisp packages that load files of customizations, or any other sort of
-@c user profile, should obey this variable in deciding where to find it.
-@c They should load the profile of the user name found in this variable.
-@c If @code{init-file-user} is @code{nil}, meaning that the @samp{-q}
-@c option was used, then Lisp packages should not load any customization
-@c files or user profile.
-カスタマイズファイルや他の種類のユーザープロフィールを
-ロードするLispパッケージは、それらを探す場所を判断するために
-この変数に従うこと。
-この変数のユーザー名のカスタマイズをロードするべきである。
-@code{init-file-user}が@code{nil}であると
-オプション@samp{-q}が使われたことを意味し、
-Lispパッケージはいかなるカスタマイズファイルや
+カスタマイズファイルや他の種類のユーザープロフィールをロードするLispパッ
+ケージは、それらを探す場所を判断するためにこの変数に従うこと。この変数の
+ユーザー名のカスタマイズをロードするべきである。@code{init-file-user}が
+@code{nil}であるとオプション@samp{-q}や@samp{-Q}、@samp{-batch}が
+使われたことを意味し、Lispパッケージはいかなるカスタマイズファイルや
 ユーザープロフィールもロードしないこと。
 @end defvar
 
-@defvar user-mail-address
-@c This holds the nominal email address of the user who is using Emacs.
-@c Emacs normally sets this variable to a default value after reading your
-@c init files, but not if you have already set it.  So you can set the
-@c variable to some other value in your @file{~/.emacs} file if you do not
-@c want to use the default value.
+@defopt user-mail-address
 これは、Emacsを使用しているユーザーの通常の電子メイルアドレスを保持する。
-Emacsは通常、読者の初期化ファイルを読み取ったあと、
-この変数が未設定であるとデフォルト値を設定する。
-したがって、デフォルト値を使いたくない場合には、
+Emacsは通常、読者の初期化ファイルを読み取ったあと、この変数が未設定である
+とデフォルト値を設定する。したがって、デフォルト値を使いたくない場合には、
 読者のファイル@file{~/.emacs}で別の値に設定できる。
-@end defvar
+@end defopt
 
 @defun user-login-name &optional uid
-@c If you don't specify @var{uid}, this function returns the name under
-@c which the user is logged in.  If the environment variable @code{LOGNAME}
-@c is set, that value is used.  Otherwise, if the environment variable
-@c @code{USER} is set, that value is used.  Otherwise, the value is based
-@c on the effective @sc{uid}, not the real @sc{uid}.
-@var{uid}を指定しないと、
-この関数はログインしたユーザー名を返す。
-環境変数@code{LOGNAME}が設定されていればその値を使う。
-さもなければ、環境変数@code{USER}が設定されていればその値を使う。
-さもなければ、実@sc{uid}ではなく実効@sc{uid}に基づいた値である。
+この関数はログインしたユーザー名を返す。環境変数
+@env{LOGNAME}または@env{USER}が設定されていればその値を使う。
+さもなければ、実@acronym{UID}ではなく実効
+@acronym{UID}に基づいた値である。
 
-@c If you specify @var{uid}, the value is the user name that corresponds
-@c to @var{uid} (which should be an integer).
-@sc{uid}を指定すると、値は（整数である）@sc{uid}に
-対応するユーザー名である。
-
-@example
-@group
-(user-login-name)
-     @result{} "lewis"
-@end group
-@end example
+@var{uid}（整数）を指定すると、@var{uid}に対応するユーザー名が返るか、
+そのようなユーザがいない場合は@code{nil}が返る。
 @end defun
 
 @defun user-real-login-name
-@c This function returns the user name corresponding to Emacs's real
-@c @sc{uid}.  This ignores the effective @sc{uid} and ignores the
-@c environment variables @code{LOGNAME} and @code{USER}.
-この関数は、Emacsの実@sc{uid}に対応するユーザー名を返す。
-これは、実効@sc{uid}や環境変数@code{LOGNAME}と@code{USER}を無視する。
+この関数は、Emacsの実@acronym{UID}に対応するユーザー名を返す。
+これは、実効@acronym{UID}や
+環境変数@env{LOGNAME}と@env{USER}を無視する。
 @end defun
 
 @defun user-full-name &optional uid
-@c This function returns the full name of the logged-in user---or the value
-@c of the environment variables @code{NAME}, if that is set.
-この関数は、ログインしたユーザーの氏名を返す。
-あるいは、環境変数@code{NAME}が設定してあればその値を返す。
+この関数は、ログインしたユーザーの氏名を返す。あるいは、環境変数
+@env{NAME}が設定してあればその値を返す。
 
-@example
-@group
-(user-full-name)
-     @result{} "Bil Lewis"
-@end group
-@end example
+If the Emacs process's user-id does not correspond to any known user (and
+provided @code{NAME} is not set), the result is @code{"unknown"}.
 
-@c If @var{uid} is non-@code{nil}, then it should be an integer, a user-id,
-@c or a string, a login name.  Then @code{user-full-name} returns the full
-@c name corresponding to that user-id or login name.
 @var{uid}が@code{nil}以外であると、
 それは整数のユーザー番号か文字列のログイン名であること。
-すると、@code{user-full-name}は、
-そのユーザー番号かログイン名に対応するユーザーの氏名を返す。
+すると、@code{user-full-name}は、そのユーザー番号かログイン名に
+対応するユーザーの氏名を返す。
+If you specify a
+user-id or login name that isn't defined, it returns @code{nil}.
 @end defun
 
 @vindex user-full-name
 @vindex user-real-login-name
 @vindex user-login-name
-@c   The symbols @code{user-login-name}, @code{user-real-login-name} and
-@c @code{user-full-name} are variables as well as functions.  The functions
-@c return the same values that the variables hold.  These variables allow
-@c you to ``fake out'' Emacs by telling the functions what to return.  The
-@c variables are also useful for constructing frame titles (@pxref{Frame
-@c Titles}).
 シンボル@code{user-login-name}、@code{user-real-login-name}、
-@code{user-full-name}は、関数でもある変数です。
-関数としては、その変数が保持する値と同じ値を返します。
-これらの変数により、関数として返す値を指定しておくことで
-Emacsを『ごまかせ』ます。
-これらの変数は、フレームタイトルの作成にも有用です
-（@pxref{Frame Titles}）。
+@code{user-full-name}は、関数でもある変数です。関数としては、その変数が保
+持する値と同じ値を返します。これらの変数により、関数として返す値を指定し
+ておくことでEmacsを『ごまかせ』ます。これらの変数は、フレームタイトルの作
+成にも有用です（@pxref{Frame Titles}）。
 
+@cindex UID
 @defun user-real-uid
-@c This function returns the real @sc{uid} of the user.
-この関数は、ユーザーの実@sc{uid}を返す。
-
-@example
-@group
-(user-real-uid)
-     @result{} 19
-@end group
-@end example
+この関数は、ユーザーの実@acronym{UID}を返す。
+The value may be floating point, in the (unlikely) event that
+the UID is too large to fit in a Lisp integer.
 @end defun
 
 @defun user-uid
-@c This function returns the effective @sc{uid} of the user.  
-この関数は、ユーザーの実効@sc{uid}を返す。
+この関数は、ユーザーの実効@acronym{UID}を返す。
+The value may be floating point.
 @end defun
 
-@node Time of Day
-@c @section Time of Day
-@section 時刻
+@cindex GID
+@defun group-gid
+This function returns the effective @acronym{GID} of the Emacs process.
+The value may be floating point.
+@end defun
 
-@c   This section explains how to determine the current time and the time
-@c zone.
+@defun group-real-gid
+This function returns the real @acronym{GID} of the Emacs process.
+The value may be floating point.
+@end defun
+
+@defun system-users
+This function returns a list of strings, listing the user names on the
+system.  If Emacs cannot retrieve this information, the return value
+is a list containing just the value of @code{user-real-login-name}.
+@end defun
+
+@cindex user groups
+@defun system-groups
+This function returns a list of strings, listing the names of user
+groups on the system.  If Emacs cannot retrieve this information, the
+return value is @code{nil}.
+@end defun
+
+
+@node Time of Day
+@section 時刻
+@cindex 時刻
+
 本節では、現在時刻と時刻帯（タイムゾーン）を調べる方法を説明します。
 
-@defun current-time-string &optional time-value
-@c This function returns the current time and date as a human-readable
-@c string.  The format of the string is unvarying; the number of characters
-@c used for each part is always the same, so you can reliably use
-@c @code{substring} to extract pieces of it.  It is wise to count the
-@c characters from the beginning of the string rather than from the end, as
-@c additional information may some day be added at the end.
-この関数は、人間向けの文字列で現在時刻と日付を返す。
-文字列の書式は不変であり、各部分の文字数はつねに同じなので、
-各部分を取り出すのに@code{substring}を使っても問題ない。
-将来、文字列の末尾に追加情報を付加することもあるので、
-文字列の末尾からではなく先頭から文字を数えるほうがよい。
+@cindex epoch
+  Most of these functions represent time as a list of four integers
+@code{(@var{sec-high} @var{sec-low} @var{microsec} @var{picosec})}.
+This represents the number of seconds from the @dfn{epoch} (January
+1, 1970 at 00:00 UTC), using the formula:
+@ifnottex
+@var{high} * 2**16 + @var{low} + @var{micro} * 10**@minus{}6 +
+@var{pico} * 10**@minus{}12.
+@end ifnottex
+@tex
+$high*2^{16} + low + micro*10^{-6} + pico*10^{-12}$.
+@end tex
+The return value of @code{current-time} represents time using this
+form, as do the timestamps in the return values of other functions
+such as @code{file-attributes} (@pxref{Definition of
+file-attributes}).  In some cases, functions may return two- or
+three-element lists, with omitted @var{microsec} and @var{picosec}
+components defaulting to zero.
 
-@c @c Emacs 19 feature
-@c The argument @var{time-value}, if given, specifies a time to format
-@c instead of the current time.  The argument should be a list whose first
-@c two elements are integers.  Thus, you can use times obtained from
-@c @code{current-time} (see below) and from @code{file-attributes}
-@c (@pxref{File Attributes}).
-引数@var{time-value}を指定すると、
-それは現在時刻のかわりに書式付けする時刻を指定する。
-引数は、最初の2つの要素が整数であるリストであること。
-したがって、@code{current-time}（下記参照）や
-@code{file-attributes}（@pxref{File Attributes}）で得た時刻を使える。
+@cindex time value
+  Function arguments, e.g., the @var{time-value} argument to
+@code{current-time-string}, accept a more-general @dfn{time value}
+format, which can be a list of integers as above, or a single number
+for seconds since the epoch, or @code{nil} for the current time.  You
+can convert a time value into a human-readable string using
+@code{current-time-string} and @code{format-time-string}, into a list
+of integers using @code{seconds-to-time}, and into other forms using
+@code{decode-time} and @code{float-time}.  These functions are
+described in the following sections.
+
+@defun current-time-string &optional time-value
+この関数は、人間向けの文字列で現在時刻と日付を返す。
+文字列の最初の、曜日・月・日・時間の順番で並ぶ最初の部分の書式は不変である。
+各部分の文字数はつねに同じなので、各部分を取り出すのに
+@code{substring}を使っても問題ない。将来、文字列の末尾に追加情報を付加す
+ることもあるので、文字列の末尾からではなく先頭から文字を数えるほうがよい。
+
+引数@var{time-value}を指定すると、それは現在時刻のかわりに書式付けする時
+刻を指定する。
 
 @example
 @group
@@ -1356,52 +1249,37 @@ Emacsを『ごまかせ』ます。
 @end example
 @end defun
 
-@c Emacs 19 feature
 @defun current-time
-@c This function returns the system's time value as a list of three
-@c integers: @code{(@var{high} @var{low} @var{microsec})}.  The integers
-@c @var{high} and @var{low} combine to give the number of seconds since
-@c 0:00 January 1, 1970, which is
-この関数は、システムの時刻の値を
-3つの整数のリスト@code{(@var{high} @var{low} @var{microsec})}で返す。
-整数@var{high}と@var{low}を組み合わせると
-1970年1月1日0:00からの経過秒数を与える。
-つまり、経過秒数は
-@ifinfo
-@c @var{high} * 2**16 + @var{low}.
-@var{high} * 2**16 + @var{low}である。
-@end ifinfo
-@tex
-%c $high*2^{16}+low$.
-$high*2^{16}+low$である。
-@end tex
-
-@c The third element, @var{microsec}, gives the microseconds since the
-@c start of the current second (or 0 for systems that return time only on
-@c the resolution of a second).
-第3要素@var{microsec}は、現在の秒内のミリ秒を表す
-（返す時間精度が秒のシステムでは0）。
-
-@c The first two elements can be compared with file time values such as you
-@c get with the function @code{file-attributes}.  @xref{File Attributes}.
-最初の2つの要素は、関数@code{file-attributes}で得られる
-ファイルに関する時刻の値と比較できる。
-@pxref{File Attributes}。
+この関数は、システムの時刻の値を4つの整数のリスト
+@code{(@var{sec-high} @var{sec-low} @var{microsec} @var{picosec})}を返す。
+These integers have trailing zeros on systems that return time with
+lower resolutions.  On all current machines @var{picosec} is a
+multiple of 1000, but this may change as higher-resolution clocks
+become available.
 @end defun
 
-@c Emacs 19 feature
+@defun float-time &optional time-value
+This function returns the current time as a floating-point number of
+seconds since the epoch.  The optional argument @var{time-value}, if
+given, specifies a time to convert instead of the current time.
+
+@emph{Warning}: Since the result is floating point, it may not be
+exact.  Do not use this function if precise time stamps are required.
+
+@code{time-to-seconds} is an alias for this function.
+@end defun
+
+@defun seconds-to-time time-value
+This function converts a time value to list-of-integer form.
+For example, if @var{time-value} is a number, @code{(time-to-seconds
+(seconds-to-time @var{time-value}))} equals the number unless overflow
+or rounding errors occur.
+@end defun
+
 @defun current-time-zone &optional time-value
-@c This function returns a list describing the time zone that the user is
-@c in.
+@cindex time zone, current
 この関数は、ユーザーの地域の時刻帯を記述するリストを返す。
 
-@c The value has the form @code{(@var{offset} @var{name})}.  Here
-@c @var{offset} is an integer giving the number of seconds ahead of UTC
-@c (east of Greenwich).  A negative value means west of Greenwich.  The
-@c second element, @var{name} is a string giving the name of the time
-@c zone.  Both elements change when daylight savings time begins or ends;
-@c if the user has specified a time zone that does not use a seasonal time
-@c adjustment, then the value is constant through time.
 値は、@code{(@var{offset} @var{name})}の形である。
 ここで、@var{offset}はUTC
 @footnote{【訳注】協定世界時。旧グリニッジ標準時に相当。}
@@ -1412,285 +1290,93 @@ $high*2^{16}+low$である。
 時刻帯には季節の時刻調整はないとユーザーが指定すると、
 どちらの値も定数である。
 
-@c If the operating system doesn't supply all the information necessary to
-@c compute the value, both elements of the list are @code{nil}.
 値を計算するために必要な情報をオペレーティングシステムから得られないと
 リストのどちらの要素も@code{nil}である。
 
-@c The argument @var{time-value}, if given, specifies a time to analyze
-@c instead of the current time.  The argument should be a cons cell
-@c containing two integers, or a list whose first two elements are
-@c integers.  Thus, you can use times obtained from @code{current-time}
-@c (see above) and from @code{file-attributes} (@pxref{File Attributes}).
 引数@var{time-value}を指定すると、
 現在時刻のかわりに分析すべき時刻を指定する。
-引数は、2つの整数を収めたコンスセルであるか、
-最初の2つの要素が整数であるリストであること。
-したがって、@code{current-time}（上記参照）や
-@code{file-attributes}（@pxref{File Attributes}）で得た時刻を使える。
 @end defun
+
+The current time zone is determined by the @env{TZ} environment
+variable.  @xref{System Environment}.  For example, you can tell Emacs
+to use universal time with @code{(setenv "TZ" "UTC0")}.  If @env{TZ}
+is not in the environment, Emacs uses a platform-dependent default
+time zone.
 
 @node Time Conversion
-@c @section Time Conversion
 @section 時刻の変換
+@cindex calendrical information
+@cindex time conversion
 
-@c   These functions convert time values (lists of two or three integers)
-@c to strings or to calendrical information.  There is also a function to
-@c convert calendrical information to a time value.  You can get time
-@c values from the functions @code{current-time} (@pxref{Time of Day}) and
-@c @code{file-attributes} (@pxref{File Attributes}).
-これらの関数は、時刻の値（2つか3つの整数から成るリスト）を
+これらの関数は、時刻の値（@pxref{Time of Day}）を
 文字列や日時情報に変換します。
-日時情報を時刻の値に変換する関数もあります。
-時刻の値は、関数@code{current-time}（@pxref{Time of Day}）や
-@code{file-attributes}（@pxref{File Attributes}）で得られます。
 
-@c Many operating systems are limited to time values that contain 32 bits
-@c of information; these systems typically handle only the times from
-@c 1901-12-13 20:45:52 UTC through 2038-01-19 03:14:07 UTC.  However, some
-@c operating systems have larger time values, and can represent times far
-@c in the past or future.
-多くのオペレーティングシステムでは、時刻の値を32ビットに制限しています。
+多くのオペレーティングシステムでは、時刻の値を秒の部分で32ビットに制限しています。
 これらのシステムでは、典型的には協定世界時1901年12月13日20:45:52から
 2038年1月19日03:14:07までしか表現できません。
-しかし、より大きな時刻の値を扱い、
-より広い範囲の過去から未来を表現できるシステムもあります。
+しかし、６４ビットと幾つかの３２ビットオペレーティング・システムでは、
+より大きな時刻の値を扱い、より広い範囲の過去から未来を表現できます。
 
-@c Time conversion functions always use the Gregorian calendar, even for
-@c dates before the Gregorian calendar was introduced.  Year numbers count
-@c the number of years since the year 1 B.C., and do not skip zero as
-@c traditional Gregorian years do; for example, the year number @minus{}37
-@c represents the Gregorian year 38 B.C@.
-時刻変換関数は、グレゴリオ暦を導入するまえであっても
+時刻変換関数は、グレゴリオ暦を導入する前であっても
 つねにグレゴリオ暦を使います。
-紀元前1年からの経過年数を数え、通常のグレゴリオ暦のように0年を飛ばしません。
+年は紀元前1年からの経過年数を数え、通常のグレゴリオ暦のように0年を飛ばしません。
 たとえば、@minus{}37年は、グレゴリオ暦紀元前38年を表します。
 
-@defun format-time-string format-string time
-@c This function converts @var{time} to a string according to
-@c @var{format-string}.  The argument @var{format-string} may contain
-@c @samp{%}-sequences which say to substitute parts of the time.  Here is a
-@c table of what the @samp{%}-sequences mean:
-この関数は、@var{time}を@var{format-string}に従って文字列に変換する。
-引数@var{format-string}には、時刻のさまざまな部分で置き換えられる
-@samp{%}列を含んでよい。
-@samp{%}列の意味を以下に示す。
-
-@table @samp
-@item %a
-@c This stands for the abbreviated name of the day of week.
-曜日の省略名を表す。
-@item %A
-@c This stands for the full name of the day of week.
-曜日の（省略しない）名称を表す。
-@item %b
-@c This stands for the abbreviated name of the month.
-月の省略名を表す。
-@item %B
-@c This stands for the full name of the month.
-月の（省略しない）名称を表す。
-@item %c
-@c This is a synonym for @samp{%x %X}.
-@samp{%x %X}の同義語。
-@item %C
-@c This has a locale-specific meaning.  In the default locale (named C), it
-@c is equivalent to @samp{%A, %B %e, %Y}.
-これにはローケル固有の意味がある。
-デフォルトのローケル（@samp{C}）では、@samp{%A, %B %e, %Y}と等価。
-@item %d
-@c This stands for the day of month, zero-padded.
-ゼロでパディングした月内の日。
-@item %D
-@c This is a synonym for @samp{%m/%d/%y}.
-@samp{%m/%d/%y}の同義語。
-@item %e
-@c This stands for the day of month, blank-padded.
-空白でパディングした月内の日。
-@item %h
-@c This is a synonym for @samp{%b}.
-@samp{%b}の同義語。
-@item %H
-@c This stands for the hour (00-23).
-時（00-23）を表す。
-@item %I
-@c This stands for the hour (00-12).
-時（00-12）を表す。
-@item %j
-@c This stands for the day of the year (001-366).
-年内の日（001-366）を表す。
-@item %k
-@c This stands for the hour (0-23), blank padded.
-空白でパディングした時（0-23）を表す。
-@item %l
-@c This stands for the hour (1-12), blank padded.
-空白でパディングした時（0-12）を表す。
-@item %m
-@c This stands for the month (01-12).
-月（01-12）を表す。
-@item %M
-@c This stands for the minute (00-59).
-分（00-59）を表す。
-@item %n
-@c This stands for a newline.
-改行を表す。
-@item %p
-@c This stands for @samp{AM} or @samp{PM}, as appropriate.
-@samp{AM}か@samp{PM}の適切なほうを表す。
-@item %r
-@c This is a synonym for @samp{%I:%M:%S %p}.
-@samp{%I:%M:%S %p}の同義語。
-@item %R
-@c This is a synonym for @samp{%H:%M}.
-@samp{%H:%M}の同義語。
-@item %S
-@c This stands for the seconds (00-60).
-秒（00-60）を表す。
-@item %t
-@c This stands for a tab character.
-タブ文字を表す。
-@item %T
-@c This is a synonym for @samp{%H:%M:%S}.
-@samp{%H:%M:%S}の同義語。
-@item %U
-@c This stands for the week of the year (01-52), assuming that weeks
-@c start on Sunday.
-日曜日を週の始まりと仮定した年内の週（01-52）を表す。
-@item %w
-@c This stands for the numeric day of week (0-6).  Sunday is day 0.
-数字で表した曜日（0-6）。
-日曜日を0とする。
-@item %W
-@c This stands for the week of the year (01-52), assuming that weeks
-@c start on Monday.
-月曜日を週の始まりと仮定した年内の週（01-52）を表す。
-@item %x
-@c This has a locale-specific meaning.  In the default locale (named
-@c @samp{C}), it is equivalent to @samp{%D}.
-これにはローケル固有の意味がある。
-デフォルトのローケル（@samp{C}）では、@samp{%D}と等価。
-@item %X
-@c This has a locale-specific meaning.  In the default locale (named
-@c @samp{C}), it is equivalent to @samp{%T}.
-これにはローケル固有の意味がある。
-デフォルトのローケル（@samp{C}）では、@samp{%T}と等価。
-@item %y
-@c This stands for the year without century (00-99).
-年の下2桁（00-99）を表す。
-@item %Y
-@c This stands for the year with century.
-100年単位の年を表す。
-@item %Z
-@c This stands for the time zone abbreviation.
-時刻帯の省略名を表す。
-@end table
-
-@c You can also specify the field width and type of padding for any of
-@c these @samp{%}-sequences.  This works as in @code{printf}: you write
-@c the field width as digits in the middle of a @samp{%}-sequences.  If you
-@c start the field width with @samp{0}, it means to pad with zeros.  If you
-@c start the field width with @samp{_}, it means to pad with spaces.
-これらの@samp{%}列には、桁数やパディングの種類も指定できる。
-@code{printf}と同様に動作し、
-@samp{%}列のあいだに桁数を数字で指定する。
-桁数を@samp{0}で始めるとゼロでパディングすることを意味する。
-桁数を@samp{_}で始めると空白でパディングすることを意味する。
-
-@c For example, @samp{%S} specifies the number of seconds since the minute;
-@c @samp{%03S} means to pad this with zeros to 3 positions, @samp{%_3S} to
-@c pad with spaces to 3 positions.  Plain @samp{%3S} pads with zeros,
-@c because that is how @samp{%S} normally pads to two positions.
-たとえば、@samp{%S}は分内の秒数を指定し、
-@samp{%03S}はゼロでパディングして3桁にすることを意味し、
-@samp{%_3S}は空白でパディングして3桁にすることを意味する。
-@samp{%S}は普通はパディングして2桁にするため、
-@samp{%3S}だけであるとゼロでパディングする。
-@end defun
-
-@defun decode-time time
-@c This function converts a time value into calendrical information.  The
-@c return value is a list of nine elements, as follows:
-この関数は、時刻の値を日時情報に変換する。
+@defun decode-time &optional time-value
+この関数は、時刻の値を日付情報に変換する。If
+you don't specify @var{time-value}, it decodes the current time.
 戻り値は、つぎの9要素のリストである。
 
 @example
 (@var{seconds} @var{minutes} @var{hour} @var{day} @var{month} @var{year} @var{dow} @var{dst} @var{zone})
 @end example
 
-@c Here is what the elements mean:
 各要素の意味はつぎのとおりである。
 
 @table @var
 @item sec
-@c The number of seconds past the minute, as an integer between 0 and 59.
 0から59の整数で表した分内の秒数。
+On some operating systems, this is 60 for leap seconds.
 @item minute
-@c The number of minutes past the hour, as an integer between 0 and 59.
 0から59の整数で表した時内の分数。
 @item hour
-@c The hour of the day, as an integer between 0 and 23.
 0から23の整数で表した日内の時。
 @item day
-@c The day of the month, as an integer between 1 and 31.
 1から31の整数で表した月内の日。
 @item month
-@c The month of the year, as an integer between 1 and 12.
 1から12の整数で表した年内の月。
 @item year
-@c The year, an integer typically greater than 1900.
 年。
 典型的には1900より大きい。
 @item dow
-@c The day of week, as an integer between 0 and 6, where 0 stands for
-@c Sunday.
 日曜日を0とした0から6の整数で表した曜日。
 @item dst
-@c @code{t} if daylight savings time is effect, otherwise @code{nil}.
 夏時間制が有効であると@code{t}、さもなければ@code{nil}。
 @item zone
-@c An integer indicating the time zone, as the number of seconds east of
-@c Greenwich.
 グリニッジから東周りではかった時刻帯を表す秒数。
 @end table
 
-@c @strong{Common Lisp Note:} Common Lisp has different meanings for
-@c @var{dow} and @var{zone}.
-@b{Common Lispに関した注意：}@code{ }
+@strong{Common Lisp Note:} 
 Common Lispでは、@var{dow}と@var{zone}の意味が異なる。
 @end defun
 
-@defun encode-time seconds minutes hour day month year &optional @dots{}zone
-@c This function is the inverse of @code{decode-time}.  It converts seven
-@c items of calendrical data into a time value.  For the meanings of the
-@c arguments, see the table above under @code{decode-time}.
+@defun encode-time seconds minutes hour day month year &optional zone
 この関数は@code{decode-time}の逆である。
 7項目から成る日時情報を時刻の値に変換する。
 引数の意味については、上記@code{decode-time}の一覧を参照。
 
-@c Year numbers less than 100 are treated just like other year numbers.  If
-@c you want them to stand for years above 1900, you must alter them yourself
-@c before you call @code{encode-time}.
 100未満の年は普通の年として扱う。
 それらを1900年代として扱いたい場合には、
 @code{encode-time}を呼び出すまえに修正しておくこと。
 
-@c The optional argument @var{zone} defaults to the current time zone and
-@c its daylight savings time rules.  If specified, it can be either a list
-@c (as you would get from @code{current-time-zone}), a string as in the
-@c @code{TZ} environment variable, or an integer (as you would get from
-@c @code{decode-time}).  The specified zone is used without any further
-@c alteration for daylight savings time.
 省略可能な引数@var{zone}のデフォルトは、
 現在の時刻帯とその夏時間制の規則である。
 指定する場合には、（@code{current-time-zone}で得られるような）リストであるか、
-環境変数@code{TZ}と同じ形式の文字列であるか、
+環境変数@env{TZ}と同じ形式の文字列であるか、
+協定世界時ならば@code{t}であるか、
 （@code{decode-time}で得られるような）整数であること。
 指定した時刻帯は、夏時間の補正をせずに使われる。
 
-@c If you pass more than seven arguments to @code{encode-time}, the first
-@c six are used as @var{seconds} through @var{year}, the last argument is
-@c used as @var{zone}, and the arguments in between are ignored.  This
-@c feature makes it possible to use the elements of a list returned by
-@c @code{decode-time} as the arguments to @code{encode-time}, like this:
 @code{encode-time}に7引数より多く渡すと、
 始めの6つを@var{seconds}から@var{year}までに、
 最後の引数を@var{zone}に使い、そのあいだの引数は無視する。
@@ -1701,134 +1387,402 @@ Common Lispでは、@var{dow}と@var{zone}の意味が異なる。
 (apply 'encode-time (decode-time @dots{}))
 @end example
 
-@c You can perform simple date arithmetic by using out-of-range values for
-@c the @var{sec}, @var{minute}, @var{hour}, @var{day}, and @var{month}
-@c arguments; for example, day 0 means the day preceding the given month.
-引数@var{sec}、@var{minute}、@var{hour}、@var{day}、@var{month}の
+引数@var{seconds}、@var{minutes}、@var{hour}、@var{day}、@var{month}の
 値が範囲外になるようにすると単純な日時演算を行える。
 たとえば、0日はその月のまえの日を意味する。
 
-@c The operating system puts limits on the range of possible time values;
-@c if you try to encode a time that is out of range, an error results.
 オペレーティングは可能な時刻の値の範囲を制限する。
 その範囲を越える時刻を符号化しようとするとエラーになる。
+For instance, years before 1970 do not work on some systems;
+on others, years as early as 1901 do work.
+@end defun
+
+@node Time Parsing
+@section Parsing and Formatting Times
+@cindex time parsing
+@cindex time formatting
+@cindex formatting time values
+
+  These functions convert time values to text in a string, and vice versa.
+Time values are lists of two to four integers (@pxref{Time of Day}).
+
+@defun date-to-time string
+This function parses the time-string @var{string} and returns the
+corresponding time value.
+@end defun
+
+@defun format-time-string format-string &optional time-value universal
+
+この関数は、@var{time-value}（または@var{time-value}が省略された
+場合は現在時刻）を@var{format-string}に従って文字列に変換する。
+引数@var{format-string}には、時刻のさまざまな部分で置き換えられる
+@samp{%}列を含んでよい。
+@samp{%}列の意味を以下に示す。
+
+@table @samp
+@item %a
+曜日の省略名を表す。
+@item %A
+曜日の（省略しない）名称を表す。
+@item %b
+月の省略名を表す。
+@item %B
+月の（省略しない）名称を表す。
+@item %c
+@samp{%x %X}の同義語。
+@item %C
+これにはローケル固有の意味がある。
+デフォルトのローケル（Cと呼ばれる）では、@samp{%A, %B %e, %Y}と等価。
+@item %d
+ゼロでパディングした月内の日。
+@item %D
+@samp{%m/%d/%y}の同義語。
+@item %e
+空白でパディングした月内の日。
+@item %h
+@samp{%b}の同義語。
+@item %H
+時（00-23）を表す。
+@item %I
+時（00-12）を表す。
+@item %j
+年内の日（001-366）を表す。
+@item %k
+空白でパディングした時（0-23）を表す。
+@item %l
+空白でパディングした時（0-12）を表す。
+@item %m
+月（01-12）を表す。
+@item %M
+分（00-59）を表す。
+@item %n
+改行を表す。
+@item %N
+This stands for the nanoseconds (000000000--999999999).  To ask for
+fewer digits, use @samp{%3N} for milliseconds, @samp{%6N} for
+microseconds, etc.  Any excess digits are discarded, without rounding.
+@item %p
+@samp{AM}か@samp{PM}の適切なほうを表す。
+@item %r
+@samp{%I:%M:%S %p}の同義語。
+@item %R
+@samp{%H:%M}の同義語。
+@item %S
+秒（00-60）を表す。
+@item %t
+タブ文字を表す。
+@item %T
+@samp{%H:%M:%S}の同義語。
+@item %U
+日曜日を週の始まりと仮定した年内の週（01-52）を表す。
+@item %w
+数字で表した曜日（0-6）。
+日曜日を0とする。
+@item %W
+月曜日を週の始まりと仮定した年内の週（01-52）を表す。
+@item %x
+これにはローケル固有の意味がある。
+デフォルトのローケル（@samp{C}）では、@samp{%D}と等価。
+@item %X
+これにはローケル固有の意味がある。
+デフォルトのローケル（@samp{C}）では、@samp{%T}と等価。
+@item %y
+年の下2桁（00-99）を表す。
+@item %Y
+100年単位の年を表す。
+@item %Z
+時刻帯の省略名を表す。（例：@samp{EST}）
+@item %z
+This stands for the time zone numerical offset (e.g., @samp{-0500}).
+@end table
+
+これらの@samp{%}列には、桁数やパディングの種類も指定できる。
+@code{printf}と同様に動作し、
+@samp{%}列のあいだに桁数を数字で指定する。
+桁数を@samp{0}で始めるとゼロでパディングすることを意味する。
+桁数を@samp{_}で始めると空白でパディングすることを意味する。
+
+たとえば、@samp{%S}は分内の秒数を指定し、
+@samp{%03S}はゼロでパディングして3桁にすることを意味し、
+@samp{%_3S}は空白でパディングして3桁にすることを意味する。
+@samp{%S}は普通はパディングして2桁にするため、
+@samp{%3S}だけであるとゼロでパディングする。
+
+The characters @samp{E} and @samp{O} act as modifiers when used between
+@samp{%} and one of the letters in the table above.  @samp{E} specifies
+using the current locale's ``alternative'' version of the date and time.
+In a Japanese locale, for example, @code{%Ex} might yield a date format
+based on the Japanese Emperors' reigns.  @samp{E} is allowed in
+@samp{%Ec}, @samp{%EC}, @samp{%Ex}, @samp{%EX}, @samp{%Ey}, and
+@samp{%EY}.
+
+@samp{O} means to use the current locale's ``alternative''
+representation of numbers, instead of the ordinary decimal digits.  This
+is allowed with most letters, all the ones that output numbers.
+
+If @var{universal} is non-@code{nil}, that means to describe the time as
+Universal Time; @code{nil} means describe it using what Emacs believes
+is the local time zone (see @code{current-time-zone}).
+
+This function uses the C library function @code{strftime}
+(@pxref{Formatting Calendar Time,,, libc, The GNU C Library Reference
+Manual}) to do most of the work.  In order to communicate with that
+function, it first encodes its argument using the coding system
+specified by @code{locale-coding-system} (@pxref{Locales}); after
+@code{strftime} returns the resulting string,
+@code{format-time-string} decodes the string using that same coding
+system.
+@end defun
+
+@defun format-seconds format-string seconds
+This function converts its argument @var{seconds} into a string of
+years, days, hours, etc., according to @var{format-string}.  The
+argument @var{format-string} may contain @samp{%}-sequences which
+control the conversion.  Here is a table of what the
+@samp{%}-sequences mean:
+
+@table @samp
+@item %y
+@itemx %Y
+The integer number of 365-day years.
+@item %d
+@itemx %D
+The integer number of days.
+@item %h
+@itemx %H
+The integer number of hours.
+@item %m
+@itemx %M
+The integer number of minutes.
+@item %s
+@itemx %S
+The integer number of seconds.
+@item %z
+Non-printing control flag.  When it is used, other specifiers must be
+given in the order of decreasing size, i.e., years before days, hours
+before minutes, etc.  Nothing will be produced in the result string to
+the left of @samp{%z} until the first non-zero conversion is
+encountered.  For example, the default format used by
+@code{emacs-uptime} (@pxref{Processor Run Time, emacs-uptime})
+@w{@code{"%Y, %D, %H, %M, %z%S"}} means that the number of seconds
+will always be produced, but years, days, hours, and minutes will only
+be shown if they are non-zero.
+@item %%
+Produces a literal @samp{%}.
+@end table
+
+Upper-case format sequences produce the units in addition to the
+numbers, lower-case formats produce only the numbers.
+
+You can also specify the field width by following the @samp{%} with a
+number; shorter numbers will be padded with blanks.  An optional
+period before the width requests zero-padding instead.  For example,
+@code{"%.3Y"} might produce @code{"004 years"}.
+
+@emph{Warning:} This function works only with values of @var{seconds}
+that don't exceed @code{most-positive-fixnum} (@pxref{Integer Basics,
+most-positive-fixnum}).
+@end defun
+
+@node Processor Run Time
+@section Processor Run time
+@cindex processor run time
+@cindex Emacs process run time
+
+  Emacs provides several functions and primitives that return time,
+both elapsed and processor time, used by the Emacs process.
+
+@deffn Command emacs-uptime &optional format
+@cindex uptime of Emacs
+This function returns a string representing the Emacs
+@dfn{uptime}---the elapsed wall-clock time this instance of Emacs is
+running.  The string is formatted by @code{format-seconds} according
+to the optional argument @var{format}.  For the available format
+descriptors, see @ref{Time Parsing, format-seconds}.  If @var{format}
+is @code{nil} or omitted, it defaults to @code{"%Y, %D, %H, %M,
+%z%S"}.
+
+When called interactively, it prints the uptime in the echo area.
+@end deffn
+
+@defun get-internal-run-time
+This function returns the processor run time used by Emacs as a list
+of four integers: @code{(@var{sec-high} @var{sec-low} @var{microsec}
+@var{picosec})}, using the same format as @code{current-time}
+(@pxref{Time of Day}).
+
+Note that the time returned by this function excludes the time Emacs
+was not using the processor, and if the Emacs process has several
+threads, the returned value is the sum of the processor times used up
+by all Emacs threads.
+
+If the system doesn't provide a way to determine the processor run
+time, @code{get-internal-run-time} returns the same time as
+@code{current-time}.
+@end defun
+
+@deffn Command emacs-init-time
+This function returns the duration of the Emacs initialization
+(@pxref{Startup Summary}) in seconds, as a string.  When called
+interactively, it prints the duration in the echo area.
+@end deffn
+
+@node Time Calculations
+@section Time Calculations
+@cindex time calculations
+@cindex comparing time values
+@cindex calendrical computations
+
+  These functions perform calendrical computations using time values
+(@pxref{Time of Day}).
+
+@defun time-less-p t1 t2
+This returns @code{t} if time value @var{t1} is less than time value
+@var{t2}.
+@end defun
+
+@defun time-subtract t1 t2
+This returns the time difference @var{t1} @minus{} @var{t2} between
+two time values, as a time value.
+@end defun
+
+@defun time-add t1 t2
+This returns the sum of two time values, as a time value.
+One argument should represent a time difference rather than a point in time.
+Here is how to add a number of seconds to a time value:
+
+@example
+(time-add @var{time} @var{seconds})
+@end example
+@end defun
+
+@defun time-to-days time-value
+This function returns the number of days between the beginning of year
+1 and @var{time-value}.
+@end defun
+
+@defun time-to-day-in-year time-value
+This returns the day number within the year corresponding to @var{time-value}.
+@end defun
+
+@defun date-leap-year-p year
+This function returns @code{t} if @var{year} is a leap year.
 @end defun
 
 @node Timers
-@c @section Timers for Delayed Execution
 @section 遅延実行のためのタイマ
-@c @cindex timer
 @cindex タイマ
 
-@c   You can set up a @dfn{timer} to call a function at a specified future time or
-@c after a certain length of idleness.
-未来のある時刻に関数を呼び出したり、
-ある一定期間なにもしないでいたら関数を呼び出すために
-@dfn{タイマ}を設定できます。
+未来の指定した時間に、あるいは
+ある一定期間、何もしないでいたら関数を呼び出すために
+@dfn{タイマ}を設定することができる。
 
-@c   Emacs cannot run timers at any arbitrary point in a Lisp program; it
-@c can run them only when Emacs could accept output from a subprocess:
-@c namely, while waiting or inside certain primitive functions such as
-@c @code{sit-for} or @code{read-event} which @emph{can} wait.  Therefore, a
-@c timer's execution may be delayed if Emacs is busy.  However, the time of
-@c execution is very precise if Emacs is idle.
-Emacsは、Lispプログラムの任意の箇所ではタイマを実行できません。
-サブプロセスからの出力を受け取るときにだけタイマを実行できます。
-つまり、待つことが@emph{可能}な@code{sit-for}や@code{read-event}などの
-基本関数の内側や（入力を）待っているあいだに実行できます。
+Emacsは、Lispプログラムの任意の箇所でタイマを実行できるわけではない。
+Emacsがサブプロセスからの出力を受け取れるときにのみ、タイマを実行できる。
+すなわち、待つことが@emph{可能}な@code{sit-for}や@code{read-event}などの
+基本関数の内側や（入力を）待っているあいだのみ、タイマを実行できる。
 したがって、Emacsが忙しいとタイマの実行が遅れることがあります。
-しかし、Emacsが暇ならば、タイマの実行はとても正確です。
+しかし、Emacsが暇ならば、タイマは非常に正確に実行される。
 
-@defun run-at-time time repeat function &rest args
-@c This function arranges to call @var{function} with arguments @var{args}
-@c at time @var{time}.  The argument @var{function} is a function to call
-@c later, and @var{args} are the arguments to give it when it is called.
-@c The time @var{time} is specified as a string.
+  Emacs binds @code{inhibit-quit} to @code{t} before calling the timer
+function, because quitting out of many timer functions can leave
+things in an inconsistent state.  This is normally unproblematical
+because most timer functions don't do a lot of work.  Indeed, for a
+timer to call a function that takes substantial time to run is likely
+to be annoying.  If a timer function needs to allow quitting, it
+should use @code{with-local-quit} (@pxref{Quitting}).  For example, if
+a timer function calls @code{accept-process-output} to receive output
+from an external process, that call should be wrapped inside
+@code{with-local-quit}, to ensure that @kbd{C-g} works if the external
+process hangs.
+
+  It is usually a bad idea for timer functions to alter buffer
+contents.  When they do, they usually should call @code{undo-boundary}
+both before and after changing the buffer, to separate the timer's
+changes from user commands' changes and prevent a single undo entry
+from growing to be quite large.
+
+  Timer functions should also avoid calling functions that cause Emacs
+to wait, such as @code{sit-for} (@pxref{Waiting}).  This can lead to
+unpredictable effects, since other timers (or even the same timer) can
+run while waiting.  If a timer function needs to perform an action
+after a certain time has elapsed, it can do this by scheduling a new
+timer.
+
+  If a timer function calls functions that can change the match data,
+it should save and restore the match data.  @xref{Saving Match Data}.
+
+@deffn Command run-at-time time repeat function &rest args
 この関数は、時刻@var{time}に引数@var{args}で
-関数@var{function}を呼び出すように予約する。
-引数@var{function}はのちに呼び出される関数であり、
-引数@var{args}はそれを呼び出すときに与える引数である。
-時刻@var{time}は文字列で指定する。
+関数@var{function}を呼び出すよう、タイマを設定する。
+If @var{repeat} is a number
+(integer or floating point), the timer is scheduled to run again every
+@var{repeat} seconds after @var{time}.  If @var{repeat} is @code{nil},
+the timer runs only once.
 
-@c Absolute times may be specified in a wide variety of formats; this
-@c function tries to accept all the commonly used date formats.  Valid
-@c formats include these two,
-絶対時刻をさまざまな書式で指定できる。
-この関数は、よく使われる日時の書式を受け付けるように努める。
-正しい書式にはつぎの2つを含む。
+@var{time} may specify an absolute or a relative time.
 
-@example
-@var{year}-@var{month}-@var{day} @var{hour}:@var{min}:@var{sec} @var{timezone}
+絶対時刻は文字列を用いて、制限された様々な書式で指定でき、
+過去のものであっても@emph{今日}の日付として捉えられる。
+The recognized forms are @samp{@var{xxxx}},
+@samp{@var{x}:@var{xx}}, or @samp{@var{xx}:@var{xx}} (military time),
+and @samp{@var{xx}am}, @samp{@var{xx}AM}, @samp{@var{xx}pm},
+@samp{@var{xx}PM}, @samp{@var{xx}:@var{xx}am},
+@samp{@var{xx}:@var{xx}AM}, @samp{@var{xx}:@var{xx}pm}, or
+@samp{@var{xx}:@var{xx}PM}.  A period can be used instead of a colon
+to separate the hour and minute parts.
 
-@var{hour}:@var{min}:@var{sec} @var{timezone} @var{month}/@var{day}/@var{year}
-@end example
-
-@noindent
-@c where in both examples all fields are numbers; the format that
-@c @code{current-time-string} returns is also allowed, and many others
-@c as well.
-ここで、どちらの例のフィールドもすべて数である。
-@code{current-time-string}が返す書式、および、
-他の書式も許される。
-
-@c To specify a relative time, use numbers followed by units.
-@c For example:
 相対時刻を指定するには、単位を伴った数字を使う。
 たとえばつぎのとおり。
 
 @table @samp
 @item 1 min
-@c denotes 1 minute from now.
 今から1分後。
 @item 1 min 5 sec
-@c denotes 65 seconds from now.
 今から65秒後。
 @item 1 min 2 sec 3 hour 4 day 5 week 6 fortnight 7 month 8 year
-@c denotes exactly 103 months, 123 days, and 10862 seconds from now.
 今からちょうど103ヵ月、123日、10862秒後。
 @footnote{【訳注】fortnightは2週間のこと。}
 @end table
 
-@c If @var{time} is a number (integer or floating point), that specifies a
-@c relative time measured in seconds.
+For relative time values, Emacs considers a month to be exactly thirty
+days, and a year to be exactly 365.25 days.
+
+Not all convenient formats are strings.
 @var{time}が数（整数か浮動小数点数）であれば、
 秒単位の相対時刻を指定する。
+The result of @code{encode-time} can also be used to specify
+an absolute value for @var{time}.
 
-@c The argument @var{repeat} specifies how often to repeat the call.  If
-@c @var{repeat} is @code{nil}, there are no repetitions; @var{function} is
-@c called just once, at @var{time}.  If @var{repeat} is a number, it
-@c specifies a repetition period measured in seconds.
-引数@var{repeat}は、呼び出しをどの程度頻繁に繰り返すかを指定する。
-@var{repeat}が@code{nil}であると、繰り返さずに
-時刻@var{time}に関数@var{function}を一度だけ呼び出す。
-@var{repeat}が数であると、繰り返し間隔を秒単位で指定する。
-
-@c In most cases, @var{repeat} has no effect on when @emph{first} call
-@c takes place---@var{time} alone specifies that.  There is one exception:
-@c if @var{time} is @code{t}, then the timer runs whenever the time is a
-@c multiple of @var{repeat} seconds after the epoch.  This is useful for
-@c functions like @code{display-time}.
 ほとんどの場合、@emph{最初}の呼び出しでは@var{repeat}の効果はなく、
 @var{time}だけが時刻を指定する。
 1つ例外があり、@var{time}が@code{t}であると、
 時刻が@var{repeat}の整数倍であるとタイマを実行する。
 これは@code{display-time}のような関数に有用である。
 
-@c The function @code{run-at-time} returns a timer value that identifies
-@c the particular scheduled future action.  You can use this value to call
-@c @code{cancel-timer} (see below).
 関数@code{run-at-time}は、予約した未来の特定の動作を
 識別するタイマを返す。
 この値は、@code{cancel-timer}（下記参照）の呼び出しに使える。
-@end defun
+@end deffn
+
+  A repeating timer nominally ought to run every @var{repeat} seconds,
+but remember that any invocation of a timer can be late.  Lateness of
+one repetition has no effect on the scheduled time of the next
+repetition.  For instance, if Emacs is busy computing for long enough
+to cover three scheduled repetitions of the timer, and then starts to
+wait, it will immediately call the timer function three times in
+immediate succession (presuming no other timers trigger before or
+between them).  If you want a timer to run again no less than @var{n}
+seconds after the last invocation, don't use the @var{repeat} argument.
+Instead, the timer function should explicitly reschedule the timer.
+
+@defopt timer-max-repeats
+This variable's value specifies the maximum number of times to repeat
+calling a timer function in a row, when many previously scheduled
+calls were unavoidably delayed.
+@end defopt
 
 @defmac with-timeout (seconds timeout-forms@dots{}) body@dots{}
-@c Execute @var{body}, but give up after @var{seconds} seconds.  If
-@c @var{body} finishes before the time is up, @code{with-timeout} returns
-@c the value of the last form in @var{body}.  If, however, the execution of
-@c @var{body} is cut short by the timeout, then @code{with-timeout}
-@c executes all the @var{timeout-forms} and returns the value of the last
-@c of them.
 @var{body}を実行するが、@var{seconds}秒でその実行を諦める。
 時間が切れるまえに@var{body}が終了すると
 @code{with-timeout}は@var{body}の最後のフォームの値を返す。
@@ -1836,47 +1790,45 @@ Emacsは、Lispプログラムの任意の箇所ではタイマを実行でき�
 @code{with-timeout}は@var{timeout-forms}をすべて実行し、
 それらの最後の値を返す。
 
-@c This macro works by setting a timer to run after @var{seconds} seconds.  If
-@c @var{body} finishes before that time, it cancels the timer.  If the
-@c timer actually runs, it terminates execution of @var{body}, then
-@c executes @var{timeout-forms}.
 このマクロは、@var{seconds}秒後に動作するタイマを設定することで動作する。
 その時間内に@var{body}が終了すれば、タイマを取り消す。
 タイマが実際に動作すると@var{body}の実行を終了させてから、
 @var{timeout-forms}を実行する。
 
-@c Since timers can run within a Lisp program only when the program calls a
-@c primitive that can wait, @code{with-timeout} cannot stop executing
-@c @var{body} while it is in the midst of a computation---only when it
-@c calls one of those primitives.  So use @code{with-timeout} only with a
-@c @var{body} that waits for input, not one that does a long computation.
 プログラムから待つことが可能な基本関数を呼び出したときにのみ、
 タイマはLispプログラム内で実行可能なため、
 @code{with-timeout}は@var{body}の計算途中では
-@var{body}の実行を停止できない。
+その実行を停止できない。
 それらが待つことが可能な基本関数の1つを呼び出したときにのみ停止できる。
 したがって、長い計算を行わない入力を待つような@var{body}に
 @code{with-timeout}を使う。
 @end defmac
 
-@c   The function @code{y-or-n-p-with-timeout} provides a simple way to use
-@c a timer to avoid waiting too long for an answer.  @xref{Yes-or-No
-@c Queries}.
 関数@code{y-or-n-p-with-timeout}は、
 応答を長く待ちすぎないようにタイマを使った単純な例です。
-@xref{Yes-or-No Queries}。
+@xref{Yes-or-No
+Queries}。
 
-@defun run-with-idle-timer secs repeat function &rest args
-@c Set up a timer which runs when Emacs has been idle for @var{secs}
-@c seconds.  The value of @var{secs} may be an integer or a floating point
-@c number.
+@defun cancel-timer timer
+タイマ@var{timer}（通常は以前に@code{run-at-time}や
+@code{run-with-idle-timer}が返した値）の予約を取り消す。
+これは、これらのいずれかの呼び出しの効果を取り消し、
+その時刻になってもなにも特別なことは起こらない。
+@end defun
+
+@node Idle Timers
+@section Idle Timers
+@cindex idle timers
+
+  Here is how to set up a timer that runs when Emacs is idle for a
+certain length of time.  Aside from how to set them up, idle timers
+work just like ordinary timers.
+
+@deffn Command run-with-idle-timer secs repeat function &rest args
 Emacsが@var{secs}秒間なにもしないときに実行するタイマを設定する。
-@var{secs}の値は整数でも浮動小数点数でもよい。
+@var{secs}の値は整数でも、@code{current-idle-time}で返される
+タイプの浮動小数点数でもよい。
 
-@c If @var{repeat} is @code{nil}, the timer runs just once, the first time
-@c Emacs remains idle for a long enough time.  More often @var{repeat} is
-@c non-@code{nil}, which means to run the timer @emph{each time} Emacs
-@c remains idle for @var{secs} seconds.
 @var{repeat}が@code{nil}であると、
 これ以降にはじめてEmacsが十分長い期間なにもしないでいると、
 タイマを一度だけ実行する。
@@ -1884,22 +1836,12 @@ Emacsが@var{secs}秒間なにもしないときに実行するタイマを設�
 Emacsが@var{secs}秒なにもしないでいる@emph{たびに}
 タイマを実行することを意味する。
 
-@c The function @code{run-with-idle-timer} returns a timer value which you
-@c can use in calling @code{cancel-timer} (see below).
 関数@code{run-with-idle-timer}は、
-@code{cancel-timer}（下記参照）の呼び出しに使えるタイマの値を返す。
-@end defun
+@code{cancel-timer}の呼び出しに使えるタイマの値を返す（@pxref{Timers}）。
+@end deffn
 
-@c @cindex idleness
 @cindex アイドル状態
-@c   Emacs becomes ``idle'' when it starts waiting for user input, and it
-@c remains idle until the user provides some input.  If a timer is set for
-@c five seconds of idleness, it runs approximately five seconds after Emacs
-@c first became idle.  Even if its @var{repeat} is true, this timer will
-@c not run again as long as Emacs remains idle, because the duration of
-@c idleness will continue to increase and will not go down to five seconds
-@c again.
-Emacsがユーザー入力を待ち始めると『アイドル状態』になり、
+Emacsがユーザー入力を待ち始めると@dfn{アイドル状態}になり、
 なにか入力がくるまでアイドル状態のままです。
 5秒間のアイドル状態で動作するタイマがあったとすると、
 Emacsがアイドルになってから約5秒後にそのタイマが実行されます。
@@ -1907,13 +1849,6 @@ Emacsがアイドルになってから約5秒後にそのタイマが実行さ�
 そのタイマはEmacsがアイドル状態であり続ける限りは再実行されません。
 アイドル状態の期間は単調に増加するので、再度5秒後には戻りません。
 
-@c   Emacs can do various things while idle: garbage collect, autosave or
-@c handle data from a subprocess.  But these interludes during idleness do
-@c not interfere with idle timers, because they do not reset the clock of
-@c idleness to zero.  An idle timer set for 600 seconds will run when ten
-@c minutes have elapsed since the last user command was finished, even if
-@c subprocess output has been accepted thousands of times within those ten
-@c minutes, even if there have been garbage collections and autosaves.
 Emacsがアイドル状態のときにはさまざまなことを行います。
 ガベッジコレクション、自動保存、サブプロセスからのデータの処理です。
 しかし、アイドル状態中のこれらの動作はアイドルタイマに干渉しません。
@@ -1923,58 +1858,87 @@ Emacsがアイドル状態のときにはさまざまなことを行います。
 たとえその10分間に、サブプロセスの出力を何千回も受け取ろうが、
 ガベッジコレクションや自動保存を行ったとしてもです。
 
-@c   When the user supplies input, Emacs becomes non-idle while executing the
-@c input.  Then it becomes idle again, and all the idle timers that are
-@c set up to repeat will subsequently run another time, one by one.
 ユーザーが入力を与えると、その入力を実行中はEmacsは非アイドル状態です。
 そして再度アイドル状態になり、
 繰り返すように設定されたアイドルタイマを1つずつそれ以降に実行します。
 
-@defun cancel-timer timer
-@c Cancel the requested action for @var{timer}, which should be a value
-@c previously returned by @code{run-at-time} or @code{run-with-idle-timer}.
-@c This cancels the effect of that call to @code{run-at-time}; the arrival
-@c of the specified time will not cause anything special to happen.
-タイマ@var{timer}の予約を取り消す。
-@var{timer}は、以前に@code{run-at-time}や
-@code{run-with-idle-timer}が返した値であること。
-これは、@code{run-at-time}の呼び出しの効果を取り消し、
-その時刻になってもなにも特別なことは起こらない。
+  Do not write an idle timer function containing a loop which does a
+certain amount of processing each time around, and exits when
+@code{(input-pending-p)} is non-@code{nil}.  This approach seems very
+natural but has two problems:
+
+@itemize
+@item
+It blocks out all process output (since Emacs accepts process output
+only while waiting).
+
+@item
+It blocks out any idle timers that ought to run during that time.
+@end itemize
+
+@noindent
+Similarly, do not write an idle timer function that sets up another
+idle timer (including the same idle timer) with @var{secs} argument
+less than or equal to the current idleness time.  Such a timer will
+run almost immediately, and continue running again and again, instead
+of waiting for the next time Emacs becomes idle.  The correct approach
+is to reschedule with an appropriate increment of the current value of
+the idleness time, as described below.
+
+@defun current-idle-time
+If Emacs is idle, this function returns the length of time Emacs has
+been idle, as a list of four integers: @code{(@var{sec-high}
+@var{sec-low} @var{microsec} @var{picosec})}, using the same format as
+@code{current-time} (@pxref{Time of Day}).
+
+When Emacs is not idle, @code{current-idle-time} returns @code{nil}.
+This is a convenient way to test whether Emacs is idle.
 @end defun
 
+  The main use of @code{current-idle-time} is when an idle timer
+function wants to ``take a break'' for a while.  It can set up another
+idle timer to call the same function again, after a few seconds more
+idleness.  Here's an example:
+
+@example
+(defvar my-resume-timer nil
+  "Timer for `my-timer-function' to reschedule itself, or nil.")
+
+(defun my-timer-function ()
+  ;; @r{If the user types a command while @code{my-resume-timer}}
+  ;; @r{is active, the next time this function is called from}
+  ;; @r{its main idle timer, deactivate @code{my-resume-timer}.}
+  (when my-resume-timer
+    (cancel-timer my-resume-timer))
+  ...@var{do the work for a while}...
+  (when @var{taking-a-break}
+    (setq my-resume-timer
+          (run-with-idle-timer
+            ;; Compute an idle time @var{break-length}
+            ;; more than the current value.
+            (time-add (current-idle-time) @var{break-length})
+            nil
+            'my-timer-function))))
+@end example
+
 @node Terminal Input
-@c @section Terminal Input
 @section 端末入力
-@c @cindex terminal input
 @cindex 端末入力
 
-@c   This section describes functions and variables for recording or
-@c manipulating terminal input.  See @ref{Display}, for related
-@c functions.
 本節では、端末入力を記録したり処理する関数や変数について述べます。
 関連する関数については@ref{Display}を参照してください。
 
 @menu
-* Input Modes::		Options for how input is processed.
-* Translating Input::   Low level conversion of some characters or events
-			  into others.
-* Recording Input::	Saving histories of recent or all input events.
+* Input Modes::         Options for how input is processed.
+* Recording Input::     Saving histories of recent or all input events.
 @end menu
 
 @node Input Modes
-@c @subsection Input Modes
 @subsection 入力方式
-@c @cindex input modes
-@c @cindex terminal input modes
 @cindex 入力方式
-@cindex 端末入力
+@cindex 端末入力方式
 
-@defun set-input-mode interrupt flow meta quit-char
-@c This function sets the mode for reading keyboard input.  If
-@c @var{interrupt} is non-null, then Emacs uses input interrupts.  If it is
-@c @code{nil}, then it uses @sc{cbreak} mode.  The default setting is
-@c system dependent.  Some systems always use @sc{cbreak} mode regardless
-@c of what is specified.
+@defun set-input-mode interrupt flow meta &optional quit-char
 この関数は、キーボード入力を読み取るモードを設定する。
 @var{interrupt}が@code{nil}以外であると、
 Emacsは入力割り込みを用いる。
@@ -1982,28 +1946,14 @@ Emacsは入力割り込みを用いる。
 デフォルトの設定はシステムに依存する。
 この指定に関わらずつねに@sc{cbreak}モードを用いるシステムもある。
 
-@c When Emacs communicates directly with X, it ignores this argument and
-@c uses interrupts if that is the way it knows how to communicate.
 EmacsがXと直接通信しているときは、
 通信方法が割り込みであると承知していると
 この引数を無視して割り込みを使う。
 
-@c If @var{flow} is non-@code{nil}, then Emacs uses @sc{xon/xoff}
-@c (@kbd{C-q}, @kbd{C-s}) flow control for output to the terminal.  This
-@c has no effect except in @sc{cbreak} mode.  @xref{Flow Control}.
 @var{flow}が@code{nil}以外であると、
 Emacsは端末出力にフロー制御@sc{xon/xoff}（@kbd{C-q}、@kbd{C-s}）を用いる。
 @sc{cbreak}モード以外ではこれの効果はない。
-@pxref{Flow Control}。
 
-@c @c Emacs 19 feature
-@c The argument @var{meta} controls support for input character codes
-@c above 127.  If @var{meta} is @code{t}, Emacs converts characters with
-@c the 8th bit set into Meta characters.  If @var{meta} is @code{nil},
-@c Emacs disregards the 8th bit; this is necessary when the terminal uses
-@c it as a parity bit.  If @var{meta} is neither @code{t} nor @code{nil},
-@c Emacs uses all 8 bits of input unchanged.  This is good for terminals
-@c that use 8-bit character sets.
 引数@var{meta}は、文字コードが127を越える入力文字の扱い方を制御する。
 @var{meta}が@code{t}であると、8ビット目が立っている文字を
 メタ文字に変換する。
@@ -2013,381 +1963,44 @@ Emacsは端末出力にフロー制御@sc{xon/xoff}（@kbd{C-q}、@kbd{C-s}）�
 Emacsは入力した8ビットすべてを無変更で使う。
 8ビット文字集合を使う端末には、これがよい。
 
-@c @c Emacs 19 feature
-@c If @var{quit-char} is non-@code{nil}, it specifies the character to
-@c use for quitting.  Normally this character is @kbd{C-g}.
-@c @xref{Quitting}.
 @var{quit-char}が@code{nil}以外であると、
 中断に使用する文字を指定する。
 通常、この文字は@kbd{C-g}である。
-@pxref{Quitting}。
+@xref{Quitting}。
 @end defun
 
-@c The @code{current-input-mode} function returns the input mode settings
-@c Emacs is currently using.
 関数@code{current-input-mode}は、Emacsが現在使用している
 入力モードの設定を返します。
 
-@c Emacs 19 feature
 @defun current-input-mode
-@c This function returns current mode for reading keyboard input.  It
-@c returns a list, corresponding to the arguments of @code{set-input-mode},
-@c of the form @code{(@var{interrupt} @var{flow} @var{meta} @var{quit})} in
-@c which:
 この関数は、キーボード入力を読み取るための現在のモードを返す。
 @code{set-input-mode}の引数に対応する
-@code{(@var{interrupt} @var{flow} @var{meta} @var{quit})}の形の
-リストを返す。
+@code{(@var{interrupt} @var{flow} @var{meta} @var{quit})}
+の形のリストを返す。
 各要素の意味はつぎのとおりである。
 @table @var
 @item interrupt
-@c is non-@code{nil} when Emacs is using interrupt-driven input.  If
-@c @code{nil}, Emacs is using @sc{cbreak} mode.
 @code{nil}以外であると、Emacsは割り込み駆動の入力を用いている。
 @code{nil}であると、Emacsは@sc{cbreak}モードを用いている。
 @item flow
-@c is non-@code{nil} if Emacs uses @sc{xon/xoff} (@kbd{C-q}, @kbd{C-s})
-@c flow control for output to the terminal.  This value is meaningful only
-@c when @var{interrupt} is @code{nil}.
 @code{nil}以外であると、
 Emacsは端末出力にフロー制御@sc{xon/xoff}（@kbd{C-q}、@kbd{C-s}）
 を用いている。
 この値は、@var{interrupt}が@code{nil}の場合にのみ意味を持つ。
 @item meta
-@c is @code{t} if Emacs treats the eighth bit of input characters as
-@c the meta bit; @code{nil} means Emacs clears the eighth bit of every
-@c input character; any other value means Emacs uses all eight bits as the
-@c basic character code.
 Emacsが入力文字の8ビット目をメタビットとして扱うときには@code{t}である。
-Emacsが各入力文字の8ビット目をつねに0にするときには@code{t}である。
+Emacsが各入力文字の8ビット目をつねに0にするときには@code{nil}である。
 さもなければ、Emacsは文字コードとして8ビットすべてを使っている。
 @item quit
-@c is the character Emacs currently uses for quitting, usually @kbd{C-g}.
 現在Emacsが中断に使っている文字であり、普通は@kbd{C-g}である。
 @end table
 @end defun
 
-@node Translating Input
-@c @subsection Translating Input Events
-@subsection 入力イベントの変換
-@c @cindex translating input events
-@cindex 入力イベントの変換
-
-@c   This section describes features for translating input events into
-@c other input events before they become part of key sequences.  These
-@c features apply to each event in the order they are described here: each
-@c event is first modified according to @code{extra-keyboard-modifiers},
-@c then translated through @code{keyboard-translate-table} (if applicable),
-@c and finally decoded with the specified keyboard coding system.  If it is
-@c being read as part of a key sequence, it is then added to the sequence
-@c being read; then subsequences containing it are checked first with
-@c @code{function-key-map} and then with @code{key-translation-map}.
-本節では、入力イベントをキー列の一部になるまえに別の
-入力イベントに変換する機能について述べます。
-これらの機能は、ここに述べる順に各イベントに適用されます。
-つまり、各イベントはまず@code{extra-keyboard-modifiers}に従って修正され、
-つぎに（適切ならば）@code{keyboard-translate-table}を介して変換され、
-最後に指定されているキーボードコーディングシステムで復号化されます。
-キー列の一部として読み取られるイベントであると、
-読み取られるキー列に追加され、それを含む部分キー列を
-まず@code{function-key-map}で検査してから、
-つぎに@code{key-translation-map}で検査します。
-
-@c Emacs 19 feature
-@defvar extra-keyboard-modifiers
-@c This variable lets Lisp programs ``press'' the modifier keys on the
-@c keyboard.  The value is a bit mask:
-この変数は、Lispプログラムがキーボード上の
-修飾キーを『押す』ことができるようにする。
-
-@table @asis
-@item 1
-@c The @key{SHIFT} key.
-@key{SHIFT}キー。
-@item 2
-@c The @key{LOCK} key.
-@key{LOCK}キー。
-@item 4
-@c The @key{CTL} key.
-@key{CTL}キー。
-@item 8
-@c The @key{META} key.
-@key{META}キー。
-@end table
-
-@c Each time the user types a keyboard key, it is altered as if the
-@c modifier keys specified in the bit mask were held down.
-ユーザーがキーボードのキーを打つたびに、
-ビットマスクで指定した修飾キーが押し下げられているかのように
-キーを修正する。
-
-@c When using a window system, the program can ``press'' any of the
-@c modifier keys in this way.  Otherwise, only the @key{CTL} and @key{META}
-@c keys can be virtually pressed.
-ウィンドウシステムを使っているときには、
-プログラムは任意の修飾キーを『押す』ことができる。
-さもなければ、@key{CTL}と@key{META}のキーのみを
-仮想的に押すことができる。
-@end defvar
-
-@defvar keyboard-translate-table
-@c This variable is the translate table for keyboard characters.  It lets
-@c you reshuffle the keys on the keyboard without changing any command
-@c bindings.  Its value is normally a char-table, or else @code{nil}.
-この変数は、キーボード文字の変換表である。
-これにより、コマンドのバインディングを変更せずに、
-キーボードのキー配置を変更できる。
-その値は普通は文字テーブルであるか、あるいは、@code{nil}である。
-
-@c If @code{keyboard-translate-table} is a char-table, then each character
-@c read from the keyboard is looked up in this character.  If the value
-@c found there is non-@code{nil}, then it is used instead of the
-@c actual input character.
-@code{keyboard-translate-table}が文字テーブルであると、
-キーボードから読み取った各文字をこの文字テーブルで探す。
-みつけた値が@code{nil}以外であると、
-実際の入力文字のかわりにその値を使う。
-
-@c In the example below, we set @code{keyboard-translate-table} to a
-@c char-table.  Then we fill it in to swap the characters @kbd{C-s} and
-@c @kbd{C-\} and the characters @kbd{C-q} and @kbd{C-^}.  Subsequently,
-@c typing @kbd{C-\} has all the usual effects of typing @kbd{C-s}, and vice
-@c versa.  (@xref{Flow Control} for more information on this subject.)
-つぎの例では、@code{keyboard-translate-table}に文字テーブルを設定する。
-そして、文字@kbd{C-s}と@kbd{C-\}、@kbd{C-q}と@kbd{C-^}を入れ換える。
-これ以降、@kbd{C-\}を打つと@kbd{C-s}を打った効果があり、
-その逆もそうである。
-（この話題に関しては詳しくは、@pxref{Flow Control}。）
-
-@c @cindex flow control example
-@cindex フロー制御の例
-@example
-@group
-(defun evade-flow-control ()
-  "Replace C-s with C-\ and C-q with C-^."
-  (interactive)
-@end group
-@group
-  (setq keyboard-translate-table
-        (make-char-table 'keyboard-translate-table nil))
-@end group
-@group
-@c   ;; @r{Swap @kbd{C-s} and @kbd{C-\}.}
-  ;; @r{@kbd{C-s}と@kbd{C-\}を入れ換える}
-  (aset keyboard-translate-table ?\034 ?\^s)
-  (aset keyboard-translate-table ?\^s ?\034)
-@end group
-@group
-@c   ;; @r{Swap @kbd{C-q} and @kbd{C-^}.}
-  ;; @r{@kbd{C-q}と@kbd{C-^}を入れ換える}
-  (aset keyboard-translate-table ?\036 ?\^q)
-  (aset keyboard-translate-table ?\^q ?\036))
-@end group
-@end example
-
-@c Note that this translation is the first thing that happens to a
-@c character after it is read from the terminal.  Record-keeping features
-@c such as @code{recent-keys} and dribble files record the characters after
-@c translation.
-この変換は、端末から読み取った文字に最初に行われる変換である。
-@code{recent-keys}のような記録機能やドリブルファイルは、
-変換後の文字を記録する。
-@end defvar
-
-@defun keyboard-translate from to
-@c This function modifies @code{keyboard-translate-table} to translate
-@c character code @var{from} into character code @var{to}.  It creates
-@c the keyboard translate table if necessary.
-この関数は、文字コード@var{from}を文字コード@var{to}に変換するように
-@code{keyboard-translate-table}を変更する。
-必要ならばキーボード変換表を作成する。
-@end defun
-
-@c   The remaining translation features translate subsequences of key
-@c sequences being read.  They are implemented in @code{read-key-sequence}
-@c and have no effect on input read with @code{read-event}.
-残りの変換機能は、読み取ったキー列の部分列を変換します。
-それらは@code{read-key-sequence}に実装されていて、
-@code{read-event}で読む入力には効果はありません。
-
-@defvar function-key-map
-@c This variable holds a keymap that describes the character sequences sent
-@c by function keys on an ordinary character terminal.  This keymap has the
-@c same structure as other keymaps, but is used differently: it specifies
-@c translations to make while reading key sequences, rather than bindings
-@c for key sequences.
-この変数は、普通の文字端末上のファンクションキーが
-送出する文字の列を記述したキーマップを保持する。
-このキーマップは他のキーマップと同じ構造であるが、使い方が異なる。
-キー列のバインディングではなく、
-読み取りつつあるキー列を変換する方法を指定する。
-
-@c If @code{function-key-map} ``binds'' a key sequence @var{k} to a vector
-@c @var{v}, then when @var{k} appears as a subsequence @emph{anywhere} in a
-@c key sequence, it is replaced with the events in @var{v}.
-@code{function-key-map}がキー列@var{k}を
-ベクトル@var{v}に『バインド』すると、
-キー列の@emph{どこに}@var{k}が現れても、
-@var{v}のイベントで置き換える。
-
-@c For example, VT100 terminals send @kbd{@key{ESC} O P} when the
-@c keypad @key{PF1} key is pressed.  Therefore, we want Emacs to translate
-@c that sequence of events into the single event @code{pf1}.  We accomplish
-@c this by ``binding'' @kbd{@key{ESC} O P} to @code{[pf1]} in
-@c @code{function-key-map}, when using a VT100.
-たとえば、端末VT100は、キーパッドのキー@key{PF1}を押すと
-@kbd{@key{ESC} O P}を送出する。
-したがって、Emacsではこの列を1つのイベント@code{pf1}に変換したい。
-VT100を使っているときに@code{function-key-map}において
-@kbd{@key{ESC} O P}を@code{[pf1]}に『バインド』すれば、
-これを行える。
-
-@c Thus, typing @kbd{C-c @key{PF1}} sends the character sequence @kbd{C-c
-@c @key{ESC} O P}; later the function @code{read-key-sequence} translates
-@c this back into @kbd{C-c @key{PF1}}, which it returns as the vector
-@c @code{[?\C-c pf1]}.
-つまり、@kbd{C-c @key{PF1}}を打つと
-文字の列@kbd{C-c @key{ESC} O P}が送出される。
-のちに関数@code{read-key-sequence}がこれを@kbd{C-c @key{PF1}}に戻し、
-ベクトル@code{[?\C-c pf1]}を返す。
-
-@c Entries in @code{function-key-map} are ignored if they conflict with
-@c bindings made in the minor mode, local, or global keymaps.  The intent
-@c is that the character sequences that function keys send should not have
-@c command bindings in their own right---but if they do, the ordinary
-@c bindings take priority.
-マイナモード／ローカル／グローバルのキーマップに矛盾するような
-@code{function-key-map}内の項目は無視される。
-この意図は、ファンクションキーが送出する文字の列には
-それ独自のキーバインディングがあるべきではなく、
-もしあったとしても、もとの定義を優先することである。
-
-@c The value of @code{function-key-map} is usually set up automatically
-@c according to the terminal's Terminfo or Termcap entry, but sometimes
-@c those need help from terminal-specific Lisp files.  Emacs comes with
-@c terminal-specific files for many common terminals; their main purpose is
-@c to make entries in @code{function-key-map} beyond those that can be
-@c deduced from Termcap and Terminfo.  @xref{Terminal-Specific}.
-@code{function-key-map}の値は、
-端末のterminfoやtermcapの情報に従って自動的に普通は設定されるが、
-端末固有のLispファイルの助けが必要な場合もある。
-Emacsには、一般的な多くの端末向けの端末固有ファイルがある。
-それらの主目的は、terminfoやtermcapから推定できないものを
-@code{function-key-map}に定義することである。
-@pxref{Terminal-Specific}。
-@end defvar
-
-@defvar key-translation-map
-@c This variable is another keymap used just like @code{function-key-map}
-@c to translate input events into other events.  It differs from
-@c @code{function-key-map} in two ways:
-この変数は、@code{function-key-map}と同様に
-入力イベントを別の入力イベントへ変換するために用いる別のキーマップである。
-@code{function-key-map}とは2つの意味で異なる。
-
-@itemize @bullet
-@item
-@c @code{key-translation-map} goes to work after @code{function-key-map} is
-@c finished; it receives the results of translation by
-@c @code{function-key-map}.
-@code{key-translation-map}は、
-@code{function-key-map}の変換後に使われる。
-@code{function-key-map}による変換結果を使う。
-
-@item
-@c @code{key-translation-map} overrides actual key bindings.  For example,
-@c if @kbd{C-x f} has a binding in @code{key-translation-map}, that
-@c translation takes effect even though @kbd{C-x f} also has a key binding
-@c in the global map.
-@code{key-translation-map}は、実際のキーバインディングに優先する。
-たとえば、@code{key-translation-map}で@kbd{C-x f}にバインディングがあると、
-グローバルマップに@kbd{C-x f}のバインディングがあったとしても
-変換結果が効果を持つ。
-@end itemize
-
-@c The intent of @code{key-translation-map} is for users to map one
-@c character set to another, including ordinary characters normally bound
-@c to @code{self-insert-command}.
-@code{key-translation-map}の意図は、
-@code{self-insert-command}に普通はバインドされる通常の文字を含めて
-ユーザー向けに文字集合を別の文字集合に
-対応付けられるようにすることである。
-@end defvar
-
-@c @cindex key translation function
-@cindex キー変換関数
-@c You can use @code{function-key-map} or @code{key-translation-map} for
-@c more than simple aliases, by using a function, instead of a key
-@c sequence, as the ``translation'' of a key.  Then this function is called
-@c to compute the translation of that key.
-キーの『変換として』キー列のかわりに関数を用いると、
-@code{function-key-map}や@code{key-translation-map}は
-単なる配置替え以上のことに使えます。
-その関数で当該キーの変換を計算するのです。
-
-@c The key translation function receives one argument, which is the prompt
-@c that was specified in @code{read-key-sequence}---or @code{nil} if the
-@c key sequence is being read by the editor command loop.  In most cases
-@c you can ignore the prompt value.
-キー変換関数は1つの引数を受け取ります。
-その引数は、@code{read-key-sequence}で指定されたプロンプトか、
-エディタコマンドループがキー列を読み取っている場合には@code{nil}です。
-多くの場合、プロンプトの値は無視できます。
-
-@c If the function reads input itself, it can have the effect of altering
-@c the event that follows.  For example, here's how to define @kbd{C-c h}
-@c to turn the character that follows into a Hyper character:
-関数自身が入力を読むときには、
-後続のイベントを変更することもできます。
-たとえば、後続の文字をハイパー文字にする@kbd{C-c h}の定義は
-つぎのようになります。
-
-@example
-@group
-(defun hyperify (prompt)
-  (let ((e (read-event)))
-    (vector (if (numberp e)
-                (logior (lsh 1 24) e)
-              (if (memq 'hyper (event-modifiers e))
-                  e
-                (add-event-modifier "H-" e))))))
-
-(defun add-event-modifier (string e)
-  (let ((symbol (if (symbolp e) e (car e))))
-    (setq symbol (intern (concat string
-                                 (symbol-name symbol))))
-@end group
-@group
-    (if (symbolp e)
-        symbol
-      (cons symbol (cdr e)))))
-
-(define-key function-key-map "\C-ch" 'hyperify)
-@end group
-@end example
-
-@c Finally, if you have enabled keyboard character set decoding using
-@c @code{set-keyboard-coding-system}, decoding is done after the
-@c translations listed above.  @xref{Specifying Coding Systems}.  In future
-@c Emacs versions, character set decoding may be done before the other
-@c translations.
-@code{set-keyboard-coding-system}を用いた
-キーボード文字集合の復号化を有効にしているときには、
-上に述べた変換を終えてから復号化を行います。
-@xref{Specifying Coding Systems}。
-Emacsの将来の版では、他の変換のまえに復号化を行うでしょう。
-
 @node Recording Input
-@c @subsection Recording Input
 @subsection 入力を記録する
+@cindex 入力を記録する
 
 @defun recent-keys
-@c This function returns a vector containing the last 100 input events from
-@c the keyboard or mouse.  All input events are included, whether or not
-@c they were used as parts of key sequences.  Thus, you always get the last
-@c 100 input events, not counting events generated by keyboard macros.
-@c (These are excluded because they are less interesting for debugging; it
-@c should be enough to see the events that invoked the macros.)
 この関数は、キーボードやマウスからの最近の100個の入力イベントを収めた
 ベクトルを返す。
 キー列として使われたかどうかに関わらず、すべてのイベントを含む。
@@ -2396,17 +2009,13 @@ Emacsの将来の版では、他の変換のまえに復号化を行うでしょ
 （キーボードマクロで生成したイベントを省くのは、
 それらはデバッグにはあまり役立たないからである。
 キーボードマクロを起動したイベントが見えれば十分なはずである。）
+
+A call to @code{clear-this-command-keys} (@pxref{Command Loop Info})
+causes this function to return an empty vector immediately afterward.
 @end defun
 
-@c @deffn Command open-dribble-file  filename
-@deffn コマンド open-dribble-file  filename
-@c @cindex dribble file
+@deffn Command open-dribble-file filename
 @cindex ドリブルファイル
-@c This function opens a @dfn{dribble file} named @var{filename}.  When a
-@c dribble file is open, each input event from the keyboard or mouse (but
-@c not those from keyboard macros) is written in that file.  A
-@c non-character event is expressed using its printed representation
-@c surrounded by @samp{<@dots{}>}.
 この関数は、@var{filename}という名前の@dfn{ドリブルファイル}
 （dribble file）をオープンする。
 ドリブルファイルをオープンしていると、
@@ -2414,69 +2023,33 @@ Emacsの将来の版では、他の変換のまえに復号化を行うでしょ
 そのファイルに書き出す。
 文字でないイベントは、その表示表現を@samp{<@dots{}>}で囲って表す。
 
-@c You close the dribble file by calling this function with an argument
-@c of @code{nil}.
 ドリブルファイルをクローズするには、
 引数に@code{nil}を指定してこの関数を呼び出す。
-
-@c This function is normally used to record the input necessary to
-@c trigger an Emacs bug, for the sake of a bug report.
-この関数は、バグ報告のために
-Emacsのバグを引き起こす入力を記録するために普通は使う。
-
-@example
-@group
-(open-dribble-file "~/dribble")
-     @result{} nil
-@end group
-@end example
 @end deffn
 
-@c   See also the @code{open-termscript} function (@pxref{Terminal Output}).
 関数@code{open-termscript}（@pxref{Terminal Output}）も
 参照してください。
 
 @node Terminal Output
-@c @section Terminal Output
 @section 端末出力
-@c @cindex terminal output
 @cindex 端末出力
 
-@c   The terminal output functions send output to the terminal or keep
-@c track of output sent to the terminal.  The variable @code{baud-rate}
-@c tells you what Emacs thinks is the output speed of the terminal.
 端末出力関数は、端末に出力を送ったり、
 端末へ送った出力を記録します。
 変数@code{baud-rate}は、Emacsが考えている端末の出力速度を表します。
 
-@defvar baud-rate
-@c This variable's value is the output speed of the terminal, as far as
-@c Emacs knows.  Setting this variable does not change the speed of actual
-@c data transmission, but the value is used for calculations such as
-@c padding.  It also affects decisions about whether to scroll part of the
-@c screen or repaint---even when using a window system.  (We designed it
-@c this way despite the fact that a window system has no true ``output
-@c speed'', to give you a way to tune these decisions.)
+@defopt baud-rate
 この変数の値は、Emacsが関知する端末の出力速度である。
 この変数に設定しても実際のデータ転送速度を変更しないが、
 その値はパディングなどの計算に用いられる。
-また、ウィンドウシステムを使っている場合であっても、
-スクリーンのどの部分をスクロールするか、
-あるいは、再描画するかの決定に影響する。
-（このような決定を調整する方法を与えるために、
-ウィンドウシステムには真の『出力速度』はないがこのように設計した。）
 
-@c The value is measured in baud.
+  It also affects decisions about whether to scroll part of the
+screen or repaint on text terminals.  @xref{Forcing Redisplay},
+for the corresponding functionality on graphical terminals.
+
 値の単位はボー（baud）である。
-@end defvar
+@end defopt
 
-@c   If you are running across a network, and different parts of the
-@c network work at different baud rates, the value returned by Emacs may be
-@c different from the value used by your local terminal.  Some network
-@c protocols communicate the local terminal speed to the remote machine, so
-@c that Emacs and other programs can get the proper value, but others do
-@c not.  If Emacs has the wrong value, it makes decisions that are less
-@c than optimal.  To fix the problem, set @code{baud-rate}.
 ネットワーク経由で使い、
 ネットワークの異なる部分が異なる速度で動いているときには、
 Emacsが返す値はローカル端末で使っている場合の値と異なるかもしれません。
@@ -2488,23 +2061,14 @@ Emacsの値がまちがっているときには、
 あまり最適でない決定をくだすでしょう。
 この問題を修正するには、@code{baud-rate}に設定します。
 
-@defun baud-rate
-@c This obsolete function returns the value of the variable
-@c @code{baud-rate}.
-この廃れた関数は、変数@code{baud-rate}の値を返す。
-@end defun
-
-@defun send-string-to-terminal string
-@c This function sends @var{string} to the terminal without alteration.
-@c Control characters in @var{string} have terminal-dependent effects.
-この関数は、なにも変更せずに文字列@var{string}を端末へ送る。
+@defun send-string-to-terminal string &optional terminal
+この関数は、なにも変更せずに文字列@var{string}を端末@var{terminal}へ送る。
 @var{string}内のコントロール文字は、端末に依存する効果を持つ。
+This function operates only on text terminals.  @var{terminal} may be
+a terminal object, a frame, or @code{nil} for the selected frame's
+terminal.  In batch mode, @var{string} is sent to @code{stdout} when
+@var{terminal} is @code{nil}.
 
-@c One use of this function is to define function keys on terminals that
-@c have downloadable function key definitions.  For example, this is how on
-@c certain terminals to define function key 4 to move forward four
-@c characters (by transmitting the characters @kbd{C-u C-f} to the
-@c computer):
 この関数の1つの用途は、ファンクションキーの定義を
 ダウンロード可能な端末のファンクションキーを定義することである。
 たとえば、ファンクションキー4を（文字の列@kbd{C-u C-f}を
@@ -2519,18 +2083,8 @@ Emacsの値がまちがっているときには、
 @end example
 @end defun
 
-@c @deffn Command open-termscript filename
-@deffn コマンド open-termscript filename
-@c @cindex termscript file
+@deffn Command open-termscript filename
 @cindex タームスクリプトファイル
-@c This function is used to open a @dfn{termscript file} that will record
-@c all the characters sent by Emacs to the terminal.  It returns
-@c @code{nil}.  Termscript files are useful for investigating problems
-@c where Emacs garbles the screen, problems that are due to incorrect
-@c Termcap entries or to undesirable settings of terminal options more
-@c often than to actual Emacs bugs.  Once you are certain which characters
-@c were actually output, you can determine reliably whether they correspond
-@c to the Termcap specifications in use.
 この関数は、Emacsが端末へ送出するすべての文字を記録する
 @dfn{タームスクリプトファイル}（termscript file）を
 オープンするために使う。
@@ -2540,10 +2094,7 @@ Emacsがスクリーンを乱してしまう問題、
 誤ったtermcap定義やEmacsの実際のバグではない端末の望ましくない設定の
 問題を調べるのに有用である。
 どのような文字の列が実際に出力されるか確信できれば、
-それらが使用中のtermcapのどの定義に対応するか調べられる。
-
-@c See also @code{open-dribble-file} in @ref{Terminal Input}.
-@ref{Terminal Input}の@code{open-dribble-file}も参照。
+それらが使用中のTermcapのどの定義に対応するか調べられる。
 
 @example
 @group
@@ -2551,261 +2102,645 @@ Emacsがスクリーンを乱してしまう問題、
      @result{} nil
 @end group
 @end example
+
+You close the termscript file by calling this function with an
+argument of @code{nil}.
+
+@ref{Recording Input}の@code{open-dribble-file}も参照。
 @end deffn
 
-@node Special Keysyms
-@c @section System-Specific X11 Keysyms
-@section システム固有のX11のキーシンボル
+@node Sound Output
+@section Sound Output
+@cindex sound
 
-@c To define system-specific X11 keysyms, set the variable
-@c @code{system-key-alist}.
+  To play sound using Emacs, use the function @code{play-sound}.  Only
+certain systems are supported; if you call @code{play-sound} on a
+system which cannot really do the job, it gives an error.
+
+@c FIXME: Add indexes for Au and WAV?  --xfq
+  The sound must be stored as a file in RIFF-WAVE format (@samp{.wav})
+or Sun Audio format (@samp{.au}).
+
+@defun play-sound sound
+This function plays a specified sound.  The argument, @var{sound}, has
+the form @code{(sound @var{properties}...)}, where the @var{properties}
+consist of alternating keywords (particular symbols recognized
+specially) and values corresponding to them.
+
+Here is a table of the keywords that are currently meaningful in
+@var{sound}, and their meanings:
+
+@table @code
+@item :file @var{file}
+This specifies the file containing the sound to play.
+If the file name is not absolute, it is expanded against
+the directory @code{data-directory}.
+
+@item :data @var{data}
+This specifies the sound to play without need to refer to a file.  The
+value, @var{data}, should be a string containing the same bytes as a
+sound file.  We recommend using a unibyte string.
+
+@item :volume @var{volume}
+This specifies how loud to play the sound.  It should be a number in the
+range of 0 to 1.  The default is to use whatever volume has been
+specified before.
+
+@item :device @var{device}
+This specifies the system device on which to play the sound, as a
+string.  The default device is system-dependent.
+@end table
+
+Before actually playing the sound, @code{play-sound}
+calls the functions in the list @code{play-sound-functions}.
+Each function is called with one argument, @var{sound}.
+@end defun
+
+@deffn Command play-sound-file file &optional volume device
+This function is an alternative interface to playing a sound @var{file}
+specifying an optional @var{volume} and @var{device}.
+@end deffn
+
+@defvar play-sound-functions
+A list of functions to be called before playing a sound.  Each function
+is called with one argument, a property list that describes the sound.
+@end defvar
+
+@node X11 Keysyms
+@section システム固有のX11のキーシンボル
+@cindex X11 keysyms
+
 システム固有のX11のキーシンボル（keysym）を定義するには、
 変数@code{system-key-alist}に設定します。
 
 @defvar system-key-alist
-@c This variable's value should be an alist with one element for each
-@c system-specific keysym.  An element has this form: @code{(@var{code}
-@c . @var{symbol})}, where @var{code} is the numeric keysym code (not
-@c including the ``vendor specific'' bit, 
 この変数の値は、各要素がシステム固有の
 各キーシンボルに対応する連想リストであること。
-要素は@code{(@var{code} . @var{symbol})}の形である。
+各要素は@code{(@var{code} . @var{symbol})}の形である。
 ここで、@var{code}は（『提供業者固有の』ビット
-@ifinfo 
-@c -2**28,
--2**28を
-@end ifinfo
-@tex 
-%c $-2^{28}$,
-$-2^{28}$を
+@ifnottex
+@minus{}2**28）を
+@end ifnottex
+@tex
+$-2^{28}$）を
 @end tex
-@c and @var{symbol} is the name for the function key.
 含まない）数値のキーシンボルコードであり、
 @var{symbol}はファンクションキーの名前である。
 
-@c For example @code{(168 . mute-acute)} defines a system-specific key used
-@c by HP X servers whose numeric code is
 たとえば、@code{(168 . mute-acute)}は、
 数値コードが
-@ifinfo 
--2**28
-@end ifinfo
-@tex 
+@ifnottex
+@minus{}2**28
+@end ifnottex
+@tex
 $-2^{28}$
 @end tex
-@c + 168.
 + 168 であるHP Xサーバーが使うシステム固有キーを定義する。
 
-@c It is not crucial to exclude from the alist the keysyms of other X
-@c servers; those do no harm, as long as they don't conflict with the ones
-@c used by the X server actually in use.
-実際に使用しているXサーバーのキーシンボルと衝突しなければ、
-他のXサーバー向けのキーシンボルを連想リストから省かなくても問題ない。
+It is not crucial to exclude from the alist the keysyms of other X
+servers; those do no harm, as long as they don't conflict with the ones
+used by the X server actually in use.
 
-@c The variable is always local to the current terminal, and cannot be
-@c buffer-local.  @xref{Multiple Displays}.
 変数は現在の端末につねにローカルであり、
 バッファローカルにはなりえない。
-@pxref{Multiple Displays}。
+@xref{Multiple Terminals}。
 @end defvar
 
-@node Flow Control
-@c @section Flow Control
-@section フロー制御
-@c @cindex flow control characters
-@cindex フロー制御文字
+You can specify which keysyms Emacs should use for the Meta, Alt, Hyper, and Super modifiers by setting these variables:
 
-@c   This section attempts to answer the question ``Why does Emacs use
-@c flow-control characters in its command character set?''  For a second
-@c view on this issue, read the comments on flow control in the
-@c @file{emacs/INSTALL} file from the distribution; for help with Termcap
-@c entries and DEC terminal concentrators, see @file{emacs/etc/TERMS}.
-本節では、
-『Emacsがなぜコマンド文字集合の中からフロー制御文字を使うのか？』という
-質問に答えたいと思います。
-この話題に関する別の視点については、
-配布に含まれるファイル@file{emacs/INSTALL}の中の
-フロー制御に関する記述を読んでください。
-termcapの定義とDECの端末集線器については、
-@file{emacs/etc/TERMS}を参照してください。
-
-@cindex @kbd{C-s}
-@cindex @kbd{C-q}
-@c   At one time, most terminals did not need flow control, and none used
-@c @code{C-s} and @kbd{C-q} for flow control.  Therefore, the choice of
-@c @kbd{C-s} and @kbd{C-q} as command characters for searching and quoting
-@c was natural and uncontroversial.  With so many commands needing key
-@c assignments, of course we assigned meanings to nearly all @sc{ASCII}
-@c control characters.
-ある時期には、ほとんどの端末ではフロー制御を行っておらず、
-@code{C-s}と@kbd{C-q}をフロー制御に用いるものもありませんでした。
-したがって、コマンド文字として@code{C-s}と@kbd{C-q}を選ぶことは
-自然であり議論の余地はありませんでした。
-キーに割り付けるべきコマンドがたくさんあったので、
-ほとんどすべての@sc{ASCII}コントロール文字に意味を与えました。
-
-@c   Later, some terminals were introduced which required these characters
-@c for flow control.  They were not very good terminals for full-screen
-@c editing, so Emacs maintainers ignored them.  In later years, flow
-@c control with @kbd{C-s} and @kbd{C-q} became widespread among terminals,
-@c but by this time it was usually an option.  And the majority of Emacs
-@c users, who can turn flow control off, did not want to switch to less
-@c mnemonic key bindings for the sake of flow control.
-のちに、フロー制御にこれらの文字を必要とする端末が導入されたのです。
-それらはフルスクリーンエディタ向きの端末ではなかったので、
-Emacsの保守陣はそれらを無視しました。
-後年、@kbd{C-s}と@kbd{C-q}によるフロー制御が
-端末で広く使われるようになりましたが、当時はそれはオプションでした。
-Emacsユーザーの多くはフロー制御をオフにして、
-フロー制御のために無意味なキーバインディングに
-替えようとはしなかったのです。
-
-@c   So which usage is ``right''---Emacs's or that of some terminal and
-@c concentrator manufacturers?  This question has no simple answer.
-Emacsと端末や集線器の製造業者のどちらの使い方が『正しい』でしょう？@code{ }
-この問に簡単な答えはありません。
-
-@c   One reason why we are reluctant to cater to the problems caused by
-@c @kbd{C-s} and @kbd{C-q} is that they are gratuitous.  There are other
-@c techniques (albeit less common in practice) for flow control that
-@c preserve transparency of the character stream.  Note also that their use
-@c for flow control is not an official standard.  Interestingly, on the
-@c model 33 teletype with a paper tape punch (around 1970), @kbd{C-s} and
-@c @kbd{C-q} were sent by the computer to turn the punch on and off!
-@kbd{C-s}と@kbd{C-q}で引き起こされる問題を解消するのに
-気が進まないのは、@kbd{C-s}と@kbd{C-q}であることに理由がないからです。
-文字ストリームに透過な別の（実用上一般的ではないが）
-フロー制御技術があります。
-さらに、それらをフロー制御に使うのは正式な規格ではありません。
-興味深いことですが、（1970年ころの）紙テープパンチャ付きの
-テレタイプモデル33では、計算機からパンチャをオン／オフするために
-@kbd{C-s}と@kbd{C-q}を送っていました！
-
-@c   As window systems and PC terminal emulators replace character-only
-@c terminals, the flow control problem is gradually disappearing.  For the
-@c mean time, Emacs provides a convenient way of enabling flow control if
-@c you want it: call the function @code{enable-flow-control}.
-ウィンドウシステムやPC端末エミュレータが文字端末を置き換えるようになり
-フロー制御の問題は徐々に解消しつつあります。
-しばらくは、読者が望むならEmacsはフロー制御を
-オンにする手軽な方法を提供します。
-関数@code{enable-flow-control}を呼び出すのです。
-
-@c @deffn Command enable-flow-control
-@deffn コマンド enable-flow-control
-@c This function enables use of @kbd{C-s} and @kbd{C-q} for output flow
-@c control, and provides the characters @kbd{C-\} and @kbd{C-^} as aliases
-@c for them using @code{keyboard-translate-table} (@pxref{Translating Input}).
-この関数は、出力のフロー制御に@kbd{C-s}と@kbd{C-q}を
-使うようにするとともに、@code{keyboard-translate-table}
-（@pxref{Translating Input}）を用いて
-@kbd{C-\}と@kbd{C-^}をそれらのかわりに使えるようにする。
-@end deffn
-
-@c You can use the function @code{enable-flow-control-on} in your
-@c @file{.emacs} file to enable flow control automatically on certain
-@c terminal types.
-読者のファイル@file{.emacs}で関数@code{enable-flow-control-on}を使えば、
-特定の種類の端末で自動的にフロー制御をオンにできます。
-
-@defun enable-flow-control-on &rest termtypes
-@c This function enables flow control, and the aliases @kbd{C-\} and @kbd{C-^},
-@c if the terminal type is one of @var{termtypes}.  For example:
-この関数は、端末の種類が@var{termtypes}の1つであると、
-フロー制御をオンにし@kbd{C-\}と@kbd{C-^}をかわりに使う。
-たとえば、つぎのように使う。
-
-@smallexample
-(enable-flow-control-on "vt200" "vt300" "vt101" "vt131")
-@end smallexample
-@end defun
-
-@c   Here is how @code{enable-flow-control} does its job:
-@code{enable-flow-control}が行う処理はつぎのとおりです。
-
-@enumerate
-@item
-@cindex @sc{cbreak}
-@c It sets @sc{cbreak} mode for terminal input, and tells the operating
-@c system to handle flow control, with @code{(set-input-mode nil t)}.
-@code{(set-input-mode nil t)}で
-端末入力を@sc{cbreak}モードに設定し、
-オペレーティングシステムにフロー制御を行うように指示する。
-
-@item
-@c It sets up @code{keyboard-translate-table} to translate @kbd{C-\} and
-@c @kbd{C-^} into @kbd{C-s} and @kbd{C-q}.  Except at its very
-@c lowest level, Emacs never knows that the characters typed were anything
-@c but @kbd{C-s} and @kbd{C-q}, so you can in effect type them as @kbd{C-\}
-@c and @kbd{C-^} even when they are input for other commands.
-@c @xref{Translating Input}.
-@kbd{C-\}と@kbd{C-^}を@kbd{C-s}と@kbd{C-q}に変換するように
-@code{keyboard-translate-table}を設定する。
-非常に下位レベルであることを除けば、
-Emacsは@kbd{C-s}や@kbd{C-q}を打ったと考えるので、
-たとえ他のコマンドに対しても@kbd{C-\}や@kbd{C-^}を打ったとしても
-実質的には@kbd{C-s}や@kbd{C-q}を打ったことになる。
-@pxref{Translating Input}。
-@end enumerate
-
-@c If the terminal is the source of the flow control characters, then once
-@c you enable kernel flow control handling, you probably can make do with
-@c less padding than normal for that terminal.  You can reduce the amount
-@c of padding by customizing the Termcap entry.  You can also reduce it by
-@c setting @code{baud-rate} to a smaller value so that Emacs uses a smaller
-@c speed when calculating the padding needed.  @xref{Terminal Output}.
-端末側がフロー制御文字を発行するのであれば、
-カーネルのフロー制御処理をオンにすれば、
-その端末に対する普通のパディングより少なくしても動作するはずです。
-termcapの定義をカスタマイズしてパディング量を減らします。
-あるいは、@code{baud-rate}に小さめの値を設定すると、
-パディングの必要量の計算にEmacsは低い速度を使います。
-@xref{Terminal Output}。
+@defvar x-alt-keysym
+@defvarx x-meta-keysym
+@defvarx x-hyper-keysym
+@defvarx x-super-keysym
+The name of the keysym that should stand for the Alt modifier
+(respectively, for Meta, Hyper, and Super).  For example, here is
+how to swap the Meta and Alt modifiers within Emacs:
+@lisp
+(setq x-alt-keysym 'meta)
+(setq x-meta-keysym 'alt)
+@end lisp
+@end defvar
 
 @node Batch Mode
-@c @section Batch Mode
 @section バッチモード
-@c @cindex batch mode
-@c @cindex noninteractive use
 @cindex バッチモード
-@cindex 非対話的使用
 
-@c   The command line option @samp{-batch} causes Emacs to run
-@c noninteractively.  In this mode, Emacs does not read commands from the
-@c terminal, it does not alter the terminal modes, and it does not expect
-@c to be outputting to an erasable screen.  The idea is that you specify
-@c Lisp programs to run; when they are finished, Emacs should exit.  The
-@c way to specify the programs to run is with @samp{-l @var{file}}, which
-@c loads the library named @var{file}, and @samp{-f @var{function}}, which
-@c calls @var{function} with no arguments.
-コマンド行オプション@samp{-batch}は、
-Emacsを非対話的に実行します。
-このモードでは、Emacsは端末からコマンドを読まず、
-端末のモードを変更せず、スクリーンに出力もしません。
-これは、実行するLispプログラムを指定できるようにするためです。
-それが終るとEmacsも終了します。
-実行すべきプログラムは、
-@var{file}という名前のライブラリをロードする@samp{-l @var{file}}、
-および、
-引数なしで関数@var{function}を呼び出す@samp{-f @var{function}}で
-指定します。
+コマンド行オプション@samp{-batch}は、Emacsを非対話的に実行させる。このモー
+ドでは、Emacsは端末からコマンドを読まず、端末のモードを変更せず、スクリー
+ンに出力もしない。これは、実行するLispプログラムを指定できるようにする
+ためであり、それが終るとEmacsも終了する。実行すべきプログラムは、
+@var{file}という名前のライブラリをロードする@samp{-l @var{file}}、および、
+引数なしで関数@var{function}を呼び出す@samp{-f @var{function}}で指定するか、
+または@samp{--eval @var{form}}で指定する。
 
-@c   Any Lisp program output that would normally go to the echo area,
-@c either using @code{message} or using @code{prin1}, etc., with @code{t}
-@c as the stream, goes instead to Emacs's standard error descriptor when
-@c in batch mode.  Thus, Emacs behaves much like a noninteractive
-@c application program.  (The echo area output that Emacs itself normally
-@c generates, such as command echoing, is suppressed entirely.)
-バッチモードでは、ストリームとして@code{t}を指定した
-@code{message}や@code{prin1}などでエコー領域に
-表示されるLispプログラムの出力は、
-Emacsの標準エラー記述子へ出力されます。
-したがって、Emacsは非対話的な
-アプリケーションプログラムのようにふるまいます。
-（コマンドの表示などのEmacs自身がエコー領域に出力するものは
-完全に抑制される。）
+バッチモードでは、ストリームとして@code{t}を指定した@code{message}や
+@code{prin1}など、本来はエコー領域に表示されるLispプログラムの出力は、
+Emacsの標準エラー記述子へ出力される。
+すなわち、Emacsは非対話的なアプリケーションプログラムのように振る舞う。
+（コマンドの表示などのEmacs自身がエコー領域に出力するものは完全に抑制される。）
 
 @defvar noninteractive
-@c This variable is non-@code{nil} when Emacs is running in batch mode.
 この変数は、Emacsがバッチモードで動作していると@code{nil}以外である。
+@end defvar
+
+@node Session Management
+@section Session Management
+@cindex session manager
+
+Emacs supports the X Session Management Protocol, which is used to
+suspend and restart applications.  In the X Window System, a program
+called the @dfn{session manager} is responsible for keeping track of
+the applications that are running.  When the X server shuts down, the
+session manager asks applications to save their state, and delays the
+actual shutdown until they respond.  An application can also cancel
+the shutdown.
+
+When the session manager restarts a suspended session, it directs
+these applications to individually reload their saved state.  It does
+this by specifying a special command-line argument that says what
+saved session to restore.  For Emacs, this argument is @samp{--smid
+@var{session}}.
+
+@defvar emacs-save-session-functions
+@cindex session file
+Emacs supports saving state via a hook called
+@code{emacs-save-session-functions}.  Emacs runs this hook when the
+session manager tells it that the window system is shutting down.  The
+functions are called with no arguments, and with the current buffer
+set to a temporary buffer.  Each function can use @code{insert} to add
+Lisp code to this buffer.  At the end, Emacs saves the buffer in a
+file, called the @dfn{session file}.
+
+@findex emacs-session-restore
+Subsequently, when the session manager restarts Emacs, it loads the
+session file automatically (@pxref{Loading}).  This is performed by a
+function named @code{emacs-session-restore}, which is called during
+startup.  @xref{Startup Summary}.
+
+If a function in @code{emacs-save-session-functions} returns
+non-@code{nil}, Emacs tells the session manager to cancel the
+shutdown.
+@end defvar
+
+Here is an example that just inserts some text into @file{*scratch*} when
+Emacs is restarted by the session manager.
+
+@example
+@group
+(add-hook 'emacs-save-session-functions 'save-yourself-test)
+@end group
+
+@group
+(defun save-yourself-test ()
+  (insert "(save-current-buffer
+  (switch-to-buffer \"*scratch*\")
+  (insert \"I am restored\"))")
+  nil)
+@end group
+@end example
+
+@node Desktop Notifications
+@section Desktop Notifications
+@cindex desktop notifications
+@cindex notifications, on desktop
+
+Emacs is able to send @dfn{notifications} on systems that support the
+freedesktop.org Desktop Notifications Specification.  In order to use
+this functionality, Emacs must have been compiled with D-Bus support,
+and the @code{notifications} library must be loaded.  @xref{Top, ,
+D-Bus,dbus,D-Bus integration in Emacs}.
+
+@defun notifications-notify &rest params
+This function sends a notification to the desktop via D-Bus,
+consisting of the parameters specified by the @var{params} arguments.
+These arguments should consist of alternating keyword and value pairs.
+The supported keywords and values are as follows:
+
+@table @code
+@item :bus @var{bus}
+The D-Bus bus.  This argument is needed only if a bus other than
+@code{:session} shall be used.
+
+@item :title @var{title}
+The notification title.
+
+@item :body @var{text}
+The notification body text.  Depending on the implementation of the
+notification server, the text could contain HTML markups, like
+@samp{"<b>bold text</b>"}, hyperlinks, or images.  Special HTML
+characters must be encoded, as @samp{"Contact
+&lt;postmaster@@localhost&gt;!"}.
+
+@item :app-name @var{name}
+The name of the application sending the notification.  The default is
+@code{notifications-application-name}.
+
+@item :replaces-id @var{id}
+The notification @var{id} that this notification replaces.  @var{id}
+must be the result of a previous @code{notifications-notify} call.
+
+@item :app-icon @var{icon-file}
+The file name of the notification icon.  If set to @code{nil}, no icon
+is displayed.  The default is @code{notifications-application-icon}.
+
+@item :actions (@var{key} @var{title} @var{key} @var{title} ...)
+A list of actions to be applied.  @var{key} and @var{title} are both
+strings.  The default action (usually invoked by clicking the
+notification) should have a key named @samp{"default"}.  The title can
+be anything, though implementations are free not to display it.
+
+@item :timeout @var{timeout}
+The timeout time in milliseconds since the display of the notification
+at which the notification should automatically close.  If @minus{}1, the
+notification's expiration time is dependent on the notification
+server's settings, and may vary for the type of notification.  If 0,
+the notification never expires.  Default value is @minus{}1.
+
+@item :urgency @var{urgency}
+The urgency level.  It can be @code{low}, @code{normal}, or @code{critical}.
+
+@item :action-items
+When this keyword is given, the @var{title} string of the actions is
+interpreted as icon name.
+
+@item :category @var{category}
+The type of notification this is, a string.  See the
+@uref{http://developer.gnome.org/notification-spec/#categories,
+Desktop Notifications Specification} for a list of standard
+categories.
+
+@item :desktop-entry @var{filename}
+This specifies the name of the desktop filename representing the
+calling program, like @samp{"emacs"}.
+
+@item :image-data (@var{width} @var{height} @var{rowstride} @var{has-alpha} @var{bits} @var{channels} @var{data})
+This is a raw data image format that describes the width, height,
+rowstride, whether there is an alpha channel, bits per sample,
+channels and image data, respectively.
+
+@item :image-path @var{path}
+This is represented either as a URI (@samp{file://} is the only URI
+schema supported right now) or a name in a freedesktop.org-compliant
+icon theme from @samp{$XDG_DATA_DIRS/icons}.
+
+@item :sound-file @var{filename}
+The path to a sound file to play when the notification pops up.
+
+@item :sound-name @var{name}
+A themable named sound from the freedesktop.org sound naming
+specification from @samp{$XDG_DATA_DIRS/sounds}, to play when the
+notification pops up.  Similar to the icon name, only for sounds.  An
+example would be @samp{"message-new-instant"}.
+
+@item :suppress-sound
+Causes the server to suppress playing any sounds, if it has that
+ability.
+
+@item :resident
+When set the server will not automatically remove the notification
+when an action has been invoked.  The notification will remain resident
+in the server until it is explicitly removed by the user or by the
+sender.  This hint is likely only useful when the server has the
+@code{:persistence} capability.
+
+@item :transient
+When set the server will treat the notification as transient and
+by-pass the server's persistence capability, if it should exist.
+
+@item :x @var{position}
+@itemx :y @var{position}
+Specifies the X, Y location on the screen that the
+notification should point to.  Both arguments must be used together.
+
+@item :on-action @var{function}
+Function to call when an action is invoked.  The notification @var{id}
+and the @var{key} of the action are passed as arguments to the
+function.
+
+@item :on-close @var{function}
+Function to call when the notification has been closed by timeout or
+by the user.  The function receive the notification @var{id} and the closing
+@var{reason} as arguments:
+
+@itemize
+@item @code{expired} if the notification has expired
+@item @code{dismissed} if the notification was dismissed by the user
+@item @code{close-notification} if the notification was closed by a call to
+@code{notifications-close-notification}
+@item @code{undefined} if the notification server hasn't provided a reason
+@end itemize
+@end table
+
+Which parameters are accepted by the notification server can be
+checked via @code{notifications-get-capabilities}.
+
+This function returns a notification id, an integer, which can be used
+to manipulate the notification item with
+@code{notifications-close-notification} or the @code{:replaces-id}
+argument of another @code{notifications-notify} call.  For example:
+
+@example
+@group
+(defun my-on-action-function (id key)
+  (message "Message %d, key \"%s\" pressed" id key))
+     @result{} my-on-action-function
+@end group
+
+@group
+(defun my-on-close-function (id reason)
+  (message "Message %d, closed due to \"%s\"" id reason))
+     @result{} my-on-close-function
+@end group
+
+@group
+(notifications-notify
+ :title "Title"
+ :body "This is <b>important</b>."
+ :actions '("Confirm" "I agree" "Refuse" "I disagree")
+ :on-action 'my-on-action-function
+ :on-close 'my-on-close-function)
+     @result{} 22
+@end group
+
+@group
+A message window opens on the desktop.  Press "I agree"
+     @result{} Message 22, key "Confirm" pressed
+        Message 22, closed due to "dismissed"
+@end group
+@end example
+@end defun
+
+@defun notifications-close-notification id &optional bus
+This function closes a notification with identifier @var{id}.
+@var{bus} can be a string denoting a D-Bus connection, the default is
+@code{:session}.
+@end defun
+
+@defun notifications-get-capabilities &optional bus
+Returns the capabilities of the notification server, a list of
+symbols.  @var{bus} can be a string denoting a D-Bus connection, the
+default is @code{:session}.  The following capabilities can be
+expected:
+
+@table @code
+@item :actions
+The server will provide the specified actions to the user.
+
+@item :body
+Supports body text.
+
+@item :body-hyperlinks
+The server supports hyperlinks in the notifications.
+
+@item :body-images
+The server supports images in the notifications.
+
+@item :body-markup
+Supports markup in the body text.
+
+@item :icon-multi
+The server will render an animation of all the frames in a given image
+array.
+
+@item :icon-static
+Supports display of exactly 1 frame of any given image array.  This
+value is mutually exclusive with @code{:icon-multi}.
+
+@item :persistence
+The server supports persistence of notifications.
+
+@item :sound
+The server supports sounds on notifications.
+@end table
+
+Further vendor-specific caps start with @code{:x-vendor}, like
+@code{:x-gnome-foo-cap}.
+@end defun
+
+@defun notifications-get-server-information &optional bus
+Return information on the notification server, a list of strings.
+@var{bus} can be a string denoting a D-Bus connection, the default is
+@code{:session}.  The returned list is @code{(@var{name} @var{vendor}
+@var{version} @var{spec-version})}.
+
+@table @var
+@item name
+The product name of the server.
+
+@item vendor
+The vendor name.  For example, @samp{"KDE"}, @samp{"GNOME"}.
+
+@item version
+The server's version number.
+
+@item spec-version
+The specification version the server is compliant with.
+@end table
+
+If @var{spec_version} is @code{nil}, the server supports a
+specification prior to @samp{"1.0"}.
+@end defun
+
+@node File Notifications
+@section Notifications on File Changes
+@cindex file notifications
+@cindex watch, for filesystem events
+
+Several operating systems support watching of filesystems for changes
+of files.  If configured properly, Emacs links a respective library
+like @file{gfilenotify}, @file{inotify}, or  @file{w32notify}
+statically.  These libraries enable watching of filesystems on the
+local machine.
+
+It is also possible to watch filesystems on remote machines,
+@pxref{Remote Files,, Remote Files, emacs, The GNU Emacs Manual}
+This does not depend on one of the libraries linked to Emacs.
+
+Since all these libraries emit different events on notified file
+changes, there is the Emacs library @code{filenotify} which provides a
+unique interface.
+
+@defun file-notify-add-watch file flags callback
+Add a watch for filesystem events pertaining to @var{file}.  This
+arranges for filesystem events pertaining to @var{file} to be reported
+to Emacs.
+
+The returned value is a descriptor for the added watch.  Its type
+depends on the underlying library, it cannot be assumed to be an
+integer as in the example below.  It should be used for comparison by
+@code{equal} only.
+
+If the @var{file} cannot be watched for some reason, this function
+signals a @code{file-notify-error} error.
+
+Sometimes, mounted filesystems cannot be watched for file changes.
+This is not detected by this function, a non-@code{nil} return value
+does not guarantee that changes on @var{file} will be notified.
+
+@var{flags} is a list of conditions to set what will be watched for.
+It can include the following symbols:
+
+@table @code
+@item change
+watch for file changes
+@item attribute-change
+watch for file attribute changes, like permissions or modification
+time
+@end table
+
+If @var{file} is a directory, changes for all files in that directory
+will be notified.  This does not work recursively.
+
+When any event happens, Emacs will call the @var{callback} function
+passing it a single argument @var{event}, which is of the form
+
+@lisp
+(@var{descriptor} @var{action} @var{file} [@var{file1}])
+@end lisp
+
+@var{descriptor} is the same object as the one returned by this
+function.  @var{action} is the description of the event.  It could be
+any one of the following symbols:
+
+@table @code
+@item created
+@var{file} was created
+@item deleted
+@var{file} was deleted
+@item changed
+@var{file} has changed
+@item renamed
+@var{file} has been renamed to @var{file1}
+@item attribute-changed
+a @var{file} attribute was changed
+@end table
+
+@var{file} and @var{file1} are the name of the file(s) whose event is
+being reported.  For example:
+
+@example
+@group
+(require 'filenotify)
+     @result{} filenotify
+@end group
+
+@group
+(defun my-notify-callback (event)
+  (message "Event %S" event))
+     @result{} my-notify-callback
+@end group
+
+@group
+(file-notify-add-watch
+  "/tmp" '(change attribute-change) 'my-notify-callback)
+     @result{} 35025468
+@end group
+
+@group
+(write-region "foo" nil "/tmp/foo")
+     @result{} Event (35025468 created "/tmp/.#foo")
+        Event (35025468 created "/tmp/foo")
+        Event (35025468 changed "/tmp/foo")
+        Event (35025468 deleted "/tmp/.#foo")
+@end group
+
+@group
+(write-region "bla" nil "/tmp/foo")
+     @result{} Event (35025468 created "/tmp/.#foo")
+        Event (35025468 changed "/tmp/foo") [2 times]
+        Event (35025468 deleted "/tmp/.#foo")
+@end group
+
+@group
+(set-file-modes "/tmp/foo" (default-file-modes))
+     @result{} Event (35025468 attribute-changed "/tmp/foo")
+@end group
+@end example
+
+Whether the action @code{renamed} is returned, depends on the used
+watch library.  It can be expected, when a directory is watched, and
+both @var{file} and @var{file1} belong to this directory.  Otherwise,
+the actions @code{deleted} and @code{created} could be returned in a
+random order.
+
+@example
+@group
+(rename-file "/tmp/foo" "/tmp/bla")
+     @result{} Event (35025468 renamed "/tmp/foo" "/tmp/bla")
+@end group
+
+@group
+(file-notify-add-watch
+  "/var/tmp" '(change attribute-change) 'my-notify-callback)
+     @result{} 35025504
+@end group
+
+@group
+(rename-file "/tmp/bla" "/var/tmp/bla")
+     @result{} ;; gfilenotify
+        Event (35025468 renamed "/tmp/bla" "/var/tmp/bla")
+
+     @result{} ;; inotify
+        Event (35025504 created "/var/tmp/bla")
+        Event (35025468 deleted "/tmp/bla")
+@end group
+@end example
+@end defun
+
+@defun file-notify-rm-watch descriptor
+Removes an existing file watch specified by its @var{descriptor}.
+@var{descriptor} should be an object returned by
+@code{file-notify-add-watch}.
+@end defun
+
+@node Dynamic Libraries
+@section Dynamically Loaded Libraries
+@cindex dynamic libraries
+
+  A @dfn{dynamically loaded library} is a library that is loaded on
+demand, when its facilities are first needed.  Emacs supports such
+on-demand loading of support libraries for some of its features.
+
+@defvar dynamic-library-alist
+This is an alist of dynamic libraries and external library files
+implementing them.
+
+Each element is a list of the form
+@w{@code{(@var{library} @var{files}@dots{})}}, where the @code{car} is
+a symbol representing a supported external library, and the rest are
+strings giving alternate filenames for that library.
+
+Emacs tries to load the library from the files in the order they
+appear in the list; if none is found, the Emacs session won't have
+access to that library, and the features it provides will be
+unavailable.
+
+Image support on some platforms uses this facility.  Here's an example
+of setting this variable for supporting images on MS-Windows:
+
+@example
+(setq dynamic-library-alist
+      '((xpm "libxpm.dll" "xpm4.dll" "libXpm-nox4.dll")
+        (png "libpng12d.dll" "libpng12.dll" "libpng.dll"
+             "libpng13d.dll" "libpng13.dll")
+        (jpeg "jpeg62.dll" "libjpeg.dll" "jpeg-62.dll"
+              "jpeg.dll")
+        (tiff "libtiff3.dll" "libtiff.dll")
+        (gif "giflib4.dll" "libungif4.dll" "libungif.dll")
+        (svg "librsvg-2-2.dll")
+        (gdk-pixbuf "libgdk_pixbuf-2.0-0.dll")
+        (glib "libglib-2.0-0.dll")
+	(gobject "libgobject-2.0-0.dll")))
+@end example
+
+Note that image types @code{pbm} and @code{xbm} do not need entries in
+this variable because they do not depend on external libraries and are
+always available in Emacs.
+
+Also note that this variable is not meant to be a generic facility for
+accessing external libraries; only those already known by Emacs can
+be loaded through it.
+
+This variable is ignored if the given @var{library} is statically
+linked into Emacs.
 @end defvar
