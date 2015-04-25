@@ -261,8 +261,11 @@ messages in the echo area.
 文字列はまた@file{*Messages*}バッファにも追加されるが、
 テキストプロパティは除去される（@pxref{Logging Messages}）。
 
-バッチモードでは、@code{message}はメッセージテキストと改行を
-標準エラーストリームへ出力する。
+バッチモードでは、メッセージは改行と共に
+標準エラーストリームへ出力される。
+
+When @code{inhibit-message} is non-@code{nil}, no message will be displayed
+in the echo area, it will only be logged to @samp{*Messages*}.
 
 @var{format-string}が@code{nil}または空文字列ならば、
 @code{message}はエコー領域をクリアする。
@@ -289,6 +292,11 @@ To automatically display a message in the echo area or in a pop-buffer,
 depending on its size, use @code{display-message-or-buffer} (see below).
 @end defun
 
+@defvar inhibit-message
+When this variable is non-@code{nil}, @code{message} and related functions
+will not use the Echo Area to display messages.
+@end defvar
+
 @defmac with-temp-message message &rest body
 This construct displays a message in the echo area temporarily, during
 the execution of @var{body}.  It displays @var{message}, executes
@@ -305,7 +313,7 @@ the previous echo area contents.
 メッセージを表示するために対話ボックスかポップアップメニューを用いる。
 さもなければエコー領域を用いる。
 （これは、同様な決定をくだす@code{y-or-n-p}の判定条件と同じである。
-@pxref{Yes-or-No Queries}。）
+@ref{Yes-or-No Queries}参照。）
 
 呼び出しの周りで@code{last-nonmenu-event}に適切な値を束縛することで、
 マウスを使うかエコー領域を使うか強制できる。
@@ -869,7 +877,7 @@ to set @code{buffer-invisibility-spec} yourself.
 そのリストのメンバに@var{atom}があると、
 文字を不可視にする。比較は@code{eq}で行われる。
 さらに、その文字が行末にあり、直後に目に見える改行がある場合には、
-@samp{@dots{}}を表示する。
+省略符号を表示する。
 @end table
 @end table
 @end defvar
@@ -964,7 +972,7 @@ to a non-@code{nil} value.  @xref{Adjusting Point}.
 オーバレイにまたがっているときに使われます。
 
 探索中には、そのようなオーバレイは、
-それらの属性@code{invisible}と@code{intangible}を一時的に変更することで
+それらの不可視・不可触属性を一時的に変更することで
 一時的に可視にされます。
 特定のオーバレイに対して異なる扱いをしたければ、
 属性@code{isearch-open-invisible-temporary}に関数を与えておきます。
@@ -1105,12 +1113,12 @@ editing.  Many help commands use this feature.
 
 @defmac with-output-to-temp-buffer buffer-name body@dots{}
 この関数は、@var{buffer-name}という名前のバッファに
-@var{body}の任意の出力が挿入されるように準備して
-@var{forms}を実行する。
+本体@var{body}の任意の出力が挿入されるように準備したあとで
+本体を実行する。
 このバッファは必要に応じて最初に生成され、Helpモードに設定される。
 （後述の類似関数@code{with-temp-buffer-window}を参照。）
 最後に、適当なウィンドウに表示されるが、
-そのバッファは選択されない。
+そのウィンドウは選択されない。
 
 If the forms in @var{body} do not change the major mode in the output
 buffer, so that it is still Help mode at the end of their execution,
@@ -1343,6 +1351,7 @@ Type RET when done reading
 これらの属性は、オーバレイの内側のテキストの表示に影響します。
 
 @cindex scalability of overlays
+@cindex overlays, scalability
 The visual effect of an overlay is the same as of the corresponding
 text property (@pxref{Text Properties}).  However, due to a different
 implementation, overlays generally don't scale well (many operations
@@ -1384,6 +1393,15 @@ This function returns @code{t} if @var{object} is an overlay.
 @var{start}と@var{end}のどちらもバッファ内位置を指定する
 整数かマーカであること。
 @var{buffer}を省略すると、カレントバッファにオーバレイを作成する。
+
+@cindex empty overlay
+@cindex overlay, empty
+An overlay whose @var{start} and @var{end} specify the same buffer
+position is known as @dfn{empty}.  A non-empty overlay can become
+empty if the text between its @var{start} and @var{end} is deleted.
+When that happens, the overlay is by default not deleted, but you can
+cause it to be deleted by giving it the @samp{evaporate} property
+(@pxref{Overlay Properties, evaporate property}).
 
 引数@var{front-advance}と@var{rear-advance}は、それぞれ
 オーバレイの開始位置と終了位置における挿入型を指定する。
@@ -1767,8 +1785,11 @@ line at display-time.  @xref{Truncation}.
 オーバレイが空に（つまり覆う文字がなく）なると、
 自動的にオーバレイを削除する。
 If you give
-an empty overlay a non-@code{nil} @code{evaporate} property, that deletes
-it immediately.
+an empty overlay (@pxref{Managing Overlays, empty overlay}) a
+non-@code{nil} @code{evaporate} property, that deletes it immediately.
+Note that, unless an overlay has this property, it will not be deleted
+when the text between its starting and ending positions is deleted
+from the buffer.
 
 @item keymap
 @cindex keymap of character (and overlays)
@@ -1829,7 +1850,8 @@ overlays that specify property @var{prop} for the character at point:
 『重なり合っている』とは、
 少なくとも1文字がオーバレイに覆われていて、かつ、
 その文字が指定された領域に入っていることを意味する。
-しかし、空のオーバレイであっても
+しかし、空のオーバレイ（@pxref{Managing Overlays,
+empty overlay}）であっても
 それが@var{beg}にあるか、または@var{beg}と@var{end}の間にあるか、
 または@var{end}がバッファの最後を示すときの@var{end}にある場合は、
 結果に含まれる。
@@ -2459,7 +2481,6 @@ elements can override any or all of these defaults.
 
 @item background
 背景の種類であり、@code{light}か@code{dark}のいずれかである。
-@end table
 
 @item min-colors
 An integer that represents the minimum number of colors the terminal
@@ -3024,14 +3045,10 @@ Font Lock mode, or if some Font Lock faces are not in use.
 
 @table @code
 @item default
-The default face, whose attributes are all specified.  All other faces
+属性が全て指定されたデフォルトのフェイスを使う。
+All other faces
 implicitly inherit from it: any unspecified attribute defaults to the
 attribute on this face (@pxref{Face Attributes}).
-デフォルトを使う。
-各フレームには@dfn{デフォルトのフェイス}があり、
-他のフェイスを指定していないすべてのテキストに使用される。
-（Emacsの将来の版では、
-すべてのテキスト向けのデフォルトに変更するかもしれない。）
 
 @item bold
 @itemx italic
@@ -3184,24 +3201,24 @@ nominal heights and widths would suggest.
 @cindex looking up fonts
 
 @defun x-list-fonts name &optional reference-face frame maximum width
-This function returns a list of available font names that match
-@var{name}.  @var{name} should be a string containing a font name in
+この関数は、@var{name}に一致する
+利用可能なフォント名のリストを返す。
+@var{name} should be a string containing a font name in
 either the Fontconfig, GTK, or XLFD format (@pxref{Fonts,,, emacs, The
-GNU Emacs Manual}).  Within an XLFD string, wildcard characters may be
-used: the @samp{*} character matches any substring, and the @samp{?}
-character matches any single character.  Case is ignored when matching
-font names.
+GNU Emacs Manual}).  
+XLFD文字列中では、ワイルドカード文字を含んでいてもよい。
+@samp{*}は任意の部分文字列に一致し、@samp{?}は任意の1文字に一致する。
+フォント名とパターンの一致を取る際には、大文字小文字を区別しない。
 
-If the optional arguments @var{reference-face} and @var{frame} are
-specified, the returned list includes only fonts that are the same
-size as @var{reference-face} (a face name) currently is on the frame
-@var{frame}.
+省略可能な引数@var{reference-face}と@var{frame}を指定すると、
+@var{frame}上にある@var{reference-face}（フェイス名）と同じサイズのフォントに
+リストを制限する。
 
-The optional argument @var{maximum} sets a limit on how many fonts to
-return.  If it is non-@code{nil}, then the return value is truncated
-after the first @var{maximum} matching fonts.  Specifying a small
-value for @var{maximum} can make this function much faster, in cases
-where many fonts match the pattern.
+省略可能な引数@var{maximum}は、返すフォントの個数を制限する。
+これが@code{nil}以外であると、戻り値は最初の@var{maximum}個の
+一致したフォントに切り詰める。
+@var{maximum}に小さな値を指定すると、
+多くのフォントに一致する場合ではこの関数の動作がだいぶ速くなる。
 
 The optional argument @var{width} specifies a desired font width.  If
 it is non-@code{nil}, the function only returns those fonts whose
@@ -3241,64 +3258,71 @@ encoding of the font.
 @subsection Fontsets
 @cindex fontset
 
-  A @dfn{fontset} is a list of fonts, each assigned to a range of
-character codes.  An individual font cannot display the whole range of
-characters that Emacs supports, but a fontset can.  Fontsets have names,
-just as fonts do, and you can use a fontset name in place of a font name
-when you specify the ``font'' for a frame or a face.  Here is
-information about defining a fontset under Lisp program control.
+@dfn{フォントセット}（fontset）は、フォントのリストであって、
+各フォントが文字コードのある範囲に割り付けられています。
+個々のフォントだけでは、Emacsが扱う文字集合の範囲全体を表示できませんが、
+フォントセットならば可能です。
+フォントセットにはフォントと同様に名前があり、
+フレームやフェイス向けに『フォント』を指定するときの
+フォント名のかわりにフォントセット名を使えます。
+ここでは、Lispプログラムの制御のもとにフォントセットを定義することに
+関する情報を述べます。
 
 @defun create-fontset-from-fontset-spec fontset-spec &optional style-variant-p noerror
-This function defines a new fontset according to the specification
-string @var{fontset-spec}.  The string should have this format:
+この関数は、指定文字列@var{fontset-spec}に従って
+新たなフォントセットを定義する。
+文字列はつぎの形であること。
 
 @smallexample
 @var{fontpattern}, @r{[}@var{charset}:@var{font}@r{]@dots{}}
 @end smallexample
 
 @noindent
-Whitespace characters before and after the commas are ignored.
+コンマの前後の白文字は無視される。
 
-The first part of the string, @var{fontpattern}, should have the form of
-a standard X font name, except that the last two fields should be
-@samp{fontset-@var{alias}}.
+文字列の始めの部分@var{fontpattern}は、
+（最後の2つのフィールドが@samp{fontset-@var{alias}}であることを除いて）、
+Xの標準フォント名であること。
 
-The new fontset has two names, one long and one short.  The long name is
-@var{fontpattern} in its entirety.  The short name is
-@samp{fontset-@var{alias}}.  You can refer to the fontset by either
-name.  If a fontset with the same name already exists, an error is
-signaled, unless @var{noerror} is non-@code{nil}, in which case this
-function does nothing.
+新たなフォントセットには2つの名前、つまり、長い名前と短い名前がある。
+長い名前は@var{fontpattern}そのものである。
+短い名前は@samp{fontset-@var{alias}}である。
+どちらの名前でもフォントセットを参照できる。
+同じ名前のフォントセットがすでに存在する場合、
+@var{noerror}が@code{nil}であるとエラーを通知し、
+この関数はなにもしない。
 
-If optional argument @var{style-variant-p} is non-@code{nil}, that says
-to create bold, italic and bold-italic variants of the fontset as well.
-These variant fontsets do not have a short name, only a long one, which
-is made by altering @var{fontpattern} to indicate the bold and/or italic
-status.
+省略可能な引数@var{style-variant-p}が@code{nil}以外であると、
+フォントセットのbold（太字）、italic（斜体）、bold-italic（太字斜体）の
+各変種も作成することを指示する。
+これらの変種のフォントセットには短い名前はなく、
+@var{fontpattern}のboldやitalicを変更して作った長い名前だけである。
 
-The specification string also says which fonts to use in the fontset.
-See below for the details.
+指定文字列ではフォントセットで使うフォントも指定する。
+詳しくは下記参照。
 @end defun
 
-  The construct @samp{@var{charset}:@var{font}} specifies which font to
-use (in this fontset) for one particular character set.  Here,
-@var{charset} is the name of a character set, and @var{font} is the font
-to use for that character set.  You can use this construct any number of
-times in the specification string.
+@samp{@var{charset}:@var{font}}という構成は、
+特定の1つの文字集合向けに（このフォントセットで）使うフォントを指定します。
+ここで、@var{charset}は文字集合の名前であり、
+@var{font}はその文字集合に使うフォントです。
+この構成は、指定文字列で何回でも使えます。
 
-  For the remaining character sets, those that you don't specify
-explicitly, Emacs chooses a font based on @var{fontpattern}: it replaces
-@samp{fontset-@var{alias}} with a value that names one character set.
-For the @acronym{ASCII} character set, @samp{fontset-@var{alias}} is replaced
-with @samp{ISO8859-1}.
+明示してない残りの文字集合向けには、
+@var{fontpattern}に基づいてEmacsがフォントを選びます。
+つまり、@samp{fontset-@var{alias}}を1つの文字集合を指名する値で置き換えます。
+@acronym{ASCII}文字集合向けには、
+@samp{fontset-@var{alias}}を@samp{ISO8859-1}で置き換えます。
 
-  In addition, when several consecutive fields are wildcards, Emacs
-collapses them into a single wildcard.  This is to prevent use of
-auto-scaled fonts.  Fonts made by scaling larger fonts are not usable
-for editing, and scaling a smaller font is not useful because it is
-better to use the smaller font in its own size, which Emacs does.
+これに加えて、いくつか連続したフィールドがワイルドカードであるなら、
+Emacsはそれらを1つのワイルドカードにまとめます。
+これは、自動的に拡大縮小したフォントの使用を避けるためです。
+大きめのフォントを縮小したフォントは編集には使えません。
+また、小さめのフォントを拡大したフォントも有用ではありません。
+というのは、Emacsがそうするように、
+もともと小さなフォントを使うほうがよいからです。
 
-  Thus if @var{fontpattern} is this,
+したがって、@var{fontpattern}がつぎのようであると、
 
 @example
 -*-fixed-medium-r-normal-*-24-*-*-*-*-*-fontset-24
@@ -3306,22 +3330,23 @@ better to use the smaller font in its own size, which Emacs does.
 
 @noindent
 the font specification for @acronym{ASCII} characters would be this:
+ASCII文字に対するフォント指定はつぎのようになります。
 
 @example
 -*-fixed-medium-r-normal-*-24-*-ISO8859-1
 @end example
 
 @noindent
-and the font specification for Chinese GB2312 characters would be this:
+また、Chinese GB2312文字に対するフォント指定はつぎのようになります。
 
 @example
 -*-fixed-medium-r-normal-*-24-*-gb2312*-*
 @end example
 
-  You may not have any Chinese font matching the above font
-specification.  Most X distributions include only Chinese fonts that
-have @samp{song ti} or @samp{fangsong ti} in the @var{family} field.  In
-such a case, @samp{Fontset-@var{n}} can be specified as below:
+上のフォント指定に一致する中国語フォントがないかもしれません。
+多くのXの配布には、@var{family}フィールドが
+@samp{song ti}か@samp{fangsong ti}の中国語フォントだけが含まれています。
+そういった場合、@samp{Fontset-@var{n}}をつぎのように指定します。
 
 @smallexample
 Emacs.Fontset-0: -*-fixed-medium-r-normal-*-24-*-*-*-*-*-fontset-24,\
@@ -3329,10 +3354,10 @@ Emacs.Fontset-0: -*-fixed-medium-r-normal-*-24-*-*-*-*-*-fontset-24,\
 @end smallexample
 
 @noindent
-Then, the font specifications for all but Chinese GB2312 characters have
-@samp{fixed} in the @var{family} field, and the font specification for
-Chinese GB2312 characters has a wild card @samp{*} in the @var{family}
-field.
+そうすると、Chinese GB2312の文字を除くフォント指定では
+@var{family}フィールドが@samp{fixed}となり、
+Chinese GB2312の文字に対するフォント指定では
+@var{family}フィールドが@samp{*}となります。
 
 @defun set-fontset-font name character font-spec &optional frame add
 This function modifies the existing fontset @var{name} to use the font
@@ -6364,10 +6389,10 @@ ends the preceding line and starts a new line.
 表示できない@dfn{@acronym{ASCII}制御文字}---文字符号0から31と
 @key{DEL}文字（文字符号127）---は、
 @code{ctl-arrow}の値に従って2つの表示方法の一方を使う。
-この変数が@code{nil}以外であると、
+この変数が@code{nil}（デフォルト値）以外であると、
 これらのコードを2つの字形列に対応付け、
-最初の字形は@samp{^}の@sc{ASCII}コードである。
-（表示テーブルで@samp{^}のかわりに使う字形を指定できる。）
+最初の字形は@samp{^}である。
+（表示テーブルで@samp{^}の代わりに使う字形を指定できる。）
 例えば、@key{DEL}文字は@samp{^?}のように表示される。
 
 @code{ctl-arrow}が@code{nil}ならば、これらの文字は８進数エスケープで
@@ -6633,11 +6658,10 @@ Display this glyph literally.
 グリフをそのまま画面に表示する。
 
 @item a string
-Display this glyph by sending the specified string to the terminal.
-この字形を出力するために端末へ@var{string}の文字群を送出する。
+この字形を出力するために端末へ指定された文字列を送出する。
 
 @item a glyph code
-指定されあた字形コードを表示する。
+指定された字形コードを表示する。
 @end table
 
 字形コード（整数）が字形テーブルの長さに等しいか大きいと、
